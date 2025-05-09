@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance & Upbit 15m MA Scanner with Notification</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #log { white-space: pre-wrap; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: scroll; }
+        button { padding: 8px 12px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>15분봉 MA 스캐너 (Upbit & Binance)</h1>
+    <button id="startBtn">스캔 시작</button>
+    <button id="stopBtn" disabled>스캔 중지</button>
+    <div id="log"></div>
+
+    <script>
+        // 권한 요청
+        if ('Notification' in window) {
+            Notification.requestPermission();
+        }
+
+        function notify(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body });
+            } else {
+                alert(`${title}\n${body}`);
+            }
+        }
+
+        let marketsUpbit = [];
+        let symbolsBinance = [];
+        let timerId = null;
+        const logEl = document.getElementById('log');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        function log(message) {
+            const time = new Date().toLocaleTimeString('ko-KR');
+            const text = `[${time}] ${message}`;
+            logEl.textContent += text + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // KRW 마켓 로드
+        async function loadUpbitMarkets() {
+            const res = await fetch('https://api.upbit.com/v1/market/all?isDetails=false');
+            const data = await res.json();
+            marketsUpbit = data.map(i => i.market).filter(m => m.startsWith('KRW-'));
+            log(`Upbit KRW 마켓: ${marketsUpbit.length}개`);
+        }
+        // USDT 선물 심볼 로드
+        async function loadBinanceSymbols() {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+            const data = await res.json();
+            symbolsBinance = data.symbols
+                .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL')
+                .map(s => s.symbol);
+            log(`Binance USDT 선물: ${symbolsBinance.length}개`);
+        }
+
+        // OHLCV fetch
+        async function fetchKlines(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('데이터 로드 실패');
+            const data = await res.json();
+            return Array.isArray(data) ? data.reverse() : data;
+        }
+
+        // MA 계산
+        function calculateMA(arr, p) {
+            return arr.map((_, i, a) => i < p - 1 ? null : a.slice(i-p+1, i+1).reduce((s,v) => s+v,0)/p);
+        }
+
+        // 스캔 로직 공통
+        async function scanList(list, type) {
+            const results = [];
+            for (const item of list) {
+                try {
+                    let klines;
+                    if (type === 'upbit') {
+                        klines = await fetchKlines(`https://api.upbit.com/v1/candles/minutes/15?market=${item}&count=100`);
+                        var closes = klines.map(k => k.trade_price);
+                        var vols = klines.map(k => k.candle_acc_trade_volume);
+                    } else {
+                        klines = await fetchKlines(`https://fapi.binance.com/fapi/v1/klines?symbol=${item}&interval=15m&limit=100`);
+                        var closes = klines.map(k => parseFloat(k[4]));
+                        var vols = klines.map(k => parseFloat(k[5]));
+                    }
+                    const ma7 = calculateMA(closes,7), ma25 = calculateMA(closes,25), ma99 = calculateMA(closes,99);
+                    const len = closes.length;
+                    const latest = { ma7:ma7[len-1], ma25:ma25[len-1], ma99:ma99[len-1], vol:vols[len-1] };
+                    const prev = { ma7:ma7[len-2], ma25:ma25[len-2] };
+                    const avgVol = vols.slice(len-51,len-1).reduce((s,v) => s+v,0)/50;
+                    if (latest.ma7>latest.ma25 && latest.ma25>latest.ma99 && prev.ma7<prev.ma25 && latest.ma7>latest.ma25 && latest.vol>avgVol) {
+                        results.push(item);
+                    }
+                } catch {};
+            }
+            return results;
+        }
+
+        async function scanOnce() {
+            log('스캔 시작 ↻');
+            const upResults = await scanList(marketsUpbit,'upbit');
+            const biResults = await scanList(symbolsBinance,'binance');
+            if (upResults.length || biResults.length) {
+                const msg = `Upbit: [${upResults.join(', ')}]\nBinance: [${biResults.join(', ')}]`;
+                log(`후보 발견!
+${msg}`);
+                notify('MA 스캔 결과', msg);
+            } else {
+                log('후보 없음');
+            }
+        }
+
+        // 스케줄 (1,16,31,46분)
+        function scheduleNext() {
+            const now=new Date(), m=now.getMinutes(), s=now.getSeconds();
+            const offsets=[1,16,31,46];
+            let nxt=offsets.find(o=>m<o||(m===o&&s===0));
+            if(nxt===undefined) nxt=offsets[0]+60;
+            const next=new Date(now);
+            next.setMinutes(nxt%60);
+            if(nxt>=60) next.setHours(now.getHours()+1);
+            next.setSeconds(0); next.setMilliseconds(0);
+            return next-now;
+        }
+
+        async function startSchedule() {
+            await loadUpbitMarkets(); await loadBinanceSymbols();
+            scanOnce();
+            timerId=setTimeout(async function tick(){ await scanOnce(); timerId=setTimeout(tick,scheduleNext()); }, scheduleNext());
+        }
+
+        startBtn.addEventListener('click',()=>{ startBtn.disabled=true; stopBtn.disabled=false; log('스케줄 시작'); startSchedule(); });
+        stopBtn.addEventListener('click',()=>{ clearTimeout(timerId); startBtn.disabled=false; stopBtn.disabled=true; log('스케줄 중지'); });
+    </script>
+</body>
+</html>
