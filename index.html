@@ -20,6 +20,7 @@
             <li>7MA > 25MA > 99MA</li>
             <li>골든 크로스: 7MA가 25MA를 아래→위 교차</li>
             <li>캔들 패턴: 단일 강세 양봉 또는 Engulfing 또는 Morning Star</li>
+            <li>결과는 스코어 기반으로 내림차순 정렬</li>
         </ul>
     </div>
     <button id="startBtn">스캔 시작</button>
@@ -41,29 +42,18 @@
         }
 
         function calculateMA(arr, period) {
-            return arr.map((_, i, a) => {
-                if (i < period - 1) return null;
-                const slice = a.slice(i - period + 1, i + 1);
-                return slice.reduce((acc, v) => acc + v, 0) / period;
-            });
+            return arr.map((_, i, a) => i < period - 1 ? null : a.slice(i - period + 1, i + 1).reduce((acc, v) => acc + v, 0) / period);
         }
-
-        // 캔들 패턴 검사 함수
         function isStrongBullish(prev, curr) {
-            // 현재 캔들 양봉이고 몸통이 이전 캔들 몸통보다 길며 꼬리가 짧을 때
             const currBody = curr.close - curr.open;
             const prevBody = Math.abs(prev.close - prev.open);
-            const lowerWick = curr.open - Math.min(curr.low, curr.open);
+            const lowerWick = curr.open - curr.low;
             return curr.close > curr.open && currBody > prevBody && lowerWick < currBody * 0.3;
         }
-
         function isEngulfing(prev, curr) {
-            // 현재 캔들 몸통이 이전 캔들 몸통을 완전히 감쌀 때
             return curr.open < prev.close && curr.close > prev.open;
         }
-
         function isMorningStar(c1, c2, c3) {
-            // 첫 음봉, 둘째 작은 몸통, 셋째 강한 양봉
             const first = c1.close < c1.open;
             const secondBody = Math.abs(c2.close - c2.open);
             const firstBody = Math.abs(c1.close - c1.open);
@@ -74,7 +64,7 @@
 
         async function scanOnce() {
             log('스캔 시작 ↻');
-            const results = [];
+            const scores = [];
 
             async function process(symbol, candles) {
                 const closes = candles.map(c => c.close);
@@ -87,52 +77,50 @@
                 const len = closes.length;
                 if (len < 100) return;
 
-                // 지표 값
-                const Bc = closes[len - 2], Cc = closes[len - 3];
+                const Bc = closes[len - 2];
                 const m7_B = ma7[len - 2], m25_B = ma25[len - 2], m99_B = ma99[len - 2];
                 const m7_C = ma7[len - 3], m25_C = ma25[len - 3];
 
-                // 조건 1: 종가가 99MA 위
-                if (!(Bc > m99_B)) return;
-                // 조건 2: 7MA > 25MA > 99MA
-                if (!(m7_B > m25_B && m25_B > m99_B)) return;
-                // 조건 3: 골든 크로스 직전
-                if (!(m7_C <= m25_C && m7_B > m25_B)) return;
+                if (!(Bc > m99_B && m7_B > m25_B && m25_B > m99_B && m7_C <= m25_C && m7_B > m25_B)) return;
 
-                // 캔들 패턴
-                const prev = { open: opens[len - 3], high: highs[len - 3], low: lows[len - 3], close: closes[len - 3] };
-                const curr = { open: opens[len - 2], high: highs[len - 2], low: lows[len - 2], close: closes[len - 2] };
                 const prev2 = { open: opens[len - 4], high: highs[len - 4], low: lows[len - 4], close: closes[len - 4] };
-
+                const prev  = { open: opens[len - 3], high: highs[len - 3], low: lows[len - 3], close: closes[len - 3] };
+                const curr  = { open: opens[len - 2], high: highs[len - 2], low: lows[len - 2], close: closes[len - 2] };
                 if (!(isStrongBullish(prev, curr) || isEngulfing(prev, curr) || isMorningStar(prev2, prev, curr))) return;
 
-                results.push(symbol);
+                // Score 계산: 교차 강도 + MA 간격 + 캔들 몸통 크기 비율
+                const crossStrength = m7_B - m25_B;
+                const gapSum = (m7_B - m25_B) + (m25_B - m99_B);
+                const bodySize = (curr.close - curr.open) / (curr.high - curr.low);
+                const score = crossStrength + gapSum + bodySize;
+
+                scores.push({ symbol, score });
             }
 
             for (let symbol of binanceSymbols) {
                 try {
                     const klines = await fetchBinanceKlines(symbol);
-                    const candles = klines.map(k => ({
-                        open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4])
-                    }));
+                    const candles = klines.map(k => ({ open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
                     await process(symbol, candles);
-                } catch (e) { console.error(e); }
+                } catch {};
             }
-
             for (let market of upbitMarkets) {
                 try {
                     const data = await fetchUpbitKlines(market);
                     const rev = data.reverse();
                     const candles = rev.map(c => ({ open: c.opening_price, high: c.high_price, low: c.low_price, close: c.trade_price }));
                     await process(market, candles);
-                } catch (e) { console.error(e); }
+                } catch {};
             }
 
-            if (results.length) log('후보: ' + results.join(', '));
-            else log('조건 충족 코인 없음');
+            if (scores.length) {
+                scores.sort((a, b) => b.score - a.score);
+                scores.forEach(item => log(`${item.symbol} (Score: ${item.score.toFixed(4)})`));
+            } else {
+                log('조건 충족 코인 없음');
+            }
         }
 
-        // loadSymbol, scheduleNext 등 기존 함수는 unchanged
         async function loadBinanceSymbols() {
             log('B 로드 중...');
             const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
@@ -148,15 +136,13 @@
             log(`U ${upbitMarkets.length}개 로드 완료`);
         }
         async function fetchBinanceKlines(symbol) {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=101`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`${symbol} B 데이터 실패`);
+            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=101`);
+            if (!res.ok) throw new Error();
             return await res.json();
         }
         async function fetchUpbitKlines(market) {
-            const url = `https://api.upbit.com/v1/candles/minutes/15?market=${market}&count=101`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`${market} U 데이터 실패`);
+            const res = await fetch(`https://api.upbit.com/v1/candles/minutes/15?market=${market}&count=101`);
+            if (!res.ok) throw new Error();
             return await res.json();
         }
         function scheduleNext() {
@@ -164,18 +150,15 @@
             const offsets = [0,15,30,45];
             let next = offsets.find(o => m < o || (m === o && s === 0));
             if (next === undefined) next = offsets[0] + 60;
-            const ndate = new Date(now);
-            ndate.setMinutes(next % 60);
-            if (next >= 60) ndate.setHours(now.getHours() + 1);
-            ndate.setSeconds(0); ndate.setMilliseconds(0);
-            return ndate.getTime() - now.getTime();
+            const nd = new Date(now);
+            nd.setMinutes(next % 60);
+            if (next >= 60) nd.setHours(now.getHours() + 1);
+            nd.setSeconds(0); nd.setMilliseconds(0);
+            return nd.getTime() - now.getTime();
         }
-        async function startSchedule() {
-            await loadBinanceSymbols(); await loadUpbitMarkets(); scanOnce();
-            timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext());
-        }
-        startBtn.addEventListener('click', () => { startBtn.disabled = true; stopBtn.disabled = false; log('스케줄 시작됨'); startSchedule(); });
-        stopBtn.addEventListener('click', () => { clearTimeout(timerId); startBtn.disabled = false; stopBtn.disabled = true; log('스케줄 중지됨'); });
+        async function startSchedule() { await loadBinanceSymbols(); await loadUpbitMarkets(); scanOnce(); timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext()); }
+        startBtn.addEventListener('click', () => { startBtn.disabled=true; stopBtn.disabled=false; log('스케줄 시작됨'); startSchedule(); });
+        stopBtn.addEventListener('click', () => { clearTimeout(timerId); startBtn.disabled=false; stopBtn.disabled=true; log('스케줄 중지됨'); });
     </script>
 </body>
 </html>
