@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>scanner ssj</title>
+    <title>scanner</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         #conditions { background: #eef; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
@@ -14,13 +14,12 @@
 </head>
 <body>
     <div id="conditions">
-        <strong>스캔 조건 (15분봉 기준):</strong>
+        <strong>스캔 조건:</strong>
         <ul>
-            <li>가격 종가가 99MA 위</li>
-            <li>7MA > 25MA > 99MA</li>
-            <li>골든 크로스: 7MA가 25MA를 아래→위 교차</li>
-            <li>캔들 패턴: 단일 강세 양봉 또는 Engulfing 또는 Morning Star</li>
-            <li>결과는 스코어 기반으로 내림차순 정렬</li>
+            <li>이전봉(1) 7MA &lt; 25MA &lt; 99MA</li>
+            <li>이전봉(2) 7MA &lt; 이전봉(1) 7MA</li>
+            <li>이전봉(1)의 종가 &lt; 7MA</li>
+            <li>24시간 거래량(USDT) 상위 순 정렬</li>
         </ul>
     </div>
     <button id="startBtn">스캔 시작</button>
@@ -29,7 +28,6 @@
 
     <script>
         let binanceSymbols = [];
-        let upbitMarkets = [];
         let timerId = null;
         const logEl = document.getElementById('log');
         const startBtn = document.getElementById('startBtn');
@@ -41,124 +39,112 @@
             logEl.scrollTop = logEl.scrollHeight;
         }
 
+        async function loadBinanceSymbols() {
+            log('B 심볼 로드 중...');
+            const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+            const data = await res.json();
+            binanceSymbols = data.symbols
+                .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL')
+                .map(s => s.symbol);
+            log(`B ${binanceSymbols.length}개 로드 완료`);
+        }
+
+        async function fetch24hVolumes() {
+            const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+            const data = await res.json();
+            const volMap = {};
+            data.forEach(item => { volMap[item.symbol] = parseFloat(item.quoteVolume); });
+            return volMap;
+        }
+
+        async function fetchBinanceKlines(symbol) {
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`${symbol} Kline 로드 실패`);
+            return await res.json();
+        }
+
         function calculateMA(arr, period) {
-            return arr.map((_, i, a) => i < period - 1 ? null : a.slice(i - period + 1, i + 1).reduce((acc, v) => acc + v, 0) / period);
-        }
-        function isStrongBullish(prev, curr) {
-            const currBody = curr.close - curr.open;
-            const prevBody = Math.abs(prev.close - prev.open);
-            const lowerWick = curr.open - curr.low;
-            return curr.close > curr.open && currBody > prevBody && lowerWick < currBody * 0.3;
-        }
-        function isEngulfing(prev, curr) {
-            return curr.open < prev.close && curr.close > prev.open;
-        }
-        function isMorningStar(c1, c2, c3) {
-            const first = c1.close < c1.open;
-            const secondBody = Math.abs(c2.close - c2.open);
-            const firstBody = Math.abs(c1.close - c1.open);
-            const second = secondBody < firstBody * 0.5;
-            const third = c3.close > c3.open && c3.close > (c1.open + c1.close) / 2;
-            return first && second && third;
+            return arr.map((_, i, a) => {
+                if (i < period - 1) return null;
+                const slice = a.slice(i - period + 1, i + 1);
+                const sum = slice.reduce((acc, val) => acc + val, 0);
+                return sum / period;
+            });
         }
 
         async function scanOnce() {
             log('스캔 시작 ↻');
-            const scores = [];
-
-            async function process(symbol, candles) {
-                const closes = candles.map(c => c.close);
-                const highs = candles.map(c => c.high);
-                const lows = candles.map(c => c.low);
-                const opens = candles.map(c => c.open);
-                const ma7 = calculateMA(closes, 7);
-                const ma25 = calculateMA(closes, 25);
-                const ma99 = calculateMA(closes, 99);
-                const len = closes.length;
-                if (len < 100) return;
-
-                const Bc = closes[len - 2];
-                const m7_B = ma7[len - 2], m25_B = ma25[len - 2], m99_B = ma99[len - 2];
-                const m7_C = ma7[len - 3], m25_C = ma25[len - 3];
-
-                if (!(Bc > m99_B && m7_B > m25_B && m25_B > m99_B && m7_C <= m25_C && m7_B > m25_B)) return;
-
-                const prev2 = { open: opens[len - 4], high: highs[len - 4], low: lows[len - 4], close: closes[len - 4] };
-                const prev  = { open: opens[len - 3], high: highs[len - 3], low: lows[len - 3], close: closes[len - 3] };
-                const curr  = { open: opens[len - 2], high: highs[len - 2], low: lows[len - 2], close: closes[len - 2] };
-                if (!(isStrongBullish(prev, curr) || isEngulfing(prev, curr) || isMorningStar(prev2, prev, curr))) return;
-
-                // Score 계산: 교차 강도 + MA 간격 + 캔들 몸통 크기 비율
-                const crossStrength = m7_B - m25_B;
-                const gapSum = (m7_B - m25_B) + (m25_B - m99_B);
-                const bodySize = (curr.close - curr.open) / (curr.high - curr.low);
-                const score = crossStrength + gapSum + bodySize;
-
-                scores.push({ symbol, score });
-            }
+            const volMap = await fetch24hVolumes();
+            const results = [];
 
             for (let symbol of binanceSymbols) {
                 try {
                     const klines = await fetchBinanceKlines(symbol);
-                    const candles = klines.map(k => ({ open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
-                    await process(symbol, candles);
-                } catch {};
-            }
-            for (let market of upbitMarkets) {
-                try {
-                    const data = await fetchUpbitKlines(market);
-                    const rev = data.reverse();
-                    const candles = rev.map(c => ({ open: c.opening_price, high: c.high_price, low: c.low_price, close: c.trade_price }));
-                    await process(market, candles);
-                } catch {};
+                    const closes = klines.map(k => parseFloat(k[4]));
+                    const ma7 = calculateMA(closes, 7);
+                    const ma25 = calculateMA(closes, 25);
+                    const ma99 = calculateMA(closes, 99);
+                    const len = closes.length;
+                    const p1_ma7 = ma7[len - 2];
+                    const p1_ma25 = ma25[len - 2];
+                    const p1_ma99 = ma99[len - 2];
+                    const p2_ma7 = ma7[len - 3];
+                    const p1_close = closes[len - 2];
+
+                    if (p1_ma7 < p1_ma25 && p1_ma25 < p1_ma99 && p2_ma7 < p1_ma7 && p1_close < p1_ma7) {
+                        const vol24 = volMap[symbol] || 0;
+                        results.push({ symbol, vol24 });
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
             }
 
-            if (scores.length) {
-                scores.sort((a, b) => b.score - a.score);
-                scores.forEach(item => log(`${item.symbol} (Score: ${item.score.toFixed(4)})`));
+            results.sort((a, b) => b.vol24 - a.vol24);
+
+            if (results.length) {
+                const list = results.map(r => r.symbol).join(', ');
+                log(`B 후보: ${list}`);
             } else {
-                log('조건 충족 코인 없음');
+                log('B 후보 없음');
             }
         }
 
-        async function loadBinanceSymbols() {
-            log('B 로드 중...');
-            const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
-            const data = await res.json();
-            binanceSymbols = data.symbols.filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL').map(s => s.symbol);
-            log(`B ${binanceSymbols.length}개 로드 완료`);
-        }
-        async function loadUpbitMarkets() {
-            log('U 로드 중...');
-            const res = await fetch('https://api.upbit.com/v1/market/all');
-            const data = await res.json();
-            upbitMarkets = data.filter(m => m.market.startsWith('KRW-')).map(m => m.market);
-            log(`U ${upbitMarkets.length}개 로드 완료`);
-        }
-        async function fetchBinanceKlines(symbol) {
-            const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=101`);
-            if (!res.ok) throw new Error();
-            return await res.json();
-        }
-        async function fetchUpbitKlines(market) {
-            const res = await fetch(`https://api.upbit.com/v1/candles/minutes/15?market=${market}&count=101`);
-            if (!res.ok) throw new Error();
-            return await res.json();
-        }
         function scheduleNext() {
-            const now = new Date(), m = now.getMinutes(), s = now.getSeconds();
-            const offsets = [0,15,30,45];
-            let next = offsets.find(o => m < o || (m === o && s === 0));
-            if (next === undefined) next = offsets[0] + 60;
-            const nd = new Date(now);
-            nd.setMinutes(next % 60);
-            if (next >= 60) nd.setHours(now.getHours() + 1);
-            nd.setSeconds(0); nd.setMilliseconds(0);
-            return nd.getTime() - now.getTime();
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const offsets = [0, 15, 30, 45];
+            let nextOffset = offsets.find(m => minutes < m || (minutes === m && seconds === 0));
+            if (nextOffset === undefined) nextOffset = offsets[0] + 60;
+            const next = new Date(now.getTime());
+            next.setMinutes(nextOffset % 60);
+            if (nextOffset >= 60) next.setHours(now.getHours() + 1);
+            next.setSeconds(0);
+            next.setMilliseconds(0);
+            return next.getTime() - now.getTime();
         }
-        async function startSchedule() { await loadBinanceSymbols(); await loadUpbitMarkets(); scanOnce(); timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext()); }
-        startBtn.addEventListener('click', () => { startBtn.disabled=true; stopBtn.disabled=false; log('스케줄 시작됨'); startSchedule(); });
-        stopBtn.addEventListener('click', () => { clearTimeout(timerId); startBtn.disabled=false; stopBtn.disabled=true; log('스케줄 중지됨'); });
+
+        async function startSchedule() {
+            await loadBinanceSymbols();
+            scanOnce();
+            timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext());
+        }
+
+        startBtn.addEventListener('click', () => {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            log('스케줄 시작됨');
+            startSchedule();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            clearTimeout(timerId);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            log('스케줄 중지됨');
+        });
     </script>
 </body>
 </html>
