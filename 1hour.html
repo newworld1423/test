@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>scanner</title>
+    <title>scanner (1시간봉)</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         #conditions { background: #eef; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
@@ -14,7 +14,7 @@
 </head>
 <body>
     <div id="conditions">
-        <strong>스캔 조건:</strong>
+        <strong>스캔 조건 (1시간봉):</strong>
         <ul>
             <li>이전봉(1) 7MA &lt; 25MA &lt; 99MA</li>
             <li>이전봉(2)의 7MA &lt; 이전봉(1)의 7MA</li>
@@ -24,8 +24,6 @@
     </div>
     <button id="startBtn">스캔 시작</button>
     <button id="stopBtn" disabled>스캔 중지</button>
-    <a href="https://newworld1423.github.io/test/1hour.html">1시간</a>
-    <a href="https://newworld1423.github.io/test/4hour.html">4시간</a>
     <div id="log"></div>
 
     <script>
@@ -60,7 +58,7 @@
         }
 
         async function fetchBinanceKlines(symbol) {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=100`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`${symbol} Kline 로드 실패`);
             return await res.json();
@@ -118,25 +116,20 @@
             }
         }
 
-        function scheduleNext() {
+        function scheduleNextHour() {
             const now = new Date();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-            const offsets = [0, 15, 30, 45];
-            let nextOffset = offsets.find(m => minutes < m || (minutes === m && seconds === 0));
-            if (nextOffset === undefined) nextOffset = offsets[0] + 60;
             const next = new Date(now.getTime());
-            next.setMinutes(nextOffset % 60);
-            if (nextOffset >= 60) next.setHours(now.getHours() + 1);
-            next.setSeconds(0);
-            next.setMilliseconds(0);
+            next.setHours(now.getHours() + 1, 0, 0, 0);
             return next.getTime() - now.getTime();
         }
 
         async function startSchedule() {
             await loadBinanceSymbols();
             scanOnce();
-            timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext());
+            timerId = setTimeout(async function tick() {
+                await scanOnce();
+                timerId = setTimeout(tick, scheduleNextHour());
+            }, scheduleNextHour());
         }
 
         startBtn.addEventListener('click', () => {
