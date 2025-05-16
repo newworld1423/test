@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>scanner</title>
+    <title>4시간봉 볼린저 밴드 & RSI 스캐너</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         #conditions { background: #eef; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
@@ -16,17 +16,13 @@
     <div id="conditions">
         <strong>스캔 조건:</strong>
         <ul>
-            <li>이전봉(1) 7MA &lt; 25MA &lt; 99MA</li>
-            <li>이전봉(2)의 7MA &lt; 이전봉(1)의 7MA</li>
-            <li>이전봉(1)의 종가 &lt; 이전봉(1)의 7MA</li>
+            <li>4시간봉 이전봉(1)의 저가 ≤ 볼린저 밴드 하단</li>
+            <li>4시간봉 이전봉(1)의 RSI(14) ≤ 30</li>
             <li>24시간 거래량(USDT) 상위 순 정렬</li>
         </ul>
     </div>
     <button id="startBtn">스캔 시작</button>
     <button id="stopBtn" disabled>스캔 중지</button>
-    <a href="https://newworld1423.github.io/test/1hour.html">1시간</a>
-    <a href="https://newworld1423.github.io/test/4hour.html">4시간</a>
-    <a href="https://newworld1423.github.io/test/day.html">1일</a>
     <div id="log"></div>
 
     <script>
@@ -43,13 +39,13 @@
         }
 
         async function loadBinanceSymbols() {
-            log('B 심볼 로드 중...');
+            log('심볼 로드 중...');
             const res = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
             const data = await res.json();
             binanceSymbols = data.symbols
                 .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL')
                 .map(s => s.symbol);
-            log(`B ${binanceSymbols.length}개 로드 완료`);
+            log(`${binanceSymbols.length}개 심볼 로드 완료`);
         }
 
         async function fetch24hVolumes() {
@@ -60,20 +56,59 @@
             return volMap;
         }
 
-        async function fetchBinanceKlines(symbol) {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
+        async function fetchKlines(symbol) {
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`${symbol} Kline 로드 실패`);
             return await res.json();
         }
 
-        function calculateMA(arr, period) {
-            return arr.map((_, i, a) => {
-                if (i < period - 1) return null;
-                const slice = a.slice(i - period + 1, i + 1);
-                const sum = slice.reduce((acc, val) => acc + val, 0);
-                return sum / period;
-            });
+        function calculateBB(closes, period = 20, multiplier = 2) {
+            const ma = [];
+            const std = [];
+            for (let i = 0; i < closes.length; i++) {
+                if (i < period - 1) {
+                    ma.push(null);
+                    std.push(null);
+                } else {
+                    const window = closes.slice(i - period + 1, i + 1);
+                    const mean = window.reduce((a, b) => a + b, 0) / period;
+                    const variance = window.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+                    ma.push(mean);
+                    std.push(Math.sqrt(variance));
+                }
+            }
+            const upper = ma.map((m, i) => m !== null ? m + multiplier * std[i] : null);
+            const lower = ma.map((m, i) => m !== null ? m - multiplier * std[i] : null);
+            return { upper, middle: ma, lower };
+        }
+
+        function calculateRSI(closes, period = 14) {
+            const deltas = closes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
+            const rsi = [];
+            let gain = 0, loss = 0;
+            // 초기 평균 gain/loss
+            for (let i = 1; i <= period; i++) {
+                const delta = deltas[i];
+                if (delta > 0) gain += delta;
+                else loss -= delta;
+            }
+            gain /= period;
+            loss /= period;
+            rsi[period] = loss === 0 ? 100 : 100 - (100 / (1 + gain / loss));
+            // 나머지 값
+            for (let i = period + 1; i < closes.length; i++) {
+                const delta = deltas[i];
+                if (delta > 0) {
+                    gain = (gain * (period - 1) + delta) / period;
+                    loss = (loss * (period - 1)) / period;
+                } else {
+                    gain = (gain * (period - 1)) / period;
+                    loss = (loss * (period - 1) - delta) / period;
+                }
+                rsi[i] = loss === 0 ? 100 : 100 - (100 / (1 + gain / loss));
+            }
+            return rsi;
         }
 
         async function scanOnce() {
@@ -83,26 +118,19 @@
 
             for (let symbol of binanceSymbols) {
                 try {
-                    const klines = await fetchBinanceKlines(symbol);
+                    const klines = await fetchKlines(symbol);
+                    const lows = klines.map(k => parseFloat(k[3]));
                     const closes = klines.map(k => parseFloat(k[4]));
-                    const ma7 = calculateMA(closes, 7);
-                    const ma25 = calculateMA(closes, 25);
-                    const ma99 = calculateMA(closes, 99);
+                    const { lower } = calculateBB(closes, 20, 2);
+                    const rsi = calculateRSI(closes, 14);
                     const len = closes.length;
 
-                    const p1_ma7 = ma7[len - 2];
-                    const p1_ma25 = ma25[len - 2];
-                    const p1_ma99 = ma99[len - 2];
-                    const p2_ma7 = ma7[len - 3];
-                    const p1_close = closes[len - 2];
+                    const p1_low = lows[len - 2];
+                    const p1_lower = lower[len - 2];
+                    const p1_rsi = rsi[len - 2];
 
-                    const condition1 = p1_ma7 < p1_ma25 && p1_ma25 < p1_ma99;
-                    const condition2 = p2_ma7 < p1_ma7;
-                    const condition3 = p1_close < p1_ma7;
-
-                    if (condition1 && condition2 && condition3) {
-                        const vol24 = volMap[symbol] || 0;
-                        results.push({ symbol, vol24 });
+                    if (p1_lower !== null && p1_low <= p1_lower && p1_rsi <= 30) {
+                        results.push({ symbol, vol24: volMap[symbol] || 0 });
                     }
                 } catch (e) {
                     console.error(e);
@@ -112,32 +140,34 @@
             results.sort((a, b) => b.vol24 - a.vol24);
 
             if (results.length) {
-                const list = results.map(r => r.symbol).join(', ');
-                log(`B 후보: ${list}`);
+                log(`후보 심볼: ${results.map(r => r.symbol).join(', ')}`);
             } else {
-                log('B 후보 없음');
+                log('후보 없음');
             }
         }
 
         function scheduleNext() {
             const now = new Date();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-            const offsets = [0, 15, 30, 45];
-            let nextOffset = offsets.find(m => minutes < m || (minutes === m && seconds === 0));
-            if (nextOffset === undefined) nextOffset = offsets[0] + 60;
-            const next = new Date(now.getTime());
-            next.setMinutes(nextOffset % 60);
-            if (nextOffset >= 60) next.setHours(now.getHours() + 1);
+            const baseHour = 9; // 오전 9시 기준
+            const interval = 4; // 4시간 간격
+            const currentHour = now.getHours();
+            const nextHour = baseHour + Math.ceil((currentHour - baseHour + 0.0001) / interval) * interval;
+            const next = new Date(now);
+            next.setHours(nextHour);
+            next.setMinutes(0);
             next.setSeconds(0);
             next.setMilliseconds(0);
+            if (next <= now) next.setHours(next.getHours() + interval);
             return next.getTime() - now.getTime();
         }
 
         async function startSchedule() {
             await loadBinanceSymbols();
             scanOnce();
-            timerId = setTimeout(async function tick() { await scanOnce(); timerId = setTimeout(tick, scheduleNext()); }, scheduleNext());
+            timerId = setTimeout(async function tick() {
+                await scanOnce();
+                timerId = setTimeout(tick, scheduleNext());
+            }, scheduleNext());
         }
 
         startBtn.addEventListener('click', () => {
