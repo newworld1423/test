@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4시간봉 볼린저 밴드 & RSI 스캐너</title>
+    <title>15분봉 RSI 스캐너</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         #conditions { background: #eef; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
@@ -14,11 +14,11 @@
 </head>
 <body>
     <div id="conditions">
-        <strong>스캔 조건:</strong>
+        <strong>스캔 조건 (15분봉):</strong>
         <ul>
-            <li>4시간봉 이전봉(1)의 저가 ≤ 볼린저 밴드 하단</li>
-            <li>4시간봉 이전봉(1)의 RSI(14) ≤ 30</li>
-            <li>24시간 거래량(USDT) 상위 순 정렬</li>
+            <li>이전봉 RSI(14) ≥ 30, 이전봉의 이전봉 RSI(14) ≤ 30</li>
+            <li>또는 이전봉 RSI(14) ≤ 70, 이전봉의 이전봉 RSI(14) ≥ 70</li>
+            <li>24시간 거래량(USDT) 내림차순 정렬</li>
         </ul>
     </div>
     <button id="startBtn">스캔 시작</button>
@@ -57,54 +57,31 @@
         }
 
         async function fetchKlines(symbol) {
-            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=100`;
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`${symbol} Kline 로드 실패`);
             return await res.json();
-        }
-
-        function calculateBB(closes, period = 20, multiplier = 2) {
-            const ma = [];
-            const std = [];
-            for (let i = 0; i < closes.length; i++) {
-                if (i < period - 1) {
-                    ma.push(null);
-                    std.push(null);
-                } else {
-                    const window = closes.slice(i - period + 1, i + 1);
-                    const mean = window.reduce((a, b) => a + b, 0) / period;
-                    const variance = window.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
-                    ma.push(mean);
-                    std.push(Math.sqrt(variance));
-                }
-            }
-            const upper = ma.map((m, i) => m !== null ? m + multiplier * std[i] : null);
-            const lower = ma.map((m, i) => m !== null ? m - multiplier * std[i] : null);
-            return { upper, middle: ma, lower };
         }
 
         function calculateRSI(closes, period = 14) {
             const deltas = closes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
             const rsi = [];
             let gain = 0, loss = 0;
-            // 초기 평균 gain/loss
             for (let i = 1; i <= period; i++) {
-                const delta = deltas[i];
-                if (delta > 0) gain += delta;
-                else loss -= delta;
+                const d = deltas[i];
+                if (d > 0) gain += d; else loss -= d;
             }
             gain /= period;
             loss /= period;
             rsi[period] = loss === 0 ? 100 : 100 - (100 / (1 + gain / loss));
-            // 나머지 값
             for (let i = period + 1; i < closes.length; i++) {
-                const delta = deltas[i];
-                if (delta > 0) {
-                    gain = (gain * (period - 1) + delta) / period;
+                const d = deltas[i];
+                if (d > 0) {
+                    gain = (gain * (period - 1) + d) / period;
                     loss = (loss * (period - 1)) / period;
                 } else {
                     gain = (gain * (period - 1)) / period;
-                    loss = (loss * (period - 1) - delta) / period;
+                    loss = (loss * (period - 1) - d) / period;
                 }
                 rsi[i] = loss === 0 ? 100 : 100 - (100 / (1 + gain / loss));
             }
@@ -119,17 +96,13 @@
             for (let symbol of binanceSymbols) {
                 try {
                     const klines = await fetchKlines(symbol);
-                    const lows = klines.map(k => parseFloat(k[3]));
                     const closes = klines.map(k => parseFloat(k[4]));
-                    const { lower } = calculateBB(closes, 20, 2);
                     const rsi = calculateRSI(closes, 14);
-                    const len = closes.length;
+                    const len = rsi.length;
+                    const prev = rsi[len - 2];
+                    const prev2 = rsi[len - 3];
 
-                    const p1_low = lows[len - 2];
-                    const p1_lower = lower[len - 2];
-                    const p1_rsi = rsi[len - 2];
-
-                    if (p1_lower !== null && p1_low <= p1_lower && p1_rsi <= 30) {
+                    if ((prev >= 30 && prev2 <= 30) || (prev <= 70 && prev2 >= 70)) {
                         results.push({ symbol, vol24: volMap[symbol] || 0 });
                     }
                 } catch (e) {
@@ -148,16 +121,13 @@
 
         function scheduleNext() {
             const now = new Date();
-            const baseHour = 9; // 오전 9시 기준
-            const interval = 4; // 4시간 간격
-            const currentHour = now.getHours();
-            const nextHour = baseHour + Math.ceil((currentHour - baseHour + 0.0001) / interval) * interval;
+            const min = now.getMinutes();
+            const nextMin = Math.ceil((min + 0.0001) / 15) * 15;
             const next = new Date(now);
-            next.setHours(nextHour);
-            next.setMinutes(0);
+            next.setMinutes(nextMin);
             next.setSeconds(0);
             next.setMilliseconds(0);
-            if (next <= now) next.setHours(next.getHours() + interval);
+            if (next <= now) next.setMinutes(next.getMinutes() + 15);
             return next.getTime() - now.getTime();
         }
 
