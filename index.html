@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>15분봉 RSI 스캐너</title>
+    <title>15분봉 RSI & ATR 스캐너</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         #conditions { background: #eef; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
@@ -16,8 +16,10 @@
     <div id="conditions">
         <strong>스캔 조건 (15분봉):</strong>
         <ul>
-            <li>이전봉 RSI(14) ≥ 30, 이전봉의 이전봉 RSI(14) ≤ 30</li>
-            <li>또는 이전봉 RSI(14) ≤ 70, 이전봉의 이전봉 RSI(14) ≥ 70</li>
+            <li>이전봉 RSI(14) ≥ 30, 이전봉의 이전봉 RSI(14) ≤ 30 (롱 진입)</li>
+            <li>이전봉 RSI(14) ≤ 70, 이전봉의 이전봉 RSI(14) ≥ 70 (숏 진입)</li>
+            <li>손절: 진입봉 저점(롱) 또는 고점(숏)에서 ATR(14) × 1.5 이격</li>
+            <li>익절: ATR(14) × 1.5 이익 달성 (리스크 대비 보상 1:1)</li>
             <li>24시간 거래량(USDT) 내림차순 정렬</li>
         </ul>
     </div>
@@ -88,6 +90,26 @@
             return rsi;
         }
 
+        function calculateATR(highs, lows, closes, period = 14) {
+            const trs = [];
+            for (let i = 1; i < highs.length; i++) {
+                const tr = Math.max(
+                    highs[i] - lows[i],
+                    Math.abs(highs[i] - closes[i - 1]),
+                    Math.abs(lows[i] - closes[i - 1])
+                );
+                trs.push(tr);
+            }
+            const atr = [];
+            // 최초 평균
+            let sum = trs.slice(0, period).reduce((a, b) => a + b, 0);
+            atr[period] = sum / period;
+            for (let i = period + 1; i < trs.length; i++) {
+                atr[i] = (atr[i - 1] * (period - 1) + trs[i]) / period;
+            }
+            return atr;
+        }
+
         async function scanOnce() {
             log('스캔 시작 ↻');
             const volMap = await fetch24hVolumes();
@@ -96,14 +118,31 @@
             for (let symbol of binanceSymbols) {
                 try {
                     const klines = await fetchKlines(symbol);
+                    const highs = klines.map(k => parseFloat(k[2]));
+                    const lows = klines.map(k => parseFloat(k[3]));
                     const closes = klines.map(k => parseFloat(k[4]));
                     const rsi = calculateRSI(closes, 14);
-                    const len = rsi.length;
-                    const prev = rsi[len - 2];
-                    const prev2 = rsi[len - 3];
+                    const atr = calculateATR(highs, lows, closes, 14);
+                    const len = closes.length;
+                    const prevIdx = len - 2;
+                    const prev2Idx = len - 3;
+                    const prev = rsi[prevIdx];
+                    const prev2 = rsi[prev2Idx];
 
                     if ((prev >= 30 && prev2 <= 30) || (prev <= 70 && prev2 >= 70)) {
-                        results.push({ symbol, vol24: volMap[symbol] || 0 });
+                        let entryPrice, stopLoss, takeProfit, type;
+                        if (prev >= 30 && prev2 <= 30) {
+                            type = 'Long';
+                            entryPrice = closes[prevIdx];
+                            stopLoss = lows[prevIdx] - atr[prevIdx] * 1.5;
+                            takeProfit = entryPrice + atr[prevIdx] * 1.5;
+                        } else {
+                            type = 'Short';
+                            entryPrice = closes[prevIdx];
+                            stopLoss = highs[prevIdx] + atr[prevIdx] * 1.5;
+                            takeProfit = entryPrice - atr[prevIdx] * 1.5;
+                        }
+                        results.push({ symbol, type, entryPrice, stopLoss, takeProfit, vol24: volMap[symbol] || 0 });
                     }
                 } catch (e) {
                     console.error(e);
@@ -113,7 +152,9 @@
             results.sort((a, b) => b.vol24 - a.vol24);
 
             if (results.length) {
-                log(`후보 심볼: ${results.map(r => r.symbol).join(', ')}`);
+                results.forEach(r => {
+                    log(`${r.symbol} [${r.type}] 진입: ${r.entryPrice.toFixed(4)}, 손절: ${r.stopLoss.toFixed(4)}, 익절: ${r.takeProfit.toFixed(4)}`);
+                });
             } else {
                 log('후보 없음');
             }
