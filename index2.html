@@ -28,42 +28,75 @@
     </table>
 
     <script>
-        const apiUrl = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
-        let baseline = [];
+        const exchangeInfoUrl = 'https://fapi.binance.com/fapi/v1/exchangeInfo';
+        const tickerUrl = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
+        let perpetualSymbols = [];
+        let baselineData = {};
 
-        // 처음 기준 데이터 로드
+        // 영구 계약(symbols) 로드 및 기준 데이터 설정
         async function loadBaseline() {
-            const res = await fetch(apiUrl);
-            const data = await res.json();
-            // perpetual 컨트랙트만 필터
-            baseline = data.filter(d => d.contractType === 'PERPETUAL')
-                .map(d => ({ symbol: d.symbol, volume: +d.volume, openInterest: +d.openInterest }));
+            try {
+                // 1) 영구 계약 목록 가져오기
+                const infoRes = await fetch(exchangeInfoUrl);
+                const infoData = await infoRes.json();
+                perpetualSymbols = infoData.symbols
+                    .filter(s => s.contractType === 'PERPETUAL')
+                    .map(s => s.symbol);
+
+                // 2) 해당 심볼들의 24hr ticker 데이터 가져오기
+                const tickerRes = await fetch(tickerUrl);
+                const tickerData = await tickerRes.json();
+
+                // 3) baseline 저장
+                baselineData = {};
+                tickerData.forEach(item => {
+                    if (perpetualSymbols.includes(item.symbol)) {
+                        baselineData[item.symbol] = {
+                            volume: parseFloat(item.volume),
+                            openInterest: parseFloat(item.openInterest)
+                        };
+                    }
+                });
+                console.log('Baseline loaded for', Object.keys(baselineData).length, 'symbols');
+            } catch (err) {
+                console.error('Baseline load error:', err);
+            }
         }
 
         // 스캔 실행
         async function scan() {
-            const res = await fetch(apiUrl);
-            const data = await res.json();
-            const current = data.filter(d => d.contractType === 'PERPETUAL')
-                .map(d => ({ symbol: d.symbol, volume: +d.volume, openInterest: +d.openInterest }));
+            try {
+                const res = await fetch(tickerUrl);
+                const data = await res.json();
+                const results = [];
 
-            // 점수 계산
-            const results = baseline.map(b => {
-                const cur = current.find(c => c.symbol === b.symbol);
-                if (!cur) return null;
-                const volChange = ((cur.volume - b.volume) / b.volume) * 100;
-                const oiChange = ((cur.openInterest - b.openInterest) / b.openInterest) * 100;
-                // 가중치: 거래량 0.6, 미결제약정 0.4
-                const score = volChange * 0.6 + oiChange * 0.4;
-                return { symbol: b.symbol, volChange, oiChange, score };
-            }).filter(r => r && isFinite(r.score));
+                data.forEach(item => {
+                    const symbol = item.symbol;
+                    if (!baselineData[symbol]) return;
 
-            // 점수 기준 내림차순 정렬, 상위 20개만 표시
-            results.sort((a, b) => b.score - a.score);
-            displayResults(results.slice(0, 20));
+                    const curVolume = parseFloat(item.volume);
+                    const curOI = parseFloat(item.openInterest);
+                    const base = baselineData[symbol];
+
+                    const volChange = ((curVolume - base.volume) / base.volume) * 100;
+                    const oiChange = ((curOI - base.openInterest) / base.openInterest) * 100;
+                    const score = volChange * 0.6 + oiChange * 0.4;
+
+                    if (isFinite(score)) {
+                        results.push({ symbol, volChange, oiChange, score });
+                    }
+                });
+
+                results.sort((a, b) => b.score - a.score);
+                displayResults(results.slice(0, 20));
+                console.log('Scan completed', results.length, 'results');
+            } catch (err) {
+                console.error('Scan error:', err);
+                alert('스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+            }
         }
 
-        // 결과를 테이블에 렌더
+        // 결과 렌더
         function displayResults(list) {
             const tbody = document.querySelector('#resultTable tbody');
             tbody.innerHTML = '';
@@ -82,20 +115,14 @@
         document.getElementById('scanBtn').addEventListener('click', async () => {
             document.getElementById('scanBtn').disabled = true;
             document.getElementById('scanBtn').innerText = '스캔 중...';
-            try {
-                await scan();
-                // 기준 데이터 갱신
-                await loadBaseline();
-            } catch (e) {
-                console.error(e);
-                alert('스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.');
-            } finally {
-                document.getElementById('scanBtn').disabled = false;
-                document.getElementById('scanBtn').innerText = '스캔 시작';
-            }
+            await scan();
+            // 스캔 후 기준 데이터도 업데이트
+            await loadBaseline();
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').innerText = '스캔 시작';
         });
 
-        // 초기 로드 시 baseline 세팅
+        // 페이지 로드 시 초기 baseline 설정
         window.onload = loadBaseline;
     </script>
 </body>
