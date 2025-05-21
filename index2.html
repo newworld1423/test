@@ -10,11 +10,13 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
         #scanBtn { padding: 10px 20px; font-size: 16px; }
+        #status { margin-top: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
     <h1>바이낸스 무기한 선물 KRW 상장 예측 스캐너</h1>
     <button id="scanBtn">스캔 시작</button>
+    <p id="status">초기화 중...</p>
     <table id="resultTable">
         <thead>
             <tr>
@@ -30,77 +32,89 @@
     <script>
         const exchangeInfoUrl = 'https://fapi.binance.com/fapi/v1/exchangeInfo';
         const tickerUrl = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
-        let perpetualSymbols = [];
-        let baselineData = {};
+        const STORAGE_KEY = 'baselineData';
 
-        // 영구 계약(symbols) 로드 및 기준 데이터 설정
-        async function loadBaseline() {
-            try {
-                // 1) 영구 계약 목록 가져오기
-                const infoRes = await fetch(exchangeInfoUrl);
-                const infoData = await infoRes.json();
-                perpetualSymbols = infoData.symbols
-                    .filter(s => s.contractType === 'PERPETUAL')
-                    .map(s => s.symbol);
-
-                // 2) 해당 심볼들의 24hr ticker 데이터 가져오기
-                const tickerRes = await fetch(tickerUrl);
-                const tickerData = await tickerRes.json();
-
-                // 3) baseline 저장
-                baselineData = {};
-                tickerData.forEach(item => {
-                    if (perpetualSymbols.includes(item.symbol)) {
-                        baselineData[item.symbol] = {
-                            volume: parseFloat(item.volume),
-                            openInterest: parseFloat(item.openInterest)
-                        };
-                    }
-                });
-                console.log('Baseline loaded for', Object.keys(baselineData).length, 'symbols');
-            } catch (err) {
-                console.error('Baseline load error:', err);
-            }
+        // 로컬스토리지에 baseline 저장/로드
+        function saveBaseline(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+        function loadStoredBaseline() {
+            const json = localStorage.getItem(STORAGE_KEY);
+            return json ? JSON.parse(json) : null;
         }
 
-        // 스캔 실행
+        // 영구 계약 baseline 생성
+        async function createBaseline() {
+            const infoRes = await fetch(exchangeInfoUrl);
+            const infoData = await infoRes.json();
+            const symbols = infoData.symbols
+                .filter(s => s.contractType === 'PERPETUAL')
+                .map(s => s.symbol);
+
+            const tickerRes = await fetch(tickerUrl);
+            const tickerData = await tickerRes.json();
+
+            const baseline = {};
+            tickerData.forEach(item => {
+                if (symbols.includes(item.symbol)) {
+                    baseline[item.symbol] = {
+                        volume: parseFloat(item.volume),
+                        openInterest: parseFloat(item.openInterest)
+                    };
+                }
+            });
+            saveBaseline(baseline);
+            return baseline;
+        }
+
+        // 스캔 실행: 로드된 baseline과 비교
         async function scan() {
-            try {
-                const res = await fetch(tickerUrl);
-                const data = await res.json();
-                const results = [];
-
-                data.forEach(item => {
-                    const symbol = item.symbol;
-                    if (!baselineData[symbol]) return;
-
-                    const curVolume = parseFloat(item.volume);
-                    const curOI = parseFloat(item.openInterest);
-                    const base = baselineData[symbol];
-
-                    const volChange = ((curVolume - base.volume) / base.volume) * 100;
-                    const oiChange = ((curOI - base.openInterest) / base.openInterest) * 100;
-                    const score = volChange * 0.6 + oiChange * 0.4;
-
-                    if (isFinite(score)) {
-                        results.push({ symbol, volChange, oiChange, score });
-                    }
-                });
-
-                results.sort((a, b) => b.score - a.score);
-                displayResults(results.slice(0, 20));
-                console.log('Scan completed', results.length, 'results');
-            } catch (err) {
-                console.error('Scan error:', err);
-                alert('스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+            const statusEl = document.getElementById('status');
+            let baseline = loadStoredBaseline();
+            if (!baseline) {
+                statusEl.innerText = 'Baseline이 없어 새로 생성합니다...';
+                baseline = await createBaseline();
+                statusEl.innerText = 'Baseline 생성 완료. 1분 후 재시도하세요.';
+                return [];
             }
+
+            const res = await fetch(tickerUrl);
+            const data = await res.json();
+            const results = [];
+
+            data.forEach(item => {
+                const symbol = item.symbol;
+                const base = baseline[symbol];
+                if (!base) return;
+
+                const curVol = parseFloat(item.volume);
+                const curOI = parseFloat(item.openInterest);
+                const volChange = ((curVol - base.volume) / base.volume) * 100;
+                const oiChange = ((curOI - base.openInterest) / base.openInterest) * 100;
+                const score = volChange * 0.6 + oiChange * 0.4;
+                if (isFinite(score)) {
+                    results.push({ symbol, volChange, oiChange, score });
+                }
+            });
+
+            // 스캔 후 기준 데이터 업데이트
+            const newBaseline = {};
+            data.forEach(item => {
+                newBaseline[item.symbol] = {
+                    volume: parseFloat(item.volume),
+                    openInterest: parseFloat(item.openInterest)
+                };
+            });
+            saveBaseline(newBaseline);
+
+            return results;
         }
 
         // 결과 렌더
         function displayResults(list) {
             const tbody = document.querySelector('#resultTable tbody');
             tbody.innerHTML = '';
-            list.forEach(item => {
+            list.sort((a, b) => b.score - a.score).slice(0, 20).forEach(item => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${item.symbol}</td>
@@ -113,17 +127,39 @@
         }
 
         document.getElementById('scanBtn').addEventListener('click', async () => {
-            document.getElementById('scanBtn').disabled = true;
-            document.getElementById('scanBtn').innerText = '스캔 중...';
-            await scan();
-            // 스캔 후 기준 데이터도 업데이트
-            await loadBaseline();
-            document.getElementById('scanBtn').disabled = false;
-            document.getElementById('scanBtn').innerText = '스캔 시작';
+            const btn = document.getElementById('scanBtn');
+            const statusEl = document.getElementById('status');
+            btn.disabled = true;
+            btn.innerText = '스캔 중...';
+            statusEl.innerText = '스캔 실행 중...';
+
+            const results = await scan();
+            if (results.length > 0) {
+                displayResults(results);
+                statusEl.innerText = `Scan completed: ${results.length} results`;
+                statusEl.style.color = 'green';
+            } else if (results.length === 0 && localStorage.getItem(STORAGE_KEY)) {
+                statusEl.innerText = '변화량이 없어 결과가 없습니다.';
+                statusEl.style.color = 'orange';
+            }
+
+            btn.disabled = false;
+            btn.innerText = '스캔 시작';
         });
 
-        // 페이지 로드 시 초기 baseline 설정
-        window.onload = loadBaseline;
+        // 최초 로드 시 baseline이 없으면 생성
+        window.onload = async () => {
+            const statusEl = document.getElementById('status');
+            if (!loadStoredBaseline()) {
+                statusEl.innerText = 'Baseline이 없어 생성 중...';
+                await createBaseline();
+                statusEl.innerText = 'Baseline 생성 완료. 스캔 버튼을 눌러주세요.';
+                statusEl.style.color = 'blue';
+            } else {
+                statusEl.innerText = 'Baseline 있음. 스캔 버튼을 눌러주세요.';
+                statusEl.style.color = 'green';
+            }
+        };
     </script>
 </body>
 </html>
