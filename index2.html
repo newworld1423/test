@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRW 상장 예측 스캐너</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f4f4f4; }
+        #scanBtn { padding: 10px 20px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>바이낸스 무기한 선물 KRW 상장 예측 스캐너</h1>
+    <button id="scanBtn">스캔 시작</button>
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th>심볼</th>
+                <th>24h 거래량 변화(%)</th>
+                <th>미결제약정 변화(%)</th>
+                <th>종합 점수</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const apiUrl = 'https://fapi.binance.com/fapi/v1/ticker/24hr';
+        let baseline = [];
+
+        // 처음 기준 데이터 로드
+        async function loadBaseline() {
+            const res = await fetch(apiUrl);
+            const data = await res.json();
+            // perpetual 컨트랙트만 필터
+            baseline = data.filter(d => d.contractType === 'PERPETUAL')
+                .map(d => ({ symbol: d.symbol, volume: +d.volume, openInterest: +d.openInterest }));
+        }
+
+        // 스캔 실행
+        async function scan() {
+            const res = await fetch(apiUrl);
+            const data = await res.json();
+            const current = data.filter(d => d.contractType === 'PERPETUAL')
+                .map(d => ({ symbol: d.symbol, volume: +d.volume, openInterest: +d.openInterest }));
+
+            // 점수 계산
+            const results = baseline.map(b => {
+                const cur = current.find(c => c.symbol === b.symbol);
+                if (!cur) return null;
+                const volChange = ((cur.volume - b.volume) / b.volume) * 100;
+                const oiChange = ((cur.openInterest - b.openInterest) / b.openInterest) * 100;
+                // 가중치: 거래량 0.6, 미결제약정 0.4
+                const score = volChange * 0.6 + oiChange * 0.4;
+                return { symbol: b.symbol, volChange, oiChange, score };
+            }).filter(r => r && isFinite(r.score));
+
+            // 점수 기준 내림차순 정렬, 상위 20개만 표시
+            results.sort((a, b) => b.score - a.score);
+            displayResults(results.slice(0, 20));
+        }
+
+        // 결과를 테이블에 렌더
+        function displayResults(list) {
+            const tbody = document.querySelector('#resultTable tbody');
+            tbody.innerHTML = '';
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.symbol}</td>
+                    <td>${item.volChange.toFixed(2)}</td>
+                    <td>${item.oiChange.toFixed(2)}</td>
+                    <td>${item.score.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('scanBtn').addEventListener('click', async () => {
+            document.getElementById('scanBtn').disabled = true;
+            document.getElementById('scanBtn').innerText = '스캔 중...';
+            try {
+                await scan();
+                // 기준 데이터 갱신
+                await loadBaseline();
+            } catch (e) {
+                console.error(e);
+                alert('스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+            } finally {
+                document.getElementById('scanBtn').disabled = false;
+                document.getElementById('scanBtn').innerText = '스캔 시작';
+            }
+        });
+
+        // 초기 로드 시 baseline 세팅
+        window.onload = loadBaseline;
+    </script>
+</body>
+</html>
