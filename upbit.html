@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>업비트 9시 경주마 예측 스캐너</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #f4f4f4; }
+        .highlight { background: #fffae6; }
+    </style>
+</head>
+<body>
+    <h1>업비트 9시 경주마 예측 스캐너</h1>
+    <p>오전 9시 리셋 직전(08:55~09:00) 호가·체결량 급등 코인 예측</p>
+    <button id="startBtn" disabled>마켓 로딩 중...</button>
+    <table>
+        <thead>
+            <tr>
+                <th>코인</th>
+                <th>1분 거래량</th>
+                <th>5분 평균 거래량</th>
+                <th>거래량 비율</th>
+            </tr>
+        </thead>
+        <tbody id="coinTable"></tbody>
+    </table>
+
+    <script>
+        let markets = [];
+        const intervalMs = 5000;  // 5초마다 업데이트
+        let scanner = null;
+
+        // KRW 마켓 전체 로드
+        function loadMarkets() {
+            fetch('https://api.upbit.com/v1/market/all?isDetails=false')
+                .then(res => res.json())
+                .then(data => {
+                    markets = data
+                        .filter(item => item.market.startsWith('KRW-'))
+                        .map(item => item.market);
+                    document.getElementById('startBtn').textContent = '스캐너 시작';
+                    document.getElementById('startBtn').disabled = false;
+                })
+                .catch(err => {
+                    console.error('마켓 로딩 실패', err);
+                    document.getElementById('startBtn').textContent = '마켓 로딩 실패. 새로고침';
+                });
+        }
+
+        function fetchVolumes() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            // 8:55이전 또는 9시 이후종료
+            if (hours < 8 || (hours === 8 && minutes < 55)) return;
+            if (hours === 9 && minutes >= 0) {
+                console.log('9시가 되어 스캐너를 종료합니다.');
+                clearInterval(scanner);
+                return;
+            }
+
+            // 1분봉 조회
+            fetch(`https://api.upbit.com/v1/candles/minutes/1?market=${markets.join(',')}&count=1`)
+                .then(res => res.json())
+                .then(data1m => {
+                    // 5분봉 조회
+                    fetch(`https://api.upbit.com/v1/candles/minutes/5?market=${markets.join(',')}&count=5`)
+                        .then(res => res.json())
+                        .then(data5m => {
+                            updateTable(data1m, data5m);
+                        })
+                        .catch(err => console.error('5분봉 조회 실패', err));
+                })
+                .catch(err => console.error('1분봉 조회 실패', err));
+        }
+
+        function updateTable(data1m, data5m) {
+            const tbody = document.getElementById('coinTable');
+            tbody.innerHTML = '';
+
+            markets.forEach((mkt, idx) => {
+                const vol1 = data1m[idx]?.candle_acc_trade_volume || 0;
+                const vols5 = data5m.slice(idx * 5, idx * 5 + 5).map(c => c.candle_acc_trade_volume);
+                const avg5 = vols5.reduce((a, b) => a + b, 0) / vols5.length;
+                const ratio = avg5 ? (vol1 / avg5).toFixed(2) : '0';
+
+                const tr = document.createElement('tr');
+                if (parseFloat(ratio) > 2) tr.classList.add('highlight');
+
+                tr.innerHTML = `
+                    <td>${mkt.split('-')[1]}</td>
+                    <td>${vol1.toLocaleString()}</td>
+                    <td>${avg5.toLocaleString()}</td>
+                    <td>${ratio}x</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (scanner) clearInterval(scanner);
+            scanner = setInterval(fetchVolumes, intervalMs);
+            alert('스캐너가 시작되었습니다. 8:55 이후부터 9시 직전까지 데이터가 갱신됩니다.');
+        });
+
+        // 초기 로드
+        loadMarkets();
+    </script>
+</body>
+</html>
