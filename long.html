@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>바이낸스 무기한 선물 스캔 (1일봉 기준)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>바이낸스 무기한 선물 USDT 페어 스캔 (1일봉)</h1>
+    <p>매일 오전 9시에 조건에 맞는 심볼을 자동으로 스캔하여 결과를 출력합니다.</p>
+    <button id="manualScan">수동 스캔 실행</button>
+    <div id="nextRunInfo"></div>
+    <div id="results"></div>
+
+    <script>
+        // ——————————————————————————————————————————————————————————————————————————————
+        // 설명:
+        //   1) 매일 로컬 시간 기준 '오전 9시' 에 자동으로 scanAllSymbols() 함수가 호출됩니다.
+        //   2) 수동으로 즉시 스캔하고 싶을 때는 '수동 스캔 실행' 버튼을 누릅니다.
+        //   3) 모든 USDT 무기한선물 심볼을 가져와, 각 심볼의 1일봉(Daily) 100개를 조회 후
+        //      Moving Average를 계산하여 아래 3가지 조건을 검사합니다.
+        //
+        //   조건:
+        //     (1) C1(1일 전 봉)의 99MA > 25MA > 7MA
+        //         - C1은 '현재봉(C0)의 바로 이전봉' (하루 전 종가 기준)
+        //     (2) C3(3일 전 봉)의 7MA > C2(2일 전 봉)의 7MA
+        //     (3) C2(2일 전 봉)의 7MA < C1(1일 전 봉)의 7MA
+        //
+        //   ※ 99MA를 계산하기 위해 최소 99일(이전봉 포함)의 데이터를 얻어야 하므로,
+        //      Daily 캔들 100개를 가져옵니다. 불필요하게 100개 이상 가져오지 않습니다.
+        // ——————————————————————————————————————————————————————————————————————————————
+
+        // HTML 요소 참조
+        const manualBtn = document.getElementById('manualScan');
+        const nextRunDiv = document.getElementById('nextRunInfo');
+        const resultsDiv = document.getElementById('results');
+
+        // 매일 오전 9시(로컬 기준)에 실행되도록 초기 타이머 설정
+        function scheduleNextRun() {
+            const now = new Date();
+            const nextRun = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+
+            // 현재 시간이 이미 9시 이후라면, 익일 9시로 설정
+            if (now.getTime() > nextRun.getTime()) {
+                nextRun.setDate(nextRun.getDate() + 1);
+            }
+
+            const delay = nextRun.getTime() - now.getTime();
+            const hours = Math.floor(delay / 1000 / 60 / 60);
+            const minutes = Math.floor((delay - hours * 60 * 60 * 1000) / 1000 / 60);
+            const seconds = Math.floor((delay - hours * 60 * 60 * 1000 - minutes * 60 * 1000) / 1000);
+
+            nextRunDiv.innerHTML = `
+                <strong>다음 자동 스캔:</strong>
+                ${nextRun.getFullYear()}-${String(nextRun.getMonth()+1).padStart(2, '0')}-${String(nextRun.getDate()).padStart(2, '0')}
+                ${String(nextRun.getHours()).padStart(2, '0')}:${String(nextRun.getMinutes()).padStart(2, '0')} (남은 시간: ${hours}시간 ${minutes}분 ${seconds}초)
+            `;
+
+            setTimeout(() => {
+                scanAllSymbols();
+                // 한 번 실행된 후에는 24시간(=86,400,000ms) 간격으로 계속 실행
+                setInterval(scanAllSymbols, 24 * 60 * 60 * 1000);
+            }, delay);
+        }
+
+        // USDT 무기한선물 심볼 목록 가져오기
+        async function fetchUSDTPerpetualSymbols() {
+            try {
+                const resp = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo');
+                const data = await resp.json();
+                // contractType이 PERPETUAL이면서 quoteAsset이 USDT인 심볼만 필터
+                const symbols = data.symbols
+                    .filter(item => item.contractType === 'PERPETUAL' && item.quoteAsset === 'USDT')
+                    .map(item => item.symbol);
+                return symbols;
+            } catch (err) {
+                console.error('심볼 정보 가져오기 실패:', err);
+                return [];
+            }
+        }
+
+        // 특정 심볼의 1일봉(Daily) 최근 100개 캔들 조회
+        async function fetchDailyKlines(symbol) {
+            const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=100`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            // klines format: [ [openTime, open, high, low, close, ...], ... ]
+            // 우리는 close 가격만 필요
+            return data.map(candle => parseFloat(candle[4])); // 종가만 추출
+        }
+
+        // 이동평균 계산 (주어진 배열의 endIndex부터 거슬러 올라가며 count개 값의 산술평균)
+        function calculateMA(closeArray, endIndex, count) {
+            let sum = 0;
+            for (let i = endIndex; i > endIndex - count; i--) {
+                sum += closeArray[i];
+            }
+            return sum / count;
+        }
+
+        // 각 심볼을 검사하여 조건 만족 시 결과 리스트에 추가
+        async function checkSymbol(symbol) {
+            try {
+                const closes = await fetchDailyKlines(symbol);
+                // close 배열의 길이는 100개
+                // 인덱스 매핑 (배열 끝이 최신 봉):
+                //   - C0 (현재봉): closes[99]
+                //   - C1 (1일 전 봉): closes[98]
+                //   - C2 (2일 전 봉): closes[97]
+                //   - C3 (3일 전 봉): closes[96]
+                //
+                // (1) C1의 99MA > C1의 25MA > C1의 7MA
+                const idxC1 = 98;
+                const MA99_C1 = calculateMA(closes, idxC1, 99);
+                const MA25_C1 = calculateMA(closes, idxC1, 25);
+                const MA7_C1  = calculateMA(closes, idxC1, 7);
+
+                if (!(MA99_C1 > MA25_C1 && MA25_C1 > MA7_C1)) {
+                    return false;
+                }
+
+                // (2) C3의 7MA > C2의 7MA
+                const idxC3 = 96;
+                const idxC2 = 97;
+                const MA7_C3 = calculateMA(closes, idxC3, 7);
+                const MA7_C2 = calculateMA(closes, idxC2, 7);
+
+                if (!(MA7_C3 > MA7_C2)) {
+                    return false;
+                }
+
+                // (3) C2의 7MA < C1의 7MA
+                if (!(MA7_C2 < MA7_C1)) {
+                    return false;
+                }
+
+                // 모든 조건을 만족하면 true 반환
+                return true;
+            } catch (err) {
+                console.error(`${symbol} 검사 중 오류:`, err);
+                return false;
+            }
+        }
+
+        // 모든 심볼 스캔하여 조건에 맞는 심볼만 반환
+        async function scanAllSymbols() {
+            resultsDiv.innerHTML = '<p>스캔 중입니다... 잠시만 기다려주세요.</p>';
+            const symbols = await fetchUSDTPerpetualSymbols();
+            const matched = [];
+
+            for (let i = 0; i < symbols.length; i++) {
+                const sym = symbols[i];
+                const ok = await checkSymbol(sym);
+                if (ok) {
+                    matched.push(sym);
+                }
+            }
+
+            // 결과 출력
+            if (matched.length === 0) {
+                resultsDiv.innerHTML = '<p>조건에 맞는 심볼이 없습니다.</p>';
+            } else {
+                let html = '<h2>조건 만족 심볼 목록</h2>';
+                html += '<table>';
+                html += '<tr><th>순번</th><th>심볼</th></tr>';
+                matched.forEach((sym, idx) => {
+                    html += `<tr><td>${idx + 1}</td><td>${sym}</td></tr>`;
+                });
+                html += '</table>';
+                resultsDiv.innerHTML = html;
+            }
+        }
+
+        // 페이지 로드 후 초기 스케줄링
+        window.onload = () => {
+            scheduleNextRun();
+        };
+
+        // 수동 스캔 버튼 클릭 시 즉시 실행
+        manualBtn.addEventListener('click', () => {
+            scanAllSymbols();
+        });
+    </script>
+</body>
+</html>
