@@ -4,26 +4,41 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Binance USDT 무기한 선물 스캐너</title>
+  <title>Binance USDT 무기한 선물 스캐너 (1일봉, 모바일)</title>
 
-  <!-- technicalindicators 라이브러리(지표 계산) -->
-  <script src="https://cdn.jsdelivr.net/npm/technicalindicators@3.0.5/dist/browser.js"></script>
+  <!-- ─────────────────────────────────────────── -->
+  <!-- ① regenerator-runtime (올바른 경로: runtime.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/regenerator-runtime@0.13.9/runtime.js"></script>
+  <!--    또는 아래와 같이 unpkg 경로를 사용할 수도 있습니다. -->
+  <!-- <script src="https://unpkg.com/regenerator-runtime@0.13.9/runtime.js"></script> -->
+
+  <!-- ② technicalindicators (지표 계산용, 브라우저 빌드) -->
+  <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.js"></script>
+  <!-- ─────────────────────────────────────────── -->
 
   <style>
+    /* 간단한 모바일 최적화 스타일 */
     body {
       font-family: "Noto Sans KR", sans-serif;
-      margin: 20px;
+      margin: 12px;
+      padding: 0;
+      background-color: #fafafa;
+      color: #333;
     }
     h1 {
-      margin-bottom: 10px;
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+      text-align: center;
     }
     #scanButton {
-      padding: 8px 16px;
-      font-size: 16px;
+      width: 100%;
+      padding: 10px 0;
+      font-size: 1rem;
       background-color: #0072e3;
       color: white;
       border: none;
       border-radius: 4px;
+      margin-bottom: 8px;
       cursor: pointer;
     }
     #scanButton:disabled {
@@ -31,125 +46,113 @@
       cursor: not-allowed;
     }
     #status {
-      margin-top: 10px;
-      font-size: 14px;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      text-align: center;
       color: #555;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
-      font-size: 14px;
+      font-size: 0.8rem;
+      margin-bottom: 20px;
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 6px 8px;
+      padding: 6px 4px;
       text-align: center;
     }
     th {
       background-color: #f2f2f2;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
-    <style>
-      tr:nth-child(even) {
-        background-color: #fafafa;
-      }
-      tr:hover {
-        background-color: #f1f7ff;
-      }
-    </style>
+    tr:nth-child(even) {
+      background-color: #fff;
+    }
+    tr:hover {
+      background-color: #eef6ff;
+    }
+    /* 가로 공간이 좁은 경우 테이블을 스크롤 */
+    .table-container {
+      overflow-x: auto;
+    }
   </style>
 </head>
 
 <body>
-  <h1>Binance USDT 무기한 선물 스캐너</h1>
-  <p>
-    <button id="scanButton">지금 스캔하기</button>
-    <span id="status">대기 중...</span>
-  </p>
+  <h1>Binance USDT 무기한 선물 스캐너 (1일봉)</h1>
+  <button id="scanButton">지금 스캔하기</button>
+  <div id="status">대기 중...</div>
 
-  <table id="resultTable">
-    <thead>
-      <tr>
-        <th>순번</th>
-        <th>심볼</th>
-        <th>시장 타입</th>
-        <th>신호</th>
-        <th>EMA9</th>
-        <th>EMA21</th>
-        <th>ADX</th>
-        <th>RSI</th>
-        <th>BB 상단</th>
-        <th>BB 하단</th>
-        <th>Stoch %K</th>
-        <th>Stoch %D</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- 결과가 이곳에 삽입됩니다 -->
-    </tbody>
-  </table>
+  <div class="table-container">
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>심볼</th>
+          <th>시장 타입</th>
+          <th>신호</th>
+          <th>EMA9</th>
+          <th>EMA21</th>
+          <th>ADX</th>
+          <th>RSI</th>
+          <th>BB 상단</th>
+          <th>BB 하단</th>
+          <th>Stoch %K</th>
+          <th>Stoch %D</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 스캔 결과가 여기에 추가됩니다 -->
+      </tbody>
+    </table>
+  </div>
 
   <script>
     (function () {
-      // 1) 전역 변수 및 유틸 함수 정의
+      //=====================================
+      // 1) 전역 변수 및 유틸 함수
+      //=====================================
       const scanButton = document.getElementById("scanButton");
-      const statusSpan = document.getElementById("status");
-      const tbody = document.querySelector("#resultTable tbody");
+      const statusDiv  = document.getElementById("status");
+      const tbody       = document.querySelector("#resultTable tbody");
 
-      let lastScanDate = null; // 자동 실행 일자 체크용
+      let isScanning = false;  // 중복 스캔 방지 플래그
 
-      // sleep: async/await로 딜레이를 줄 때 사용
+      // sleep: async/await로 딜레이 줄 때 사용
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
 
-      // 현재 KST 시각 문자열 (YYYY-MM-DD) 리턴
-      function getCurrentKSTDateString() {
-        // JS Date는 브라우저 로케일 기준이므로, 한국(Asia/Seoul)에 맞춰 timeZone 옵션을 줍니다
-        const now = new Date();
-        const kstString = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-        const [datePart] = kstString.split(" ");
-        // "YYYY.MM.DD. 오후/오전 hh:mm:ss" 형태 → Date 객체에서 직접 YYYY-MM-DD 파싱하기보다
-        // toISOString을 활용하는 편이 안전하지만, 여긴 로컬타임을 기준으로 함
-        // 간단히 ISOString 후 KST 오프셋 보정 없이 날짜만 쓰겠습니다.
-        const kstNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-        return kstNow.toISOString().slice(0, 10); // "2025-06-05" 형태
-      }
-
-      // 현재 KST 시각의 시,분 가져오기
-      function getCurrentKSTHourMinute() {
-        const now = new Date();
-        const kstNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-        return { hour: kstNow.getHours(), minute: kstNow.getMinutes() };
-      }
-
-      // 2) 메인 스캔 로직
-      async function scanAllSymbols() {
-        // 버튼 비활성화, 상태 메시지 변경
+      //=====================================
+      // 2) 전체 심볼 일괄 스캔 함수
+      //=====================================
+      async function scanAllSymbols1d() {
+        if (isScanning) return;
+        isScanning = true;
         scanButton.disabled = true;
-        statusSpan.textContent = "스캔 중...";
+        statusDiv.textContent = "스캔 중...";
 
         // 테이블 초기화
         tbody.innerHTML = "";
 
         try {
           // 2-1) 바이낸스 USDT 무기한 선물 심볼 리스트 가져오기
-          const exchangeInfoRes = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo");
-          if (!exchangeInfoRes.ok) {
-            throw new Error("exchangeInfo 요청 실패");
-          }
-          const exchangeInfo = await exchangeInfoRes.json();
-          // symbols 객체 중 contractType이 PERPETUAL이고, 심볼 문자열 끝이 "USDT"인 것만 필터
-          const allSymbols = exchangeInfo.symbols
+          const exRes = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo");
+          if (!exRes.ok) throw new Error("exchangeInfo 요청 실패");
+          const exJson = await exRes.json();
+          // contractType이 'PERPETUAL'이고 심볼 끝이 'USDT'인 것만 필터
+          const symbols = exJson.symbols
             .filter((s) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT") && s.status === "TRADING")
             .map((s) => s.symbol);
 
-          // 2-2) 심볼별로 데이터 조회 → 지표 계산 → 테이블에 추가
-          for (let i = 0; i < allSymbols.length; i++) {
-            const symbol = allSymbols[i];
+          // 2-2) 심볼별로 분석 → 결과 추가
+          for (let i = 0; i < symbols.length; i++) {
+            const symbol = symbols[i];
             try {
-              const info = await analyzeSymbol(symbol, 30);
-              // 테이블 row 삽입
+              const info = await analyzeSymbol1d(symbol, 30);
               if (info) {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
@@ -168,99 +171,94 @@
                 `;
                 tbody.appendChild(tr);
               }
-            } catch (err) {
-              console.error(symbol, err);
-              // 오류가 난 심볼은 건너뜀
+            } catch (e) {
+              console.error(`${symbol} 분석 중 오류:`, e);
             }
-            // 레이트 리밋 회피용 짧은 딜레이 (200ms)
+            // 바이낸스 레이트 리밋 회피용 짧은 대기 (200ms 이상 권장)
             await sleep(200);
           }
 
-          statusSpan.textContent = `스캔 완료 (${allSymbols.length}개 심볼 처리)`;
+          statusDiv.textContent = `스캔 완료 (총 ${symbols.length}개 심볼)`;
         } catch (err) {
           console.error(err);
-          statusSpan.textContent = "에러 발생: " + err.message;
+          statusDiv.textContent = "에러 발생: " + err.message;
         } finally {
+          isScanning = false;
           scanButton.disabled = false;
         }
       }
 
-      // 3) 심볼 단위 분석 함수 (지표 계산 및 신호 생성)
-      async function analyzeSymbol(symbol, lookback) {
-        // 3-1) 일봉 K선 가져오기 (limit = lookback + 여유분)
+      //=====================================
+      // 3) 단일 심볼 일봉 분석 함수
+      //=====================================
+      async function analyzeSymbol1d(symbol, lookback) {
+        // 3-1) 일봉(1d) 데이터 요청 (limit = lookback + safety 10)
         const limit = lookback + 10;
-        const klinesRes = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`
-        );
-        if (!klinesRes.ok) {
-          throw new Error(`Klines 요청 실패 (${symbol})`);
-        }
-        const klines = await klinesRes.json();
+        const klRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`);
+        if (!klRes.ok) throw new Error(`Klines 요청 실패 (${symbol})`);
+        const klines = await klRes.json();
         if (!Array.isArray(klines) || klines.length < lookback) {
-          throw new Error(`${symbol} 일봉 데이터 부족`);
+          // 데이터가 부족하면 null 반환
+          return null;
         }
 
-        // 3-2) 데이터 파싱 → 배열 생성
-        // klines 배열: [ [ openTime, open, high, low, close, volume, closeTime, ... ], ... ]
-        const N = klines.length;
+        // 3-2) 배열 파싱
+        // klines: [ [ openTime, open, high, low, close, volume, closeTime, ... ], ... ]
+        const N      = klines.length;
         const closes = klines.map((c) => parseFloat(c[4]));
-        const highs = klines.map((c) => parseFloat(c[2]));
-        const lows = klines.map((c) => parseFloat(c[3]));
-        // 직전(전날) 값 인덱스
+        const highs  = klines.map((c) => parseFloat(c[2]));
+        const lows   = klines.map((c) => parseFloat(c[3]));
         const prevIdx = N - 2;
         const lastIdx = N - 1;
 
-        // 3-3) 지표 계산 (technicalindicators)
-        // EMA(9), EMA(21)
-        const ema9Arr = technicalindicators.EMA.calculate({ period: 9, values: closes });
-        const ema21Arr = technicalindicators.EMA.calculate({ period: 21, values: closes });
-        if (ema9Arr.length < 2 || ema21Arr.length < 2) {
-          // 계산 불충분하면 패스
-          return null;
+        // 3-3) regeneratorRuntime + technicalindicators 로드 확인
+        if (typeof regeneratorRuntime === "undefined") {
+          throw new Error("regeneratorRuntime 라이브러리가 로드되지 않았습니다.");
         }
-        const lastEma9 = round(ema9Arr[ema9Arr.length - 1], 3);
-        const prevEma9 = round(ema9Arr[ema9Arr.length - 2], 3);
+        if (typeof technicalindicators === "undefined") {
+          throw new Error("technicalindicators 라이브러리가 로드되지 않았습니다.");
+        }
+
+        // 3-4) 지표 계산 (technicalindicators 사용)
+        // EMA(9), EMA(21)
+        const ema9Arr  = technicalindicators.EMA.calculate({ period: 9,  values: closes });
+        const ema21Arr = technicalindicators.EMA.calculate({ period: 21, values: closes });
+        if (ema9Arr.length < 2 || ema21Arr.length < 2) return null;
+        const lastEma9  = round(ema9Arr[ema9Arr.length - 1], 3);
+        const prevEma9  = round(ema9Arr[ema9Arr.length - 2], 3);
         const lastEma21 = round(ema21Arr[ema21Arr.length - 1], 3);
         const prevEma21 = round(ema21Arr[ema21Arr.length - 2], 3);
 
-        // ADX(14) → 입력: high, low, close
+        // ADX(14)
         const adxArr = technicalindicators.ADX.calculate({
           period: 14,
           high: highs,
           low: lows,
           close: closes,
         });
-        if (adxArr.length < 2) {
-          return null;
-        }
+        if (adxArr.length < 2) return null;
         const lastAdx = round(adxArr[adxArr.length - 1].adx, 3);
-        const prevAdx = round(adxArr[adxArr.length - 2].adx, 3);
 
         // RSI(14)
         const rsiArr = technicalindicators.RSI.calculate({ period: 14, values: closes });
-        if (rsiArr.length < 1) {
-          return null;
-        }
+        if (rsiArr.length < 1) return null;
         const lastRsi = round(rsiArr[rsiArr.length - 1], 3);
 
-        // Bollinger Bands (BB) (period: 20, stdDev: 2)
+        // Bollinger Bands (20, 2)
         const bbArr = technicalindicators.BollingerBands.calculate({
           period: 20,
           values: closes,
           stdDev: 2,
         });
-        if (bbArr.length < 2) {
-          return null;
-        }
-        // BB 배열 객체: { lower: ..., middle: ..., upper: ... }
-        const lastBb = bbArr[bbArr.length - 1];
-        const prevBb = bbArr[bbArr.length - 2];
+        if (bbArr.length < 2) return null;
+        const lastBb    = bbArr[bbArr.length - 1];
+        const prevBb    = bbArr[bbArr.length - 2];
         const lastBbUpper = round(lastBb.upper, 3);
         const lastBbLower = round(lastBb.lower, 3);
         const prevBbUpper = round(prevBb.upper, 3);
         const prevBbLower = round(prevBb.lower, 3);
 
-        // Stochastic (period:14, signalPeriod:3)
+        // Stochastic (14, 3)
         const stochArr = technicalindicators.Stochastic.calculate({
           period: 14,
           signalPeriod: 3,
@@ -268,71 +266,59 @@
           low: lows,
           close: closes,
         });
-        if (stochArr.length < 2) {
-          return null;
-        }
-        // stochArr 요소: { k: ..., d: ... }
+        if (stochArr.length < 2) return null;
         const lastStochK = round(stochArr[stochArr.length - 1].k, 3);
         const lastStochD = round(stochArr[stochArr.length - 1].d, 3);
-        const prevStochK = round(stochArr[stochArr.length - 2].k, 3);
-        const prevStochD = round(stochArr[stochArr.length - 2].d, 3);
 
-        // 3-4) 시장 타입 판단 및 진입 신호 생성
+        // 3-5) 시장 타입 판별 & 진입 신호 생성 (일봉 기준)
         const prevClose = closes[prevIdx];
         const lastClose = closes[lastIdx];
-        const prevHigh = highs[prevIdx];
-        const prevLow = lows[prevIdx];
-        const lastHigh = highs[lastIdx];
-        const lastLow = lows[lastIdx];
+        const prevHigh  = highs[prevIdx];
+        const prevLow   = lows[prevIdx];
+        const lastHigh  = highs[lastIdx];
+        const lastLow   = lows[lastIdx];
 
         let marketType = "";
-        let signal = "WAIT";
+        let signal     = "WAIT";
 
         if (lastAdx >= 25) {
-          // --- (1) 강한 추세장 ---
+          // (1) 추세장
           if (lastEma9 > lastEma21) {
-            // 상승 추세장 (Uptrend)
             marketType = "Uptrend";
-            // 롱 진입 조건: 전일 종가 < 전일 EMA9 && 당일 종가 > 당일 EMA9
-            if (prevClose < prevEma9 && lastClose > lastEma9) {
+            // 롱 진입: 전봉 종가 < 전봉 EMA9 && 현봉 종가 > 현봉 EMA9
+            if ((prevClose < prevEma9) && (lastClose > lastEma9)) {
               signal = "LONG";
             }
           } else if (lastEma9 < lastEma21) {
-            // 하락 추세장 (Downtrend)
             marketType = "Downtrend";
-            // 숏 진입 조건: 전일 종가 > 전일 EMA9 && 당일 종가 < 당일 EMA9
-            if (prevClose > prevEma9 && lastClose < lastEma9) {
+            // 숏 진입: 전봉 종가 > 전봉 EMA9 && 현봉 종가 < 현봉 EMA9
+            if ((prevClose > prevEma9) && (lastClose < lastEma9)) {
               signal = "SHORT";
             }
           } else {
             marketType = "Trend(NoDir)";
-            signal = "WAIT";
           }
         } else {
-          // --- (2) 횡보장 (ADX < 25) ---
+          // (2) 횡보장
           marketType = "Ranging";
-          // 횡보장 롱 진입 조건: BB 하단 터치 + RSI<30 + Stoch 과매도 골든 크로스
+          // 횡보장 롱 진입: BB 하단 터치 + RSI<30 + Stochastic %K<20 & %K>%D (골든크로스)
           const longCond =
-            prevLow <= prevBbLower &&
-            lastLow <= lastBbLower &&
-            lastRsi < 30 &&
-            lastStochK < 20 &&
-            lastStochK > lastStochD;
-          // 횡보장 숏 진입 조건: BB 상단 터치 + RSI>70 + Stoch 과매수 데드 크로스
-          const shortCond =
-            prevHigh >= prevBbUpper &&
-            lastHigh >= lastBbUpper &&
-            lastRsi > 70 &&
-            lastStochK > 80 &&
-            lastStochK < lastStochD;
+            (prevLow  <= prevBbLower) &&
+            (lastLow  <= lastBbLower) &&
+            (lastRsi  < 30) &&
+            (lastStochK < 20) &&
+            (lastStochK > lastStochD);
 
-          if (longCond) {
-            signal = "LONG";
-          } else if (shortCond) {
-            signal = "SHORT";
-          } else {
-            signal = "WAIT";
-          }
+          // 횡보장 숏 진입: BB 상단 터치 + RSI>70 + Stochastic %K>80 & %K<%D (데드크로스)
+          const shortCond =
+            (prevHigh >= prevBbUpper) &&
+            (lastHigh >= prevBbUpper) &&
+            (lastRsi > 70) &&
+            (lastStochK > 80) &&
+            (lastStochK < lastStochD);
+
+          if (longCond)      signal = "LONG";
+          else if (shortCond) signal = "SHORT";
         }
 
         return {
@@ -350,28 +336,18 @@
         };
       }
 
-      // 반올림 유틸 함수
+      //=====================================
+      // 4) 소수점 반올림 유틸 함수
+      //=====================================
       function round(num, digits) {
         return Math.round((num + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
       }
 
-      // 4) 버튼 클릭 이벤트 바인딩
-      scanButton.addEventListener("click", scanAllSymbols);
+      //=====================================
+      // 5) 버튼 클릭 이벤트 바인딩 (수동 스캔)
+      //=====================================
+      scanButton.addEventListener("click", scanAllSymbols1d);
 
-      // 5) 자동 스케줄러: 매 분 확인하여 KST 09:00에 스캔 실행
-      setInterval(() => {
-        const { hour, minute } = getCurrentKSTHourMinute();
-        const today = getCurrentKSTDateString();
-        // 오전 9시 정각에, 아직 오늘 스캔을 한 번도 하지 않았다면 실행
-        if (hour === 9 && minute === 0 && lastScanDate !== today) {
-          lastScanDate = today;
-          scanAllSymbols();
-        }
-        // 다음 날 자정(00:00) 지나면 lastScanDate 초기화 (다음 스캔을 위해)
-        if (hour === 0 && minute === 0) {
-          lastScanDate = null;
-        }
-      }, 60 * 1000); // 매 1분마다 체크
     })();
   </script>
 </body>
