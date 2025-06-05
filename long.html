@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>바이낸스 무기한 선물 스캔 (1일봉 기준)</title>
     <style>
         body {
@@ -31,7 +30,10 @@
     <h1>바이낸스 무기한 선물 USDT 페어 스캔 (1일봉)</h1>
     <p>매일 오전 9시에 조건에 맞는 심볼을 자동으로 스캔하여 결과를 출력합니다.</p>
     <button id="manualScan">수동 스캔 실행</button>
-    <div id="nextRunInfo"></div>
+    <div id="nextRunInfo">
+        <strong>다음 자동 스캔:</strong>
+        2025-06-06 09:00 (남은 시간: 21시간 33분 42초)
+    </div>
     <div id="results"></div>
 
     <script>
@@ -40,13 +42,17 @@
         //   1) 매일 로컬 시간 기준 '오전 9시' 에 자동으로 scanAllSymbols() 함수가 호출됩니다.
         //   2) 수동으로 즉시 스캔하고 싶을 때는 '수동 스캔 실행' 버튼을 누릅니다.
         //   3) 모든 USDT 무기한선물 심볼을 가져와, 각 심볼의 1일봉(Daily) 100개를 조회 후
-        //      Moving Average를 계산하여 아래 3가지 조건을 검사합니다.
+        //      Moving Average를 계산하여 아래 2가지 조건 중 하나를 검사합니다.
         //
-        //   조건:
+        //   기존 조건:
         //     (1) C1(1일 전 봉)의 99MA > 25MA > 7MA
-        //         - C1은 '현재봉(C0)의 바로 이전봉' (하루 전 종가 기준)
         //     (2) C3(3일 전 봉)의 7MA > C2(2일 전 봉)의 7MA
         //     (3) C2(2일 전 봉)의 7MA < C1(1일 전 봉)의 7MA
+        //
+        //   새로운 조건:
+        //     (1) C1(1일 전 봉)의 99MA < 25MA < 7MA
+        //     (2) C3(3일 전 봉)의 7MA < C2(2일 전 봉)의 7MA
+        //     (3) C2(2일 전 봉)의 7MA > C1(1일 전 봉)의 7MA
         //
         //   ※ 99MA를 계산하기 위해 최소 99일(이전봉 포함)의 데이터를 얻어야 하므로,
         //      Daily 캔들 100개를 가져옵니다. 불필요하게 100개 이상 가져오지 않습니다.
@@ -120,7 +126,7 @@
             return sum / count;
         }
 
-        // 각 심볼을 검사하여 조건 만족 시 결과 리스트에 추가
+        // 각 심볼을 검사하여 조건(기존 OR 새로운)을 만족 시 true를 반환
         async function checkSymbol(symbol) {
             try {
                 const closes = await fetchDailyKlines(symbol);
@@ -130,34 +136,50 @@
                 //   - C1 (1일 전 봉): closes[98]
                 //   - C2 (2일 전 봉): closes[97]
                 //   - C3 (3일 전 봉): closes[96]
-                //
-                // (1) C1의 99MA > C1의 25MA > C1의 7MA
+
                 const idxC1 = 98;
-                const MA99_C1 = calculateMA(closes, idxC1, 99);
-                const MA25_C1 = calculateMA(closes, idxC1, 25);
-                const MA7_C1  = calculateMA(closes, idxC1, 7);
-
-                if (!(MA99_C1 > MA25_C1 && MA25_C1 > MA7_C1)) {
-                    return false;
-                }
-
-                // (2) C3의 7MA > C2의 7MA
-                const idxC3 = 96;
                 const idxC2 = 97;
-                const MA7_C3 = calculateMA(closes, idxC3, 7);
-                const MA7_C2 = calculateMA(closes, idxC2, 7);
+                const idxC3 = 96;
 
-                if (!(MA7_C3 > MA7_C2)) {
+                // ---------------------------
+                // 1) 기존 조건 계산
+                // ---------------------------
+                const MA99_C1_old = calculateMA(closes, idxC1, 99);
+                const MA25_C1_old = calculateMA(closes, idxC1, 25);
+                const MA7_C1_old  = calculateMA(closes, idxC1, 7);
+
+                const MA7_C2_old  = calculateMA(closes, idxC2, 7);
+                const MA7_C3_old  = calculateMA(closes, idxC3, 7);
+
+                const conditionOld =
+                    (MA99_C1_old > MA25_C1_old && MA25_C1_old > MA7_C1_old) &&  // C1: 99MA > 25MA > 7MA
+                    (MA7_C3_old > MA7_C2_old) &&                                // C3: 7MA_C3 > 7MA_C2
+                    (MA7_C2_old < MA7_C1_old);                                  // C2: 7MA_C2 < 7MA_C1
+
+                // ---------------------------
+                // 2) 새로운 조건 계산
+                // ---------------------------
+                const MA99_C1_new = calculateMA(closes, idxC1, 99);
+                const MA25_C1_new = calculateMA(closes, idxC1, 25);
+                const MA7_C1_new  = calculateMA(closes, idxC1, 7);
+
+                const MA7_C2_new  = calculateMA(closes, idxC2, 7);
+                const MA7_C3_new  = calculateMA(closes, idxC3, 7);
+
+                const conditionNew =
+                    (MA99_C1_new < MA25_C1_new && MA25_C1_new < MA7_C1_new) &&  // C1: 99MA < 25MA < 7MA
+                    (MA7_C3_new < MA7_C2_new) &&                                // C3: 7MA_C3 < 7MA_C2
+                    (MA7_C2_new > MA7_C1_new);                                  // C2: 7MA_C2 > 7MA_C1
+
+                // ---------------------------
+                // 3) 둘 중 하나라도 만족하면 true
+                // ---------------------------
+                if (conditionOld || conditionNew) {
+                    return true;
+                } else {
                     return false;
                 }
 
-                // (3) C2의 7MA < C1의 7MA
-                if (!(MA7_C2 < MA7_C1)) {
-                    return false;
-                }
-
-                // 모든 조건을 만족하면 true 반환
-                return true;
             } catch (err) {
                 console.error(`${symbol} 검사 중 오류:`, err);
                 return false;
