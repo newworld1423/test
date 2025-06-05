@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- ─────────────────────────────────────────────────────────── -->
-  <!-- ① Babel Polyfill (ES5 환경에서도 최신 JS 문법 지원) -->
-  <script src="https://cdn.jsdelivr.net/npm/@babel/polyfill/dist/polyfill.min.js"></script>
+  <!-- ① @babel/polyfill (ES5 환경 호환) -->
+  <script src="https://cdn.jsdelivr.net/npm/@babel/polyfill@7.12.1/dist/polyfill.min.js"></script>
   <!-- ② regenerator-runtime (async/await 지원) -->
   <script src="https://cdn.jsdelivr.net/npm/regenerator-runtime@0.13.9/runtime.js"></script>
-  <!-- ③ technicalindicators (브라우저용 ES6 번들) -->
-  <script src="https://cdn.jsdelivr.net/npm/technicalindicators/dist/browser.es6.js"></script>
+  <!-- ③ technicalindicators (UMD/ES5 호환 번들: browser.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/technicalindicators@3.1.0/dist/browser.js"></script>
   <!-- ─────────────────────────────────────────────────────────── -->
 
   <style>
@@ -124,7 +124,7 @@
       }
 
       //=====================================
-      // 2) 전체 심볼 일괄 스캔 함수
+      // 2) 전체 심볼 일괄 스캔 함수 (1일봉)
       //=====================================
       async function scanAllSymbols1d() {
         if (isScanning) return;
@@ -189,7 +189,7 @@
       // 3) 단일 심볼 일봉 분석 함수
       //=====================================
       async function analyzeSymbol1d(symbol, lookback) {
-        // 3-1) 일봉(1d) 데이터 요청 (limit = lookback + safety 10)
+        // 3-1) 일봉(1d) 데이터 요청 (limit = lookback + 안전 여유 10)
         const limit = lookback + 10;
         const klRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`);
         if (!klRes.ok) throw new Error(`Klines 요청 실패 (${symbol})`);
@@ -298,7 +298,7 @@
         } else {
           // (2) 횡보장
           marketType = "Ranging";
-          // 횡보장 롱 진입: BB 하단 터치 + RSI<30 + Stoch %K<20 & %K>%D (골든크로스)
+          // 횡보장 롱 진입: BB 하단 터치 + RSI<30 + Stochastic %K<20 & %K>%D (골든크로스)
           const longCond =
             (prevLow  <= prevBbLower) &&
             (lastLow  <= lastBbLower) &&
@@ -306,7 +306,7 @@
             (lastStochK < 20) &&
             (lastStochK > lastStochD);
 
-          // 횡보장 숏 진입: BB 상단 터치 + RSI>70 + Stoch %K>80 & %K<%D (데드크로스)
+          // 횡보장 숏 진입: BB 상단 터치 + RSI>70 + Stochastic %K>80 & %K<%D (데드크로스)
           const shortCond =
             (prevHigh >= prevBbUpper) &&
             (lastHigh >= prevBbUpper) &&
@@ -333,12 +333,16 @@
         };
       }
 
-      // 소수점 반올림 유틸 함수
+      //=====================================
+      // 4) 소수점 반올림 유틸 함수
+      //=====================================
       function round(num, digits) {
         return Math.round((num + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
       }
 
-      // 버튼 클릭 시 수동 스캔
+      //=====================================
+      // 5) 버튼 클릭 이벤트 바인딩 (수동 스캔)
+      //=====================================
       scanButton.addEventListener("click", scanAllSymbols1d);
 
     })();
