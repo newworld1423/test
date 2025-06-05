@@ -15,6 +15,7 @@
         table {
             border-collapse: collapse;
             width: 100%;
+            margin-bottom: 30px;
         }
         th, td {
             border: 1px solid #ccc;
@@ -23,6 +24,9 @@
         }
         th {
             background-color: #f2f2f2;
+        }
+        h2 {
+            margin-top: 40px;
         }
     </style>
 </head>
@@ -42,7 +46,7 @@
         //   1) 매일 로컬 시간 기준 '오전 9시' 에 자동으로 scanAllSymbols() 함수가 호출됩니다.
         //   2) 수동으로 즉시 스캔하고 싶을 때는 '수동 스캔 실행' 버튼을 누릅니다.
         //   3) 모든 USDT 무기한선물 심볼을 가져와, 각 심볼의 1일봉(Daily) 100개를 조회 후
-        //      Moving Average를 계산하여 아래 2가지 조건 중 하나를 검사합니다.
+        //      Moving Average를 계산하여 두 가지 조건(기존/새로운)에 대해 각각 검사합니다.
         //
         //   기존 조건:
         //     (1) C1(1일 전 봉)의 99MA > 25MA > 7MA
@@ -126,7 +130,7 @@
             return sum / count;
         }
 
-        // 각 심볼을 검사하여 조건(기존 OR 새로운)을 만족 시 true를 반환
+        // 각 심볼을 검사하여 두 조건의 만족 여부를 { old: boolean, new: boolean } 형태로 반환
         async function checkSymbol(symbol) {
             try {
                 const closes = await fetchDailyKlines(symbol);
@@ -159,60 +163,69 @@
                 // ---------------------------
                 // 2) 새로운 조건 계산
                 // ---------------------------
-                const MA99_C1_new = calculateMA(closes, idxC1, 99);
-                const MA25_C1_new = calculateMA(closes, idxC1, 25);
-                const MA7_C1_new  = calculateMA(closes, idxC1, 7);
+                const MA99_C1_new = MA99_C1_old; // closes, idxC1, 99로 계산 결과가 동일
+                const MA25_C1_new = MA25_C1_old; // closes, idxC1, 25로 계산 결과가 동일
+                const MA7_C1_new  = MA7_C1_old;  // closes, idxC1, 7로 계산 결과가 동일
 
-                const MA7_C2_new  = calculateMA(closes, idxC2, 7);
-                const MA7_C3_new  = calculateMA(closes, idxC3, 7);
+                const MA7_C2_new  = MA7_C2_old;  // closes, idxC2, 7로 계산 결과가 동일
+                const MA7_C3_new  = MA7_C3_old;  // closes, idxC3, 7로 계산 결과가 동일
 
                 const conditionNew =
                     (MA99_C1_new < MA25_C1_new && MA25_C1_new < MA7_C1_new) &&  // C1: 99MA < 25MA < 7MA
                     (MA7_C3_new < MA7_C2_new) &&                                // C3: 7MA_C3 < 7MA_C2
                     (MA7_C2_new > MA7_C1_new);                                  // C2: 7MA_C2 > 7MA_C1
 
-                // ---------------------------
-                // 3) 둘 중 하나라도 만족하면 true
-                // ---------------------------
-                if (conditionOld || conditionNew) {
-                    return true;
-                } else {
-                    return false;
-                }
-
+                return { old: conditionOld, new: conditionNew };
             } catch (err) {
                 console.error(`${symbol} 검사 중 오류:`, err);
-                return false;
+                return { old: false, new: false };
             }
         }
 
-        // 모든 심볼 스캔하여 조건에 맞는 심볼만 반환
+        // 모든 심볼 스캔하여 두 조건 각각에 맞는 심볼을 분리하여 반환
         async function scanAllSymbols() {
             resultsDiv.innerHTML = '<p>스캔 중입니다... 잠시만 기다려주세요.</p>';
             const symbols = await fetchUSDTPerpetualSymbols();
-            const matched = [];
+            const matchedOld = [];
+            const matchedNew = [];
 
             for (let i = 0; i < symbols.length; i++) {
                 const sym = symbols[i];
-                const ok = await checkSymbol(sym);
-                if (ok) {
-                    matched.push(sym);
-                }
+                const result = await checkSymbol(sym);
+                if (result.old)  matchedOld.push(sym);
+                if (result.new)  matchedNew.push(sym);
             }
 
             // 결과 출력
-            if (matched.length === 0) {
-                resultsDiv.innerHTML = '<p>조건에 맞는 심볼이 없습니다.</p>';
+            let html = '';
+
+            // 1) 기존 조건 만족 심볼
+            html += '<h2>기존 조건 만족 심볼 목록</h2>';
+            if (matchedOld.length === 0) {
+                html += '<p>기존 조건에 맞는 심볼이 없습니다.</p>';
             } else {
-                let html = '<h2>조건 만족 심볼 목록</h2>';
                 html += '<table>';
                 html += '<tr><th>순번</th><th>심볼</th></tr>';
-                matched.forEach((sym, idx) => {
+                matchedOld.forEach((sym, idx) => {
                     html += `<tr><td>${idx + 1}</td><td>${sym}</td></tr>`;
                 });
                 html += '</table>';
-                resultsDiv.innerHTML = html;
             }
+
+            // 2) 새로운 조건 만족 심볼
+            html += '<h2>새로운 조건 만족 심볼 목록</h2>';
+            if (matchedNew.length === 0) {
+                html += '<p>새로운 조건에 맞는 심볼이 없습니다.</p>';
+            } else {
+                html += '<table>';
+                html += '<tr><th>순번</th><th>심볼</th></tr>';
+                matchedNew.forEach((sym, idx) => {
+                    html += `<tr><td>${idx + 1}</td><td>${sym}</td></tr>`;
+                });
+                html += '</table>';
+            }
+
+            resultsDiv.innerHTML = html;
         }
 
         // 페이지 로드 후 초기 스케줄링
