@@ -2,22 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Binance USDT 무기한 선물 스캐너 (1시간봉)</title>
 
-  <!-- ① technicalindicators 라이브러리(지표 계산) 먼저 로드 -->
-  <script src="https://cdn.jsdelivr.net/npm/technicalindicators@3.0.5/dist/browser.js"></script>
+  <!-- ① technicalindicators 라이브러리(지표 계산) → @3.1.0 으로 변경 -->
+  <script src="https://cdn.jsdelivr.net/npm/technicalindicators@3.1.0/dist/browser.js"></script>
 
-  <!-- (선택 사항) 전역 객체가 어떻게 붙는지 확인하고 싶은 경우 아래 주석을 해제해서 콘솔 로그를 확인하세요. -->
-  <!--
+  <!-- (선택) 로드 여부 콘솔 확인용 -->
   <script>
-    console.log("----- 전역에 붙은 이름 확인 -----");
+    console.log("===== technicalindicators 전역 확인 =====");
     console.log("window.technicalindicators =", window.technicalindicators);
-    console.log("window.TechnicalIndicators =", window.TechnicalIndicators);
-    console.log("window.ti =", window.ti);
   </script>
-  -->
 
   <style>
     body { font-family: "Noto Sans KR", sans-serif; margin: 20px; }
@@ -62,53 +56,40 @@
     </tbody>
   </table>
 
-  <!-- ② 그 다음에 메인 로직을 실행 -->
+  <!-- ② 메인 스크립트 -->
   <script>
     (function () {
-      //===========================
-      // 1) 전역 변수 및 유틸 함수
-      //===========================
       const scanButton = document.getElementById("scanButton");
-      const statusSpan = document.getElementById("status");
-      const tbody = document.querySelector("#resultTable tbody");
+      const statusSpan  = document.getElementById("status");
+      const tbody        = document.querySelector("#resultTable tbody");
+      let lastScanKey = null;
 
-      let lastScanKey = null; // 자동 실행 중복 방지용 키
-
-      // sleep: async/await로 딜레이 주기
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
 
-      // 현재 UTC 시각 (hour, minute) 리턴
       function getCurrentUTCHourMinute() {
         const now = new Date();
         return { hour: now.getUTCHours(), minute: now.getUTCMinutes() };
       }
 
-      //===============================
-      // 2) 메인 스캔 로직: 모든 심볼 순회
-      //===============================
       async function scanAllSymbols() {
         scanButton.disabled = true;
         statusSpan.textContent = "스캔 중...";
-
-        // 테이블 초기화
         tbody.innerHTML = "";
 
         try {
-          // 2-1) 바이낸스 USDT 무기한 선물 심볼 리스트 가져오기
-          const exchangeInfoRes = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo");
-          if (!exchangeInfoRes.ok) {
-            throw new Error("exchangeInfo 요청 실패");
-          }
-          const exchangeInfo = await exchangeInfoRes.json();
-          const allSymbols = exchangeInfo.symbols
+          // 심볼 리스트 가져오기
+          const exRes = await fetch("https://fapi.binance.com/fapi/v1/exchangeInfo");
+          if (!exRes.ok) throw new Error("exchangeInfo 요청 실패");
+          const exchangeInfo = await exRes.json();
+          const symbols = exchangeInfo.symbols
             .filter((s) => s.contractType === "PERPETUAL" && s.symbol.endsWith("USDT") && s.status === "TRADING")
             .map((s) => s.symbol);
 
-          // 2-2) 심볼별로 데이터 조회 → 지표 계산 → 테이블에 추가
-          for (let i = 0; i < allSymbols.length; i++) {
-            const symbol = allSymbols[i];
+          // 심볼별 분석
+          for (let i = 0; i < symbols.length; i++) {
+            const symbol = symbols[i];
             try {
               const info = await analyzeSymbol1h(symbol, 30);
               if (info) {
@@ -129,14 +110,13 @@
                 `;
                 tbody.appendChild(tr);
               }
-            } catch (err) {
-              console.error(symbol, err);
+            } catch (innerErr) {
+              console.error(symbol, innerErr);
             }
-            // 레이트 리밋 회피용 짧은 딜레이 (200ms)
             await sleep(200);
           }
 
-          statusSpan.textContent = `스캔 완료 (${allSymbols.length}개 심볼 처리)`;
+          statusSpan.textContent = `스캔 완료 (${symbols.length}개 심볼)`;
         } catch (err) {
           console.error(err);
           statusSpan.textContent = "에러 발생: " + err.message;
@@ -145,39 +125,30 @@
         }
       }
 
-      //===========================================================
-      // 3) 심볼 단위 분석 함수: 1시간봉 기준 지표 계산 → 진입 신호 생성
-      //===========================================================
       async function analyzeSymbol1h(symbol, lookback) {
-        // 3-1) 1시간봉 K선 가져오기 (limit = lookback + 여유분)
+        // 1시간봉 데이터 가져오기
         const limit = lookback + 10;
-        const klinesRes = await fetch(
-          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${limit}`
-        );
-        if (!klinesRes.ok) {
-          throw new Error(`Klines 요청 실패 (${symbol})`);
-        }
-        const klines = await klinesRes.json();
+        const klRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=${limit}`);
+        if (!klRes.ok) throw new Error(`Klines 요청 실패 (${symbol})`);
+        const klines = await klRes.json();
         if (!Array.isArray(klines) || klines.length < lookback) {
           throw new Error(`${symbol} 1시간봉 데이터 부족`);
         }
 
-        // 3-2) 데이터 파싱 → 배열 생성
-        const N = klines.length;
+        const N      = klines.length;
         const closes = klines.map((c) => parseFloat(c[4]));
         const highs  = klines.map((c) => parseFloat(c[2]));
         const lows   = klines.map((c) => parseFloat(c[3]));
         const prevIdx = N - 2;
         const lastIdx = N - 1;
 
-        // 3-3) 지표 계산 (technicalindicators 사용)
-        // —— 반드시 전역에 technicalindicators 객체가 정의되어 있어야 합니다. ——
+        // technicalindicators가 정상 로드되었는지 확인
         if (typeof technicalindicators === "undefined") {
           throw new Error("technicalindicators 라이브러리가 로드되지 않았습니다.");
         }
 
-        // EMA(9), EMA(21)
-        const ema9Arr  = technicalindicators.EMA.calculate({ period: 9, values: closes });
+        // EMA(9/21)
+        const ema9Arr  = technicalindicators.EMA.calculate({ period: 9,  values: closes });
         const ema21Arr = technicalindicators.EMA.calculate({ period: 21, values: closes });
         if (ema9Arr.length < 2 || ema21Arr.length < 2) return null;
         const lastEma9  = round(ema9Arr[ema9Arr.length - 1], 3);
@@ -212,10 +183,8 @@
         const prevBb = bbArr[bbArr.length - 2];
         const lastBbUpper = round(lastBb.upper, 3);
         const lastBbLower = round(lastBb.lower, 3);
-        const prevBbUpper = round(prevBb.upper, 3);
-        const prevBbLower = round(prevBb.lower, 3);
 
-        // Stochastic (period:14, signalPeriod:3)
+        // Stochastic (period: 14, signalPeriod: 3)
         const stochArr = technicalindicators.Stochastic.calculate({
           period: 14,
           signalPeriod: 3,
@@ -226,10 +195,8 @@
         if (stochArr.length < 2) return null;
         const lastStochK = round(stochArr[stochArr.length - 1].k, 3);
         const lastStochD = round(stochArr[stochArr.length - 1].d, 3);
-        const prevStochK = round(stochArr[stochArr.length - 2].k, 3);
-        const prevStochD = round(stochArr[stochArr.length - 2].d, 3);
 
-        // 3-4) 시장 타입 판단 및 진입 신호 생성 (1시간봉 기준)
+        // 진입 신호 생성
         const prevClose = closes[prevIdx];
         const lastClose = closes[lastIdx];
         const prevHigh  = highs[prevIdx];
@@ -241,18 +208,14 @@
         let signal     = "WAIT";
 
         if (lastAdx >= 25) {
-          // --- (1) 강한 추세장 (ADX >= 25) ---
+          // 추세장
           if (lastEma9 > lastEma21) {
-            // 상승 추세장 (Uptrend)
             marketType = "Uptrend";
-            // 롱 진입: 전봉 종가 < 전봉 EMA9 && 현봉 종가 > 현봉 EMA9
             if (prevClose < prevEma9 && lastClose > lastEma9) {
               signal = "LONG";
             }
           } else if (lastEma9 < lastEma21) {
-            // 하락 추세장 (Downtrend)
             marketType = "Downtrend";
-            // 숏 진입: 전봉 종가 > 전봉 EMA9 && 현봉 종가 < 현봉 EMA9
             if (prevClose > prevEma9 && lastClose < lastEma9) {
               signal = "SHORT";
             }
@@ -261,30 +224,24 @@
             signal     = "WAIT";
           }
         } else {
-          // --- (2) 횡보장 (ADX < 25) ---
+          // 횡보장
           marketType = "Ranging";
-          // 횡보장 롱 진입 조건: BB 하단 터치 + RSI<30 + Stoch 과매도 골든크로스
           const longCond =
-            prevLow <= prevBbLower &&
+            prevLow <= lastBbLower &&
             lastLow <= lastBbLower &&
             lastRsi < 30 &&
             lastStochK < 20 &&
             lastStochK > lastStochD;
-          // 횡보장 숏 진입 조건: BB 상단 터치 + RSI>70 + Stoch 과매수 데드 크로스
           const shortCond =
-            prevHigh >= prevBbUpper &&
+            prevHigh >= lastBbUpper &&
             lastHigh >= lastBbUpper &&
             lastRsi > 70 &&
             lastStochK > 80 &&
             lastStochK < lastStochD;
 
-          if (longCond) {
-            signal = "LONG";
-          } else if (shortCond) {
-            signal = "SHORT";
-          } else {
-            signal = "WAIT";
-          }
+          if (longCond) signal = "LONG";
+          else if (shortCond) signal = "SHORT";
+          else signal = "WAIT";
         }
 
         return {
@@ -302,29 +259,22 @@
         };
       }
 
-      // 반올림 유틸 함수
       function round(num, digits) {
         return Math.round((num + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
       }
 
-      //==========================================
-      // 4) 버튼 클릭 이벤트 바인딩 (수동 스캔 가능)
-      //==========================================
       scanButton.addEventListener("click", scanAllSymbols);
 
-      //============================================================
-      // 5) 자동 스케줄러: 매 분마다 UTC 시각 확인 → “매 시간 00분”에 실행
-      //============================================================
+      // 자동 스케줄러: 매분 UTC 시각 확인 → “정시 00분”에 스캔
       setInterval(() => {
         const { hour, minute } = getCurrentUTCHourMinute();
         const currentKey = `${hour}-${minute}`;
-
-        // UTC 기준 “minute === 0” 이면 새로운 1시간봉 마감 시점
         if (minute === 0 && lastScanKey !== currentKey) {
           lastScanKey = currentKey;
           scanAllSymbols();
         }
-      }, 60 * 1000); // 매 1분마다 체크
+      }, 60 * 1000);
+
     })();
   </script>
 </body>
