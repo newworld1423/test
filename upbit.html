@@ -2,64 +2,92 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>KRW-BTC 7MA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KRW-BTC 7일 이동평균 (AllOrigins 프록시)</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
+  </style>
 </head>
 <body>
+  <h1>KRW-BTC 7일 이동평균</h1>
   <pre id="output">로딩 중…</pre>
 
   <script>
-    const MARKET = 'KRW-BTC';
-    const MAX_COUNT = 200;
+    const MARKET     = 'KRW-BTC';
+    const MAX_COUNT  = 200;
+    const API_BASE   = 'https://api.upbit.com/v1/candles/days';
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
+    // AllOrigins 프록시 경유하여 Upbit 일봉 데이터 전부 가져오기
     async function fetchAllDaily() {
       let all = [], to;
-      while (true) {
-        // (1) HTTPS + (2) fetch 옵션
-        const url = new URL('https://api.upbit.com/v1/candles/days');
-        url.searchParams.set('market', MARKET);
-        url.searchParams.set('count', MAX_COUNT);
-        if (to) url.searchParams.set('to', to);
 
-        const res = await fetch(url, {
+      while (true) {
+        // 1) Upbit API 원본 URL 조합
+        const apiUrl = new URL(API_BASE);
+        apiUrl.searchParams.set('market', MARKET);
+        apiUrl.searchParams.set('count', MAX_COUNT);
+        if (to) apiUrl.searchParams.set('to', to);
+
+        // 2) 프로시 경유 URL
+        const proxyUrl = CORS_PROXY + encodeURIComponent(apiUrl.toString());
+
+        // 3) fetch 호출
+        const res = await fetch(proxyUrl, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
-          mode: 'cors',
-          cache: 'no-cache',
-          redirect: 'follow'
+          mode: 'cors'
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} – ${res.statusText}`);
+        }
+
         const data = await res.json();
-        if (!data.length) break;
+        if (!data || data.length === 0) break;
 
         all = all.concat(data);
+
         if (data.length < MAX_COUNT) break;
+        // 다음 루프에서 더 오래된 데이터 요청
         to = data[data.length - 1].candle_date_time_utc;
       }
+
+      // 날짜 오름차순으로 정렬
       return all.reverse();
     }
 
+    // 7일 이동평균 계산
     function computeMA7(candles) {
       const closes = candles.map(c => c.trade_price);
-      return closes.map((_, i, arr) =>
-        i < 6 ? null :
-        arr.slice(i - 6, i + 1).reduce((a, b) => a + b, 0) / 7
-      );
+      return closes.map((_, i, arr) => {
+        if (i < 6) return null;
+        const slice = arr.slice(i - 6, i + 1);
+        const sum = slice.reduce((a, b) => a + b, 0);
+        return sum / 7;
+      });
     }
 
+    // 전체 실행 함수
     (async () => {
       try {
         const candles = await fetchAllDaily();
-        const ma7 = computeMA7(candles);
+        const ma7     = computeMA7(candles);
+
+        // 출력 문자열 조합
         const lines = candles.map((c, i) => {
-          const date = c.candle_date_time_kst.slice(0, 10);
+          const date  = c.candle_date_time_kst.slice(0, 10);
           const price = c.trade_price.toLocaleString();
-          const avg   = ma7[i] !== null ? ma7[i].toFixed(0).toLocaleString() : '—';
+          const avg   = ma7[i] !== null
+                        ? Math.round(ma7[i]).toLocaleString()
+                        : '—';
           return `${date} | 종가: ${price} | MA7: ${avg}`;
         });
+
         document.getElementById('output').textContent = lines.join('\n');
-      } catch (e) {
-        document.getElementById('output').textContent = '에러 발생: ' + e;
-        console.error(e);
+      } catch (err) {
+        console.error(err);
+        document.getElementById('output').textContent = '에러 발생: ' + err;
       }
     })();
   </script>
