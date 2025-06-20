@@ -1,115 +1,78 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>업비트 9시 경주마 예측 스캐너</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background: #f4f4f4; }
-        .highlight { background: #fffae6; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upbit BTC 7MA</title>
 </head>
 <body>
-    <h1>업비트 9시 경주마 예측 스캐너</h1>
-    <p>오전 9시 리셋 직전(08:55~09:00) 호가·체결량 급등 코인 예측</p>
-    <button id="startBtn" disabled>마켓 로딩 중...</button>
-    <table>
-        <thead>
-            <tr>
-                <th>코인</th>
-                <th>1분 거래량</th>
-                <th>5분 평균 거래량</th>
-                <th>거래량 비율</th>
-            </tr>
-        </thead>
-        <tbody id="coinTable"></tbody>
-    </table>
+  <h1>KRW-BTC 7일 이동평균</h1>
+  <pre id="output"></pre>
+  <script>
+    const MARKET = 'KRW-BTC';
+    const MAX_COUNT = 200;
 
-    <script>
-        let markets = [];
-        const intervalMs = 5000;  // 5초마다 업데이트
-        let scanner = null;
+    // 1) 캔들 데이터를 반복해서 전부 가져오는 함수
+    async function fetchAllDaily() {
+      let all = [];
+      let to;  // ISO 문자열, 이후 더 오래된 데이터 요청용
 
-        // KRW 마켓 전체 로드
-        function loadMarkets() {
-            fetch('https://api.upbit.com/v1/market/all?isDetails=false')
-                .then(res => res.json())
-                .then(data => {
-                    markets = data
-                        .filter(item => item.market.startsWith('KRW-'))
-                        .map(item => item.market);
-                    document.getElementById('startBtn').textContent = '스캐너 시작';
-                    document.getElementById('startBtn').disabled = false;
-                })
-                .catch(err => {
-                    console.error('마켓 로딩 실패', err);
-                    document.getElementById('startBtn').textContent = '마켓 로딩 실패. 새로고침';
-                });
-        }
+      while (true) {
+        let url = new URL('https://api.upbit.com/v1/candles/days');
+        url.searchParams.set('market', MARKET);
+        url.searchParams.set('count', MAX_COUNT);
+        if (to) url.searchParams.set('to', to);
 
-        function fetchVolumes() {
-            const now = new Date();
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
-            const seconds = now.getSeconds();
-            // 8:55이전 또는 9시 이후종료
-            if (hours < 8 || (hours === 8 && minutes < 55)) return;
-            if (hours === 9 && minutes >= 0) {
-                console.log('9시가 되어 스캐너를 종료합니다.');
-                clearInterval(scanner);
-                return;
-            }
-
-            // 1분봉 조회
-            fetch(`https://api.upbit.com/v1/candles/minutes/1?market=${markets.join(',')}&count=1`)
-                .then(res => res.json())
-                .then(data1m => {
-                    // 5분봉 조회
-                    fetch(`https://api.upbit.com/v1/candles/minutes/5?market=${markets.join(',')}&count=5`)
-                        .then(res => res.json())
-                        .then(data5m => {
-                            updateTable(data1m, data5m);
-                        })
-                        .catch(err => console.error('5분봉 조회 실패', err));
-                })
-                .catch(err => console.error('1분봉 조회 실패', err));
-        }
-
-        function updateTable(data1m, data5m) {
-            const tbody = document.getElementById('coinTable');
-            tbody.innerHTML = '';
-
-            markets.forEach((mkt, idx) => {
-                const vol1 = data1m[idx]?.candle_acc_trade_volume || 0;
-                const vols5 = data5m.slice(idx * 5, idx * 5 + 5).map(c => c.candle_acc_trade_volume);
-                const avg5 = vols5.reduce((a, b) => a + b, 0) / vols5.length;
-                const ratio = avg5 ? (vol1 / avg5).toFixed(2) : '0';
-
-                const tr = document.createElement('tr');
-                if (parseFloat(ratio) > 2) tr.classList.add('highlight');
-
-                tr.innerHTML = `
-                    <td>${mkt.split('-')[1]}</td>
-                    <td>${vol1.toLocaleString()}</td>
-                    <td>${avg5.toLocaleString()}</td>
-                    <td>${ratio}x</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        document.getElementById('startBtn').addEventListener('click', () => {
-            if (scanner) clearInterval(scanner);
-            scanner = setInterval(fetchVolumes, intervalMs);
-            alert('스캐너가 시작되었습니다. 8:55 이후부터 9시 직전까지 데이터가 갱신됩니다.');
+        const resp = await fetch(url, {
+          headers: { 'Accept': 'application/json' }
         });
+        const data = await resp.json();
+        if (!data || data.length === 0) break;
 
-        // 초기 로드
-        loadMarkets();
-    </script>
+        // 받아온 배열을 뒤에 이어붙여(최신→오래된 순이므로)
+        all = all.concat(data);
+        if (data.length < MAX_COUNT) break;
+
+        // 다음 요청 시 “to”를 가장 마지막(오래된) 캔들의 시각으로
+        to = data[data.length - 1].candle_date_time_utc;
+      }
+
+      // Upbit는 최신→오래된 순 반환이므로, 날짜 순 정렬
+      return all.reverse();
+    }
+
+    // 2) 7일 이동평균 계산
+    function computeMA7(candles) {
+      const closes = candles.map(c => c.trade_price);
+      const ma7 = [];
+      for (let i = 0; i < closes.length; i++) {
+        if (i < 6) {
+          ma7.push(null);  // 초기 6일은 계산 불가
+        } else {
+          const slice = closes.slice(i - 6, i + 1);
+          const sum = slice.reduce((a, b) => a + b, 0);
+          ma7.push(sum / 7);
+        }
+      }
+      return ma7;
+    }
+
+    // 3) 전체 흐름 실행
+    (async () => {
+      const candles = await fetchAllDaily();
+      const ma7 = computeMA7(candles);
+      const output = candles.map((c, idx) => {
+        const date = c.candle_date_time_kst.slice(0, 10);
+        const price = c.trade_price.toLocaleString();
+        const ma = ma7[idx] !== null ? ma7[idx].toFixed(0).toLocaleString() : '—';
+        return `${date} | 종가: ${price} | MA7: ${ma}`;
+      }).join('\n');
+
+      document.getElementById('output').textContent = output;
+    })().catch(err => {
+      console.error(err);
+      document.getElementById('output').textContent = '에러 발생: ' + err;
+    });
+  </script>
 </body>
 </html>
