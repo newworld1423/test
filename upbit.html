@@ -2,77 +2,66 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upbit BTC 7MA</title>
+  <title>KRW-BTC 7MA</title>
 </head>
 <body>
-  <h1>KRW-BTC 7일 이동평균</h1>
-  <pre id="output"></pre>
+  <pre id="output">로딩 중…</pre>
+
   <script>
     const MARKET = 'KRW-BTC';
     const MAX_COUNT = 200;
 
-    // 1) 캔들 데이터를 반복해서 전부 가져오는 함수
     async function fetchAllDaily() {
-      let all = [];
-      let to;  // ISO 문자열, 이후 더 오래된 데이터 요청용
-
+      let all = [], to;
       while (true) {
-        let url = new URL('https://api.upbit.com/v1/candles/days');
+        // (1) HTTPS + (2) fetch 옵션
+        const url = new URL('https://api.upbit.com/v1/candles/days');
         url.searchParams.set('market', MARKET);
         url.searchParams.set('count', MAX_COUNT);
         if (to) url.searchParams.set('to', to);
 
-        const resp = await fetch(url, {
-          headers: { 'Accept': 'application/json' }
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          cache: 'no-cache',
+          redirect: 'follow'
         });
-        const data = await resp.json();
-        if (!data || data.length === 0) break;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.length) break;
 
-        // 받아온 배열을 뒤에 이어붙여(최신→오래된 순이므로)
         all = all.concat(data);
         if (data.length < MAX_COUNT) break;
-
-        // 다음 요청 시 “to”를 가장 마지막(오래된) 캔들의 시각으로
         to = data[data.length - 1].candle_date_time_utc;
       }
-
-      // Upbit는 최신→오래된 순 반환이므로, 날짜 순 정렬
       return all.reverse();
     }
 
-    // 2) 7일 이동평균 계산
     function computeMA7(candles) {
       const closes = candles.map(c => c.trade_price);
-      const ma7 = [];
-      for (let i = 0; i < closes.length; i++) {
-        if (i < 6) {
-          ma7.push(null);  // 초기 6일은 계산 불가
-        } else {
-          const slice = closes.slice(i - 6, i + 1);
-          const sum = slice.reduce((a, b) => a + b, 0);
-          ma7.push(sum / 7);
-        }
-      }
-      return ma7;
+      return closes.map((_, i, arr) =>
+        i < 6 ? null :
+        arr.slice(i - 6, i + 1).reduce((a, b) => a + b, 0) / 7
+      );
     }
 
-    // 3) 전체 흐름 실행
     (async () => {
-      const candles = await fetchAllDaily();
-      const ma7 = computeMA7(candles);
-      const output = candles.map((c, idx) => {
-        const date = c.candle_date_time_kst.slice(0, 10);
-        const price = c.trade_price.toLocaleString();
-        const ma = ma7[idx] !== null ? ma7[idx].toFixed(0).toLocaleString() : '—';
-        return `${date} | 종가: ${price} | MA7: ${ma}`;
-      }).join('\n');
-
-      document.getElementById('output').textContent = output;
-    })().catch(err => {
-      console.error(err);
-      document.getElementById('output').textContent = '에러 발생: ' + err;
-    });
+      try {
+        const candles = await fetchAllDaily();
+        const ma7 = computeMA7(candles);
+        const lines = candles.map((c, i) => {
+          const date = c.candle_date_time_kst.slice(0, 10);
+          const price = c.trade_price.toLocaleString();
+          const avg   = ma7[i] !== null ? ma7[i].toFixed(0).toLocaleString() : '—';
+          return `${date} | 종가: ${price} | MA7: ${avg}`;
+        });
+        document.getElementById('output').textContent = lines.join('\n');
+      } catch (e) {
+        document.getElementById('output').textContent = '에러 발생: ' + e;
+        console.error(e);
+      }
+    })();
   </script>
 </body>
 </html>
