@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Binance Coin Scanner</title>
+</head>
+<body>
+  <h1>조건에 맞는 코인 스캐너</h1>
+  <button onclick="scanCoins()">스캔 시작</button>
+  <ul id="result"></ul>
+
+  <script>
+    const MA = (data, period, idx) => {
+      const slice = data.slice(idx - period + 1, idx + 1);
+      if (slice.length < period) return null;
+      const sum = slice.reduce((acc, d) => acc + parseFloat(d[4]), 0); // 종가 기준
+      return sum / period;
+    };
+
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    async function getSymbols() {
+      const res = await fetch("https://api.binance.com/api/v3/exchangeInfo");
+      const data = await res.json();
+      return data.symbols
+        .filter(s => s.status === "TRADING" && s.isSpotTradingAllowed && s.symbol.endsWith("USDT") && !s.symbol.includes("DOWN") && !s.symbol.includes("UP") && !s.symbol.includes("BULL") && !s.symbol.includes("BEAR"))
+        .map(s => s.symbol);
+    }
+
+    async function getKlines(symbol) {
+      const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=120`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Kline fetch failed");
+      return await res.json();
+    }
+
+    async function checkSymbol(symbol) {
+      try {
+        const klines = await getKlines(symbol);
+        const len = klines.length;
+
+        const prevIndex = len - 2;
+        const a = MA(klines, 7, prevIndex);
+        const b = MA(klines, 7, prevIndex - 1);
+        const c = MA(klines, 7, prevIndex - 2);
+
+        const ma7 = a;
+        const ma25 = MA(klines, 25, prevIndex);
+        const ma99 = MA(klines, 99, prevIndex);
+
+        if (ma99 < ma25 && ma25 < ma7 && a < b && b > c) {
+          return true;
+        }
+      } catch (err) {
+        console.warn(`Error checking ${symbol}: ${err.message}`);
+      }
+      return false;
+    }
+
+    async function scanCoins() {
+      const resultEl = document.getElementById("result");
+      resultEl.innerHTML = "스캔 중...";
+
+      const symbols = await getSymbols();
+      const passed = [];
+
+      for (let i = 0; i < symbols.length; i++) {
+        const symbol = symbols[i];
+        const ok = await checkSymbol(symbol);
+        if (ok) passed.push(symbol);
+
+        resultEl.innerHTML = `진행 중: ${i + 1}/${symbols.length} - 조건 만족: ${passed.length}`;
+        await delay(200); // rate limit 피하기 위해
+      }
+
+      resultEl.innerHTML = "<h2>조건을 만족하는 코인:</h2>";
+      passed.forEach(sym => {
+        const li = document.createElement("li");
+        li.textContent = sym;
+        resultEl.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>
