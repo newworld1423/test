@@ -2,28 +2,48 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>USDT Perp 스캐너 (승률 최적)</title>
+  <title>USDT Perp 전심볼 스캐너 (배치/레이트리밋 대응)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
     h1 { margin: 0 0 8px; }
     .cfg, .log { margin: 12px 0; font-size: 14px; }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .muted { color: #666; }
+    .btn { padding: 8px 12px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; border-radius: 6px; }
+    .btn:active { transform: translateY(1px); }
+    progress { width: 320px; height: 16px; }
     table { border-collapse: collapse; width: 100%; margin: 12px 0; }
     th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 13px; }
     th { background: #f6f6f6; position: sticky; top: 0; }
     .best { background: #f0fff4; }
-    .muted { color: #666; }
-    .btn { padding: 8px 12px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; border-radius: 6px; }
-    .btn:active { transform: translateY(1px); }
+    .small { font-size: 12px; }
+    code { background: #f6f6f6; padding: 0 4px; border-radius: 4px; }
   </style>
 </head>
 <body>
-  <h1>바이낸스 USDT Perp 일봉 스캐너 (승률 중심)</h1>
+  <h1>바이낸스 USDT Perp 일봉 스캐너 (배치 스캔 / 승률 중심)</h1>
+
   <div class="cfg">
-    <button id="runNow" class="btn">지금 스캔 실행</button>
-    <span class="muted">매일 오전 09:00(Asia/Seoul)에 자동 실행</span>
+    <div class="row">
+      <button id="runNow" class="btn">지금 스캔 실행</button>
+      <span class="muted">매일 오전 09:00(Asia/Seoul)에 자동 실행</span>
+    </div>
+    <div class="row small">
+      <div>배치 크기: <code id="cfgBatch"></code></div>
+      <div>배치 간 대기: <code id="cfgDelay"></code> ms</div>
+      <div>동시성: <code id="cfgConc"></code></div>
+      <div>강제 1회 진입(FORCE_TRADE): <code id="cfgForce"></code></div>
+    </div>
   </div>
+
+  <div id="progressWrap" class="row">
+    <progress id="prog" max="100" value="0"></progress>
+    <span id="progText" class="muted">대기 중…</span>
+  </div>
+
   <div id="summary"></div>
+
   <table id="result">
     <thead>
       <tr>
@@ -35,33 +55,52 @@
         <th>진입가</th>
         <th>TP</th>
         <th>SL</th>
+        <th>비고</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
+
   <pre class="log" id="log"></pre>
 
 <script>
-const BASE = 'https://fapi.binance.com'; // USDⓈ-M Futures base. Docs: General Info /fapi. 
-// - ExchangeInfo: /fapi/v1/exchangeInfo
-// - Klines: /fapi/v1/klines
-// - Price: /fapi/v1/ticker/price
-// 참고: 각 엔드포인트 및 레이트리밋은 공식 문서/FAQ 참조.
-
+/** ===== 설정 ===== */
 const CONFIG = {
   RSI_LEN: 2,
   ATR_LEN: 14,
-  LOOKBACK_DAYS: 220,   // 과거 시뮬레이션 길이
-  MIN_TRADES: 40,       // 표본 최소치
+  LOOKBACK_DAYS: 220,     // 히스토릭 시뮬레이션 길이
+  MIN_TRADES: 40,         // 표본 최소치 (작으면 통계적 의미 약함)
   TP_ATR: 0.5,
   SL_ATR: 1.0,
-  MAX_SYMBOLS: 200,     // 과도한 호출 방지 (USDT Perp 전량 원하면 늘리되, 동시성/지연 고려)
-  CONCURRENCY: 6,       // 동시 fetch 개수(2400 req/min 한도 고려하여 보수적으로)
-  MIN_NOTIONAL_USDT: 5, // 필터를 원하면 사용 (미사용시 0)
+
+  // 배치 처리/레이트리밋 대응
+  BATCH_SIZE: 100,        // 심볼을 100개 단위로 분할
+  BATCH_DELAY_MS: 3000,   // 배치 사이 대기 (ms)
+  CONCURRENCY: 6,         // 배치 내 동시 요청 수
+
+  // “RSI 극단 없을 때도 하루 1회 반드시 진입”을 원하면 true
+  FORCE_TRADE: false,     // true면 prevRSI<50=LONG, >=50=SHORT
 };
 
+document.getElementById('cfgBatch').textContent = CONFIG.BATCH_SIZE;
+document.getElementById('cfgDelay').textContent = CONFIG.BATCH_DELAY_MS;
+document.getElementById('cfgConc').textContent = CONFIG.CONCURRENCY;
+document.getElementById('cfgForce').textContent = CONFIG.FORCE_TRADE;
+
+/** ===== 공통 유틸 ===== */
+const BASE = 'https://fapi.binance.com'; // USDⓈ-M Futures
 const log = (m) => { const el = document.getElementById('log'); el.textContent += m + '\n'; console.log(m); };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const fmt = (x) => x==null ? '-' : Number(x).toLocaleString('en-US', {maximumFractionDigits: 6});
+
+function isNineAMSeoulNow() {
+  const now = new Date();
+  const fmtKR = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+  const parts = fmtKR.formatToParts(now);
+  const hh = Number(parts.find(p => p.type === 'hour').value);
+  const mm = Number(parts.find(p => p.type === 'minute').value);
+  return hh === 9 && mm === 0;
+}
 
 async function fetchJSON(url) {
   const r = await fetch(url);
@@ -69,6 +108,7 @@ async function fetchJSON(url) {
   return r.json();
 }
 
+/** ===== 지표 ===== */
 function rsi(values, period) {
   if (values.length < period + 1) return Array(values.length).fill(NaN);
   const out = Array(values.length).fill(NaN);
@@ -94,7 +134,6 @@ function rsi(values, period) {
 }
 
 function atr(ohlc, period) {
-  // ohlc: [{o,h,l,c}] daily
   if (ohlc.length < period + 1) return Array(ohlc.length).fill(NaN);
   const tr = Array(ohlc.length).fill(NaN);
   for (let i = 1; i < ohlc.length; i++) {
@@ -103,64 +142,46 @@ function atr(ohlc, period) {
     const t = Math.max(h - l, Math.abs(h - prevClose), Math.abs(l - prevClose));
     tr[i] = t;
   }
-  const atr = Array(ohlc.length).fill(NaN);
-  // Wilder's smoothing
+  const out = Array(ohlc.length).fill(NaN);
   let sum = 0;
   for (let i = 1; i <= period; i++) sum += tr[i] || 0;
-  atr[period] = sum / period;
+  out[period] = sum / period;
   for (let i = period + 1; i < ohlc.length; i++) {
-    atr[i] = ((atr[i-1] * (period - 1)) + tr[i]) / period;
+    out[i] = ((out[i-1] * (period - 1)) + tr[i]) / period;
   }
-  return atr;
+  return out;
 }
 
-function utcNowMs() { return Date.now(); }
-
-// Binance futures 1일봉은 UTC 기준.
-// 09:00 KST(UTC+9) == 00:00 UTC.
-function isNineAMSeoulNow() {
-  const now = new Date();
-  const seoul = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
-  const parts = seoul.formatToParts(now);
-  const hh = Number(parts.find(p => p.type === 'hour').value);
-  const mm = Number(parts.find(p => p.type === 'minute').value);
-  return hh === 9 && mm === 0;
-}
-
+/** ===== 데이터 ===== */
 async function getUSDTPerpSymbols() {
   const info = await fetchJSON(`${BASE}/fapi/v1/exchangeInfo`);
-  // Futures perp USDT 선별
-  const syms = info.symbols
+  return info.symbols
     .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
     .map(s => s.symbol);
-  return syms;
 }
 
 async function getDailyKlines(symbol, limit=300) {
-  // 반환: [{t,o,h,l,c,v}]
   const arr = await fetchJSON(`${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`);
-  return arr.map(k => ({
-    t: k[0], o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]),
-    ct: k[6]
-  }));
+  return arr.map(k => ({ t:k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5] }));
 }
 
 async function getPrice(symbol) {
   const { price } = await fetchJSON(`${BASE}/fapi/v1/ticker/price?symbol=${symbol}`);
-  return Number(price);
+  return +price;
 }
 
-// 하루 1회 전략 백테스트(보수적 체결 가정: TP/SL 모두 범위 내면 SL 먼저 맞는 것으로 처리)
+/** ===== 전략/백테스트 ===== */
 function backtestOnceADay(ohlc, rsiArr, atrArr, cfg) {
-  // 시그널은 "전일 RSI"로 만들고, 진입은 다음 캔들 오픈가로 가정.
-  // 데이터 인덱스: i = 1..N-1 에서 전일 RSI = rsiArr[i-1], 진입=ohlc[i].o, TP/SL은 ATR[i-1]로 계산.
   let wins = 0, trades = 0;
   for (let i = 1; i < ohlc.length; i++) {
     const prevRsi = rsiArr[i-1], prevAtr = atrArr[i-1];
     if (!isFinite(prevRsi) || !isFinite(prevAtr)) continue;
+
     let dir = 0; // +1 long, -1 short
     if (prevRsi <= 5) dir = +1;
     else if (prevRsi >= 95) dir = -1;
+    else if (cfg.FORCE_TRADE) dir = (prevRsi < 50) ? +1 : -1; // 폴백
+
     if (dir === 0) continue;
 
     const entry = ohlc[i].o;
@@ -168,18 +189,18 @@ function backtestOnceADay(ohlc, rsiArr, atrArr, cfg) {
     const sl = dir === 1 ? entry - cfg.SL_ATR * prevAtr : entry + cfg.SL_ATR * prevAtr;
 
     const H = ohlc[i].h, L = ohlc[i].l;
-    // 보수적: TP와 SL 모두 도달 범위이면 SL 먼저 체결된 것으로 간주
     const hitTP = dir === 1 ? (H >= tp) : (L <= tp);
     const hitSL = dir === 1 ? (L <= sl) : (H >= sl);
-    let win = false;
+
+    let win;
     if (hitTP && !hitSL) win = true;
     else if (!hitTP && hitSL) win = false;
-    else if (hitTP && hitSL) win = false; // 보수적으로 SL 우선
+    else if (hitTP && hitSL) win = false; // 보수적: SL 우선
     else {
-      // 어느 쪽도 안맞으면 종가 청산: 수익/손실 여부 판단(승률 용도)
       const pnl = dir === 1 ? (ohlc[i].c - entry) : (entry - ohlc[i].c);
       win = pnl > 0;
     }
+
     trades++;
     if (win) wins++;
   }
@@ -188,9 +209,7 @@ function backtestOnceADay(ohlc, rsiArr, atrArr, cfg) {
 
 function computeIndicators(ohlc, cfg) {
   const closes = ohlc.map(x => x.c);
-  const r = rsi(closes, cfg.RSI_LEN);
-  const a = atr(ohlc, cfg.ATR_LEN);
-  return { r, a };
+  return { r: rsi(closes, cfg.RSI_LEN), a: atr(ohlc, cfg.ATR_LEN) };
 }
 
 async function analyzeSymbol(symbol, cfg) {
@@ -198,80 +217,41 @@ async function analyzeSymbol(symbol, cfg) {
     const kl = await getDailyKlines(symbol, cfg.LOOKBACK_DAYS + 20);
     if (kl.length < cfg.ATR_LEN + 10) return null;
 
-    // ohlc 단순화
     const ohlc = kl.map(k => ({ o:k.o, h:k.h, l:k.l, c:k.c }));
     const { r, a } = computeIndicators(ohlc, cfg);
     const bt = backtestOnceADay(ohlc, r, a, cfg);
     if (bt.trades < cfg.MIN_TRADES) return null;
 
-    // 오늘 시그널 계산: 전일 RSI
     const prevRsi = r[r.length - 2];
-    let signal = 'NONE';
-    if (prevRsi <= 5) signal = 'LONG';
-    else if (prevRsi >= 95) signal = 'SHORT';
-
-    // 오늘 09:00 진입가(실전은 현재가 사용)
-    const priceNow = await getPrice(symbol);
     const prevAtr = a[a.length - 2];
-    let entry = priceNow, tp = null, sl = null;
-    if (signal === 'LONG') {
-      tp = entry + cfg.TP_ATR * prevAtr;
-      sl = entry - cfg.SL_ATR * prevAtr;
-    } else if (signal === 'SHORT') {
-      tp = entry - cfg.TP_ATR * prevAtr;
-      sl = entry + cfg.SL_ATR * prevAtr;
+    let signal = 'NONE', reason = '';
+    if (isFinite(prevRsi) && isFinite(prevAtr)) {
+      if (prevRsi <= 5) { signal = 'LONG'; reason = 'RSI<=5'; }
+      else if (prevRsi >= 95) { signal = 'SHORT'; reason = 'RSI>=95'; }
+      else if (cfg.FORCE_TRADE) {
+        signal = (prevRsi < 50) ? 'LONG' : 'SHORT';
+        reason = 'FORCE_TRADE';
+      } else {
+        reason = 'RSI 5~95 (미진입)';
+      }
+    } else {
+      reason = '지표 계산 불가(데이터 부족)';
     }
 
-    return {
-      symbol, winRate: bt.winRate, trades: bt.trades,
-      prevRsi: prevRsi, signal, entry, tp, sl
-    };
+    // 오늘 진입가(현 시세)
+    const priceNow = await getPrice(symbol);
+    let entry = priceNow, tp = null, sl = null;
+    if (signal === 'LONG') { tp = entry + cfg.TP_ATR * prevAtr; sl = entry - cfg.SL_ATR * prevAtr; }
+    if (signal === 'SHORT'){ tp = entry - cfg.TP_ATR * prevAtr; sl = entry + cfg.SL_ATR * prevAtr; }
+
+    return { symbol, winRate: bt.winRate, trades: bt.trades, prevRsi, signal, entry, tp, sl, reason };
   } catch (e) {
     console.warn(symbol, e);
     return null;
   }
 }
 
-async function runScan() {
-  document.querySelector('#summary').innerHTML = '스캔 중… 잠시만요.';
-  const tbody = document.querySelector('#result tbody');
-  tbody.innerHTML = '';
-  log('USDT Perp 심볼 가져오는 중…');
-
-  const all = await getUSDTPerpSymbols();
-  const symbols = all.slice(0, CONFIG.MAX_SYMBOLS);
-  log(`대상 심볼 수: ${symbols.length}`);
-
-  // 간단한 동시성 제어
-  const results = [];
-  let idx = 0;
-  async function worker() {
-    while (idx < symbols.length) {
-      const s = symbols[idx++];
-      const r = await analyzeSymbol(s, CONFIG);
-      if (r) { results.push(r); renderRow(r); }
-      await sleep(120); // 레이트리밋 여유
-    }
-  }
-
-  const workers = Array.from({length: CONFIG.CONCURRENCY}, worker);
-  await Promise.all(workers);
-
-  // 최고 승률 선정
-  results.sort((a,b) => b.winRate - a.winRate);
-  const best = results[0];
-  highlightBest(best?.symbol);
-  if (best) {
-    document.querySelector('#summary').innerHTML =
-      `<strong>오늘의 후보:</strong> <b>${best.symbol}</b> · 승률 ${(best.winRate*100).toFixed(1)}% · ` +
-      `${best.signal} 진입가 ${fmt(best.entry)} / TP ${fmt(best.tp)} / SL ${fmt(best.sl)}`;
-  } else {
-    document.querySelector('#summary').textContent = '조건 충족 심볼이 없거나 데이터 부족.';
-  }
-}
-
-function fmt(x){ return x ? Number(x).toLocaleString('en-US', {maximumFractionDigits: 6}) : '-'; }
-
+/** ===== UI 렌더링 ===== */
 function renderRow(r) {
   const tr = document.createElement('tr');
   tr.id = `row-${r.symbol}`;
@@ -279,11 +259,12 @@ function renderRow(r) {
     <td>${r.symbol}</td>
     <td>${(r.winRate*100).toFixed(1)}%</td>
     <td>${r.trades}</td>
-    <td>${r.prevRsi?.toFixed(1)}</td>
+    <td>${isFinite(r.prevRsi) ? r.prevRsi.toFixed(1) : '-'}</td>
     <td>${r.signal}</td>
     <td>${fmt(r.entry)}</td>
     <td>${fmt(r.tp)}</td>
     <td>${fmt(r.sl)}</td>
+    <td>${r.reason||''}</td>
   `;
   document.querySelector('#result tbody').appendChild(tr);
 }
@@ -295,14 +276,83 @@ function highlightBest(symbol){
   if (el) el.classList.add('best');
 }
 
-// 매일 09:00 KST 자동 실행
+function setProgress(done, total, batchIdx, batchTotal, symbolText='') {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const prog = document.getElementById('prog');
+  const txt = document.getElementById('progText');
+  prog.value = pct;
+  txt.textContent = `전체 ${done}/${total} (${pct}%) · 배치 ${batchIdx}/${batchTotal} 처리 중… ${symbolText}`;
+}
+
+/** ===== 배치 스캔 실행 ===== */
+async function runScan() {
+  document.querySelector('#summary').innerHTML = '스캔 준비 중…';
+  document.querySelector('#result tbody').innerHTML = '';
+  document.getElementById('log').textContent = '';
+
+  log('USDT Perp 심볼 가져오는 중…');
+  const allSymbols = await getUSDTPerpSymbols();
+  const total = allSymbols.length;
+  log(`대상 심볼 수: ${total}`);
+
+  // 배치 분할
+  const batches = [];
+  for (let i = 0; i < total; i += CONFIG.BATCH_SIZE) {
+    batches.push(allSymbols.slice(i, i + CONFIG.BATCH_SIZE));
+  }
+
+  const results = [];
+  let processed = 0;
+
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b];
+    const batchIdx = b + 1;
+    const batchTotal = batches.length;
+    log(`배치 ${batchIdx}/${batchTotal} 시작 (심볼 ${batch.length}개)…`);
+
+    // 동시성 제어
+    let idx = 0;
+    async function worker() {
+      while (idx < batch.length) {
+        const s = batch[idx++];
+        setProgress(processed, total, batchIdx, batchTotal, s);
+        const r = await analyzeSymbol(s, CONFIG);
+        processed++;
+        if (r) { results.push(r); renderRow(r); }
+        await sleep(120); // 호출 간 간격(레이트리밋 여유)
+      }
+    }
+    const workers = Array.from({length: CONFIG.CONCURRENCY}, worker);
+    await Promise.all(workers);
+
+    log(`배치 ${batchIdx}/${batchTotal} 완료. ${CONFIG.BATCH_DELAY_MS}ms 대기…`);
+    if (b < batches.length - 1) await sleep(CONFIG.BATCH_DELAY_MS);
+  }
+
+  // 승률 정렬 및 Top 1
+  results.sort((a,b) => b.winRate - a.winRate);
+  const best = results[0];
+  highlightBest(best?.symbol);
+  const sum = document.querySelector('#summary');
+  if (best) {
+    sum.innerHTML =
+      `<strong>오늘의 후보:</strong> <b>${best.symbol}</b> · 승률 ${(best.winRate*100).toFixed(1)}% · ` +
+      `${best.signal} 진입가 ${fmt(best.entry)} / TP ${fmt(best.tp)} / SL ${fmt(best.sl)} ` +
+      `<span class="muted">(표본 N=${best.trades})</span>`;
+  } else {
+    sum.textContent = '조건 충족 심볼이 없거나 데이터 부족.';
+  }
+
+  setProgress(total, total, batches.length, batches.length);
+  log('스캔 완료.');
+}
+
+/** ===== 자동 실행(매일 09:00 KST) & 버튼 ===== */
 setInterval(() => {
   if (isNineAMSeoulNow()) runScan();
 }, 30 * 1000);
 
-// 수동 실행 버튼
 document.getElementById('runNow').addEventListener('click', runScan);
-
 </script>
 </body>
 </html>
