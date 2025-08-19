@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>USDT Perp 전심볼 스캐너 (배치/레이트리밋 대응)</title>
+  <title>USDT Perp 전심볼 스캐너 (배치/레이트리밋 대응 · 승률 중심)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
@@ -34,6 +34,7 @@
       <div>배치 간 대기: <code id="cfgDelay"></code> ms</div>
       <div>동시성: <code id="cfgConc"></code></div>
       <div>강제 1회 진입(FORCE_TRADE): <code id="cfgForce"></code></div>
+      <div>표시: <code id="cfgShowOnly"></code> (LONG/SHORT만 표에 표시 여부)</div>
     </div>
   </div>
 
@@ -68,7 +69,7 @@
 const CONFIG = {
   RSI_LEN: 2,
   ATR_LEN: 14,
-  LOOKBACK_DAYS: 220,     // 히스토릭 시뮬레이션 길이
+  LOOKBACK_DAYS: 220,     // 히스토릭 시뮬 길이
   MIN_TRADES: 40,         // 표본 최소치 (작으면 통계적 의미 약함)
   TP_ATR: 0.5,
   SL_ATR: 1.0,
@@ -80,12 +81,16 @@ const CONFIG = {
 
   // “RSI 극단 없을 때도 하루 1회 반드시 진입”을 원하면 true
   FORCE_TRADE: false,     // true면 prevRSI<50=LONG, >=50=SHORT
+
+  // 표에 LONG/SHORT만 표시하고 싶으면 true
+  SHOW_ONLY_SIGNALED_IN_TABLE: false,
 };
 
 document.getElementById('cfgBatch').textContent = CONFIG.BATCH_SIZE;
 document.getElementById('cfgDelay').textContent = CONFIG.BATCH_DELAY_MS;
 document.getElementById('cfgConc').textContent = CONFIG.CONCURRENCY;
 document.getElementById('cfgForce').textContent = CONFIG.FORCE_TRADE;
+document.getElementById('cfgShowOnly').textContent = CONFIG.SHOW_ONLY_SIGNALED_IN_TABLE;
 
 /** ===== 공통 유틸 ===== */
 const BASE = 'https://fapi.binance.com'; // USDⓈ-M Futures
@@ -95,7 +100,7 @@ const fmt = (x) => x==null ? '-' : Number(x).toLocaleString('en-US', {maximumFra
 
 function isNineAMSeoulNow() {
   const now = new Date();
-  const fmtKR = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+  const fmtKR = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false, minute: '2-digit' });
   const parts = fmtKR.formatToParts(now);
   const hh = Number(parts.find(p => p.type === 'hour').value);
   const mm = Number(parts.find(p => p.type === 'minute').value);
@@ -215,12 +220,19 @@ function computeIndicators(ohlc, cfg) {
 async function analyzeSymbol(symbol, cfg) {
   try {
     const kl = await getDailyKlines(symbol, cfg.LOOKBACK_DAYS + 20);
-    if (kl.length < cfg.ATR_LEN + 10) return null;
+    // 데이터 부족 → SKIP으로 반환(표에 보이게)
+    if (kl.length < cfg.ATR_LEN + 10) {
+      return { symbol, winRate: 0, trades: 0, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: '캔들 데이터 부족' };
+    }
 
     const ohlc = kl.map(k => ({ o:k.o, h:k.h, l:k.l, c:k.c }));
     const { r, a } = computeIndicators(ohlc, cfg);
     const bt = backtestOnceADay(ohlc, r, a, cfg);
-    if (bt.trades < cfg.MIN_TRADES) return null;
+
+    // 표본 부족 → SKIP으로 반환(표에 보이게)
+    if (bt.trades < cfg.MIN_TRADES) {
+      return { symbol, winRate: 0, trades: bt.trades, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: `표본 부족(MIN_TRADES=${cfg.MIN_TRADES})` };
+    }
 
     const prevRsi = r[r.length - 2];
     const prevAtr = a[a.length - 2];
@@ -235,6 +247,7 @@ async function analyzeSymbol(symbol, cfg) {
         reason = 'RSI 5~95 (미진입)';
       }
     } else {
+      signal = 'SKIP';
       reason = '지표 계산 불가(데이터 부족)';
     }
 
@@ -247,7 +260,8 @@ async function analyzeSymbol(symbol, cfg) {
     return { symbol, winRate: bt.winRate, trades: bt.trades, prevRsi, signal, entry, tp, sl, reason };
   } catch (e) {
     console.warn(symbol, e);
-    return null;
+    // 오류도 표에서 볼 수 있게 표시
+    return { symbol, winRate: 0, trades: 0, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: `오류: ${e.message}` };
   }
 }
 
@@ -267,6 +281,12 @@ function renderRow(r) {
     <td>${r.reason||''}</td>
   `;
   document.querySelector('#result tbody').appendChild(tr);
+}
+function maybeRenderRow(r) {
+  if (CONFIG.SHOW_ONLY_SIGNALED_IN_TABLE) {
+    if (r.signal !== 'LONG' && r.signal !== 'SHORT') return; // NONE/SKIP 숨김
+  }
+  renderRow(r);
 }
 
 function highlightBest(symbol){
@@ -318,7 +338,7 @@ async function runScan() {
         setProgress(processed, total, batchIdx, batchTotal, s);
         const r = await analyzeSymbol(s, CONFIG);
         processed++;
-        if (r) { results.push(r); renderRow(r); }
+        if (r) { results.push(r); maybeRenderRow(r); }
         await sleep(120); // 호출 간 간격(레이트리밋 여유)
       }
     }
@@ -329,9 +349,11 @@ async function runScan() {
     if (b < batches.length - 1) await sleep(CONFIG.BATCH_DELAY_MS);
   }
 
-  // 승률 정렬 및 Top 1
-  results.sort((a,b) => b.winRate - a.winRate);
-  const best = results[0];
+  // 후보 선택: 시그널이 있는 것(LONG/SHORT)만에서 승률 Top 1
+  const ranked = [...results].sort((a,b) => b.winRate - a.winRate);
+  const candidates = ranked.filter(r => r.signal === 'LONG' || r.signal === 'SHORT');
+  const best = candidates[0];
+
   highlightBest(best?.symbol);
   const sum = document.querySelector('#summary');
   if (best) {
@@ -340,7 +362,7 @@ async function runScan() {
       `${best.signal} 진입가 ${fmt(best.entry)} / TP ${fmt(best.tp)} / SL ${fmt(best.sl)} ` +
       `<span class="muted">(표본 N=${best.trades})</span>`;
   } else {
-    sum.textContent = '조건 충족 심볼이 없거나 데이터 부족.';
+    sum.textContent = '오늘 시그널(LONG/SHORT) 발생 심볼이 없습니다. (모두 NONE 또는 SKIP)';
   }
 
   setProgress(total, total, batches.length, batches.length);
