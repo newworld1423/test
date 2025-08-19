@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>USDT Perp 전심볼 스캐너 (배치/레이트리밋 대응 · 승률 중심)</title>
+  <title>USDT Perp 전심볼 스캐너 + 포지션/레버리지 계산</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
@@ -19,22 +19,43 @@
     .best { background: #f0fff4; }
     .small { font-size: 12px; }
     code { background: #f6f6f6; padding: 0 4px; border-radius: 4px; }
+    .card { border:1px solid #e5e5e5; border-radius:10px; padding:12px; background:#fafafa; }
   </style>
 </head>
 <body>
-  <h1>바이낸스 USDT Perp 일봉 스캐너 (배치 스캔 / 승률 중심)</h1>
+  <h1>바이낸스 USDT Perp 일봉 스캐너 (배치/승률 중심) + 포지션/레버리지 계산</h1>
 
-  <div class="cfg">
+  <div class="cfg card">
     <div class="row">
       <button id="runNow" class="btn">지금 스캔 실행</button>
       <span class="muted">매일 오전 09:00(Asia/Seoul)에 자동 실행</span>
     </div>
+
     <div class="row small">
       <div>배치 크기: <code id="cfgBatch"></code></div>
-      <div>배치 간 대기: <code id="cfgDelay"></code> ms</div>
+      <div>배치 대기: <code id="cfgDelay"></code> ms</div>
       <div>동시성: <code id="cfgConc"></code></div>
-      <div>강제 1회 진입(FORCE_TRADE): <code id="cfgForce"></code></div>
-      <div>표시: <code id="cfgShowOnly"></code> (LONG/SHORT만 표에 표시 여부)</div>
+      <div>FORCE_TRADE: <code id="cfgForce"></code></div>
+      <div>표시: <code id="cfgShowOnly"></code> (LONG/SHORT만 표)</div>
+    </div>
+
+    <hr />
+
+    <div class="row">
+      <label>계좌 잔고(USDT)
+        <input id="acct" type="number" step="0.01" value="1000" style="width:120px;">
+      </label>
+      <label>리스크(%/트레이드)
+        <input id="riskPct" type="number" step="0.1" value="1.0" style="width:90px;">
+      </label>
+      <label>최대 마진 사용(%)
+        <input id="marginPct" type="number" step="1" value="20" style="width:90px;">
+      </label>
+      <label>레버리지 상한(x)
+        <input id="levCap" type="number" step="1" value="7" style="width:80px;">
+      </label>
+      <button id="recalc" class="btn">후보 재계산</button>
+      <span class="muted small">※ 레버리지는 “필요 최소치~상한 내”에서 계산. 마진 제한으로 목표 리스크를 못 채우면 실제 리스크가 낮아질 수 있어요.</span>
     </div>
   </div>
 
@@ -43,7 +64,8 @@
     <span id="progText" class="muted">대기 중…</span>
   </div>
 
-  <div id="summary"></div>
+  <div id="summary" class="card"></div>
+  <div id="positionBox" class="card"></div>
 
   <table id="result">
     <thead>
@@ -70,22 +92,21 @@ const CONFIG = {
   RSI_LEN: 2,
   ATR_LEN: 14,
   LOOKBACK_DAYS: 220,     // 히스토릭 시뮬 길이
-  MIN_TRADES: 40,         // 표본 최소치 (작으면 통계적 의미 약함)
+  MIN_TRADES: 40,         // 표본 최소치
   TP_ATR: 0.5,
   SL_ATR: 1.0,
 
   // 배치 처리/레이트리밋 대응
-  BATCH_SIZE: 100,        // 심볼을 100개 단위로 분할
-  BATCH_DELAY_MS: 3000,   // 배치 사이 대기 (ms)
-  CONCURRENCY: 6,         // 배치 내 동시 요청 수
+  BATCH_SIZE: 100,
+  BATCH_DELAY_MS: 3000,
+  CONCURRENCY: 6,
 
   // “RSI 극단 없을 때도 하루 1회 반드시 진입”을 원하면 true
-  FORCE_TRADE: false,     // true면 prevRSI<50=LONG, >=50=SHORT
+  FORCE_TRADE: true,
 
   // 표에 LONG/SHORT만 표시하고 싶으면 true
-  SHOW_ONLY_SIGNALED_IN_TABLE: true,
+  SHOW_ONLY_SIGNALED_IN_TABLE: false,
 };
-
 document.getElementById('cfgBatch').textContent = CONFIG.BATCH_SIZE;
 document.getElementById('cfgDelay').textContent = CONFIG.BATCH_DELAY_MS;
 document.getElementById('cfgConc').textContent = CONFIG.CONCURRENCY;
@@ -100,7 +121,7 @@ const fmt = (x) => x==null ? '-' : Number(x).toLocaleString('en-US', {maximumFra
 
 function isNineAMSeoulNow() {
   const now = new Date();
-  const fmtKR = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false, minute: '2-digit' });
+  const fmtKR = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
   const parts = fmtKR.formatToParts(now);
   const hh = Number(parts.find(p => p.type === 'hour').value);
   const mm = Number(parts.find(p => p.type === 'minute').value);
@@ -111,6 +132,37 @@ async function fetchJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status} @ ${url}`);
   return r.json();
+}
+
+/** ===== 거래소 메타(틱/스텝/최소노셔널) ===== */
+let SYMBOL_META = new Map();
+async function loadExchangeInfoAndSymbols() {
+  const info = await fetchJSON(`${BASE}/fapi/v1/exchangeInfo`);
+  SYMBOL_META.clear();
+  const syms = [];
+  for (const s of info.symbols) {
+    if (s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING') {
+      syms.push(s.symbol);
+      const priceFilter = s.filters.find(f => f.filterType === 'PRICE_FILTER') || {};
+      const lotSize = s.filters.find(f => f.filterType === 'LOT_SIZE') || {};
+      const minNotional = s.filters.find(f => f.filterType === 'MIN_NOTIONAL') || {};
+      SYMBOL_META.set(s.symbol, {
+        priceTick: parseFloat(priceFilter.tickSize ?? '0.0001'),
+        lotStep: parseFloat(lotSize.stepSize ?? '1'),
+        minQty: parseFloat(lotSize.minQty ?? '0'),
+        minNotional: parseFloat(minNotional.notional ?? '0'),
+      });
+    }
+  }
+  return syms;
+}
+function roundToTick(x, tick) {
+  if (!isFinite(x) || !isFinite(tick) || tick<=0) return x;
+  return Math.round(x / tick) * tick;
+}
+function floorToStep(x, step) {
+  if (!isFinite(x) || !isFinite(step) || step<=0) return x;
+  return Math.floor(x / step) * step;
 }
 
 /** ===== 지표 ===== */
@@ -137,7 +189,6 @@ function rsi(values, period) {
   }
   return out;
 }
-
 function atr(ohlc, period) {
   if (ohlc.length < period + 1) return Array(ohlc.length).fill(NaN);
   const tr = Array(ohlc.length).fill(NaN);
@@ -158,18 +209,10 @@ function atr(ohlc, period) {
 }
 
 /** ===== 데이터 ===== */
-async function getUSDTPerpSymbols() {
-  const info = await fetchJSON(`${BASE}/fapi/v1/exchangeInfo`);
-  return info.symbols
-    .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
-    .map(s => s.symbol);
-}
-
 async function getDailyKlines(symbol, limit=300) {
   const arr = await fetchJSON(`${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`);
   return arr.map(k => ({ t:k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5] }));
 }
-
 async function getPrice(symbol) {
   const { price } = await fetchJSON(`${BASE}/fapi/v1/ticker/price?symbol=${symbol}`);
   return +price;
@@ -211,7 +254,6 @@ function backtestOnceADay(ohlc, rsiArr, atrArr, cfg) {
   }
   return { wins, trades, winRate: trades ? (wins / trades) : 0 };
 }
-
 function computeIndicators(ohlc, cfg) {
   const closes = ohlc.map(x => x.c);
   return { r: rsi(closes, cfg.RSI_LEN), a: atr(ohlc, cfg.ATR_LEN) };
@@ -220,7 +262,6 @@ function computeIndicators(ohlc, cfg) {
 async function analyzeSymbol(symbol, cfg) {
   try {
     const kl = await getDailyKlines(symbol, cfg.LOOKBACK_DAYS + 20);
-    // 데이터 부족 → SKIP으로 반환(표에 보이게)
     if (kl.length < cfg.ATR_LEN + 10) {
       return { symbol, winRate: 0, trades: 0, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: '캔들 데이터 부족' };
     }
@@ -229,7 +270,6 @@ async function analyzeSymbol(symbol, cfg) {
     const { r, a } = computeIndicators(ohlc, cfg);
     const bt = backtestOnceADay(ohlc, r, a, cfg);
 
-    // 표본 부족 → SKIP으로 반환(표에 보이게)
     if (bt.trades < cfg.MIN_TRADES) {
       return { symbol, winRate: 0, trades: bt.trades, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: `표본 부족(MIN_TRADES=${cfg.MIN_TRADES})` };
     }
@@ -251,7 +291,7 @@ async function analyzeSymbol(symbol, cfg) {
       reason = '지표 계산 불가(데이터 부족)';
     }
 
-    // 오늘 진입가(현 시세)
+    // 현재가로 오늘 진입가 가정
     const priceNow = await getPrice(symbol);
     let entry = priceNow, tp = null, sl = null;
     if (signal === 'LONG') { tp = entry + cfg.TP_ATR * prevAtr; sl = entry - cfg.SL_ATR * prevAtr; }
@@ -260,7 +300,6 @@ async function analyzeSymbol(symbol, cfg) {
     return { symbol, winRate: bt.winRate, trades: bt.trades, prevRsi, signal, entry, tp, sl, reason };
   } catch (e) {
     console.warn(symbol, e);
-    // 오류도 표에서 볼 수 있게 표시
     return { symbol, winRate: 0, trades: 0, prevRsi: NaN, signal: 'SKIP', entry: null, tp: null, sl: null, reason: `오류: ${e.message}` };
   }
 }
@@ -284,38 +323,87 @@ function renderRow(r) {
 }
 function maybeRenderRow(r) {
   if (CONFIG.SHOW_ONLY_SIGNALED_IN_TABLE) {
-    if (r.signal !== 'LONG' && r.signal !== 'SHORT') return; // NONE/SKIP 숨김
+    if (r.signal !== 'LONG' && r.signal !== 'SHORT') return;
   }
   renderRow(r);
 }
-
 function highlightBest(symbol){
   if(!symbol) return;
   document.querySelectorAll('#result tbody tr').forEach(tr => tr.classList.remove('best'));
   const el = document.getElementById(`row-${symbol}`);
   if (el) el.classList.add('best');
 }
-
 function setProgress(done, total, batchIdx, batchTotal, symbolText='') {
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const prog = document.getElementById('prog');
-  const txt = document.getElementById('progText');
-  prog.value = pct;
-  txt.textContent = `전체 ${done}/${total} (${pct}%) · 배치 ${batchIdx}/${batchTotal} 처리 중… ${symbolText}`;
+  document.getElementById('prog').value = pct;
+  document.getElementById('progText').textContent =
+    `전체 ${done}/${total} (${pct}%) · 배치 ${batchIdx}/${batchTotal} 처리 중… ${symbolText}`;
+}
+
+/** ===== 포지션 & 레버리지 계산 ===== */
+function roundLevelsForSymbol(symbol, entry, tp, sl) {
+  const meta = SYMBOL_META.get(symbol) || {};
+  const tick = meta.priceTick || 0;
+  if (tick > 0) {
+    if (isFinite(entry)) entry = roundToTick(entry, tick);
+    if (isFinite(tp)) tp = roundToTick(tp, tick);
+    if (isFinite(sl)) sl = roundToTick(sl, tick);
+  }
+  return { entry, tp, sl };
+}
+function suggestPosition(symbol, entry, sl, balance, riskPct, marginPct, levCap) {
+  if (!isFinite(entry) || !isFinite(sl) || entry <= 0) return null;
+  const stopPct = Math.abs(entry - sl) / entry;
+  if (!isFinite(stopPct) || stopPct <= 0) return null;
+
+  const riskUSDT = balance * (riskPct/100);
+  let targetNotional = riskUSDT / stopPct;                  // 이상적인 노셔널
+  let levNeeded = targetNotional / (balance * (marginPct/100)); // 마진 제한을 만족하기 위한 최소 레버리지
+  let lev = Math.max(1, Math.ceil(levNeeded));
+  if (levCap && lev > levCap) lev = levCap;
+
+  // 마진 제한 하에서 허용 가능한 최대 노셔널
+  const allowedNotional = balance * (marginPct/100) * lev;
+  if (targetNotional > allowedNotional) {
+    targetNotional = allowedNotional; // 리스크가 목표치보다 낮아질 수 있음
+  }
+
+  const meta = SYMBOL_META.get(symbol) || {};
+  const step = meta.lotStep || 0;
+  let qty = targetNotional / entry;
+  if (step > 0) qty = floorToStep(qty, step);
+  let notional = qty * entry;
+
+  // 최소 노셔널 보정
+  if (meta.minNotional && isFinite(meta.minNotional) && notional < meta.minNotional) {
+    const needQty = (meta.minNotional / entry);
+    const stepQty = step > 0 ? Math.ceil(needQty / step) * step : needQty;
+    qty = stepQty;
+    notional = qty * entry;
+  }
+
+  const usedMargin = notional / lev;
+  const effRiskUSDT = stopPct * notional;
+  const effRiskPct = balance ? (effRiskUSDT / balance * 100) : 0;
+
+  return { stopPct, riskUSDT, effRiskUSDT, effRiskPct, notional, qty, lev, usedMargin };
 }
 
 /** ===== 배치 스캔 실행 ===== */
+let LAST_RESULTS = [];
+let LAST_BEST = null;
+
 async function runScan() {
   document.querySelector('#summary').innerHTML = '스캔 준비 중…';
+  document.querySelector('#positionBox').innerHTML = '';
   document.querySelector('#result tbody').innerHTML = '';
   document.getElementById('log').textContent = '';
 
-  log('USDT Perp 심볼 가져오는 중…');
-  const allSymbols = await getUSDTPerpSymbols();
+  log('USDT Perp 심볼/필터 로딩…');
+  const allSymbols = await loadExchangeInfoAndSymbols();
   const total = allSymbols.length;
   log(`대상 심볼 수: ${total}`);
 
-  // 배치 분할
   const batches = [];
   for (let i = 0; i < total; i += CONFIG.BATCH_SIZE) {
     batches.push(allSymbols.slice(i, i + CONFIG.BATCH_SIZE));
@@ -330,7 +418,6 @@ async function runScan() {
     const batchTotal = batches.length;
     log(`배치 ${batchIdx}/${batchTotal} 시작 (심볼 ${batch.length}개)…`);
 
-    // 동시성 제어
     let idx = 0;
     async function worker() {
       while (idx < batch.length) {
@@ -339,7 +426,7 @@ async function runScan() {
         const r = await analyzeSymbol(s, CONFIG);
         processed++;
         if (r) { results.push(r); maybeRenderRow(r); }
-        await sleep(120); // 호출 간 간격(레이트리밋 여유)
+        await sleep(120); // 레이트리밋 여유
       }
     }
     const workers = Array.from({length: CONFIG.CONCURRENCY}, worker);
@@ -349,32 +436,76 @@ async function runScan() {
     if (b < batches.length - 1) await sleep(CONFIG.BATCH_DELAY_MS);
   }
 
-  // 후보 선택: 시그널이 있는 것(LONG/SHORT)만에서 승률 Top 1
   const ranked = [...results].sort((a,b) => b.winRate - a.winRate);
   const candidates = ranked.filter(r => r.signal === 'LONG' || r.signal === 'SHORT');
   const best = candidates[0];
 
+  LAST_RESULTS = results;
+  LAST_BEST = best;
+
   highlightBest(best?.symbol);
   const sum = document.querySelector('#summary');
+
   if (best) {
+    // 레벨 라운딩(틱 맞춤)
+    const rounded = roundLevelsForSymbol(best.symbol, best.entry, best.tp, best.sl);
+
     sum.innerHTML =
       `<strong>오늘의 후보:</strong> <b>${best.symbol}</b> · 승률 ${(best.winRate*100).toFixed(1)}% · ` +
-      `${best.signal} 진입가 ${fmt(best.entry)} / TP ${fmt(best.tp)} / SL ${fmt(best.sl)} ` +
+      `${best.signal} 진입가 ${fmt(rounded.entry)} / TP ${fmt(rounded.tp)} / SL ${fmt(rounded.sl)} ` +
       `<span class="muted">(표본 N=${best.trades})</span>`;
+
+    recalcPositionBox(); // 사용자 입력 기반 포지션/레버리지 계산
   } else {
     sum.textContent = '오늘 시그널(LONG/SHORT) 발생 심볼이 없습니다. (모두 NONE 또는 SKIP)';
+    document.querySelector('#positionBox').innerHTML = '';
   }
 
   setProgress(total, total, batches.length, batches.length);
   log('스캔 완료.');
 }
 
-/** ===== 자동 실행(매일 09:00 KST) & 버튼 ===== */
-setInterval(() => {
-  if (isNineAMSeoulNow()) runScan();
-}, 30 * 1000);
+/** ===== 후보 포지션 재계산(입력 변경용) ===== */
+function recalcPositionBox() {
+  const box = document.getElementById('positionBox');
+  if (!LAST_BEST) { box.innerHTML = ''; return; }
 
+  const best = LAST_BEST;
+  const { entry, sl, tp } = roundLevelsForSymbol(best.symbol, best.entry, best.tp, best.sl);
+
+  const balance = parseFloat(document.getElementById('acct').value || '0');
+  const riskPct = parseFloat(document.getElementById('riskPct').value || '0');
+  const marginPct = parseFloat(document.getElementById('marginPct').value || '0');
+  const levCap   = parseFloat(document.getElementById('levCap').value || '0');
+
+  const sug = suggestPosition(best.symbol, entry, sl, balance, riskPct, marginPct, levCap);
+  if (!sug) { box.innerHTML = '<b>포지션 계산 불가</b> (가격/손절 계산 오류)'; return; }
+
+  const warn = [];
+  if (sug.effRiskUSDT < balance * (riskPct/100) - 1e-6) {
+    warn.push('마진 제한으로 목표 리스크에 미달(실제 리스크가 더 낮음).');
+  }
+  if (!isFinite(sug.qty) || sug.qty <= 0) {
+    warn.push('스텝/최소 노셔널 때문에 수량이 0이 되었을 수 있어요.');
+  }
+
+  box.innerHTML = `
+    <div><strong>포지션/레버리지 제안 (${best.symbol} · ${best.signal})</strong></div>
+    <div class="small muted">틱/스텝/최소노셔널 반영, 손절폭 기반 “계좌 대비 리스크 ${riskPct}%” 목표</div>
+    <table>
+      <tr><th>진입가</th><td>${fmt(entry)}</td><th>TP</th><td>${fmt(tp)}</td><th>SL</th><td>${fmt(sl)}</td></tr>
+      <tr><th>손절폭(%)</th><td>${(sug.stopPct*100).toFixed(3)}%</td><th>목표 리스크</th><td>${fmt(balance*(riskPct/100))} USDT</td><th>실제 리스크</th><td>${fmt(sug.effRiskUSDT)} USDT (${sug.effRiskPct.toFixed(2)}%)</td></tr>
+      <tr><th>권장 수량</th><td>${fmt(sug.qty)}</td><th>권장 노셔널</th><td>${fmt(sug.notional)} USDT</td><th>권장 레버리지</th><td>${sug.lev}x</td></tr>
+      <tr><th>사용 마진(추정)</th><td>${fmt(sug.usedMargin)} USDT</td><th>마진 한도</th><td>${(marginPct).toFixed(0)}% of ${fmt(balance)} = ${fmt(balance*(marginPct/100))} USDT</td><th>레버리지 상한</th><td>${levCap}x</td></tr>
+    </table>
+    ${warn.length ? `<div class="small" style="color:#a15;">⚠ ${warn.join(' ')}</div>` : ''}
+  `;
+}
+
+/** ===== 자동 실행 & 버튼 ===== */
+setInterval(() => { if (isNineAMSeoulNow()) runScan(); }, 30 * 1000);
 document.getElementById('runNow').addEventListener('click', runScan);
+document.getElementById('recalc').addEventListener('click', recalcPositionBox);
 </script>
 </body>
 </html>
