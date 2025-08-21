@@ -290,6 +290,31 @@
       const o=[],h=[],l=[],c=[],t=[]; for(const k of kl){o.push(+k[1]);h.push(+k[2]);l.push(+k[3]);c.push(+k[4]);t.push(+k[0]);}
       const sma20=SMA(c,20), sd20=STDDEV(c,20), mid=sma20, up=mid.map((v,i)=>v==null?null:v+2*sd20[i]), dn=mid.map((v,i)=>v==null?null:v-2*sd20[i]);
       const ema200=EMA(c,200);
+      const html = `<!doctype html><meta charset="utf-8"><title>${symbol}</title><style>body{margin:0;background:#0b0c10;color:#fff;font-family:system-ui}canvas{display:block;width:100%;height:100%}</style><canvas id="cv"></canvas>`;
+      w.document.open(); w.document.write(html); w.document.close();
+      const code = `(
+        function(){
+          const t=${JSON.stringify(t)}, c=${JSON.stringify(c)}, up=${JSON.stringify(up)}, dn=${JSON.stringify(dn)}, mid=${JSON.stringify(mid)}, e200=${JSON.stringify(ema200)};
+          const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
+          function fit(){cv.width=innerWidth;cv.height=innerHeight;draw();}
+          window.addEventListener('resize',fit); fit();
+          function mapX(i){return 40 + i*((cv.width-60)/(c.length-1));}
+          function mapY(v,min,max){return 20 + (max-v)*((cv.height-40)/(max-min));}
+          function draw(){
+            const min=Math.min(...c.filter(x=>x!=null),...dn.filter(x=>x!=null));
+            const max=Math.max(...c.filter(x=>x!=null),...up.filter(x=>x!=null));
+            ctx.fillStyle='#0b0c10';ctx.fillRect(0,0,cv.width,cv.height);
+            ctx.beginPath(); for(let i=0;i<c.length;i++){ if(c[i]==null) continue; const x=mapX(i), y=mapY(c[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#ddd'; ctx.stroke();
+            ctx.beginPath(); for(let i=0;i<up.length;i++){ if(up[i]==null) continue; const x=mapX(i), y=mapY(up[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#6fb7ff'; ctx.stroke();
+            ctx.beginPath(); for(let i=0;i<dn.length;i++){ if(dn[i]==null) continue; const x=mapX(i), y=mapY(dn[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#6fb7ff'; ctx.stroke();
+            ctx.beginPath(); for(let i=0;i<mid.length;i++){ if(mid[i]==null) continue; const x=mapX(i), y=mapY(mid[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#8bd17c'; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); for(let i=0;i<e200.length;i++){ if(e200[i]==null) continue; const x=mapX(i), y=mapY(e200[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#ffad66'; ctx.stroke();
+          }
+        })();`;
+      w.eval(code);
+    }
+      const sma20=SMA(c,20), sd20=STDDEV(c,20), mid=sma20, up=mid.map((v,i)=>v==null?null:v+2*sd20[i]), dn=mid.map((v,i)=>v==null?null:v-2*sd20[i]);
+      const ema200=EMA(c,200);
       w.document.write(`<!doctype html><meta charset=\"utf-8\"><title>${symbol}</title><style>body{margin:0;background:#0b0c10;color:#fff;font-family:system-ui}canvas{display:block;width:100%;height:100%}</style><canvas id=\"cv\"></canvas><script>
         const t=${JSON.stringify(t)}, c=${JSON.stringify(c)}, up=${JSON.stringify(up)}, dn=${JSON.stringify(dn)}, mid=${JSON.stringify(mid)}, e200=${JSON.stringify(ema200)};
         const cv=document.getElementById('cv'); const ctx=cv.getContext('2d'); function fit(){cv.width=innerWidth;cv.height=innerHeight;draw();} window.addEventListener('resize',fit); fit();
