@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Binance 4H USDT-Perp 스캐너 (레이트리밋 대응 · BB+EMA200 리버전)</title>
+  <title>Binance 4H USDT-Perp 스캐너 (BB + EMA200 리버전)</title>
   <style>
-    :root{--bg:#0b0c10;--card:#12141a;--muted:#9aa4b2;--text:#e6e6e6;--accent:#64d2ff;--good:#2ecc71;--bad:#ff5b5b}
+    :root{--bg:#0b0c10;--card:#12141a;--muted:#9aa4b2;--text:#e6e6e6;--accent:#64d2ff;--good:#2ecc71;--bad:#ff5b5b;}
     *{box-sizing:border-box}
     body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Noto Sans,Apple Color Emoji,Segoe UI Emoji;color:var(--text);background:linear-gradient(180deg,#090a0f,#0b0c10 60%)}
     header{position:sticky;top:0;z-index:10;background:rgba(9,10,15,.7);backdrop-filter:blur(10px);border-bottom:1px solid #1e222d}
-    .wrap{max-width:1120px;margin:0 auto;padding:18px}
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
     h1{font-size:20px;margin:0 0 10px}
     .desc{color:var(--muted);font-size:12px;line-height:1.5}
-    .controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+    .controls{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}
     .controls label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#c8d0db}
     .controls input,.controls select{padding:8px 10px;border-radius:10px;border:1px solid #2a2f3a;background:#0f1117;color:var(--text)}
     .controls button{border:1px solid #2a2f3a;background:#10131a;color:#fff;padding:10px 14px;border-radius:12px;cursor:pointer}
@@ -22,7 +22,7 @@
     .cards{display:grid;grid-template-columns:1.4fr .6fr;gap:14px}
     .card{background:var(--card);border:1px solid #1e222d;border-radius:16px;padding:12px}
     .card h2{font-size:14px;margin:0 0 8px;color:#dfe7f3}
-    .log{height:180px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0e1117;border-radius:10px;padding:10px;border:1px dashed #2a2f3a;color:#98a1b3;white-space:pre-wrap}
+    .log{height:160px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0e1117;border-radius:10px;padding:10px;border:1px dashed #2a2f3a;color:#98a1b3}
 
     table{width:100%;border-collapse:separate;border-spacing:0 8px}
     thead th{font-size:12px;text-align:left;color:#c8d0db;padding:6px 8px}
@@ -45,17 +45,20 @@
 <body>
   <header>
     <div class="wrap">
-      <h1>Binance 4H USDT-Perp 스캐너 · <span class="muted">레이트리밋 대응 (BB20,2 + EMA200 리버전)</span></h1>
+      <h1>Binance 4H USDT-Perp 스캐너 · <span class="muted">BB(20,2) + EMA200 리버전</span></h1>
       <p class="desc">
-        4시간봉에서 <b>EMA200</b> 상/하로 추세를 나누고, <b>볼린저밴드(20,2)</b> 바깥 종가를 <b>역추세 회귀</b>로 공략합니다. TP는 시그널 시점의 <b>SMA20</b>, SL은 <b>ATR(14)×배수</b>.
-        모든 USDT 무기한 선물을 <b>레이트리밋 안전</b>하게 순차 스캔합니다(429 발생 시 자동 백오프 & 동적 RPM 조절).
+        4시간봉에서 <b>트렌드 필터(EMA200)</b> 위/아래에서 발생하는 <b>볼린저 밴드(20,2) 이탈</b>을 역추세로 공략하고, 
+        목표가는 <b>SMA20(중심선)</b> 회귀, 손절은 <b>ATR(14)</b> 기반으로 산출합니다. 승률은 최근 시그널 백테스트(고정 진입/고정 TP·SL)가 먼저 충족된 방향을 기준으로 계산됩니다.
       </p>
       <div class="controls">
-        <label>동시 요청(병렬)
-          <input id="concurrency" type="number" value="6" min="1" max="16" />
+        <label>스캔 심볼 수 (최대)
+          <input id="maxSymbols" type="number" value="999" min="1" />
         </label>
-        <label>분당 요청 한도(RPM)
-          <input id="rpm" type="number" value="900" min="60" />
+        <label>동시 요청(병렬)
+          <input id="concurrency" type="number" value="8" min="1" max="16" />
+        </label>
+        <label>요청 딜레이(ms)
+          <input id="throttle" type="number" value="120" min="0" />
         </label>
         <label>백테스트 시그널 수(최소)
           <input id="minTrades" type="number" value="15" min="1" />
@@ -67,8 +70,8 @@
           <input id="atrMult" type="number" step="0.1" value="1.2" min="0.1" />
         </label>
       </div>
-      <div class="controls" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-        <button id="scanBtn" class="primary">전체 스캔 시작 (4H)</button>
+      <div class="controls">
+        <button id="scanBtn" class="primary">스캔 시작 (4H)</button>
         <button id="onlySignalsBtn">시그널만 보기</button>
         <button id="exportBtn">CSV 내보내기</button>
         <span class="desc" id="progress">대기 중…</span>
@@ -98,176 +101,279 @@
             <tbody id="resultBody"></tbody>
           </table>
         </div>
-        <div class="footer">⚠️ 학습/리서치용 도구입니다. 과거 성과는 미래를 보장하지 않습니다. 수수료·펀딩비·슬리피지는 미반영.</div>
+        <div class="footer">⚠️ 본 도구는 학습/리서치용입니다. 실거래 전 데모/소액으로 충분히 검증하세요. 과거 수익률은 미래를 보장하지 않습니다.</div>
       </section>
 
       <aside class="card">
         <h2>로그</h2>
         <div class="log" id="log"></div>
         <div class="footer">
-          REST: <span class="kbd">https://fapi.binance.com</span> · CORS 환경에 따라 프록시 필요할 수 있음.
+          REST 엔드포인트: <span class="kbd">fapi/binance.com</span> · CORS 문제시 로컬 프록시(예: cors-anywhere) 이용 필요할 수 있음.
         </div>
       </aside>
     </div>
   </main>
 
   <script>
-    // ====== 기본 설정 ======
-    const API_BASE = 'https://fapi.binance.com'; // Binance Futures USDT-M
-    const INTERVAL = '4h';
-    const LIMIT = 720; // 캔들 수
+    // ====== 설정 ======
+    const API_BASE = 'https://fapi.binance.com'; // Binance Futures (USDT-M)
+    const INTERVAL = '4h'; // 고정 4시간봉
+    const LIMIT = 720;     // 최대 캔들 수 (과도하게 크면 느려집니다)
 
     // ====== 유틸 ======
     const sleep = (ms) => new Promise(res => setTimeout(res, ms));
-    const log = (msg) => { const el = document.getElementById('log'); const t = new Date().toLocaleTimeString(); el.textContent += `[${t}] ${msg}
-`; el.scrollTop = el.scrollHeight; };
+    const log = (msg) => {
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.textContent += `[${time}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    };
     const setProgress = (msg) => document.getElementById('progress').textContent = msg;
 
-    // ====== 레이트리밋러 (토큰버킷) ======
-    class RateLimiter {
-      constructor(rpm){ this.capacity=rpm; this.tokens=rpm; this.refillPerMs=rpm/60000; this.last=performance.now(); }
-      setRpm(rpm){ this.capacity=rpm; this.refillPerMs=rpm/60000; this.tokens=Math.min(this.tokens, this.capacity); }
-      async acquire(cost=1){
-        await this._refill();
-        while(this.tokens < cost){
-          const need = cost - this.tokens; const wait = Math.max(10, need/this.refillPerMs);
-          await sleep(wait); await this._refill();
-        }
-        this.tokens -= cost;
+    // ====== 지표 계산 ======
+    function SMA(values, period){
+      const out = Array(values.length).fill(null);
+      let sum = 0;
+      for(let i=0;i<values.length;i++){
+        sum += values[i];
+        if(i>=period) sum -= values[i-period];
+        if(i>=period-1) out[i] = sum/period;
       }
-      async _refill(){ const now=performance.now(); const dt=now-this.last; if(dt>0){ this.tokens=Math.min(this.capacity, this.tokens + dt*this.refillPerMs); this.last=now; } }
+      return out;
     }
-    let limiter = new RateLimiter(+document.getElementById('rpm').value || 900);
+    function EMA(values, period){
+      const out = Array(values.length).fill(null);
+      const k = 2/(period+1);
+      let emaPrev = 0, sum = 0;
+      for(let i=0;i<values.length;i++){
+        const v = values[i];
+        if(i < period){
+          sum += v;
+          if(i === period-1){
+            emaPrev = sum/period; out[i] = emaPrev;
+          }
+        }else{
+          const ema = v * k + emaPrev * (1-k);
+          out[i] = ema; emaPrev = ema;
+        }
+      }
+      return out;
+    }
+    function STDDEV(values, period){
+      const out = Array(values.length).fill(null);
+      const sma = SMA(values, period);
+      let sqSum = 0, q = [];
+      for(let i=0;i<values.length;i++){
+        q.push(values[i]);
+        if(q.length>period) q.shift();
+        if(i>=period-1){
+          let s=0; for(const x of q) s += Math.pow(x - sma[i], 2);
+          out[i] = Math.sqrt(s/period);
+        }
+      }
+      return out;
+    }
+    function RSI(values, period=14){
+      const out = Array(values.length).fill(null);
+      let gains=0, losses=0;
+      for(let i=1;i<values.length;i++){
+        const ch = values[i]-values[i-1];
+        gains += Math.max(ch,0);
+        losses += Math.max(-ch,0);
+        if(i===period){
+          const avgG=gains/period, avgL=losses/period; const rs = avgL===0?1000:avgG/avgL; out[i]=100-(100/(1+rs));
+        }else if(i>period){
+          const ch2 = values[i]-values[i-1];
+          const g = Math.max(ch2,0), l=Math.max(-ch2,0);
+          const prev = out[i-1]; // wilder smoothing
+          gains = (gains*(period-1)+g)/period;
+          losses = (losses*(period-1)+l)/period;
+          const rs = losses===0?1000:gains/losses; out[i]=100-(100/(1+rs));
+        }
+      }
+      return out;
+    }
+    function ATR(high, low, close, period=14){
+      const out = Array(high.length).fill(null);
+      const TR = Array(high.length).fill(null);
+      for(let i=0;i<high.length;i++){
+        if(i===0){ TR[i] = high[i]-low[i]; }
+        else{
+          TR[i] = Math.max(
+            high[i]-low[i],
+            Math.abs(high[i]-close[i-1]),
+            Math.abs(low[i]-close[i-1])
+          );
+        }
+      }
+      // Wilder's smoothing
+      let sum=0; for(let i=0;i<TR.length;i++){
+        if(i<period){ sum += TR[i]; if(i===period-1){ out[i]=sum/period; } }
+        else { out[i] = (out[i-1]*(period-1)+TR[i])/period; }
+      }
+      return out;
+    }
 
-    // ====== 지표 ======
-    function SMA(values, period){ const out=Array(values.length).fill(null); let sum=0; for(let i=0;i<values.length;i++){ sum+=values[i]; if(i>=period) sum-=values[i-period]; if(i>=period-1) out[i]=sum/period; } return out; }
-    function EMA(values, period){ const out=Array(values.length).fill(null); const k=2/(period+1); let emaPrev=0, sum=0; for(let i=0;i<values.length;i++){ const v=values[i]; if(i<period){ sum+=v; if(i===period-1){ emaPrev=sum/period; out[i]=emaPrev; } } else { const ema=v*k + emaPrev*(1-k); out[i]=ema; emaPrev=ema; } } return out; }
-    function STDDEV(values, period){ const out=Array(values.length).fill(null); const sma=SMA(values,period); let q=[]; for(let i=0;i<values.length;i++){ q.push(values[i]); if(q.length>period) q.shift(); if(i>=period-1){ let s=0; for(const x of q) s+=Math.pow(x - sma[i],2); out[i]=Math.sqrt(s/period); } } return out; }
-    function RSI(values, period=14){ const out=Array(values.length).fill(null); let g=0,l=0; for(let i=1;i<values.length;i++){ const ch=values[i]-values[i-1]; g+=Math.max(ch,0); l+=Math.max(-ch,0); if(i===period){ const avgG=g/period, avgL=l/period; const rs=avgL===0?1000:avgG/avgL; out[i]=100-(100/(1+rs)); } else if(i>period){ const ch2=values[i]-values[i-1]; const gain=Math.max(ch2,0), loss=Math.max(-ch2,0); g=(g*(period-1)+gain)/period; l=(l*(period-1)+loss)/period; const rs=l===0?1000:g/l; out[i]=100-(100/(1+rs)); } } return out; }
-    function ATR(high, low, close, period=14){ const out=Array(high.length).fill(null); const TR=Array(high.length).fill(null); for(let i=0;i<high.length;i++){ if(i===0){ TR[i]=high[i]-low[i]; } else { TR[i]=Math.max(high[i]-low[i], Math.abs(high[i]-close[i-1]), Math.abs(low[i]-close[i-1])); } } let sum=0; for(let i=0;i<TR.length;i++){ if(i<period){ sum+=TR[i]; if(i===period-1){ out[i]=sum/period; } } else { out[i]=(out[i-1]*(period-1)+TR[i])/period; } } return out; }
+    // ====== 시그널 규칙 (고승률 지향 리버전) ======
+    // LONG 조건: 종가 < 하단밴드(20,2) && 종가 > EMA200 (상승장 dip) && RSI(14) < 45
+    // SHORT 조건: 종가 > 상단밴드(20,2) && 종가 < EMA200 (하락장 pop) && RSI(14) > 55
+    // TP: 시그널 봉의 중간밴드(SMA20) 고정값, SL: ATR(14) * atrMult (진입가 기준)
+    // 승패 판정: 다음 봉부터 maxHold 봉 이내에 TP/SL 선제 충족
 
-    // ====== 전략 ======
-    // LONG: close < BB Low && close > EMA200 && RSI<45
-    // SHORT: close > BB Up && close < EMA200 && RSI>55
-    // TP: middle(SMA20), SL: ATR*atrMult, 보유: maxHold 봉
     function backtestAndCurrentSignal(klines, cfg){
       const o=[],h=[],l=[],c=[]; for(const k of klines){o.push(+k[1]);h.push(+k[2]);l.push(+k[3]);c.push(+k[4]);}
-      const sma20=SMA(c,20), sd20=STDDEV(c,20), mid=sma20, up=mid.map((v,i)=>v==null?null:v+2*sd20[i]), dn=mid.map((v,i)=>v==null?null:v-2*sd20[i]);
-      const ema200=EMA(c,200), rsi14=RSI(c,14), atr14=ATR(h,l,c,14);
-      const start=Math.max(200,20), maxHold=cfg.maxHold, atrMult=cfg.atrMult; const trades=[];
+      const sma20 = SMA(c,20); const sd20 = STDDEV(c,20);
+      const mid = sma20; const up = mid.map((v,i)=> v==null?null:v+2*sd20[i]); const dn = mid.map((v,i)=> v==null?null:v-2*sd20[i]);
+      const ema200 = EMA(c,200); const rsi14 = RSI(c,14); const atr14 = ATR(h,l,c,14);
+
+      const start = Math.max(200,20); // 지표 안정화 시작점
+      const maxHold = cfg.maxHold;
+      const atrMult = cfg.atrMult;
+      const trades = [];
+
       for(let i=start;i<c.length-1;i++){
-        const close=c[i], rs=rsi14[i], a=atr14[i], mb=mid[i], ub=up[i], lb=dn[i], e200=ema200[i];
+        const close=c[i]; const rs=rsi14[i]; const a=atr14[i];
+        const mb=mid[i], ub=up[i], lb=dn[i]; const e200=ema200[i];
         if([mb,ub,lb,e200,a,rs].some(x=>x==null)) continue;
-        const nextOpen=o[i+1];
-        if(close < lb && close > e200 && rs < 45){ // LONG
-          const entry=nextOpen, tp=mb, sl=entry - a*atrMult; const outcome=walkForward(i+1, Math.min(i+maxHold, c.length-1), tp, sl, h, l, 'long'); if(outcome) trades.push({side:'long',i,entry,tp,sl,...outcome});
+
+        const nextOpen = o[i+1];
+
+        // LONG
+        if(close < lb && close > e200 && rs < 45){
+          const entry = nextOpen;
+          const tp = mb; // 고정 목표
+          const sl = entry - a*atrMult;
+          const outcome = walkForward(i+1, Math.min(i+maxHold, c.length-1), tp, sl, h, l, 'long');
+          if(outcome){ trades.push({side:'long', i, entry, tp, sl, ...outcome}); }
         }
-        if(close > ub && close < e200 && rs > 55){ // SHORT
-          const entry=nextOpen, tp=mb, sl=entry + a*atrMult; const outcome=walkForward(i+1, Math.min(i+maxHold, c.length-1), tp, sl, h, l, 'short'); if(outcome) trades.push({side:'short',i,entry,tp,sl,...outcome});
+        // SHORT
+        if(close > ub && close < e200 && rs > 55){
+          const entry = nextOpen;
+          const tp = mb;
+          const sl = entry + a*atrMult;
+          const outcome = walkForward(i+1, Math.min(i+maxHold, c.length-1), tp, sl, h, l, 'short');
+          if(outcome){ trades.push({side:'short', i, entry, tp, sl, ...outcome}); }
         }
       }
-      const wins=trades.filter(t=>t.result==='win').length; const winrate=trades.length? (wins/trades.length*100):0;
-      const i=c.length-1; const close=c[i], rs=rsi14[i], a=atr14[i], mb=mid[i], ub=up[i], lb=dn[i], e200=ema200[i];
-      let signal={type:'none'}; if([mb,ub,lb,e200,a,rs].every(x=>x!=null)){
-        if(close < lb && close > e200 && rs < 45){ const entry=close, tp=mb, sl=entry - a*atrMult; signal={type:'long',entry,tp,sl}; }
-        else if(close > ub && close < e200 && rs > 55){ const entry=close, tp=mb, sl=entry + a*atrMult; signal={type:'short',entry,tp,sl}; }
+
+      const wins = trades.filter(t=>t.result==='win').length;
+      const winrate = trades.length? (wins/trades.length*100):0;
+
+      // 최근(마지막 완성 봉) 시그널 추출
+      const i = c.length-1; // REST는 완료봉만 제공
+      const close=c[i]; const rs=rsi14[i]; const a=atr14[i];
+      const mb=mid[i], ub=up[i], lb=dn[i]; const e200=ema200[i];
+      let signal = {type:'none'};
+      if([mb,ub,lb,e200,a,rs].every(x=>x!=null)){
+        if(close < lb && close > e200 && rs < 45){
+          const entry = close; const tp = mb; const sl = entry - a*atrMult;
+          signal = {type:'long', entry, tp, sl};
+        }else if(close > ub && close < e200 && rs > 55){
+          const entry = close; const tp = mb; const sl = entry + a*atrMult;
+          signal = {type:'short', entry, tp, sl};
+        }
       }
+
       return {winrate, tradesCount: trades.length, signal};
     }
+
     function walkForward(start, end, tp, sl, highs, lows, side){
       for(let j=start;j<=end;j++){
-        const hi=highs[j], lo=lows[j];
-        if(side==='long'){ if(lo <= sl) return {result:'loss', exitIndex:j}; if(hi >= tp) return {result:'win', exitIndex:j}; }
-        else { if(hi >= sl) return {result:'loss', exitIndex:j}; if(lo <= tp) return {result:'win', exitIndex:j}; }
+        const hi = highs[j], lo = lows[j];
+        if(side==='long'){
+          if(lo <= sl) return {result:'loss', exitIndex:j};
+          if(hi >= tp) return {result:'win', exitIndex:j};
+        }else{
+          if(hi >= sl) return {result:'loss', exitIndex:j};
+          if(lo <= tp) return {result:'win', exitIndex:j};
+        }
       }
       return {result:'timeout', exitIndex:end};
     }
 
-    // ====== API with 레이트리밋/백오프 ======
-    async function fetchWithLimit(url, cost=1, attempt=0){
-      await limiter.acquire(cost);
-      let res;
-      try{ res = await fetch(url); } catch(e){ // 네트워크 오류 재시도
-        const backoff = Math.min(15000, 500 * Math.pow(2, attempt) + Math.random()*400);
-        log(`네트워크 오류 재시도 대기 ${Math.round(backoff)}ms: ${e.message}`);
-        await sleep(backoff);
-        return fetchWithLimit(url, cost, attempt+1);
-      }
-      // 429/418 핸들링 (too many requests / banned temp)
-      if(res.status===429 || res.status===418){
-        const ra = +res.headers.get('Retry-After') || 0;
-        const backoff = Math.min(60000, (ra? ra*1000 : (800 * Math.pow(2, attempt))) + Math.random()*700);
-        // 동적 RPM 낮추기
-        limiter.setRpm(Math.max(100, limiter.capacity * 0.8));
-        log(`429 감지 → RPM ${Math.round(limiter.capacity)}로 축소, ${Math.round(backoff)}ms 대기 후 재시도`);
-        await sleep(backoff);
-        return fetchWithLimit(url, cost, attempt+1);
-      }
-      if(!res.ok){ throw new Error(`HTTP ${res.status}`); }
-
-      // 가용 헤더로 사용량 체크 (노출 안될 수도 있음)
-      const used = +(res.headers.get('X-MBX-USED-WEIGHT-1M') || 0);
-      if(used){
-        // 여유가 10% 미만이면 살짝 브레이크
-        const ratio = used / limiter.capacity;
-        if(ratio > 0.9){ await sleep(500); }
-      }
+    // ====== API ======
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     }
 
-    async function getUSDTPerps(){
-      // exchangeInfo 가중치 여유 있게 10으로 가정
-      const info = await fetchWithLimit(`${API_BASE}/fapi/v1/exchangeInfo`, 10);
-      return info.symbols.filter(s=> s.quoteAsset==='USDT' && s.contractType==='PERPETUAL' && s.status==='TRADING').map(s=>s.symbol);
-    }
-    async function getKlines(symbol, interval=INTERVAL, limit=LIMIT){
-      return fetchWithLimit(`${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`, 1);
+    async function getUSDTPerps(maxSymbols){
+      const info = await fetchJSON(`${API_BASE}/fapi/v1/exchangeInfo`);
+      const list = info.symbols
+        .filter(s=> s.quoteAsset==='USDT' && s.contractType==='PERPETUAL' && s.status==='TRADING')
+        .map(s=>s.symbol);
+      return list.slice(0, maxSymbols);
     }
 
-    // ====== 스캔 파이프라인 ======
+    async function getKlines(symbol, interval=INTERVAL, limit=LIMIT){
+      // [ openTime, open, high, low, close, volume, closeTime, ...]
+      const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+      return fetchJSON(url);
+    }
+
+    // ====== 스캐너 파이프라인 ======
     async function runScan(){
       const cfg = readConfig();
-      limiter.setRpm(cfg.rpm);
       disableControls(true);
       try{
         setProgress('심볼 목록 가져오는 중…');
-        const symbols = await getUSDTPerps();
-        log(`USDT-Perp 심볼 ${symbols.length}개`);
-        setProgress(`총 ${symbols.length}개 스캔 중… (RPM ${cfg.rpm}, 병렬 ${cfg.concurrency})`);
+        const symbols = await getUSDTPerps(cfg.maxSymbols);
+        log(`심볼 수: ${symbols.length}`);
+        setProgress(`총 ${symbols.length}개 스캔 중…`);
 
-        const results=[]; let done=0; const queue=[...symbols];
+        const results = [];
+        let done = 0;
+
+        // 간단한 병렬 큐
+        const queue = [...symbols];
         const workers = Array.from({length: cfg.concurrency}, ()=> (async function worker(){
           while(queue.length){
             const sym = queue.shift();
             try{
               const kl = await getKlines(sym);
               const stats = backtestAndCurrentSignal(kl, cfg);
-              if(stats.tradesCount >= cfg.minTrades){ results.push({symbol: sym, ...stats}); }
-            }catch(err){ log(`에러 ${sym}: ${err.message}`); }
-            done++; if(done % 3 === 0) setProgress(`${done}/${symbols.length} 처리…`);
+              if(stats.tradesCount >= cfg.minTrades){
+                results.push({symbol: sym, ...stats});
+              }
+              done++; if(done % 5 === 0) setProgress(`${done}/${symbols.length} 처리…`);
+            }catch(err){
+              log(`에러 ${sym}: ${err.message}`);
+            }
+            if(cfg.throttle>0) await sleep(cfg.throttle);
           }
         })());
         await Promise.all(workers);
 
+        // 정렬: 1) 시그널 존재 우선, 2) 승률 desc, 3) 거래수 desc
         results.sort((a,b)=>{
-          const ar = a.signal.type==='none'?0:1, br = b.signal.type==='none'?0:1;
-          if(br!==ar) return br-ar; if(b.winrate!==a.winrate) return b.winrate-a.winrate; return b.tradesCount-a.tradesCount;
+          const ar = a.signal.type==='none'?0:1; const br = b.signal.type==='none'?0:1;
+          if(br!==ar) return br-ar;
+          if(b.winrate!==a.winrate) return b.winrate - a.winrate;
+          return b.tradesCount - a.tradesCount;
         });
+
         render(results);
-        setProgress(`완료 · 표시 ${results.length}개 (전체 ${symbols.length})`);
-      } finally {
+        setProgress(`완료 · 표시 ${results.length}개`);
+      }finally{
         disableControls(false);
       }
     }
 
     function render(rows){
-      const onlySignals = state.onlySignals; const tbody=document.getElementById('resultBody'); tbody.innerHTML='';
+      const onlySignals = state.onlySignals;
+      const tbody = document.getElementById('resultBody');
+      tbody.innerHTML = '';
       const now = new Date().toLocaleString();
-      const fmt = (v)=> v==null?'-':Number(v).toLocaleString(undefined,{maximumFractionDigits:6});
+
       for(const r of rows){
         if(onlySignals && r.signal.type==='none') continue;
-        const tr=document.createElement('tr');
-        const pill = r.signal.type==='long'? '<span class="pill long">LONG</span>' : r.signal.type==='short'? '<span class="pill short">SHORT</span>' : '<span class="pill none">None</span>';
+        const tr = document.createElement('tr');
+
+        const pill = r.signal.type==='long' ? '<span class="pill long">LONG</span>' : r.signal.type==='short' ? '<span class="pill short">SHORT</span>' : '<span class="pill none">None</span>';
+
+        const fmt = (v)=> v==null?'-':Number(v).toLocaleString(undefined,{maximumFractionDigits:6});
+
         tr.innerHTML = `
           <td><b>${r.symbol}</b></td>
           <td><b class="${r.winrate>=55?'ok':r.winrate<45?'ng':''}">${r.winrate.toFixed(1)}%</b></td>
@@ -277,110 +383,95 @@
           <td>${r.signal.tp?fmt(r.signal.tp):'-'}</td>
           <td>${r.signal.sl?fmt(r.signal.sl):'-'}</td>
           <td class="muted">${now}</td>
-          <td class="row-actions"><button data-sym="${r.symbol}" class="peekBtn">미니차트</button></td>`;
+          <td class="row-actions">
+            <button data-sym="${r.symbol}" class="peekBtn">미니차트</button>
+          </td>
+        `;
         tbody.appendChild(tr);
       }
+
+      // 미니차트 이벤트
       for(const btn of document.querySelectorAll('.peekBtn')){
-        btn.addEventListener('click', async (e)=>{ const sym=e.target.getAttribute('data-sym'); try{ const data=await getKlines(sym,'4h',150); openMiniChart(sym,data);} catch(err){ log(`미니차트 실패 ${sym}: ${err.message}`);} });
+        btn.addEventListener('click', async (e)=>{
+          const sym = e.target.getAttribute('data-sym');
+          try{
+            const data = await getKlines(sym, '4h', 150);
+            openMiniChart(sym, data);
+          }catch(err){ log(`미니차트 실패 ${sym}: ${err.message}`); }
+        });
       }
     }
 
     function openMiniChart(symbol, kl){
       const w = window.open('', '_blank', 'width=720,height=420');
-      // 준비: 데이터 분리 및 지표 계산 (부모 창에서 계산하여 전달)
       const o=[],h=[],l=[],c=[],t=[]; for(const k of kl){o.push(+k[1]);h.push(+k[2]);l.push(+k[3]);c.push(+k[4]);t.push(+k[0]);}
-      const sma20=SMA(c,20), sd20=STDDEV(c,20), mid=sma20, up=mid.map((v,i)=>v==null?null:v+2*sd20[i]), dn=mid.map((v,i)=>v==null?null:v-2*sd20[i]);
-      const ema200=EMA(c,200);
+      const sma20 = SMA(c,20); const sd20 = STDDEV(c,20); const mid=sma20, up=mid.map((v,i)=>v==null?null:v+2*sd20[i]), dn=mid.map((v,i)=>v==null?null:v-2*sd20[i]);
+      const ema200 = EMA(c,200);
 
-      // 새 창 HTML (스크립트 없음)
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${symbol}</title><style>
+      w.document.write(`<!doctype html><meta charset="utf-8"><title>${symbol}</title><style>
         body{margin:0;background:#0b0c10;color:#fff;font-family:system-ui}
         canvas{display:block;width:100%;height:100%}
-      </style></head><body><canvas id="cv"></canvas></body></html>`;
-      w.document.open(); w.document.write(html); w.document.close();
-
-      // 주입할 코드 (Blob 스크립트로 삽입 → </script> 이슈/이스케이프 문제 회피)
-      const code = (
-`(function(){
-  const t=${JSON.stringify(t)};
-  const c=${JSON.stringify(c)};
-  const up=${JSON.stringify(up)};
-  const dn=${JSON.stringify(dn)};
-  const mid=${JSON.stringify(mid)};
-  const e200=${JSON.stringify(ema200)};
-  const cv=document.getElementById('cv');
-  const ctx=cv.getContext('2d');
-  function fit(){cv.width=innerWidth;cv.height=innerHeight;draw();}
-  window.addEventListener('resize',fit);
-  fit();
-  function mapX(i){return 40 + i*((cv.width-60)/(c.length-1));}
-  function mapY(v,min,max){return 20 + (max-v)*((cv.height-40)/(max-min));}
-  function draw(){
-    const min=Math.min(...c.filter(x=>x!=null),...dn.filter(x=>x!=null));
-    const max=Math.max(...c.filter(x=>x!=null),...up.filter(x=>x!=null));
-    ctx.fillStyle='#0b0c10';
-    ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.beginPath();
-    for(let i=0;i<c.length;i++){
-      if(c[i]==null) continue; const x=mapX(i), y=mapY(c[i],min,max);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      </style><canvas id="cv"></canvas><script>
+        const t=${JSON.stringify(t)}, c=${JSON.stringify(c)}, up=${JSON.stringify(up)}, dn=${JSON.stringify(dn)}, mid=${JSON.stringify(mid)}, e200=${JSON.stringify(ema200)};
+        const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
+        function fit(){cv.width=innerWidth;cv.height=innerHeight;draw();}
+        window.addEventListener('resize',fit); fit();
+        function mapX(i){return 40 + i*( (cv.width-60)/ (c.length-1) );}
+        function mapY(v,min,max){return 20 + (max-v)*( (cv.height-40)/(max-min) );}
+        function draw(){
+          const min=Math.min(...c.filter(x=>x!=null),...dn.filter(x=>x!=null));
+          const max=Math.max(...c.filter(x=>x!=null),...up.filter(x=>x!=null));
+          ctx.fillStyle='#0b0c10';ctx.fillRect(0,0,cv.width,cv.height);
+          // price line
+          ctx.beginPath(); for(let i=0;i<c.length;i++){ if(c[i]==null) continue; const x=mapX(i), y=mapY(c[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#ddd'; ctx.stroke();
+          // BB
+          ctx.beginPath(); for(let i=0;i<up.length;i++){ if(up[i]==null) continue; const x=mapX(i), y=mapY(up[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#6fb7ff'; ctx.stroke();
+          ctx.beginPath(); for(let i=0;i<dn.length;i++){ if(dn[i]==null) continue; const x=mapX(i), y=mapY(dn[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#6fb7ff'; ctx.stroke();
+          // mid
+          ctx.beginPath(); for(let i=0;i<mid.length;i++){ if(mid[i]==null) continue; const x=mapX(i), y=mapY(mid[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#8bd17c'; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
+          // ema200
+          ctx.beginPath(); for(let i=0;i<e200.length;i++){ if(e200[i]==null) continue; const x=mapX(i), y=mapY(e200[i],min,max); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.strokeStyle='#ffad66'; ctx.stroke();
+        }
+      <\/script>`);
+      w.document.close();
     }
-    ctx.strokeStyle='#ddd'; ctx.stroke();
 
-    ctx.beginPath();
-    for(let i=0;i<up.length;i++){
-      if(up[i]==null) continue; const x=mapX(i), y=mapY(up[i],min,max);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle='#6fb7ff'; ctx.stroke();
-
-    ctx.beginPath();
-    for(let i=0;i<dn.length;i++){
-      if(dn[i]==null) continue; const x=mapX(i), y=mapY(dn[i],min,max);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle='#6fb7ff'; ctx.stroke();
-
-    ctx.beginPath();
-    for(let i=0;i<mid.length;i++){
-      if(mid[i]==null) continue; const x=mapX(i), y=mapY(mid[i],min,max);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle='#8bd17c';
-    ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
-
-    ctx.beginPath();
-    for(let i=0;i<e200.length;i++){
-      if(e200[i]==null) continue; const x=mapX(i), y=mapY(e200[i],min,max);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.strokeStyle='#ffad66'; ctx.stroke();
-  }
-})();`);
-      const blob = new Blob([code], {type:'text/javascript'});
+    function exportCSV(){
+      const rows = [...document.querySelectorAll('#resultBody tr')].map(tr=>[...tr.children].slice(0,8).map(td=>td.innerText));
+      const header = ['Symbol','WinRate','Trades','Signal','Entry','TP','SL','Updated'];
+      const csv = [header, ...rows].map(r=>r.map(x=>`"${x.replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
       const url = URL.createObjectURL(blob);
-      const s = w.document.createElement('script');
-      s.src = url;
-      w.document.body.appendChild(s);
+      const a = document.createElement('a'); a.href=url; a.download='scanner_4h_bb_ema.csv'; a.click(); URL.revokeObjectURL(url);
     }
 
-    function exportCSV()(){
-      const rows=[...document.querySelectorAll('#resultBody tr')].map(tr=>[...tr.children].slice(0,8).map(td=>td.innerText));
-      const header=['Symbol','WinRate','Trades','Signal','Entry','TP','SL','Updated'];
-      const csv=[header,...rows].map(r=>r.map(x=>`"${x.replaceAll('"','""')}"`).join(',')).join('
-');
-      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='scanner_4h_bb_ema_rate_limit.csv'; a.click(); URL.revokeObjectURL(url);
+    function readConfig(){
+      return {
+        maxSymbols: +document.getElementById('maxSymbols').value || 300,
+        concurrency: +document.getElementById('concurrency').value || 6,
+        throttle: +document.getElementById('throttle').value || 100,
+        minTrades: +document.getElementById('minTrades').value || 10,
+        maxHold: +document.getElementById('maxHold').value || 12,
+        atrMult: +document.getElementById('atrMult').value || 1.2,
+      }
+    }
+    function disableControls(disabled){
+      document.getElementById('scanBtn').disabled = disabled;
+      document.getElementById('onlySignalsBtn').disabled = disabled;
+      document.getElementById('exportBtn').disabled = disabled;
+      for(const id of ['maxSymbols','concurrency','throttle','minTrades','maxHold','atrMult']){
+        document.getElementById(id).disabled = disabled;
+      }
     }
 
-    function readConfig(){ return { concurrency:+document.getElementById('concurrency').value||6, rpm:+document.getElementById('rpm').value||900, minTrades:+document.getElementById('minTrades').value||15, maxHold:+document.getElementById('maxHold').value||12, atrMult:+document.getElementById('atrMult').value||1.2 } }
-    function disableControls(disabled){ for(const id of ['scanBtn','onlySignalsBtn','exportBtn','concurrency','rpm','minTrades','maxHold','atrMult']){ const el=document.getElementById(id); if(el) el.disabled=disabled; } }
+    const state = { onlySignals:false };
 
-    const state={ onlySignals:false };
+    // 이벤트 바인딩
     document.getElementById('scanBtn').addEventListener('click', runScan);
-    document.getElementById('onlySignalsBtn').addEventListener('click', ()=>{ state.onlySignals=!state.onlySignals; document.getElementById('onlySignalsBtn').textContent = state.onlySignals? '전체 보기':'시그널만 보기'; });
+    document.getElementById('onlySignalsBtn').addEventListener('click', ()=>{ state.onlySignals = !state.onlySignals; document.getElementById('onlySignalsBtn').textContent = state.onlySignals? '전체 보기' : '시그널만 보기'; });
     document.getElementById('exportBtn').addEventListener('click', exportCSV);
 
-    log('준비 완료. "전체 스캔 시작"을 누르세요.');
+    log('준비 완료. \"스캔 시작\"을 누르세요.');
   </script>
 </body>
 </html>
