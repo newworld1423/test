@@ -173,4 +173,162 @@ async function handleAnalyze(){
 
       out.push({
         time: lab,
-        direction: a
+        direction: avg > 0 ? '상승' : (avg < 0 ? '하락' : '중립'),
+        avgPct: avg * 100,
+        upRatePct: upRate * 100,
+        downRatePct: downRate * 100,
+        avgUpPct: avgUp * 100,         // 양수
+        avgDownPct: avgDown * 100,     // 음수(하락폭)
+        n: a.count
+      });
+    }
+    state.result = out;
+
+    renderTable(out);
+    renderSummary(out);
+    $('#table-card').style.display = '';
+    $('#summary').style.display = '';
+    $('#download').disabled = false;
+
+    setStatus(`완료! 총 ${uniq.length.toLocaleString()}개 캔들, 96개 시각 버킷 통계 생성 (${state.tzMode}).`);
+  }catch(err){
+    console.error(err);
+    setStatus('오류: ' + err.message);
+  }finally{
+    disableUI(false);
+  }
+}
+
+/** Parse Binance 12-col CSV(헤더 유무 상관없음). Keep ms, open, close */
+function parseCsvAppend(text){
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i].trim();
+    if(!line || line.startsWith('#')) continue;
+
+    const cols = line.split(',');
+    if(cols.length < 5){
+      // 헤더일 수 있음. 그냥 스킵
+      continue;
+    }
+    const ms = Number(cols[0]);
+    const o = Number(cols[1]);
+    const h = Number(cols[2]);
+    const l = Number(cols[3]);
+    const c = Number(cols[4]);
+
+    // 첫 컬럼이 숫자가 아니면(헤더) 스킵
+    if(!Number.isFinite(ms) || !Number.isFinite(o) || !Number.isFinite(c)){
+      continue;
+    }
+    state.rows.push({ ms, open:o, close:c });
+  }
+}
+
+function timeLabel(ms, mode){
+  if(mode === 'UTC'){
+    const d = new Date(ms);
+    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  }else if(mode === 'KST'){
+    // UTC+9 보정 후 UTC getter 사용
+    const d = new Date(ms + 9*60*60*1000);
+    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  }else{
+    // LOCAL (브라우저)
+    const d = new Date(ms);
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+}
+
+function renderTable(rows){
+  const tb = $('#result tbody');
+  tb.innerHTML = '';
+  const fmt = (v, digits=3) => (Number.isFinite(v) ? v.toFixed(digits) : '—');
+
+  for(const r of rows){
+    const tr = document.createElement('tr');
+
+    const dirClass = r.direction === '상승' ? 'dir-up' : (r.direction === '하락' ? 'dir-down' : 'dir-flat');
+
+    tr.innerHTML = `
+      <td>${r.time}</td>
+      <td><span class="dir-badge ${dirClass}">${r.direction}</span></td>
+      <td class="${r.avgPct>0?'up':(r.avgPct<0?'down':'')}">${fmt(r.avgPct,3)}</td>
+      <td>${fmt(r.upRatePct,2)}</td>
+      <td>${fmt(r.downRatePct,2)}</td>
+      <td class="up">${fmt(r.avgUpPct,3)}</td>
+      <td class="down">${fmt(r.avgDownPct,3)}</td>
+      <td>${r.n}</td>
+    `;
+    tb.appendChild(tr);
+  }
+}
+
+function renderSummary(rows){
+  // 상위/하위 5개 시각 요약 (표본 수 기준 n>=10 필터)
+  const eligible = rows.filter(r=>r.n>=10);
+  const top = [...eligible].sort((a,b)=>b.avgPct - a.avgPct).slice(0,5);
+  const bottom = [...eligible].sort((a,b)=>a.avgPct - b.avgPct).slice(0,5);
+  const totalN = rows.reduce((s,r)=>s+r.n,0);
+
+  const box = $('#summary-items');
+  box.innerHTML = `
+    <span class="pill">총 캔들: <b>${totalN.toLocaleString()}</b></span>
+    <span class="pill">표본수 10개 이상 시각 대상 상/하위 Top5</span>
+  `;
+
+  const mk = (list, title) => {
+    const div = document.createElement('div');
+    div.style.marginTop = '8px';
+    div.innerHTML = `<div style="font-weight:700;margin:6px 0">${title}</div>` +
+      list.map(r =>
+        `<div class="pill" style="display:inline-block;margin:4px 6px 0 0">
+          ${r.time} <span class="${r.avgPct>0?'up':'down'}"><b>${r.avgPct.toFixed(3)}%</b></span>
+          · 상승빈도 ${r.upRatePct.toFixed(1)}% · n=${r.n}
+        </div>`
+      ).join('');
+    return div;
+  };
+  box.appendChild(mk(top, '상승 평균 수익률 상위 5개 시각'));
+  box.appendChild(mk(bottom, '하락 평균 수익률 상위 5개 시각'));
+}
+
+function handleDownload(){
+  if(!state.result || state.result.length===0) return;
+  const header = ['time','direction','avg_return_pct','up_rate_pct','down_rate_pct','avg_up_pct','avg_down_pct','count'];
+  const lines = [header.join(',')];
+  for(const r of state.result){
+    lines.push([
+      r.time, r.direction,
+      r.avgPct.toFixed(6),
+      r.upRatePct.toFixed(2),
+      r.downRatePct.toFixed(2),
+      Number.isFinite(r.avgUpPct)?r.avgUpPct.toFixed(6):'',
+      Number.isFinite(r.avgDownPct)?r.avgDownPct.toFixed(6):'',
+      r.n
+    ].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '15m_timebucket_return_stats.csv';
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  a.remove();
+}
+
+function disableUI(disabled){
+  $('#analyze').disabled = disabled;
+  $('#download').disabled = disabled || !state.result?.length;
+  $('#files').disabled = disabled;
+  $('#tz').disabled = disabled;
+}
+
+function setStatus(msg){
+  $('#status').textContent = msg;
+}
+</script>
+</body>
+</html>
