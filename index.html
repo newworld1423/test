@@ -1,600 +1,523 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Binance USDT Perp 1D Scanner — Pro Rules</title>
-  <style>
-    :root { --bg:#0b0c0f; --panel:#12141a; --txt:#e7e9ee; --muted:#9aa0aa; --accent:#5cc8ff; }
-    html, body { margin:0; padding:0; background:var(--bg); color:var(--txt); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, sans-serif; }
-    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-    h1 { font-size: 20px; margin: 0 0 12px; }
-    .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-    .card { background: var(--panel); border: 1px solid #1d2230; border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    button { background: var(--accent); color: #00121c; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .muted { color: var(--muted); font-size: 12px; }
-    .progress-wrap { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
-    progress { width: 260px; height: 10px; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:8px;}
-    .field { display:flex; align-items:center; gap:8px; }
-    input[type='number'], input[type='checkbox']{ background:#0f1422; color:#e7e9ee; border:1px solid #273047; border-radius:6px; padding:6px 8px; }
-    input[type='number']{ width:110px; }
-    label.small { font-size: 12px; color: var(--muted); }
-    .pill { display:inline-block; padding:3px 8px; background:#172033; border-radius:999px; font-size:11px; color:#a8cfff; }
-    .result { margin-top: 16px; padding: 12px; border-radius: 10px; background: #0e1320; border: 1px dashed #2a3650; }
-    .result h3 { margin: 0 0 8px; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; margin-left:8px; }
-    .long { background:#1cffb0; color:#003622; }
-    .short{ background:#ff8b8b; color:#3a0000; }
-    table { width:100%; border-collapse:collapse; margin-top:12px; }
-    th, td { font-size:12px; text-align:left; padding:8px; border-bottom:1px solid #242b3b; }
-    th { color:#b8c0cc; }
-    .right { text-align:right; }
-    .num { font-variant-numeric: tabular-nums; }
-    .ok { color:#a7f3d0; } .bad{ color:#fca5a5; }
-    .foot { color:#8b93a3; font-size:12px; margin-top:18px; line-height:1.5; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0a1220; border:1px solid #223150; padding:2px 6px; border-radius:6px; font-size:12px;}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Binance USDT Perp 1D Scanner — Entry/TP/SL + Sizing + Step/Tick</title>
+<style>
+  :root{--bg:#0b0c0f;--panel:#12141a;--txt:#e7e9ee;--muted:#9aa0aa;--accent:#5cc8ff}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif}
+  .container{max-width:1200px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 12px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid #1d2230;border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  button{background:var(--accent);color:#00121c;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .muted{color:var(--muted);font-size:12px}
+  .progress-wrap{margin-top:12px;display:flex;align-items:center;gap:10px}
+  progress{width:260px;height:10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px}
+  .field{display:flex;align-items:center;gap:8px}
+  input[type='number'],input[type='checkbox']{background:#0f1422;color:#e7e9ee;border:1px solid #273047;border-radius:6px;padding:6px 8px}
+  input[type='number']{width:120px}
+  label.small{font-size:12px;color:var(--muted)}
+  .pill{display:inline-block;padding:3px 8px;background:#172033;border-radius:999px;font-size:11px;color:#a8cfff}
+  .result{margin-top:16px;padding:12px;border-radius:10px;background:#0e1320;border:1px dashed #2a3650}
+  .result h3{margin:0 0 8px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
+  .long{background:#1cffb0;color:#003622}.short{background:#ff8b8b;color:#3a0000}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{font-size:12px;text-align:left;padding:8px;border-bottom:1px solid #242b3b}
+  th{color:#b8c0cc}.right{text-align:right}.num{font-variant-numeric:tabular-nums}
+  .ok{color:#a7f3d0}.bad{color:#fca5a5}
+  .foot{color:#8b93a3;font-size:12px;margin-top:18px;line-height:1.5}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0a1220;border:1px solid #223150;padding:2px 6px;border-radius:6px;font-size:12px}
+  .box{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
+  .box div{background:#0e1320;border:1px solid #1e2740;border-radius:10px;padding:10px}
+  .title-sm{font-size:12px;color:#8fa0c5;margin-bottom:6px}
+  .warn{color:#ffd166}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>바이낸스 무기한 선물 1일봉 스캐너 <span class="pill">USDT PERP · Pro Rules</span></h1>
-    <div class="sub">전일(완성된 1일봉) + 다중 지표·필터·리스크 검증으로 롱/숏 최상위 1종을 추천합니다.</div>
+<div class="container">
+  <h1>바이낸스 무기한 선물 1일봉 스캐너 <span class="pill">USDT PERP · Entry/TP/SL · Step/Tick 적용</span></h1>
+  <div class="sub">전일(완성 1D) 시그널로 <b>롱/숏 최상위 1종</b>을 고르고, <b>진입·손절·익절·트레일링·사이징</b>을 <u>심볼별 stepSize/tickSize에 맞게</u> 산출합니다.</div>
 
-    <div class="card">
-      <div class="row">
-        <button id="scanBtn">스캔 시작</button>
-        <span class="muted" id="status">대기 중</span>
+  <div class="card">
+    <div class="row">
+      <button id="scanBtn">스캔 시작</button>
+      <span class="muted" id="status">대기 중</span>
+    </div>
+    <div class="progress-wrap">
+      <progress id="bar" value="0" max="100"></progress>
+      <span class="muted num" id="progTxt">0 / 0</span>
+    </div>
+
+    <details>
+      <summary>고급 설정 (필터/가중치/포지션 규칙)</summary>
+      <div class="grid">
+        <div class="field"><label class="small">동시 요청 수</label><input id="concurrency" type="number" min="1" max="24" step="1" value="10"/></div>
+        <div class="field"><label class="small">1D Kline 갯수</label><input id="limit" type="number" min="150" max="1000" step="10" value="320"/></div>
+        <div class="field"><label class="small">RSI 기간</label><input id="rsiLen" type="number" min="5" max="50" step="1" value="14"/></div>
+
+        <div class="field"><label class="small">유동성 하한(20D 평균 거래대금 USDT)</label><input id="minNotional" type="number" step="100000" value="10000000"/></div>
+        <div class="field"><label class="small">최소 봉 수(심볼 연령)</label><input id="minBars" type="number" min="150" max="1000" step="10" value="150"/></div>
+        <div class="field"><label class="small">ATR% 최소</label><input id="atrMin" type="number" step="0.1" value="1.0"/></div>
+        <div class="field"><label class="small">ATR% 최대</label><input id="atrMax" type="number" step="0.1" value="10.0"/></div>
+        <div class="field"><label class="small">BTC 레짐 정합 강제</label><input id="enforceRegime" type="checkbox" checked/></div>
+
+        <!-- Weights -->
+        <div class="field"><label class="small">EMA 배열 가중</label><input id="wEma" type="number" step="0.25" value="2"/></div>
+        <div class="field"><label class="small">MACD 가중</label><input id="wMacd" type="number" step="0.25" value="1"/></div>
+        <div class="field"><label class="small">RSI 가중</label><input id="wRsi" type="number" step="0.25" value="1"/></div>
+        <div class="field"><label class="small">20D 돌파/이탈 가중</label><input id="wBreak" type="number" step="0.25" value="1"/></div>
+        <div class="field"><label class="small">거래량 스파이크 가중</label><input id="wVol" type="number" step="0.25" value="0.75"/></div>
+        <div class="field"><label class="small">ATR 품질 보정</label><input id="wAtr" type="number" step="0.25" value="0.5"/></div>
+        <div class="field"><label class="small">OBV 가중</label><input id="wObv" type="number" step="0.25" value="0.5"/></div>
+        <div class="field"><label class="small">볼린저 %b 가중</label><input id="wBb" type="number" step="0.25" value="0.75"/></div>
+        <div class="field"><label class="small">ADX 가중</label><input id="wAdx" type="number" step="0.25" value="0.75"/></div>
+
+        <!-- Position / Risk -->
+        <div class="field"><label class="small">계좌 자본(USDT)</label><input id="equity" type="number" step="10" value="10000"/></div>
+        <div class="field"><label class="small">거래당 위험%</label><input id="riskPct" type="number" step="0.1" value="1.0"/></div>
+        <div class="field"><label class="small">레버리지</label><input id="leverage" type="number" min="1" step="1" value="5"/></div>
+        <div class="field"><label class="small">ATR 스탑 배수</label><input id="atrMult" type="number" step="0.1" value="1.5"/></div>
+        <div class="field"><label class="small">구조적 스탑 버퍼(×ATR)</label><input id="structBuf" type="number" step="0.05" value="0.2"/></div>
+        <div class="field"><label class="small">트레일링 ATR 배수</label><input id="trailMult" type="number" step="0.1" value="2.5"/></div>
       </div>
-      <div class="progress-wrap">
-        <progress id="bar" value="0" max="100"></progress>
-        <span class="muted num" id="progTxt">0 / 0</span>
-      </div>
+    </details>
 
-      <details>
-        <summary>고급 설정 (가중치/필터/레짐)</summary>
-        <div class="grid">
-          <div class="field"><label class="small">동시 요청 수</label><input id="concurrency" type="number" min="1" max="24" step="1" value="10"/></div>
-          <div class="field"><label class="small">1D Kline 갯수</label><input id="limit" type="number" min="150" max="1000" step="10" value="320"/></div>
-          <div class="field"><label class="small">RSI 기간</label><input id="rsiLen" type="number" min="5" max="50" step="1" value="14"/></div>
+    <div id="topBox" class="result" style="display:none">
+      <h3 id="topTitle">추천 결과</h3>
+      <div id="topExplain" class="muted"></div>
 
-          <div class="field"><label class="small">유동성 하한(20일 평균 거래대금 USDT)</label><input id="minNotional" type="number" step="100000" value="10000000"/></div>
-          <div class="field"><label class="small">최소 봉 수(심볼 연령)</label><input id="minBars" type="number" min="120" max="1000" step="10" value="150"/></div>
-          <div class="field"><label class="small">ATR% 최소</label><input id="atrMin" type="number" step="0.1" value="1.0"/></div>
-          <div class="field"><label class="small">ATR% 최대</label><input id="atrMax" type="number" step="0.1" value="10.0"/></div>
-
-          <div class="field"><label class="small">BTC 레짐 정합 강제</label><input id="enforceRegime" type="checkbox" checked/></div>
-          <div class="field"><label class="small">역추세 허용(레짐 반대 신호도 허용)</label><input id="allowCounter" type="checkbox"/></div>
-          <div class="field"><label class="small">주봉 컨플루언스 사용</label><input id="useWeekly" type="checkbox" checked/></div>
-
-          <div class="field"><label class="small">R:R 임계값(고저점/ATR×1.5)</label><input id="rrMin" type="number" step="0.1" value="1.2"/></div>
-          <div class="field"><label class="small">합의 최소 신호 수</label><input id="consensusMin" type="number" min="2" max="6" step="1" value="3"/></div>
-
-          <!-- Weights -->
-          <div class="field"><label class="small">EMA 배열 가중</label><input id="wEma" type="number" step="0.25" value="2"/></div>
-          <div class="field"><label class="small">MACD 가중</label><input id="wMacd" type="number" step="0.25" value="1"/></div>
-          <div class="field"><label class="small">RSI 밴드 가중</label><input id="wRsi" type="number" step="0.25" value="1"/></div>
-          <div class="field"><label class="small">20일 돌파/이탈 가중</label><input id="wBreak" type="number" step="0.25" value="1"/></div>
-          <div class="field"><label class="small">거래량 스파이크 가중</label><input id="wVol" type="number" step="0.25" value="0.75"/></div>
-          <div class="field"><label class="small">ATR 품질 보정</label><input id="wAtr" type="number" step="0.25" value="0.5"/></div>
-          <div class="field"><label class="small">엔골핑/해머 가중</label><input id="wCdl" type="number" step="0.25" value="1"/></div>
-          <div class="field"><label class="small">OBV 기울기 가중</label><input id="wObv" type="number" step="0.25" value="0.5"/></div>
-          <div class="field"><label class="small">볼린저 %b 가중</label><input id="wBb" type="number" step="0.25" value="0.75"/></div>
-          <div class="field"><label class="small">ADX(14) 가중</label><input id="wAdx" type="number" step="0.25" value="0.75"/></div>
-          <div class="field"><label class="small">주봉 컨플루언스 가중</label><input id="wW" type="number" step="0.25" value="0.75"/></div>
+      <div class="box" id="levelsBox" style="display:none">
+        <div>
+          <div class="title-sm">진입 / 손절 (SL)</div>
+          <div class="num" id="entryBox">Entry: -</div>
+          <div class="num" id="slBox">SL: -  <span class="muted">(리스크: - USDT)</span></div>
         </div>
-      </details>
-
-      <div class="result" id="topBox" style="display:none">
-        <h3 id="topTitle">추천 결과</h3>
-        <div id="topExplain" class="muted"></div>
-      </div>
-
-      <table id="tbl" style="display:none">
-        <thead>
-          <tr>
-            <th>심볼</th>
-            <th>추천</th>
-            <th class="right">점수</th>
-            <th class="right">종가</th>
-            <th class="right">RSI</th>
-            <th class="right">MACD Hist</th>
-            <th>EMA 배열</th>
-            <th>20일 돌파/이탈</th>
-            <th>패턴</th>
-            <th class="right">거래량비(20)</th>
-            <th class="right">ATR%</th>
-            <th class="right">R:R</th>
-            <th class="right">20일 거래대금</th>
-            <th>플래그</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <div class="foot">
-        <div><b>면책:</b> 교육/연구 목적. 투자 조언 아님. 파생상품은 원금 초과 손실 가능.</div>
-        <div>CORS 발생 시: <span class="kbd">python -m http.server</span> → 브라우저에서 파일 접근</div>
+        <div>
+          <div class="title-sm">익절 (TP)</div>
+          <div class="num" id="tp1Box">T1 (1R): -</div>
+          <div class="num" id="tp2Box">T2 (1.5R): -</div>
+          <div class="num" id="tp3Box">T3 (구조적): -</div>
+          <div class="muted" style="margin-top:6px">권장: 50% @T1 → BE, 25% @T2, 25% @T3 또는 트레일</div>
+        </div>
+        <div>
+          <div class="title-sm">트레일링</div>
+          <div class="num" id="trailBox">초기 트레일링: -</div>
+          <div class="muted">일봉 마감마다 재계산 필요</div>
+        </div>
+        <div>
+          <div class="title-sm">사이징 & 증거금</div>
+          <div class="num" id="qtyBox">수량: -</div>
+          <div class="num" id="marginBox">필요 증거금: -</div>
+          <div class="muted warn" id="minQtyNote" style="display:none">주의: 최소 주문 수량 미만이라 자동 상향 조정됨</div>
+        </div>
       </div>
     </div>
+
+    <table id="tbl" style="display:none">
+      <thead>
+        <tr>
+          <th>심볼</th>
+          <th>추천</th>
+          <th class="right">점수</th>
+          <th class="right">종가</th>
+          <th class="right">RSI</th>
+          <th class="right">MACD Hist</th>
+          <th>EMA 배열</th>
+          <th>20D 돌파/이탈</th>
+          <th class="right">ATR%</th>
+          <th class="right">R:R</th>
+          <th class="right">20D 거래대금</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="foot">
+      <div><b>면책:</b> 교육/연구 목적 도구이며 투자 조언이 아닙니다. 파생상품은 원금 초과 손실 가능.</div>
+      <div>CORS 발생 시: <span class="kbd">python -m http.server</span> → 브라우저에서 파일 접근</div>
+    </div>
   </div>
+</div>
 
-  <script>
-    const API = "https://fapi.binance.com";
+<script>
+const API = "https://fapi.binance.com";
+const $ = s=>document.querySelector(s);
+const statusEl=$("#status"), progEl=$("#bar"), progTxt=$("#progTxt");
+const scanBtn=$("#scanBtn"), tbl=$("#tbl"), tbody=$("#tbl tbody");
+const topBox=$("#topBox"), topTitle=$("#topTitle"), topExplain=$("#topExplain");
+const levelsBox=$("#levelsBox"), entryBox=$("#entryBox"), slBox=$("#slBox");
+const tp1Box=$("#tp1Box"), tp2Box=$("#tp2Box"), tp3Box=$("#tp3Box");
+const trailBox=$("#trailBox"), qtyBox=$("#qtyBox"), marginBox=$("#marginBox");
+const minQtyNote=$("#minQtyNote");
 
-    const $ = (s)=>document.querySelector(s);
-    const statusEl=$("#status"), progEl=$("#bar"), progTxt=$("#progTxt");
-    const scanBtn=$("#scanBtn"), tbl=$("#tbl"), tbody=$("#tbl tbody");
-    const topBox=$("#topBox"), topTitle=$("#topTitle"), topExplain=$("#topExplain");
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function fetchJSON(url, timeout=25000){
+  const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),timeout);
+  try{ const r=await fetch(url,{signal:ctrl.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
+  finally{ clearTimeout(t); }
+}
 
-    const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
-    async function fetchJSON(url, timeout=25000){
-      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),timeout);
-      try{ const r=await fetch(url,{signal:ctrl.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
-      finally{ clearTimeout(t); }
-    }
+// ======== ExchangeInfo cache (stepSize/tickSize/minQty) ========
+let EXCHANGE_INFO = null;
+async function loadExchangeInfo(){
+  if(EXCHANGE_INFO) return EXCHANGE_INFO;
+  const info = await fetchJSON(API + "/fapi/v1/exchangeInfo");
+  const map = {};
+  for(const s of (info.symbols||[])){
+    if(s.contractType!=="PERPETUAL" || s.quoteAsset!=="USDT" || s.status!=="TRADING") continue;
+    const lot = s.filters.find(f=>f.filterType==="LOT_SIZE") || {};
+    const price = s.filters.find(f=>f.filterType==="PRICE_FILTER") || {};
+    map[s.symbol] = {
+      stepSize: parseFloat(lot.stepSize||"0.001") || 0.001,
+      minQty: parseFloat(lot.minQty||"0.0") || 0,
+      tickSize: parseFloat(price.tickSize||"0.01") || 0.01
+    };
+  }
+  EXCHANGE_INFO = map;
+  return map;
+}
+function roundToStep(value, step, mode="floor"){
+  if(!isFinite(value)||!isFinite(step)||step<=0) return value;
+  const inv = 1/step;
+  if(mode==="ceil") return Math.ceil(value*inv)/inv;
+  if(mode==="round") return Math.round(value*inv)/inv;
+  return Math.floor(value*inv)/inv; // default floor
+}
 
-    // ---------- Math / Utils ----------
-    const sum=a=>a.reduce((x,y)=>x+y,0);
-    const avg=a=>sum(a)/a.length;
-    function SMA(arr,len){ if(arr.length<len) return null; let s=0; for(let i=arr.length-len;i<arr.length;i++) s+=arr[i]; return s/len; }
-    function EMAseries(arr,len){
-      const n=arr.length, out=new Array(n).fill(null); if(n<len) return out;
-      const k=2/(len+1); let ema=0; for(let i=0;i<len;i++) ema+=arr[i]; ema/=len; out[len-1]=ema;
-      for(let i=len;i<n;i++){ ema=arr[i]*k + ema*(1-k); out[i]=ema; } return out;
-    }
-    const lastEMA=(arr,len)=>{ const s=EMAseries(arr,len); for(let i=s.length-1;i>=0;i--) if(s[i]!=null) return s[i]; return null; }
-    function RSI(closes,period=14){
-      const n=closes.length; if(n<period+1) return null;
-      let g=0,l=0; for(let i=n-period;i<n;i++){ const d=closes[i]-closes[i-1]; if(d>=0) g+=d; else l-=d; }
-      if(l===0) return 100; const rs=g/period/(l/period); return 100 - (100/(1+rs));
-    }
-    function MACD(closes, fast=12, slow=26, signal=9){
-      const f=EMAseries(closes,fast), s=EMAseries(closes,slow);
-      const n=closes.length, macd=new Array(n).fill(null);
-      for(let i=0;i<n;i++) if(f[i]!=null && s[i]!=null) macd[i]=f[i]-s[i];
-      const sig=EMAseries(macd.map(v=>v??0), signal).map((v,i)=> macd[i]==null? null:v);
-      const hist=macd.map((v,i)=> (v==null||sig[i]==null)? null : v-sig[i]);
-      return { macdLine:macd, signalLine:sig, hist };
-    }
-    function ATR(highs,lows,closes,period=14){
-      const n=closes.length; if(n<period+1) return null;
-      const trs=[]; for(let i=1;i<n;i++){ const tr=Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])); trs.push(tr); }
-      let atr=avg(trs.slice(0,period)); for(let i=period;i<trs.length;i++){ atr=(atr*(period-1)+trs[i])/period; } return atr;
-    }
-    function maxN(arr,s,e){ let m=-Infinity; for(let i=s;i<e;i++) if(arr[i]>m) m=arr[i]; return m; }
-    function minN(arr,s,e){ let m=Infinity; for(let i=s;i<e;i++) if(arr[i]<m) m=arr[i]; return m; }
-    const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-    const format=(n,d=4)=> (n==null||!isFinite(n))? "-" : Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+// ======== Math / TA helpers ========
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const avg=a=>sum(a)/a.length;
+function SMA(arr,len){ if(arr.length<len) return null; let s=0; for(let i=arr.length-len;i<arr.length;i++) s+=arr[i]; return s/len; }
+function EMAseries(arr,len){
+  const n=arr.length, out=new Array(n).fill(null); if(n<len) return out;
+  const k=2/(len+1); let ema=0; for(let i=0;i<len;i++) ema+=arr[i]; ema/=len; out[len-1]=ema;
+  for(let i=len;i<n;i++){ ema=arr[i]*k + ema*(1-k); out[i]=ema; } return out;
+}
+const lastEMA=(arr,len)=>{ const s=EMAseries(arr,len); for(let i=s.length-1;i>=0;i--) if(s[i]!=null) return s[i]; return null; }
+function RSI(closes,period=14){
+  const n=closes.length; if(n<period+1) return null;
+  let g=0,l=0; for(let i=n-period;i<n;i++){ const d=closes[i]-closes[i-1]; if(d>=0) g+=d; else l-=d; }
+  if(l===0) return 100; const rs=(g/period)/(l/period); return 100 - (100/(1+rs));
+}
+function MACD(closes, f=12, s=26, sig=9){
+  const ef=EMAseries(closes,f), es=EMAseries(closes,s);
+  const n=closes.length, macd=new Array(n).fill(null);
+  for(let i=0;i<n;i++) if(ef[i]!=null && es[i]!=null) macd[i]=ef[i]-es[i];
+  const sigLine=EMAseries(macd.map(v=>v??0),sig).map((v,i)=> macd[i]==null? null:v);
+  const hist=macd.map((v,i)=> (v==null||sigLine[i]==null)? null : v-sigLine[i]);
+  return { macdLine:macd, signalLine:sigLine, hist };
+}
+function ATR(highs,lows,closes,period=14){
+  const n=closes.length; if(n<period+1) return null;
+  const trs=[]; for(let i=1;i<n;i++){ const tr=Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])); trs.push(tr); }
+  let atr=avg(trs.slice(0,period)); for(let i=period;i<trs.length;i++){ atr=(atr*(period-1)+trs[i])/period; } return atr;
+}
+function maxN(arr,s,e){ let m=-Infinity; for(let i=s;i<e;i++) if(arr[i]>m) m=arr[i]; return m; }
+function minN(arr,s,e){ let m=Infinity; for(let i=s;i<e;i++) if(arr[i]<m) m=arr[i]; return m; }
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const format=(n,d=4)=> (n==null||!isFinite(n))? "-" : Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+function ADX(highs,lows,closes,period=14){
+  const n=closes.length; if(n<period+1) return null;
+  let tr=[], dmP=[], dmM=[];
+  for(let i=1;i<n;i++){
+    tr.push(Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])));
+    const up=highs[i]-highs[i-1], dn=lows[i-1]-lows[i];
+    dmP.push((up>dn && up>0)? up:0); dmM.push((dn>up && dn>0)? dn:0);
+  }
+  const smooth=(arr)=>{ let val=avg(arr.slice(0,period)); const out=[val]; for(let i=period;i<arr.length;i++){ val = val - (val/period) + arr[i]; out.push(val); } return out; };
+  const trn=smooth(tr), dmp=smooth(dmP), dmn=smooth(dmM);
+  const dx=[]; for(let i=0;i<trn.length;i++){ const dip=100*(dmp[i]/trn[i]); const dim=100*(dmn[i]/trn[i]); dx.push(100*Math.abs(dip-dim)/(dip+dim||1)); }
+  let adx=avg(dx.slice(0,period)); for(let i=period;i<dx.length;i++){ adx=((adx*(period-1))+dx[i])/period; } return adx;
+}
 
-    // OBV + 기울기(최근 20일)
-    function OBV(closes, volumes){
-      const n=closes.length; const obv=new Array(n).fill(0);
-      for(let i=1;i<n;i++){ const dir = closes[i]>closes[i-1]? 1 : closes[i]<closes[i-1]? -1 : 0; obv[i]=obv[i-1]+dir*volumes[i]; }
-      return obv;
-    }
-    function slope(arr, len=20){
-      if(arr.length<len) return 0;
-      const x=[...Array(len).keys()], y=arr.slice(-len);
-      const xbar=avg(x), ybar=avg(y);
-      let num=0, den=0; for(let i=0;i<len;i++){ num+=(x[i]-xbar)*(y[i]-ybar); den+=(x[i]-xbar)*(x[i]-xbar); }
-      return den===0?0:(num/den);
-    }
+// ======== API ========
+async function getUSDTPerpSymbols(){
+  const info = await fetchJSON(API + "/fapi/v1/exchangeInfo");
+  return (info.symbols||[])
+    .filter(s=> s.quoteAsset==="USDT" && s.contractType==="PERPETUAL" && s.status==="TRADING")
+    .map(s=>s.symbol).sort();
+}
+async function getKlines(symbol, interval="1d", limit=320){
+  return await fetchJSON(API + `/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+}
 
-    // Bollinger Bands & %b
-    function BBands(closes, len=20, mult=2){
-      if(closes.length<len) return null;
-      const m=SMA(closes,len); const slice=closes.slice(-len);
-      const mean=avg(slice); const variance=avg(slice.map(v=>(v-mean)*(v-mean)));
-      const sd=Math.sqrt(variance);
-      const upper=m + mult*sd, lower=m - mult*sd;
-      const last=closes[closes.length-1];
-      const pctB = (last-lower)/(upper-lower);
-      return { middle:m, upper, lower, pctB };
-    }
+// ======== Scoring & Filters ========
+function liquidityNotional20(closes, volumes){
+  const n=closes.length; if(n<20) return 0;
+  const cs=closes.slice(-20), vs=volumes.slice(-20);
+  return avg(cs.map((c,i)=>c*vs[i]));
+}
+function rrEstimate(side, close, prev20Max, prev20Min, atr){
+  const stop = 1.5*atr; if(stop<=0) return 0;
+  if(side==="LONG"){ return Math.max(0, prev20Max - close) / stop; }
+  else{ return Math.max(0, close - prev20Min) / stop; }
+}
+function scoreSymbol(klines, weights, opts){
+  if(!klines || klines.length < opts.minBars) return null;
+  const O=[],H=[],L=[],C=[],V=[];
+  for(const k of klines){ O.push(+k[1]); H.push(+k[2]); L.push(+k[3]); C.push(+k[4]); V.push(+k[5]); }
+  const last=C.length-1, y=last-1; if(y<120) return null;
+  const opens=O.slice(0,last), highs=H.slice(0,last), lows=L.slice(0,last), closes=C.slice(0,last), vols=V.slice(0,last);
+  const close=closes.at(-1), open=opens.at(-1), body=close-open;
 
-    // ADX(14)
-    function ADX(highs,lows,closes, period=14){
-      const n=closes.length; if(n<period+1) return null;
-      let tr=[], dmPlus=[], dmMinus=[];
-      for(let i=1;i<n;i++){
-        tr.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
-        const up=highs[i]-highs[i-1], dn=lows[i-1]-lows[i];
-        dmPlus.push((up>dn && up>0)? up:0); dmMinus.push((dn>up && dn>0)? dn:0);
-      }
-      const smooth=(arr)=>{ let val=avg(arr.slice(0,period)); const out=[val]; for(let i=period;i<arr.length;i++){ val = val - (val/period) + arr[i]; out.push(val); } return out; };
-      const trn=smooth(tr), dmp=smooth(dmPlus), dmn=smooth(dmMinus);
-      const dx=[]; for(let i=0;i<trn.length;i++){ const dip=100*(dmp[i]/trn[i]); const dim=100*(dmn[i]/trn[i]); dx.push(100*Math.abs(dip-dim)/(dip+dim||1)); }
-      // ADX smoothing
-      let adx=avg(dx.slice(0,period)); for(let i=period;i<dx.length;i++){ adx = ((adx*(period-1)) + dx[i]) / period; }
-      return adx;
-    }
+  const ema20=lastEMA(closes,20), ema50=lastEMA(closes,50), ema200=lastEMA(closes,200);
+  const emaBull = ema20!=null && ema50!=null && ema200!=null && (ema20>ema50 && ema50>ema200);
+  const emaBear = ema20!=null && ema50!=null && ema200!=null && (ema20<ema50 && ema50<ema200);
 
-    // Candle Patterns (마감봉 기준)
-    function detectPatterns(opens, highs, lows, closes){
-      const n = closes.length;
-      if(n < 2) return { bullEngulf:false, bearEngulf:false, hammer:false, invHammer:false };
-      const o0=opens[n-1], c0=closes[n-1], h0=highs[n-1], l0=lows[n-1];
-      const o1=opens[n-2], c1=closes[n-2];
-      const body0=Math.abs(c0-o0), body1=Math.abs(c1-o1);
-      const upShadow0 = h0 - Math.max(o0,c0);
-      const dnShadow0 = Math.min(o0,c0) - l0;
+  const rsi = RSI(closes, opts.rsiLen);
+  const macd= MACD(closes,12,26,9);
+  const h0 = macd.hist.at(-1), h1 = macd.hist.at(-2);
+  const macdUp = (h1!=null && h0!=null) ? (h1<=0 && h0>0) : false;
+  const macdDn = (h1!=null && h0!=null) ? (h1>=0 && h0<0) : false;
 
-      const bullEngulf=(c0>o0)&&(c1<o1)&&(o0<=c1)&&(c0>=o1)&&(body0>=body1*0.8);
-      const bearEngulf=(c0<o0)&&(c1>o1)&&(o0>=c1)&&(c0<=o1)&&(body0>=body1*0.8);
-      const hammer = (dnShadow0 >= body0*2 && upShadow0 <= body0*0.3);
-      const invHammer = (upShadow0 >= body0*2 && dnShadow0 <= body0*0.3);
+  const atrVal = ATR(highs,lows,closes,14);
+  const atrPct = atrVal? (atrVal/close*100) : null;
 
-      return { bullEngulf, bearEngulf, hammer, invHammer };
-    }
+  const prev20Max = maxN(closes, closes.length-21, closes.length-1);
+  const prev20Min = minN(closes, closes.length-21, closes.length-1);
+  const breakoutUp   = close > prev20Max;
+  const breakoutDown = close < prev20Min;
 
-    // ---------- API ----------
-    async function getUSDTPerpSymbols(){
-      const info = await fetchJSON(API + "/fapi/v1/exchangeInfo");
-      return (info.symbols||[])
-        .filter(s=> s.quoteAsset==="USDT" && s.contractType==="PERPETUAL" && s.status==="TRADING")
-        .map(s=>s.symbol).sort();
-    }
-    async function getKlines(symbol, interval="1d", limit=320){
-      return await fetchJSON(API + `/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-    }
+  const volAvg20 = avg(vols.slice(-20));
+  const volRatio  = volAvg20? (vols.at(-1)/volAvg20) : null;
 
-    // ---------- Scoring & Filters ----------
-    function liquidityNotional20(closes, volumes){
-      // 20일 평균 거래대금(USDT): 평균(종가×거래량)
-      const n=closes.length; if(n<20) return 0;
-      const cs=closes.slice(-20), vs=volumes.slice(-20);
-      const vals=cs.map((c,i)=> c*vs[i]);
-      return avg(vals);
-    }
+  const adx = ADX(highs,lows,closes,14);
 
-    function rrEstimate(side, close, prev20Max, prev20Min, atr){
-      const stop = 1.5*atr;
-      if(stop<=0) return 0;
-      if(side==="LONG"){
-        const gain = Math.max(0, prev20Max - close);
-        return gain/stop;
-      }else{
-        const gain = Math.max(0, close - prev20Min);
-        return gain/stop;
-      }
-    }
+  // Filters
+  const notional20 = liquidityNotional20(closes, vols);
+  const atrOk = (atrPct!=null) && (atrPct>=opts.atrMin) && (atrPct<=opts.atrMax);
+  if(notional20 < opts.minNotional) return { filtered:true, reason:"유동성 부족" };
+  if(!atrOk) return { filtered:true, reason:"ATR 범위 밖" };
 
-    function consensusCount(flags){
-      // Count true flags of directional confirmation
-      return flags.filter(Boolean).length;
-    }
+  // Directional flags
+  const bullFlags = [
+    emaBull, (h0!=null && h0>0), macdUp, (rsi!=null && rsi>=60),
+    breakoutUp, (volRatio!=null && volRatio>=1.5 && body>0), (adx!=null && adx>=18)
+  ];
+  const bearFlags = [
+    emaBear, (h0!=null && h0<0), macdDn, (rsi!=null && rsi<=40),
+    breakoutDown, (volRatio!=null && volRatio>=1.5 && body<0), (adx!=null && adx>=18)
+  ];
+  const bullCount = bullFlags.filter(Boolean).length;
+  const bearCount = bearFlags.filter(Boolean).length;
 
-    function BBSignal(pctB){
-      if(pctB==null) return 0;
-      if(pctB >= 1.0) return +1; // 상단 돌파
-      if(pctB <= 0.0) return -1; // 하단 돌파
-      return 0;
-    }
+  // Scores
+  let longScore=0, shortScore=0;
+  if(emaBull) longScore += weights.wEma; if(emaBear) shortScore += weights.wEma;
+  if(h0!=null){ if(h0>0) longScore += weights.wMacd*0.75; else shortScore += weights.wMacd*0.75; }
+  if(macdUp) longScore += weights.wMacd*0.75; if(macdDn) shortScore += weights.wMacd*0.75;
+  if(rsi!=null){
+    if(rsi>=60) longScore += weights.wRsi; else if(rsi>=55) longScore += weights.wRsi*0.5;
+    if(rsi<=40) shortScore += weights.wRsi; else if(rsi<=45) shortScore += weights.wRsi*0.5;
+  }
+  if(breakoutUp) longScore += weights.wBreak; if(breakoutDown) shortScore += weights.wBreak;
+  if(volRatio!=null && volRatio>=1.5){ if(body>0) longScore += weights.wVol; else if(body<0) shortScore += weights.wVol; }
+  if(atrPct!=null && atrPct>=opts.atrMin && atrPct<=opts.atrMax){
+    if(longScore>=shortScore) longScore += weights.wAtr; else shortScore += weights.wAtr;
+  }
+  if(adx!=null){
+    const adxW = clamp((adx-15)/20, 0, 1);
+    if(longScore>=shortScore) longScore += 0.75*adxW; else shortScore += 0.75*adxW;
+  }
 
-    function scoreSymbol(klines, weights, opts, weeklyHint){
-      if(!klines || klines.length < opts.minBars) return null;
+  let side = (longScore - shortScore) >= 0 ? "LONG" : "SHORT";
 
-      const O=[],H=[],L=[],C=[],V=[];
-      for(const k of klines){ O.push(+k[1]); H.push(+k[2]); L.push(+k[3]); C.push(+k[4]); V.push(+k[5]); }
-      // 마지막은 진행중일 수 있으니 전일(마감된 봉)까지 사용
-      const last=C.length-1, y=last-1; if(y < 120) return null;
-      const opens=O.slice(0,last), highs=H.slice(0,last), lows=L.slice(0,last), closes=C.slice(0,last), vols=V.slice(0,last);
+  if(opts.enforceRegime && opts.regime){
+    if(opts.regime==="BULL" && side==="SHORT") return { filtered:true, reason:"BTC 레짐 불일치" };
+    if(opts.regime==="BEAR" && side==="LONG") return { filtered:true, reason:"BTC 레짐 불일치" };
+  }
 
-      const close=closes.at(-1), open=opens.at(-1), body=close-open;
+  const rr = rrEstimate(side, close, prev20Max, prev20Min, atrVal);
+  if(rr < 1.2) return { filtered:true, reason:"R:R 미달" };
 
-      // 지표
-      const ema20=lastEMA(closes,20), ema50=lastEMA(closes,50), ema200=lastEMA(closes,200);
-      const emaBull = ema20!=null && ema50!=null && ema200!=null && (ema20>ema50 && ema50>ema200);
-      const emaBear = ema20!=null && ema50!=null && ema200!=null && (ema20<ema50 && ema50<ema200);
+  const score = Math.abs(longScore - shortScore);
+  return {
+    side, score, close, rsi, h0,
+    emaBull, emaBear, breakoutUp, breakoutDown,
+    atrPct, atrVal, prev20Max, prev20Min,
+    rr, notional20
+  };
+}
 
-      const rsi = RSI(closes, opts.rsiLen);
-      const macd= MACD(closes,12,26,9);
-      const h0 = macd.hist.at(-1), h1 = macd.hist.at(-2);
-      const macdUp = (h1!=null && h0!=null) ? (h1<=0 && h0>0) : false;
-      const macdDn = (h1!=null && h0!=null) ? (h1>=0 && h0<0) : false;
+// ======== Position levels (pre-round) ========
+function computeLevelsRaw(side, entry, atr, prevMax, prevMin, atrMult, structBuf, trailMult){
+  if(atr==null || !isFinite(atr)) return null;
+  const dir = side==="LONG" ? 1 : -1;
 
-      const atrVal = ATR(highs,lows,closes,14);
-      const atrPct = atrVal? (atrVal/close*100) : null;
+  const atrStop = side==="LONG" ? (entry - atrMult*atr) : (entry + atrMult*atr);
+  const structStop = side==="LONG" ? (prevMin - structBuf*atr) : (prevMax + structBuf*atr);
+  let sl = side==="LONG" ? Math.min(atrStop, structStop) : Math.max(atrStop, structStop);
 
-      const prev20Max = maxN(closes, closes.length-21, closes.length-1);
-      const prev20Min = minN(closes, closes.length-21, closes.length-1);
-      const breakoutUp   = close > prev20Max;
-      const breakoutDown = close < prev20Min;
+  const R = Math.abs(entry - sl);
+  const tp1 = entry + dir * (1.0 * R);
+  const tp2 = entry + dir * (1.5 * R);
+  const tp3 = side==="LONG" ? prevMax : prevMin;
+  const trailInit = side==="LONG" ? (entry - trailMult*atr) : (entry + trailMult*atr);
 
-      const volAvg20 = avg(vols.slice(-20));
-      const volRatio  = volAvg20? (vols.at(-1)/volAvg20) : null;
+  return { entry, sl, R, tp1, tp2, tp3, trailInit };
+}
 
-      // OBV & 기울기(20)
-      const obv = OBV(closes, vols);
-      const obvSlope = slope(obv, 20);
+// ======== UI helpers ========
+function getNum(id,def){ const v=parseFloat($(id).value); return isFinite(v)? v : def; }
+function getInt(id,def){ const v=parseInt($(id).value,10); return Number.isInteger(v)? v : def; }
+function getOpts(){
+  return {
+    rsiLen:getInt("#rsiLen",14),
+    minNotional:getNum("#minNotional",1e7),
+    minBars:getInt("#minBars",150),
+    atrMin:getNum("#atrMin",1.0),
+    atrMax:getNum("#atrMax",10.0),
+    enforceRegime: $("#enforceRegime").checked,
+    regime:null
+  };
+}
+function getWeights(){
+  return {
+    wEma:+$("#wEma").value, wMacd:+$("#wMacd").value, wRsi:+$("#wRsi").value,
+    wBreak:+$("#wBreak").value, wVol:+$("#wVol").value, wAtr:+$("#wAtr").value,
+    wObv:+$("#wObv").value, wBb:+$("#wBb").value, wAdx:+$("#wAdx").value
+  };
+}
+function render(rows){
+  tbody.innerHTML="";
+  for(const r of rows){
+    const tr=document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.symbol}</td>
+      <td><span class="badge ${r.side.toLowerCase()}">${r.side}</span></td>
+      <td class="right num">${format(r.score,2)}</td>
+      <td class="right num">${format(r.close,6)}</td>
+      <td class="right num">${format(r.rsi,1)}</td>
+      <td class="right num">${format(r.h0,6)}</td>
+      <td>${r.emaBull? "✅" : (r.emaBear? "❌" : "—")}</td>
+      <td>${r.breakoutUp? "<span class='ok'>상방</span>" : (r.breakoutDown? "<span class='bad'>하방</span>" : "—")}</td>
+      <td class="right num">${r.atrPct==null? "-" : format(r.atrPct,2)+"%"}</td>
+      <td class="right num">${format(r.rr,2)}</td>
+      <td class="right num">${Math.round(r.notional20).toLocaleString()}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  tbl.style.display="";
+}
+function explainTop(r){
+  const bits=[];
+  bits.push(r.side==="LONG"?"상승 우위":"하락 우위");
+  bits.push(`점수 ${r.score.toFixed(2)}`);
+  bits.push(`R:R ${r.rr.toFixed(2)}`);
+  if(r.emaBull) bits.push("EMA 정배");
+  if(r.emaBear) bits.push("EMA 역배");
+  bits.push(`MACD Hist ${r.h0>0?"+":"-"}`);
+  bits.push(`RSI ${r.rsi!=null?r.rsi.toFixed(1):"-"}`);
+  if(r.breakoutUp) bits.push("20D 상방 돌파");
+  if(r.breakoutDown) bits.push("20D 하방 이탈");
+  bits.push(`ATR ${r.atrPct!=null?r.atrPct.toFixed(2)+"%":"-"}`);
+  return bits.join(" · ");
+}
 
-      // 볼린저
-      const bb = BBands(closes,20,2);
-      const bbSig = BBSignal(bb?bb.pctB:null);
+// ======== Main scan ========
+async function getTopWithExchangeInfo(){
+  const [symbols, exi] = await Promise.all([getUSDTPerpSymbols(), loadExchangeInfo()]);
+  const concurrency = Math.max(1, Math.min(24, getInt("#concurrency",10)));
+  const limit = Math.max(150, Math.min(1000, getInt("#limit",320)));
+  const opts = getOpts(); const weights=getWeights();
 
-      // ADX(14)
-      const adx = ADX(highs,lows,closes,14);
+  progEl.value=0; progTxt.textContent=`0 / ${symbols.length}`;
+  statusEl.textContent=`총 ${symbols.length}종 스캔 중...`;
+  const results=[]; let done=0;
 
-      // 유동성 / 변동성 / 연령 필터
-      const notional20 = liquidityNotional20(closes, vols);
-      const atrOk = (atrPct!=null) && (atrPct>=opts.atrMin) && (atrPct<=opts.atrMax);
-      if(notional20 < opts.minNotional) return { filtered:true, reason:"유동성 부족" };
-      if(!atrOk) return { filtered:true, reason:"ATR 범위 밖" };
-
-      // 방향성 판단 위한 플래그
-      const bullFlags = [
-        emaBull,
-        (h0!=null && h0>0),
-        macdUp,
-        (rsi!=null && rsi>=60),
-        breakoutUp,
-        (volRatio!=null && volRatio>=1.5 && body>0),
-        (obvSlope>0),
-        (bbSig>0),
-        (adx!=null && adx>=18) // 약한 추세 컷
-      ];
-      const bearFlags = [
-        emaBear,
-        (h0!=null && h0<0),
-        macdDn,
-        (rsi!=null && rsi<=40),
-        breakoutDown,
-        (volRatio!=null && volRatio>=1.5 && body<0),
-        (obvSlope<0),
-        (bbSig<0),
-        (adx!=null && adx>=18)
-      ];
-      const bullCount = consensusCount(bullFlags);
-      const bearCount = consensusCount(bearFlags);
-
-      // 패턴
-      const { bullEngulf, bearEngulf, hammer, invHammer } = detectPatterns(opens, highs, lows, closes);
-
-      // 점수화
-      let longScore=0, shortScore=0;
-
-      if(emaBull) longScore += weights.wEma;
-      if(emaBear) shortScore += weights.wEma;
-
-      if(h0!=null){ if(h0>0) longScore += weights.wMacd*0.75; else shortScore += weights.wMacd*0.75; }
-      if(macdUp) longScore += weights.wMacd*0.75;
-      if(macdDn) shortScore += weights.wMacd*0.75;
-
-      if(rsi!=null){
-        if(rsi>=60) longScore += weights.wRsi; else if(rsi>=55) longScore += weights.wRsi*0.5;
-        if(rsi<=40) shortScore += weights.wRsi; else if(rsi<=45) shortScore += weights.wRsi*0.5;
-      }
-
-      if(breakoutUp) longScore += weights.wBreak;
-      if(breakoutDown) shortScore += weights.wBreak;
-
-      if(volRatio!=null && volRatio>=1.5){
-        if(body>0) longScore += weights.wVol; else if(body<0) shortScore += weights.wVol;
-      }
-
-      if(atrPct!=null && atrPct>=opts.atrMin && atrPct<=opts.atrMax){
-        if(longScore>=shortScore) longScore += weights.wAtr; else shortScore += weights.wAtr;
-      }
-
-      if(bullEngulf || hammer) longScore += weights.wCdl*0.75;
-      if(bearEngulf || invHammer) shortScore += weights.wCdl*0.75;
-
-      if(obvSlope>0) longScore += weights.wObv*0.75; else if(obvSlope<0) shortScore += weights.wObv*0.75;
-
-      if(bbSig>0) longScore += weights.wBb*0.75; else if(bbSig<0) shortScore += weights.wBb*0.75;
-
-      if(adx!=null){
-        const adxWeight = clamp((adx-15)/20, 0, 1); // 15~35 구간에서 선형 가중
-        if(longScore>=shortScore) longScore += weights.wAdx*adxWeight; else shortScore += weights.wAdx*adxWeight;
-      }
-
-      // 주봉 컨플루언스 (옵션)
-      let weeklyBoostFlag = null;
-      if(opts.useWeekly && weeklyHint){
-        if(weeklyHint.trend==="BULL" && longScore>=shortScore){ longScore += weights.wW; weeklyBoostFlag="W↑"; }
-        if(weeklyHint.trend==="BEAR" && shortScore>longScore){ shortScore += weights.wW; weeklyBoostFlag="W↓"; }
-      }
-
-      // 방향 결정 + 레짐 정합
-      let side = (longScore - shortScore) >= 0 ? "LONG" : "SHORT";
-      if(opts.enforceRegime && opts.regime){
-        if(opts.regime==="BULL" && side==="SHORT" && !opts.allowCounter) return { filtered:true, reason:"BTC 레짐 불일치(역추세 비허용)" };
-        if(opts.regime==="BEAR" && side==="LONG" && !opts.allowCounter) return { filtered:true, reason:"BTC 레짐 불일치(역추세 비허용)" };
-      }
-
-      // R:R 검증
-      const rr = rrEstimate(side, close, prev20Max, prev20Min, atrVal);
-      if(rr < opts.rrMin) return { filtered:true, reason:"R:R 미달" };
-
-      // 합의 검증
-      const need = opts.consensusMin;
-      if(side==="LONG" && bullCount<need) return { filtered:true, reason:"롱 합의 부족" };
-      if(side==="SHORT" && bearCount<need) return { filtered:true, reason:"숏 합의 부족" };
-
-      // 최종 점수
-      const score = Math.abs(longScore - shortScore);
-
-      // 패턴 요약
-      let pat = "—";
-      if(bullEngulf) pat="강세 엔골핑";
-      else if(bearEngulf) pat="약세 엔골핑";
-      else if(hammer) pat="해머";
-      else if(invHammer) pat="역해머";
-
-      const flags = [];
-      if(weeklyBoostFlag) flags.push(weeklyBoostFlag);
-      if(volRatio!=null && volRatio>=1.5) flags.push("VOL↑");
-      if(breakoutUp||breakoutDown) flags.push("BRK");
-      if(adx!=null && adx>=25) flags.push("ADX강");
-
-      return {
-        side, score,
-        close, rsi, h0,
-        emaBull, emaBear,
-        breakoutUp, breakoutDown, pat,
-        volRatio, atrPct,
-        rr, notional20,
-        bullCount, bearCount,
-        flags: flags.join(",")
-      };
-    }
-
-    function getOpts(){
-      return {
-        rsiLen: parseInt($("#rsiLen").value,10)||14,
-        minNotional: parseFloat($("#minNotional").value)||10000000,
-        minBars: parseInt($("#minBars").value,10)||150,
-        atrMin: parseFloat($("#atrMin").value)||1.0,
-        atrMax: parseFloat($("#atrMax").value)||10.0,
-        enforceRegime: $("#enforceRegime").checked,
-        allowCounter: $("#allowCounter").checked,
-        useWeekly: $("#useWeekly").checked,
-        rrMin: parseFloat($("#rrMin").value)||1.2,
-        consensusMin: parseInt($("#consensusMin").value,10)||3
-      };
-    }
-    function getWeights(){
-      return {
-        wEma:+$("#wEma").value, wMacd:+$("#wMacd").value, wRsi:+$("#wRsi").value,
-        wBreak:+$("#wBreak").value, wVol:+$("#wVol").value, wAtr:+$("#wAtr").value,
-        wCdl:+$("#wCdl").value, wObv:+$("#wObv").value, wBb:+$("#wBb").value, wAdx:+$("#wAdx").value, wW:+$("#wW").value
-      };
-    }
-
-    function render(rows){
-      tbody.innerHTML="";
-      for(const r of rows){
-        const tr=document.createElement("tr");
-        tr.innerHTML = `
-          <td>${r.symbol}</td>
-          <td><span class="badge ${r.side.toLowerCase()}">${r.side}</span></td>
-          <td class="right num">${format(r.score,2)}</td>
-          <td class="right num">${format(r.close,6)}</td>
-          <td class="right num">${format(r.rsi,1)}</td>
-          <td class="right num">${format(r.h0,6)}</td>
-          <td>${r.emaBull? "✅" : (r.emaBear? "❌" : "—")}</td>
-          <td>${r.breakoutUp? "<span class='ok'>상방</span>" : (r.breakoutDown? "<span class='bad'>하방</span>" : "—")}</td>
-          <td>${r.pat}</td>
-          <td class="right num">${format(r.volRatio,2)}</td>
-          <td class="right num">${r.atrPct==null? "-" : format(r.atrPct,2)+"%"}</td>
-          <td class="right num">${format(r.rr,2)}</td>
-          <td class="right num">${Math.round(r.notional20).toLocaleString()}</td>
-          <td>${r.flags||"—"}</td>
-        `;
-        tbody.appendChild(tr);
-      }
-      tbl.style.display="";
-    }
-
-    function explainTop(r, regime){
-      const bits=[];
-      bits.push(r.side==="LONG"?"상승 우위":"하락 우위");
-      bits.push(`점수 ${r.score.toFixed(2)}`);
-      if(regime) bits.push(`BTC 레짐: ${regime==="BULL"?"강세":"약세"}`);
-      bits.push(`R:R ${r.rr.toFixed(2)}`);
-      if(r.emaBull) bits.push("EMA 정배");
-      if(r.emaBear) bits.push("EMA 역배");
-      bits.push(`MACD Hist ${r.h0>0?"+" : "-"}`);
-      bits.push(`RSI ${r.rsi!=null?r.rsi.toFixed(1):"-"}`);
-      if(r.breakoutUp) bits.push("20일 상방 돌파");
-      if(r.breakoutDown) bits.push("20일 하방 이탈");
-      if(r.volRatio!=null && r.volRatio>=1.5) bits.push(`거래량 x${r.volRatio.toFixed(2)}`);
-      if(r.pat && r.pat!=="—") bits.push(`패턴 ${r.pat}`);
-      bits.push(`ATR ${r.atrPct!=null?r.atrPct.toFixed(2)+"%":"-"}`);
-      return bits.join(" · ");
-    }
-
-    // BTC 레짐 탐지(1D): EMA20>EMA50이면 BULL, 반대면 BEAR
-    function detectRegime(btcCloses){
-      const e20=lastEMA(btcCloses,20), e50=lastEMA(btcCloses,50);
-      if(e20!=null && e50!=null){ return e20>e50? "BULL" : "BEAR"; }
-      return null;
-    }
-    // 주봉 컨플루언스 힌트: 주봉 EMA20 위면 BULL, 아래면 BEAR
-    function weeklyHint(weeklyCloses){
-      const e20=lastEMA(weeklyCloses,20);
-      const last=weeklyCloses.at(-1);
-      if(e20!=null){ return { trend: last>e20? "BULL":"BEAR" }; }
-      return null;
-    }
-
-    async function scan(){
-      scanBtn.disabled=true; topBox.style.display="none"; tbl.style.display="none"; tbody.innerHTML="";
-      const concurrency = Math.max(1, Math.min(24, parseInt($("#concurrency").value,10)||10));
-      const limit = Math.max(150, Math.min(1000, parseInt($("#limit").value,10)||320));
-      const opts = getOpts(); const weights=getWeights();
-
-      statusEl.textContent="심볼 목록 불러오는 중...";
-      let symbols=[]; try{ symbols=await getUSDTPerpSymbols(); }catch(e){ statusEl.textContent="심볼 조회 실패"; scanBtn.disabled=false; return; }
-      progEl.value=0; progTxt.textContent=`0 / ${symbols.length}`;
-
-      // BTC 레짐
-      statusEl.textContent="BTC 레짐 분석 중...";
-      let btcInfo=null; try{
-        const btc1d = await getKlines("BTCUSDT","1d",limit);
-        const btcCloses = btc1d.map(k=>+k[4]);
-        const regime = detectRegime(btcCloses);
-        let weekly=null;
-        if(opts.useWeekly){
-          const btc1w = await getKlines("BTCUSDT","1w",120);
-          const wCloses = btc1w.map(k=>+k[4]).slice(0,-1); // 주봉 미완성 제외
-          weekly = weeklyHint(wCloses);
+  for(let i=0;i<symbols.length;i+=concurrency){
+    const batch=symbols.slice(i,i+concurrency);
+    await Promise.all(batch.map(async (sym)=>{
+      try{
+        const d1 = await getKlines(sym,"1d",limit);
+        const r = scoreSymbol(d1, weights, opts);
+        if(r && !r.filtered){
+          // 라운딩용 메타 포함
+          results.push({ symbol:sym, meta: exi[sym]||{stepSize:0.001,minQty:0,tickSize:0.01}, ...r });
         }
-        btcInfo={ regime, weekly };
-      }catch(e){ btcInfo={ regime:null, weekly:null }; }
+      }catch(e){}
+      finally{ done++; const pct=Math.round(done/symbols.length*100); progEl.value=pct; progTxt.textContent=`${done} / ${symbols.length}`; }
+    }));
+    await sleep(100);
+  }
+  return results;
+}
 
-      if(opts.enforceRegime) opts.regime = btcInfo.regime;
+async function scan(){
+  scanBtn.disabled=true; topBox.style.display="none"; levelsBox.style.display="none"; tbl.style.display="none"; tbody.innerHTML="";
+  statusEl.textContent="심볼/거래규칙 불러오는 중...";
+  let results = await getTopWithExchangeInfo();
 
-      statusEl.textContent=`총 ${symbols.length}종 스캔 중...`;
-      const results=[], filteredNotes=[];
-      let done=0;
+  if(results.length===0){ statusEl.textContent="조건을 만족하는 결과가 없습니다. (필터 완화 권장)"; scanBtn.disabled=false; return; }
 
-      const chunks=[]; for(let i=0;i<symbols.length;i+=concurrency) chunks.push(symbols.slice(i,i+concurrency));
-      for(const batch of chunks){
-        await Promise.all(batch.map(async (sym)=>{
-          try{
-            const [d1, w1] = await Promise.all([
-              getKlines(sym,"1d",limit),
-              opts.useWeekly ? getKlines(sym,"1w",120) : Promise.resolve(null),
-            ]);
-            const weeklyConfluence = opts.useWeekly && w1 ? weeklyHint(w1.map(k=>+k[4]).slice(0,-1)) : null;
-            const r = scoreSymbol(d1, weights, opts, weeklyConfluence);
-            if(r && !r.filtered){ results.push({ symbol:sym, ...r }); }
-            else if(r && r.filtered){ filteredNotes.push({ symbol:sym, reason:r.reason }); }
-          }catch(e){ /* ignore */ }
-          finally{
-            done++; const pct=Math.round(done/symbols.length*100); progEl.value=pct; progTxt.textContent=`${done} / ${symbols.length}`;
-          }
-        }));
-        await sleep(120);
-      }
+  // Sort: score desc → R:R desc → notional desc
+  results.sort((a,b)=> (b.score-a.score) || (b.rr-a.rr) || (b.notional20-a.notional20) );
 
-      if(results.length===0){
-        statusEl.textContent = "조건을 만족하는 결과가 없습니다. (필터 값 완화해 보세요)";
-        scanBtn.disabled=false; return;
-      }
+  const top = results[0];
+  topBox.style.display="";
+  topTitle.innerHTML = `최상위 추천: <b>${top.symbol}</b> <span class="badge ${top.side.toLowerCase()}">${top.side}</span> (점수 ${top.score.toFixed(2)})`;
+  topExplain.textContent = explainTop(top);
 
-      // 정렬: 점수 desc → R:R desc → 거래대금 desc
-      results.sort((a,b)=>{
-        if(b.score!==a.score) return b.score-a.score;
-        if(b.rr!==a.rr) return b.rr-a.rr;
-        return b.notional20 - a.notional20;
-      });
+  // === Levels (rounded with tickSize/stepSize) ===
+  const atrMult = getNum("#atrMult",1.5);
+  const structBuf = getNum("#structBuf",0.2);
+  const trailMult = getNum("#trailMult",2.5);
+  const lvRaw = computeLevelsRaw(top.side, top.close, top.atrVal, top.prev20Max, top.prev20Min, atrMult, structBuf, trailMult);
 
-      const top = results[0];
-      topBox.style.display="";
-      topTitle.innerHTML = `최상위 추천: <b>${top.symbol}</b> <span class="badge ${top.side.toLowerCase()}">${top.side}</span> (점수 ${top.score.toFixed(2)})`;
-      topExplain.textContent = explainTop(top, opts.regime||null);
+  const { stepSize, minQty, tickSize } = top.meta || { stepSize:0.001, minQty:0, tickSize:0.01 };
 
-      render(results.slice(0, 30));
-      statusEl.textContent = `완료: 적합 ${results.length}종 / 제외 ${filteredNotes.length}종`;
-      scanBtn.disabled=false;
+  // 가격 라운딩: tickSize에 맞춰 floor/ceil 방향성 유지
+  function roundPriceForSide(side, price){
+    if(side==="LONG"){ // 진입 롱 기준: 보수적 floor
+      return roundToStep(price, tickSize, "floor");
+    }else{ // 숏: 보수적 ceil
+      return roundToStep(price, tickSize, "ceil");
     }
+  }
+  const entry = roundPriceForSide(top.side, lvRaw.entry);
+  const sl    = (top.side==="LONG") ? roundToStep(lvRaw.sl, tickSize, "floor") : roundToStep(lvRaw.sl, tickSize, "ceil");
+  const tp1   = (top.side==="LONG") ? roundToStep(lvRaw.tp1, tickSize, "ceil")  : roundToStep(lvRaw.tp1, tickSize, "floor");
+  const tp2   = (top.side==="LONG") ? roundToStep(lvRaw.tp2, tickSize, "ceil")  : roundToStep(lvRaw.tp2, tickSize, "floor");
+  const tp3   = (top.side==="LONG") ? roundToStep(lvRaw.tp3, tickSize, "ceil")  : roundToStep(lvRaw.tp3, tickSize, "floor");
+  const trail = (top.side==="LONG") ? roundToStep(lvRaw.trailInit, tickSize, "floor") : roundToStep(lvRaw.trailInit, tickSize, "ceil");
 
-    $("#scanBtn").addEventListener("click", scan);
-  </script>
+  // 수량 산출 -> stepSize 맞춤 + minQty 보정
+  const equity = getNum("#equity",10000);
+  const riskPct = getNum("#riskPct",1.0);
+  const leverage = Math.max(1, getNum("#leverage",5));
+  const riskUSDT = equity * (riskPct/100);
+  const priceRisk = Math.abs(entry - sl);
+  let qty = priceRisk>0 ? (riskUSDT / priceRisk) : 0;
+  // LOT_SIZE 스텝 적용 (floor)
+  qty = roundToStep(qty, stepSize, "floor");
+  let minAdjusted = false;
+  if(minQty>0 && qty>0 && qty<minQty){ qty = minQty; minAdjusted = true; }
+  const margin = (qty * entry) / leverage;
+
+  // 출력
+  levelsBox.style.display="";
+  entryBox.textContent = `Entry: ${format(entry,6)}`;
+  slBox.innerHTML      = `SL: ${format(sl,6)}  <span class="muted">(리스크: ${format(riskUSDT,2)} USDT)</span>`;
+  tp1Box.textContent   = `T1 (1R): ${format(tp1,6)}`;
+  tp2Box.textContent   = `T2 (1.5R): ${format(tp2,6)}`;
+  tp3Box.textContent   = `T3 (구조적): ${format(tp3,6)}`;
+  trailBox.textContent = `초기 트레일링: ${format(trail,6)}`;
+  qtyBox.textContent   = `수량: ${format(qty,8)} ${top.symbol.replace("USDT","")}  (step ${stepSize}, min ${minQty})`;
+  marginBox.textContent= `필요 증거금(≈): ${format(margin,2)} USDT @ ${leverage}x`;
+  minQtyNote.style.display = minAdjusted ? "" : "none";
+
+  render(results.slice(0, 30));
+  statusEl.textContent = `완료: 적합 ${results.length}종`;
+  scanBtn.disabled=false;
+}
+
+$("#scanBtn").addEventListener("click", scan);
+</script>
 </body>
 </html>
