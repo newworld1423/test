@@ -1,523 +1,343 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Binance USDT Perp 1D Scanner — Entry/TP/SL + Sizing + Step/Tick</title>
-<style>
-  :root{--bg:#0b0c0f;--panel:#12141a;--txt:#e7e9ee;--muted:#9aa0aa;--accent:#5cc8ff}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,sans-serif}
-  .container{max-width:1200px;margin:24px auto;padding:0 16px}
-  h1{font-size:20px;margin:0 0 12px}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
-  .card{background:var(--panel);border:1px solid #1d2230;border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  button{background:var(--accent);color:#00121c;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  .muted{color:var(--muted);font-size:12px}
-  .progress-wrap{margin-top:12px;display:flex;align-items:center;gap:10px}
-  progress{width:260px;height:10px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px}
-  .field{display:flex;align-items:center;gap:8px}
-  input[type='number'],input[type='checkbox']{background:#0f1422;color:#e7e9ee;border:1px solid #273047;border-radius:6px;padding:6px 8px}
-  input[type='number']{width:120px}
-  label.small{font-size:12px;color:var(--muted)}
-  .pill{display:inline-block;padding:3px 8px;background:#172033;border-radius:999px;font-size:11px;color:#a8cfff}
-  .result{margin-top:16px;padding:12px;border-radius:10px;background:#0e1320;border:1px dashed #2a3650}
-  .result h3{margin:0 0 8px}
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
-  .long{background:#1cffb0;color:#003622}.short{background:#ff8b8b;color:#3a0000}
-  table{width:100%;border-collapse:collapse;margin-top:12px}
-  th,td{font-size:12px;text-align:left;padding:8px;border-bottom:1px solid #242b3b}
-  th{color:#b8c0cc}.right{text-align:right}.num{font-variant-numeric:tabular-nums}
-  .ok{color:#a7f3d0}.bad{color:#fca5a5}
-  .foot{color:#8b93a3;font-size:12px;margin-top:18px;line-height:1.5}
-  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0a1220;border:1px solid #223150;padding:2px 6px;border-radius:6px;font-size:12px}
-  .box{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px}
-  .box div{background:#0e1320;border:1px solid #1e2740;border-radius:10px;padding:10px}
-  .title-sm{font-size:12px;color:#8fa0c5;margin-bottom:6px}
-  .warn{color:#ffd166}
-</style>
+    <meta charset="utf-8" />
+    <title>Binance USDT-PERP 50EMA 크로스 스캐너 (1D)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root { --bg:#0b1220; --fg:#e8eefc; --muted:#9fb0d0; --accent:#6ab0ff; --ok:#35c46a; --bad:#ff6a6a; }
+        body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Helvetica, Arial; background:var(--bg); color:var(--fg); }
+        header { padding: 20px; border-bottom: 1px solid #1b2742; }
+        h1 { margin:0 0 8px; font-size: 20px; }
+        p.note { margin:6px 0 0; color:var(--muted); font-size: 13px; }
+        main { padding: 16px 20px 60px; max-width: 1200px; }
+        .controls { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .controls > div { background:#0f1a33; border:1px solid #1b2742; border-radius:12px; padding:12px; }
+        label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+        input, select, button { width:100%; box-sizing:border-box; border-radius:8px; border:1px solid #2a3b63; background:#0b172f; color:var(--fg); padding:10px 12px; font-size:14px; }
+        button.primary { background:linear-gradient(180deg,#1e86ff,#1063cf); border:0; cursor:pointer; }
+        button.secondary { background:#142449; border:1px solid #2a3b63; cursor:pointer; }
+        .row { display:flex; gap:10px; align-items:center; margin: 14px 0; }
+        .progress { height:10px; background:#122043; border-radius:999px; overflow:hidden; border:1px solid #213362; }
+        .bar { height:100%; width:0%; background:linear-gradient(90deg,#37a8ff,#6ab0ff); transition:width .2s ease; }
+        table { width:100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding:10px 12px; border-bottom: 1px solid #1b2742; text-align:left; font-size:14px; }
+        th { position: sticky; top:0; background:#0f1a33; z-index:1; }
+        .pill { font-size: 12px; padding:3px 8px; border-radius:999px; border:1px solid #2a3b63; color:var(--muted); }
+        .ok { color:var(--ok); }
+        .bad { color:var(--bad); }
+        .small { font-size:12px; color:var(--muted); }
+        footer { position:fixed; inset:auto 0 0 0; background:#0f1a33; border-top:1px solid #1b2742; padding:10px 20px; display:flex; gap:10px; align-items:center; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
+        .right { margin-left:auto; display:flex; gap:10px; }
+        .hint { color:var(--muted); font-size:12px; }
+        .nowrap { white-space: nowrap; }
+    </style>
 </head>
 <body>
-<div class="container">
-  <h1>바이낸스 무기한 선물 1일봉 스캐너 <span class="pill">USDT PERP · Entry/TP/SL · Step/Tick 적용</span></h1>
-  <div class="sub">전일(완성 1D) 시그널로 <b>롱/숏 최상위 1종</b>을 고르고, <b>진입·손절·익절·트레일링·사이징</b>을 <u>심볼별 stepSize/tickSize에 맞게</u> 산출합니다.</div>
+<header>
+    <h1>Binance USDT-PERP 50EMA 크로스 스캐너 (1D)</h1>
+    <p class="note">조건: ① 2봉 전 종가 &lt; 50EMA ② 1봉 전 종가 &gt; 50EMA (1일봉 기준). 바이낸스 선물 API를 사용합니다.</p>
+</header>
+<main>
+    <section class="controls">
+        <div>
+            <label>EMA 길이</label>
+            <input id="emaLength" type="number" value="50" min="2" />
+            <div class="hint">기본 50EMA</div>
+        </div>
+        <div>
+            <label>Kline 개수 (limit)</label>
+            <input id="klineLimit" type="number" value="200" min="60" />
+            <div class="hint">최소 EMA길이 + 2 이상 권장</div>
+        </div>
+        <div>
+            <label>동시 요청 개수</label>
+            <input id="concurrency" type="number" value="5" min="1" max="20" />
+            <div class="hint">레이트 리밋 보호</div>
+        </div>
+        <div>
+            <label>심볼 필터(포함, 선택)</label>
+            <input id="symbolFilter" placeholder="예: BTC,ETH,SOL (비워두면 전체)" />
+            <div class="hint">쉼표로 여러 개</div>
+        </div>
+    </section>
 
-  <div class="card">
     <div class="row">
-      <button id="scanBtn">스캔 시작</button>
-      <span class="muted" id="status">대기 중</span>
-    </div>
-    <div class="progress-wrap">
-      <progress id="bar" value="0" max="100"></progress>
-      <span class="muted num" id="progTxt">0 / 0</span>
+        <button id="scanBtn" class="primary">스캔 시작</button>
+        <button id="stopBtn" class="secondary">중지</button>
+        <span id="status" class="small">준비됨</span>
     </div>
 
-    <details>
-      <summary>고급 설정 (필터/가중치/포지션 규칙)</summary>
-      <div class="grid">
-        <div class="field"><label class="small">동시 요청 수</label><input id="concurrency" type="number" min="1" max="24" step="1" value="10"/></div>
-        <div class="field"><label class="small">1D Kline 갯수</label><input id="limit" type="number" min="150" max="1000" step="10" value="320"/></div>
-        <div class="field"><label class="small">RSI 기간</label><input id="rsiLen" type="number" min="5" max="50" step="1" value="14"/></div>
-
-        <div class="field"><label class="small">유동성 하한(20D 평균 거래대금 USDT)</label><input id="minNotional" type="number" step="100000" value="10000000"/></div>
-        <div class="field"><label class="small">최소 봉 수(심볼 연령)</label><input id="minBars" type="number" min="150" max="1000" step="10" value="150"/></div>
-        <div class="field"><label class="small">ATR% 최소</label><input id="atrMin" type="number" step="0.1" value="1.0"/></div>
-        <div class="field"><label class="small">ATR% 최대</label><input id="atrMax" type="number" step="0.1" value="10.0"/></div>
-        <div class="field"><label class="small">BTC 레짐 정합 강제</label><input id="enforceRegime" type="checkbox" checked/></div>
-
-        <!-- Weights -->
-        <div class="field"><label class="small">EMA 배열 가중</label><input id="wEma" type="number" step="0.25" value="2"/></div>
-        <div class="field"><label class="small">MACD 가중</label><input id="wMacd" type="number" step="0.25" value="1"/></div>
-        <div class="field"><label class="small">RSI 가중</label><input id="wRsi" type="number" step="0.25" value="1"/></div>
-        <div class="field"><label class="small">20D 돌파/이탈 가중</label><input id="wBreak" type="number" step="0.25" value="1"/></div>
-        <div class="field"><label class="small">거래량 스파이크 가중</label><input id="wVol" type="number" step="0.25" value="0.75"/></div>
-        <div class="field"><label class="small">ATR 품질 보정</label><input id="wAtr" type="number" step="0.25" value="0.5"/></div>
-        <div class="field"><label class="small">OBV 가중</label><input id="wObv" type="number" step="0.25" value="0.5"/></div>
-        <div class="field"><label class="small">볼린저 %b 가중</label><input id="wBb" type="number" step="0.25" value="0.75"/></div>
-        <div class="field"><label class="small">ADX 가중</label><input id="wAdx" type="number" step="0.25" value="0.75"/></div>
-
-        <!-- Position / Risk -->
-        <div class="field"><label class="small">계좌 자본(USDT)</label><input id="equity" type="number" step="10" value="10000"/></div>
-        <div class="field"><label class="small">거래당 위험%</label><input id="riskPct" type="number" step="0.1" value="1.0"/></div>
-        <div class="field"><label class="small">레버리지</label><input id="leverage" type="number" min="1" step="1" value="5"/></div>
-        <div class="field"><label class="small">ATR 스탑 배수</label><input id="atrMult" type="number" step="0.1" value="1.5"/></div>
-        <div class="field"><label class="small">구조적 스탑 버퍼(×ATR)</label><input id="structBuf" type="number" step="0.05" value="0.2"/></div>
-        <div class="field"><label class="small">트레일링 ATR 배수</label><input id="trailMult" type="number" step="0.1" value="2.5"/></div>
-      </div>
-    </details>
-
-    <div id="topBox" class="result" style="display:none">
-      <h3 id="topTitle">추천 결과</h3>
-      <div id="topExplain" class="muted"></div>
-
-      <div class="box" id="levelsBox" style="display:none">
-        <div>
-          <div class="title-sm">진입 / 손절 (SL)</div>
-          <div class="num" id="entryBox">Entry: -</div>
-          <div class="num" id="slBox">SL: -  <span class="muted">(리스크: - USDT)</span></div>
+    <div class="row">
+        <div class="progress" style="flex:1;">
+            <div class="bar" id="bar"></div>
         </div>
-        <div>
-          <div class="title-sm">익절 (TP)</div>
-          <div class="num" id="tp1Box">T1 (1R): -</div>
-          <div class="num" id="tp2Box">T2 (1.5R): -</div>
-          <div class="num" id="tp3Box">T3 (구조적): -</div>
-          <div class="muted" style="margin-top:6px">권장: 50% @T1 → BE, 25% @T2, 25% @T3 또는 트레일</div>
-        </div>
-        <div>
-          <div class="title-sm">트레일링</div>
-          <div class="num" id="trailBox">초기 트레일링: -</div>
-          <div class="muted">일봉 마감마다 재계산 필요</div>
-        </div>
-        <div>
-          <div class="title-sm">사이징 & 증거금</div>
-          <div class="num" id="qtyBox">수량: -</div>
-          <div class="num" id="marginBox">필요 증거금: -</div>
-          <div class="muted warn" id="minQtyNote" style="display:none">주의: 최소 주문 수량 미만이라 자동 상향 조정됨</div>
-        </div>
-      </div>
+        <span id="progText" class="small nowrap">0 / 0</span>
     </div>
 
-    <table id="tbl" style="display:none">
-      <thead>
-        <tr>
-          <th>심볼</th>
-          <th>추천</th>
-          <th class="right">점수</th>
-          <th class="right">종가</th>
-          <th class="right">RSI</th>
-          <th class="right">MACD Hist</th>
-          <th>EMA 배열</th>
-          <th>20D 돌파/이탈</th>
-          <th class="right">ATR%</th>
-          <th class="right">R:R</th>
-          <th class="right">20D 거래대금</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th>심볼</th>
+                <th>2봉 전 종가</th>
+                <th>2봉 전 50EMA</th>
+                <th>1봉 전 종가</th>
+                <th>1봉 전 50EMA</th>
+                <th>조건 충족</th>
+                <th>비고</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
     </table>
+</main>
 
-    <div class="foot">
-      <div><b>면책:</b> 교육/연구 목적 도구이며 투자 조언이 아닙니다. 파생상품은 원금 초과 손실 가능.</div>
-      <div>CORS 발생 시: <span class="kbd">python -m http.server</span> → 브라우저에서 파일 접근</div>
+<footer>
+    <span class="hint">출처: Binance Futures API (1d)</span>
+    <div class="right">
+        <button id="exportBtn" class="secondary">CSV 내보내기</button>
     </div>
-  </div>
-</div>
+</footer>
 
 <script>
-const API = "https://fapi.binance.com";
-const $ = s=>document.querySelector(s);
-const statusEl=$("#status"), progEl=$("#bar"), progTxt=$("#progTxt");
-const scanBtn=$("#scanBtn"), tbl=$("#tbl"), tbody=$("#tbl tbody");
-const topBox=$("#topBox"), topTitle=$("#topTitle"), topExplain=$("#topExplain");
-const levelsBox=$("#levelsBox"), entryBox=$("#entryBox"), slBox=$("#slBox");
-const tp1Box=$("#tp1Box"), tp2Box=$("#tp2Box"), tp3Box=$("#tp3Box");
-const trailBox=$("#trailBox"), qtyBox=$("#qtyBox"), marginBox=$("#marginBox");
-const minQtyNote=$("#minQtyNote");
+    // ======= 설정값 / DOM =======
+    const API = "https://fapi.binance.com";
+    const $scanBtn = document.getElementById('scanBtn');
+    const $stopBtn = document.getElementById('stopBtn');
+    const $emaLength = document.getElementById('emaLength');
+    const $klineLimit = document.getElementById('klineLimit');
+    const $concurrency = document.getElementById('concurrency');
+    const $symbolFilter = document.getElementById('symbolFilter');
+    const $status = document.getElementById('status');
+    const $bar = document.getElementById('bar');
+    const $progText = document.getElementById('progText');
+    const $tbody = document.querySelector('#resultTable tbody');
+    const $exportBtn = document.getElementById('exportBtn');
 
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function fetchJSON(url, timeout=25000){
-  const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),timeout);
-  try{ const r=await fetch(url,{signal:ctrl.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
-  finally{ clearTimeout(t); }
-}
+    let abortFlag = false;
+    let lastResults = [];
 
-// ======== ExchangeInfo cache (stepSize/tickSize/minQty) ========
-let EXCHANGE_INFO = null;
-async function loadExchangeInfo(){
-  if(EXCHANGE_INFO) return EXCHANGE_INFO;
-  const info = await fetchJSON(API + "/fapi/v1/exchangeInfo");
-  const map = {};
-  for(const s of (info.symbols||[])){
-    if(s.contractType!=="PERPETUAL" || s.quoteAsset!=="USDT" || s.status!=="TRADING") continue;
-    const lot = s.filters.find(f=>f.filterType==="LOT_SIZE") || {};
-    const price = s.filters.find(f=>f.filterType==="PRICE_FILTER") || {};
-    map[s.symbol] = {
-      stepSize: parseFloat(lot.stepSize||"0.001") || 0.001,
-      minQty: parseFloat(lot.minQty||"0.0") || 0,
-      tickSize: parseFloat(price.tickSize||"0.01") || 0.01
-    };
-  }
-  EXCHANGE_INFO = map;
-  return map;
-}
-function roundToStep(value, step, mode="floor"){
-  if(!isFinite(value)||!isFinite(step)||step<=0) return value;
-  const inv = 1/step;
-  if(mode==="ceil") return Math.ceil(value*inv)/inv;
-  if(mode==="round") return Math.round(value*inv)/inv;
-  return Math.floor(value*inv)/inv; // default floor
-}
-
-// ======== Math / TA helpers ========
-const sum=a=>a.reduce((x,y)=>x+y,0);
-const avg=a=>sum(a)/a.length;
-function SMA(arr,len){ if(arr.length<len) return null; let s=0; for(let i=arr.length-len;i<arr.length;i++) s+=arr[i]; return s/len; }
-function EMAseries(arr,len){
-  const n=arr.length, out=new Array(n).fill(null); if(n<len) return out;
-  const k=2/(len+1); let ema=0; for(let i=0;i<len;i++) ema+=arr[i]; ema/=len; out[len-1]=ema;
-  for(let i=len;i<n;i++){ ema=arr[i]*k + ema*(1-k); out[i]=ema; } return out;
-}
-const lastEMA=(arr,len)=>{ const s=EMAseries(arr,len); for(let i=s.length-1;i>=0;i--) if(s[i]!=null) return s[i]; return null; }
-function RSI(closes,period=14){
-  const n=closes.length; if(n<period+1) return null;
-  let g=0,l=0; for(let i=n-period;i<n;i++){ const d=closes[i]-closes[i-1]; if(d>=0) g+=d; else l-=d; }
-  if(l===0) return 100; const rs=(g/period)/(l/period); return 100 - (100/(1+rs));
-}
-function MACD(closes, f=12, s=26, sig=9){
-  const ef=EMAseries(closes,f), es=EMAseries(closes,s);
-  const n=closes.length, macd=new Array(n).fill(null);
-  for(let i=0;i<n;i++) if(ef[i]!=null && es[i]!=null) macd[i]=ef[i]-es[i];
-  const sigLine=EMAseries(macd.map(v=>v??0),sig).map((v,i)=> macd[i]==null? null:v);
-  const hist=macd.map((v,i)=> (v==null||sigLine[i]==null)? null : v-sigLine[i]);
-  return { macdLine:macd, signalLine:sigLine, hist };
-}
-function ATR(highs,lows,closes,period=14){
-  const n=closes.length; if(n<period+1) return null;
-  const trs=[]; for(let i=1;i<n;i++){ const tr=Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])); trs.push(tr); }
-  let atr=avg(trs.slice(0,period)); for(let i=period;i<trs.length;i++){ atr=(atr*(period-1)+trs[i])/period; } return atr;
-}
-function maxN(arr,s,e){ let m=-Infinity; for(let i=s;i<e;i++) if(arr[i]>m) m=arr[i]; return m; }
-function minN(arr,s,e){ let m=Infinity; for(let i=s;i<e;i++) if(arr[i]<m) m=arr[i]; return m; }
-const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const format=(n,d=4)=> (n==null||!isFinite(n))? "-" : Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
-function ADX(highs,lows,closes,period=14){
-  const n=closes.length; if(n<period+1) return null;
-  let tr=[], dmP=[], dmM=[];
-  for(let i=1;i<n;i++){
-    tr.push(Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])));
-    const up=highs[i]-highs[i-1], dn=lows[i-1]-lows[i];
-    dmP.push((up>dn && up>0)? up:0); dmM.push((dn>up && dn>0)? dn:0);
-  }
-  const smooth=(arr)=>{ let val=avg(arr.slice(0,period)); const out=[val]; for(let i=period;i<arr.length;i++){ val = val - (val/period) + arr[i]; out.push(val); } return out; };
-  const trn=smooth(tr), dmp=smooth(dmP), dmn=smooth(dmM);
-  const dx=[]; for(let i=0;i<trn.length;i++){ const dip=100*(dmp[i]/trn[i]); const dim=100*(dmn[i]/trn[i]); dx.push(100*Math.abs(dip-dim)/(dip+dim||1)); }
-  let adx=avg(dx.slice(0,period)); for(let i=period;i<dx.length;i++){ adx=((adx*(period-1))+dx[i])/period; } return adx;
-}
-
-// ======== API ========
-async function getUSDTPerpSymbols(){
-  const info = await fetchJSON(API + "/fapi/v1/exchangeInfo");
-  return (info.symbols||[])
-    .filter(s=> s.quoteAsset==="USDT" && s.contractType==="PERPETUAL" && s.status==="TRADING")
-    .map(s=>s.symbol).sort();
-}
-async function getKlines(symbol, interval="1d", limit=320){
-  return await fetchJSON(API + `/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
-}
-
-// ======== Scoring & Filters ========
-function liquidityNotional20(closes, volumes){
-  const n=closes.length; if(n<20) return 0;
-  const cs=closes.slice(-20), vs=volumes.slice(-20);
-  return avg(cs.map((c,i)=>c*vs[i]));
-}
-function rrEstimate(side, close, prev20Max, prev20Min, atr){
-  const stop = 1.5*atr; if(stop<=0) return 0;
-  if(side==="LONG"){ return Math.max(0, prev20Max - close) / stop; }
-  else{ return Math.max(0, close - prev20Min) / stop; }
-}
-function scoreSymbol(klines, weights, opts){
-  if(!klines || klines.length < opts.minBars) return null;
-  const O=[],H=[],L=[],C=[],V=[];
-  for(const k of klines){ O.push(+k[1]); H.push(+k[2]); L.push(+k[3]); C.push(+k[4]); V.push(+k[5]); }
-  const last=C.length-1, y=last-1; if(y<120) return null;
-  const opens=O.slice(0,last), highs=H.slice(0,last), lows=L.slice(0,last), closes=C.slice(0,last), vols=V.slice(0,last);
-  const close=closes.at(-1), open=opens.at(-1), body=close-open;
-
-  const ema20=lastEMA(closes,20), ema50=lastEMA(closes,50), ema200=lastEMA(closes,200);
-  const emaBull = ema20!=null && ema50!=null && ema200!=null && (ema20>ema50 && ema50>ema200);
-  const emaBear = ema20!=null && ema50!=null && ema200!=null && (ema20<ema50 && ema50<ema200);
-
-  const rsi = RSI(closes, opts.rsiLen);
-  const macd= MACD(closes,12,26,9);
-  const h0 = macd.hist.at(-1), h1 = macd.hist.at(-2);
-  const macdUp = (h1!=null && h0!=null) ? (h1<=0 && h0>0) : false;
-  const macdDn = (h1!=null && h0!=null) ? (h1>=0 && h0<0) : false;
-
-  const atrVal = ATR(highs,lows,closes,14);
-  const atrPct = atrVal? (atrVal/close*100) : null;
-
-  const prev20Max = maxN(closes, closes.length-21, closes.length-1);
-  const prev20Min = minN(closes, closes.length-21, closes.length-1);
-  const breakoutUp   = close > prev20Max;
-  const breakoutDown = close < prev20Min;
-
-  const volAvg20 = avg(vols.slice(-20));
-  const volRatio  = volAvg20? (vols.at(-1)/volAvg20) : null;
-
-  const adx = ADX(highs,lows,closes,14);
-
-  // Filters
-  const notional20 = liquidityNotional20(closes, vols);
-  const atrOk = (atrPct!=null) && (atrPct>=opts.atrMin) && (atrPct<=opts.atrMax);
-  if(notional20 < opts.minNotional) return { filtered:true, reason:"유동성 부족" };
-  if(!atrOk) return { filtered:true, reason:"ATR 범위 밖" };
-
-  // Directional flags
-  const bullFlags = [
-    emaBull, (h0!=null && h0>0), macdUp, (rsi!=null && rsi>=60),
-    breakoutUp, (volRatio!=null && volRatio>=1.5 && body>0), (adx!=null && adx>=18)
-  ];
-  const bearFlags = [
-    emaBear, (h0!=null && h0<0), macdDn, (rsi!=null && rsi<=40),
-    breakoutDown, (volRatio!=null && volRatio>=1.5 && body<0), (adx!=null && adx>=18)
-  ];
-  const bullCount = bullFlags.filter(Boolean).length;
-  const bearCount = bearFlags.filter(Boolean).length;
-
-  // Scores
-  let longScore=0, shortScore=0;
-  if(emaBull) longScore += weights.wEma; if(emaBear) shortScore += weights.wEma;
-  if(h0!=null){ if(h0>0) longScore += weights.wMacd*0.75; else shortScore += weights.wMacd*0.75; }
-  if(macdUp) longScore += weights.wMacd*0.75; if(macdDn) shortScore += weights.wMacd*0.75;
-  if(rsi!=null){
-    if(rsi>=60) longScore += weights.wRsi; else if(rsi>=55) longScore += weights.wRsi*0.5;
-    if(rsi<=40) shortScore += weights.wRsi; else if(rsi<=45) shortScore += weights.wRsi*0.5;
-  }
-  if(breakoutUp) longScore += weights.wBreak; if(breakoutDown) shortScore += weights.wBreak;
-  if(volRatio!=null && volRatio>=1.5){ if(body>0) longScore += weights.wVol; else if(body<0) shortScore += weights.wVol; }
-  if(atrPct!=null && atrPct>=opts.atrMin && atrPct<=opts.atrMax){
-    if(longScore>=shortScore) longScore += weights.wAtr; else shortScore += weights.wAtr;
-  }
-  if(adx!=null){
-    const adxW = clamp((adx-15)/20, 0, 1);
-    if(longScore>=shortScore) longScore += 0.75*adxW; else shortScore += 0.75*adxW;
-  }
-
-  let side = (longScore - shortScore) >= 0 ? "LONG" : "SHORT";
-
-  if(opts.enforceRegime && opts.regime){
-    if(opts.regime==="BULL" && side==="SHORT") return { filtered:true, reason:"BTC 레짐 불일치" };
-    if(opts.regime==="BEAR" && side==="LONG") return { filtered:true, reason:"BTC 레짐 불일치" };
-  }
-
-  const rr = rrEstimate(side, close, prev20Max, prev20Min, atrVal);
-  if(rr < 1.2) return { filtered:true, reason:"R:R 미달" };
-
-  const score = Math.abs(longScore - shortScore);
-  return {
-    side, score, close, rsi, h0,
-    emaBull, emaBear, breakoutUp, breakoutDown,
-    atrPct, atrVal, prev20Max, prev20Min,
-    rr, notional20
-  };
-}
-
-// ======== Position levels (pre-round) ========
-function computeLevelsRaw(side, entry, atr, prevMax, prevMin, atrMult, structBuf, trailMult){
-  if(atr==null || !isFinite(atr)) return null;
-  const dir = side==="LONG" ? 1 : -1;
-
-  const atrStop = side==="LONG" ? (entry - atrMult*atr) : (entry + atrMult*atr);
-  const structStop = side==="LONG" ? (prevMin - structBuf*atr) : (prevMax + structBuf*atr);
-  let sl = side==="LONG" ? Math.min(atrStop, structStop) : Math.max(atrStop, structStop);
-
-  const R = Math.abs(entry - sl);
-  const tp1 = entry + dir * (1.0 * R);
-  const tp2 = entry + dir * (1.5 * R);
-  const tp3 = side==="LONG" ? prevMax : prevMin;
-  const trailInit = side==="LONG" ? (entry - trailMult*atr) : (entry + trailMult*atr);
-
-  return { entry, sl, R, tp1, tp2, tp3, trailInit };
-}
-
-// ======== UI helpers ========
-function getNum(id,def){ const v=parseFloat($(id).value); return isFinite(v)? v : def; }
-function getInt(id,def){ const v=parseInt($(id).value,10); return Number.isInteger(v)? v : def; }
-function getOpts(){
-  return {
-    rsiLen:getInt("#rsiLen",14),
-    minNotional:getNum("#minNotional",1e7),
-    minBars:getInt("#minBars",150),
-    atrMin:getNum("#atrMin",1.0),
-    atrMax:getNum("#atrMax",10.0),
-    enforceRegime: $("#enforceRegime").checked,
-    regime:null
-  };
-}
-function getWeights(){
-  return {
-    wEma:+$("#wEma").value, wMacd:+$("#wMacd").value, wRsi:+$("#wRsi").value,
-    wBreak:+$("#wBreak").value, wVol:+$("#wVol").value, wAtr:+$("#wAtr").value,
-    wObv:+$("#wObv").value, wBb:+$("#wBb").value, wAdx:+$("#wAdx").value
-  };
-}
-function render(rows){
-  tbody.innerHTML="";
-  for(const r of rows){
-    const tr=document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.symbol}</td>
-      <td><span class="badge ${r.side.toLowerCase()}">${r.side}</span></td>
-      <td class="right num">${format(r.score,2)}</td>
-      <td class="right num">${format(r.close,6)}</td>
-      <td class="right num">${format(r.rsi,1)}</td>
-      <td class="right num">${format(r.h0,6)}</td>
-      <td>${r.emaBull? "✅" : (r.emaBear? "❌" : "—")}</td>
-      <td>${r.breakoutUp? "<span class='ok'>상방</span>" : (r.breakoutDown? "<span class='bad'>하방</span>" : "—")}</td>
-      <td class="right num">${r.atrPct==null? "-" : format(r.atrPct,2)+"%"}</td>
-      <td class="right num">${format(r.rr,2)}</td>
-      <td class="right num">${Math.round(r.notional20).toLocaleString()}</td>
-    `;
-    tbody.appendChild(tr);
-  }
-  tbl.style.display="";
-}
-function explainTop(r){
-  const bits=[];
-  bits.push(r.side==="LONG"?"상승 우위":"하락 우위");
-  bits.push(`점수 ${r.score.toFixed(2)}`);
-  bits.push(`R:R ${r.rr.toFixed(2)}`);
-  if(r.emaBull) bits.push("EMA 정배");
-  if(r.emaBear) bits.push("EMA 역배");
-  bits.push(`MACD Hist ${r.h0>0?"+":"-"}`);
-  bits.push(`RSI ${r.rsi!=null?r.rsi.toFixed(1):"-"}`);
-  if(r.breakoutUp) bits.push("20D 상방 돌파");
-  if(r.breakoutDown) bits.push("20D 하방 이탈");
-  bits.push(`ATR ${r.atrPct!=null?r.atrPct.toFixed(2)+"%":"-"}`);
-  return bits.join(" · ");
-}
-
-// ======== Main scan ========
-async function getTopWithExchangeInfo(){
-  const [symbols, exi] = await Promise.all([getUSDTPerpSymbols(), loadExchangeInfo()]);
-  const concurrency = Math.max(1, Math.min(24, getInt("#concurrency",10)));
-  const limit = Math.max(150, Math.min(1000, getInt("#limit",320)));
-  const opts = getOpts(); const weights=getWeights();
-
-  progEl.value=0; progTxt.textContent=`0 / ${symbols.length}`;
-  statusEl.textContent=`총 ${symbols.length}종 스캔 중...`;
-  const results=[]; let done=0;
-
-  for(let i=0;i<symbols.length;i+=concurrency){
-    const batch=symbols.slice(i,i+concurrency);
-    await Promise.all(batch.map(async (sym)=>{
-      try{
-        const d1 = await getKlines(sym,"1d",limit);
-        const r = scoreSymbol(d1, weights, opts);
-        if(r && !r.filtered){
-          // 라운딩용 메타 포함
-          results.push({ symbol:sym, meta: exi[sym]||{stepSize:0.001,minQty:0,tickSize:0.01}, ...r });
-        }
-      }catch(e){}
-      finally{ done++; const pct=Math.round(done/symbols.length*100); progEl.value=pct; progTxt.textContent=`${done} / ${symbols.length}`; }
-    }));
-    await sleep(100);
-  }
-  return results;
-}
-
-async function scan(){
-  scanBtn.disabled=true; topBox.style.display="none"; levelsBox.style.display="none"; tbl.style.display="none"; tbody.innerHTML="";
-  statusEl.textContent="심볼/거래규칙 불러오는 중...";
-  let results = await getTopWithExchangeInfo();
-
-  if(results.length===0){ statusEl.textContent="조건을 만족하는 결과가 없습니다. (필터 완화 권장)"; scanBtn.disabled=false; return; }
-
-  // Sort: score desc → R:R desc → notional desc
-  results.sort((a,b)=> (b.score-a.score) || (b.rr-a.rr) || (b.notional20-a.notional20) );
-
-  const top = results[0];
-  topBox.style.display="";
-  topTitle.innerHTML = `최상위 추천: <b>${top.symbol}</b> <span class="badge ${top.side.toLowerCase()}">${top.side}</span> (점수 ${top.score.toFixed(2)})`;
-  topExplain.textContent = explainTop(top);
-
-  // === Levels (rounded with tickSize/stepSize) ===
-  const atrMult = getNum("#atrMult",1.5);
-  const structBuf = getNum("#structBuf",0.2);
-  const trailMult = getNum("#trailMult",2.5);
-  const lvRaw = computeLevelsRaw(top.side, top.close, top.atrVal, top.prev20Max, top.prev20Min, atrMult, structBuf, trailMult);
-
-  const { stepSize, minQty, tickSize } = top.meta || { stepSize:0.001, minQty:0, tickSize:0.01 };
-
-  // 가격 라운딩: tickSize에 맞춰 floor/ceil 방향성 유지
-  function roundPriceForSide(side, price){
-    if(side==="LONG"){ // 진입 롱 기준: 보수적 floor
-      return roundToStep(price, tickSize, "floor");
-    }else{ // 숏: 보수적 ceil
-      return roundToStep(price, tickSize, "ceil");
+    // ======= 유틸 =======
+    function sleep(ms) {
+        return new Promise(res => setTimeout(res, ms));
     }
-  }
-  const entry = roundPriceForSide(top.side, lvRaw.entry);
-  const sl    = (top.side==="LONG") ? roundToStep(lvRaw.sl, tickSize, "floor") : roundToStep(lvRaw.sl, tickSize, "ceil");
-  const tp1   = (top.side==="LONG") ? roundToStep(lvRaw.tp1, tickSize, "ceil")  : roundToStep(lvRaw.tp1, tickSize, "floor");
-  const tp2   = (top.side==="LONG") ? roundToStep(lvRaw.tp2, tickSize, "ceil")  : roundToStep(lvRaw.tp2, tickSize, "floor");
-  const tp3   = (top.side==="LONG") ? roundToStep(lvRaw.tp3, tickSize, "ceil")  : roundToStep(lvRaw.tp3, tickSize, "floor");
-  const trail = (top.side==="LONG") ? roundToStep(lvRaw.trailInit, tickSize, "floor") : roundToStep(lvRaw.trailInit, tickSize, "ceil");
 
-  // 수량 산출 -> stepSize 맞춤 + minQty 보정
-  const equity = getNum("#equity",10000);
-  const riskPct = getNum("#riskPct",1.0);
-  const leverage = Math.max(1, getNum("#leverage",5));
-  const riskUSDT = equity * (riskPct/100);
-  const priceRisk = Math.abs(entry - sl);
-  let qty = priceRisk>0 ? (riskUSDT / priceRisk) : 0;
-  // LOT_SIZE 스텝 적용 (floor)
-  qty = roundToStep(qty, stepSize, "floor");
-  let minAdjusted = false;
-  if(minQty>0 && qty>0 && qty<minQty){ qty = minQty; minAdjusted = true; }
-  const margin = (qty * entry) / leverage;
+    function toCSV(rows) {
+        const esc = (v) => {
+            if (v == null) return '';
+            const s = String(v);
+            if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+                return `"${s.replace(/"/g, '""')}"`;
+            }
+            return s;
+        };
+        const header = ["symbol","close_2","ema_2","close_1","ema_1","match","note"];
+        const lines = [header.join(',')];
+        for (const r of rows) {
+            lines.push([r.symbol, r.close2, r.ema2, r.close1, r.ema1, r.match, r.note || ""].map(esc).join(','));
+        }
+        return lines.join('\n');
+    }
 
-  // 출력
-  levelsBox.style.display="";
-  entryBox.textContent = `Entry: ${format(entry,6)}`;
-  slBox.innerHTML      = `SL: ${format(sl,6)}  <span class="muted">(리스크: ${format(riskUSDT,2)} USDT)</span>`;
-  tp1Box.textContent   = `T1 (1R): ${format(tp1,6)}`;
-  tp2Box.textContent   = `T2 (1.5R): ${format(tp2,6)}`;
-  tp3Box.textContent   = `T3 (구조적): ${format(tp3,6)}`;
-  trailBox.textContent = `초기 트레일링: ${format(trail,6)}`;
-  qtyBox.textContent   = `수량: ${format(qty,8)} ${top.symbol.replace("USDT","")}  (step ${stepSize}, min ${minQty})`;
-  marginBox.textContent= `필요 증거금(≈): ${format(margin,2)} USDT @ ${leverage}x`;
-  minQtyNote.style.display = minAdjusted ? "" : "none";
+    function downloadText(filename, text) {
+        const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
 
-  render(results.slice(0, 30));
-  statusEl.textContent = `완료: 적합 ${results.length}종`;
-  scanBtn.disabled=false;
-}
+    function addRow(r) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="mono">${r.symbol}</td>
+            <td>${Number(r.close2).toFixed(6)}</td>
+            <td>${Number(r.ema2).toFixed(6)}</td>
+            <td>${Number(r.close1).toFixed(6)}</td>
+            <td>${Number(r.ema1).toFixed(6)}</td>
+            <td class="${r.match ? 'ok' : 'bad'}">${r.match ? '충족' : '불충족'}</td>
+            <td class="small">${r.note || ''}</td>
+        `;
+        $tbody.appendChild(tr);
+    }
 
-$("#scanBtn").addEventListener("click", scan);
+    function setProgress(done, total) {
+        const pct = total ? Math.round(done * 100 / total) : 0;
+        $bar.style.width = pct + '%';
+        $progText.textContent = `${done} / ${total}`;
+    }
+
+    // ======= Binance API =======
+    async function fetchUSDTPerpSymbols() {
+        const url = `${API}/fapi/v1/exchangeInfo`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('exchangeInfo 실패: ' + res.status);
+        const data = await res.json();
+        // USDT QUOTE + PERPETUAL 컨트랙트 + TRADING 상태만
+        const syms = data.symbols.filter(s =>
+            s.quoteAsset === 'USDT' &&
+            s.contractType === 'PERPETUAL' &&
+            s.status === 'TRADING'
+        ).map(s => s.symbol);
+
+        return syms;
+    }
+
+    async function fetchKlines1D(symbol, limit) {
+        const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`klines 실패(${symbol}): ` + res.status);
+        const data = await res.json();
+        // 배열: [openTime, open, high, low, close, volume, closeTime, ...]
+        return data.map(row => ({
+            openTime: row[0],
+            open: Number(row[1]),
+            high: Number(row[2]),
+            low: Number(row[3]),
+            close: Number(row[4]),
+            closeTime: row[6]
+        }));
+    }
+
+    // ======= EMA =======
+    function ema(values, length) {
+        if (values.length < length) return [];
+        const k = 2 / (length + 1);
+        const out = new Array(values.length);
+        // 초기값: 첫 length개 SMA
+        let sum = 0;
+        for (let i = 0; i < length; i++) sum += values[i];
+        out[length - 1] = sum / length;
+        for (let i = length; i < values.length; i++) {
+            out[i] = values[i] * k + out[i - 1] * (1 - k);
+        }
+        // 앞쪽 비어있는 부분은 undefined 유지
+        return out;
+    }
+
+    // ======= 조건 검사 =======
+    function checkCondition(candles, length) {
+        const closes = candles.map(c => c.close);
+        const e = ema(closes, length);
+        const lastIdx = candles.length - 1;
+        const iPrev = lastIdx - 1; // 1봉 전
+        const iPrev2 = lastIdx - 2; // 2봉 전
+        if (iPrev2 < 0 || !e[iPrev] || !e[iPrev2]) {
+            return { ok: false, reason: '데이터 부족' };
+        }
+        const close2 = closes[iPrev2];
+        const ema2 = e[iPrev2];
+        const close1 = closes[iPrev];
+        const ema1 = e[iPrev];
+
+        const cond1 = close2 < ema2;
+        const cond2 = close1 > ema1;
+
+        return {
+            ok: (cond1 && cond2),
+            close2, ema2, close1, ema1
+        };
+    }
+
+    // ======= 스캔 루프 =======
+    async function scan() {
+        abortFlag = false;
+        $tbody.innerHTML = '';
+        lastResults = [];
+        $status.textContent = '심볼 목록 불러오는 중...';
+
+        const limit = Math.max(parseInt($klineLimit.value, 10) || 200, 60);
+        const emaLen = Math.max(parseInt($emaLength.value, 10) || 50, 2);
+        const conc = Math.min(Math.max(parseInt($concurrency.value, 10) || 5, 1), 20);
+
+        let symbols = await fetchUSDTPerpSymbols();
+
+        // 사용자가 필터를 지정하면 해당 심볼만 스캔
+        const filter = ($symbolFilter.value || '').trim();
+        if (filter) {
+            const picks = filter.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            symbols = symbols.filter(sym => picks.some(p => sym.startsWith(p)));
+        }
+
+        const total = symbols.length;
+        let done = 0;
+        setProgress(0, total);
+        $status.textContent = `스캔 시작: ${total} 종목`;
+
+        // 간단한 작업 큐 (동시성 제한)
+        const queue = [...symbols];
+        const workers = new Array(conc).fill(0).map(() => worker());
+        await Promise.all(workers);
+        $status.textContent = `완료: ${lastResults.filter(r => r.match).length} 종목 조건 충족 / 총 ${total}`;
+
+        async function worker() {
+            while (queue.length && !abortFlag) {
+                const sym = queue.shift();
+                try {
+                    const candles = await fetchKlines1D(sym, limit);
+                    const res = checkCondition(candles, emaLen);
+                    const row = {
+                        symbol: sym,
+                        close2: res.close2,
+                        ema2: res.ema2,
+                        close1: res.close1,
+                        ema1: res.ema1,
+                        match: !!res.ok,
+                        note: res.ok ? '' : (res.reason || '')
+                    };
+                    lastResults.push(row);
+                    if (row.match) addRow(row);
+                } catch (e) {
+                    const row = { symbol: sym, close2: '', ema2: '', close1: '', ema1: '', match: false, note: (e && e.message) ? e.message : '에러' };
+                    lastResults.push(row);
+                    // 에러는 표에는 추가하지 않음 (결과 정리 시 보려면 여기서 addRow(row)로 바꾸세요)
+                } finally {
+                    done += 1;
+                    setProgress(done, total);
+                    $status.textContent = `스캔 중... ${done}/${total}`;
+                    // 너무 빠른 폭격 방지: 살짝 휴지
+                    await sleep(50);
+                }
+            }
+        }
+    }
+
+    // ======= 이벤트 =======
+    $scanBtn.addEventListener('click', async () => {
+        if ($scanBtn.disabled) return;
+        $scanBtn.disabled = true;
+        $stopBtn.disabled = false;
+        try {
+            await scan();
+        } catch (e) {
+            console.error(e);
+            $status.textContent = '오류: ' + (e && e.message ? e.message : e);
+        } finally {
+            $scanBtn.disabled = false;
+            $stopBtn.disabled = true;
+        }
+    });
+
+    $stopBtn.addEventListener('click', () => {
+        abortFlag = true;
+        $status.textContent = '중지 요청됨';
+    });
+
+    $exportBtn.addEventListener('click', () => {
+        if (!lastResults.length) {
+            alert('내보낼 결과가 없습니다.');
+            return;
+        }
+        const matched = lastResults.filter(r => r.match);
+        const csv = toCSV(matched);
+        const now = new Date();
+        const ts = now.toISOString().slice(0,19).replace(/[:T]/g,'-');
+        downloadText(`scanner_1d_ema${document.getElementById('emaLength').value}_${ts}.csv`, csv);
+    });
 </script>
 </body>
 </html>
