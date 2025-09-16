@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT-PERP 50EMA 크로스 스캐너 (1D)</title>
+    <title>Binance USDT-PERP 50EMA 크로스 스캐너 (멀티 타임프레임)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { --bg:#0b1220; --fg:#e8eefc; --muted:#9fb0d0; --accent:#6ab0ff; --ok:#35c46a; --bad:#ff6a6a; }
@@ -11,13 +11,13 @@
         h1 { margin:0 0 8px; font-size: 20px; }
         p.note { margin:6px 0 0; color:var(--muted); font-size: 13px; }
         main { padding: 16px 20px 60px; max-width: 1200px; }
-        .controls { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .controls { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
         .controls > div { background:#0f1a33; border:1px solid #1b2742; border-radius:12px; padding:12px; }
         label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
         input, select, button { width:100%; box-sizing:border-box; border-radius:8px; border:1px solid #2a3b63; background:#0b172f; color:var(--fg); padding:10px 12px; font-size:14px; }
         button.primary { background:linear-gradient(180deg,#1e86ff,#1063cf); border:0; cursor:pointer; }
         button.secondary { background:#142449; border:1px solid #2a3b63; cursor:pointer; }
-        .row { display:flex; gap:10px; align-items:center; margin: 14px 0; }
+        .row { display:flex; gap:10px; align-items:center; margin: 14px 0; flex-wrap: wrap; }
         .progress { height:10px; background:#122043; border-radius:999px; overflow:hidden; border:1px solid #213362; }
         .bar { height:100%; width:0%; background:linear-gradient(90deg,#37a8ff,#6ab0ff); transition:width .2s ease; }
         table { width:100%; border-collapse: collapse; margin-top: 12px; }
@@ -29,44 +29,54 @@
         .small { font-size:12px; color:var(--muted); }
         footer { position:fixed; inset:auto 0 0 0; background:#0f1a33; border-top:1px solid #1b2742; padding:10px 20px; display:flex; gap:10px; align-items:center; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; }
-        .right { margin-left:auto; display:flex; gap:10px; }
-        .hint { color:var(--muted); font-size:12px; }
         .nowrap { white-space: nowrap; }
+        .right { margin-left:auto; display:flex; gap:10px; }
     </style>
 </head>
 <body>
 <header>
-    <h1>Binance USDT-PERP 50EMA 크로스 스캐너 (1D)</h1>
-    <p class="note">조건: ① 2봉 전 종가 &lt; 50EMA ② 1봉 전 종가 &gt; 50EMA (1일봉 기준). 바이낸스 선물 API를 사용합니다.</p>
+    <h1>Binance USDT-PERP 50EMA 크로스 스캐너</h1>
+    <p class="note">조건: ① 2봉 전 종가 &lt; 50EMA ② 1봉 전 종가 &gt; 50EMA (선택 간격 기준). 추가: 오늘(UTC) 일봉 시가 대비 % 변화.</p>
 </header>
 <main>
     <section class="controls">
         <div>
+            <label>간격(Interval)</label>
+            <select id="interval">
+                <option value="15m">15분</option>
+                <option value="1h">1시간</option>
+                <option value="4h">4시간</option>
+                <option value="1d" selected>1일</option>
+            </select>
+            <div class="small">크로스 판정에 사용</div>
+        </div>
+        <div>
             <label>EMA 길이</label>
             <input id="emaLength" type="number" value="50" min="2" />
-            <div class="hint">기본 50EMA</div>
+            <div class="small">기본 50EMA</div>
         </div>
         <div>
             <label>Kline 개수 (limit)</label>
             <input id="klineLimit" type="number" value="200" min="60" />
-            <div class="hint">최소 EMA길이 + 2 이상 권장</div>
+            <div class="small">EMA길이 + 2 이상 권장</div>
         </div>
         <div>
             <label>동시 요청 개수</label>
             <input id="concurrency" type="number" value="5" min="1" max="20" />
-            <div class="hint">레이트 리밋 보호</div>
+            <div class="small">레이트 리밋 보호</div>
         </div>
         <div>
             <label>심볼 필터(포함, 선택)</label>
             <input id="symbolFilter" placeholder="예: BTC,ETH,SOL (비워두면 전체)" />
-            <div class="hint">쉼표로 여러 개</div>
+            <div class="small">쉼표로 여러 개</div>
         </div>
     </section>
 
     <div class="row">
         <button id="scanBtn" class="primary">스캔 시작</button>
-        <button id="stopBtn" class="secondary">중지</button>
+        <button id="stopBtn" class="secondary" disabled>중지</button>
         <span id="status" class="small">준비됨</span>
+        <span class="pill nowrap" id="tfBadge">현재 간격: 1d</span>
     </div>
 
     <div class="row">
@@ -80,11 +90,15 @@
         <thead>
             <tr>
                 <th>심볼</th>
+                <th>간격</th>
                 <th>2봉 전 종가</th>
                 <th>2봉 전 50EMA</th>
                 <th>1봉 전 종가</th>
                 <th>1봉 전 50EMA</th>
-                <th>조건 충족</th>
+                <th>조건</th>
+                <th>현재가</th>
+                <th>오늘(UTC) 일봉 시가</th>
+                <th>오늘 시가 대비 %</th>
                 <th>비고</th>
             </tr>
         </thead>
@@ -93,7 +107,7 @@
 </main>
 
 <footer>
-    <span class="hint">출처: Binance Futures API (1d)</span>
+    <span class="small">출처: Binance Futures API (klines, ticker)</span>
     <div class="right">
         <button id="exportBtn" class="secondary">CSV 내보내기</button>
     </div>
@@ -104,6 +118,7 @@
     const API = "https://fapi.binance.com";
     const $scanBtn = document.getElementById('scanBtn');
     const $stopBtn = document.getElementById('stopBtn');
+    const $interval = document.getElementById('interval');
     const $emaLength = document.getElementById('emaLength');
     const $klineLimit = document.getElementById('klineLimit');
     const $concurrency = document.getElementById('concurrency');
@@ -113,14 +128,13 @@
     const $progText = document.getElementById('progText');
     const $tbody = document.querySelector('#resultTable tbody');
     const $exportBtn = document.getElementById('exportBtn');
+    const $tfBadge = document.getElementById('tfBadge');
 
     let abortFlag = false;
     let lastResults = [];
 
     // ======= 유틸 =======
-    function sleep(ms) {
-        return new Promise(res => setTimeout(res, ms));
-    }
+    function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
     function toCSV(rows) {
         const esc = (v) => {
@@ -131,10 +145,16 @@
             }
             return s;
         };
-        const header = ["symbol","close_2","ema_2","close_1","ema_1","match","note"];
+        const header = [
+            "symbol","interval","close_2","ema_2","close_1","ema_1",
+            "match","last_price","today_open","pct_from_today_open","note"
+        ];
         const lines = [header.join(',')];
         for (const r of rows) {
-            lines.push([r.symbol, r.close2, r.ema2, r.close1, r.ema1, r.match, r.note || ""].map(esc).join(','));
+            lines.push([
+                r.symbol, r.interval, r.close2, r.ema2, r.close1, r.ema1,
+                r.match, r.lastPrice, r.todayOpen, r.pctFromTodayOpen, r.note || ""
+            ].map(esc).join(','));
         }
         return lines.join('\n');
     }
@@ -151,48 +171,47 @@
         URL.revokeObjectURL(url);
     }
 
-    function addRow(r) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="mono">${r.symbol}</td>
-            <td>${Number(r.close2).toFixed(6)}</td>
-            <td>${Number(r.ema2).toFixed(6)}</td>
-            <td>${Number(r.close1).toFixed(6)}</td>
-            <td>${Number(r.ema1).toFixed(6)}</td>
-            <td class="${r.match ? 'ok' : 'bad'}">${r.match ? '충족' : '불충족'}</td>
-            <td class="small">${r.note || ''}</td>
-        `;
-        $tbody.appendChild(tr);
-    }
-
     function setProgress(done, total) {
         const pct = total ? Math.round(done * 100 / total) : 0;
         $bar.style.width = pct + '%';
         $progText.textContent = `${done} / ${total}`;
     }
 
-    // ======= Binance API =======
-    async function fetchUSDTPerpSymbols() {
-        const url = `${API}/fapi/v1/exchangeInfo`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('exchangeInfo 실패: ' + res.status);
-        const data = await res.json();
-        // USDT QUOTE + PERPETUAL 컨트랙트 + TRADING 상태만
-        const syms = data.symbols.filter(s =>
-            s.quoteAsset === 'USDT' &&
-            s.contractType === 'PERPETUAL' &&
-            s.status === 'TRADING'
-        ).map(s => s.symbol);
-
-        return syms;
+    function addRow(r) {
+        const tr = document.createElement('tr');
+        const fmt = (x, d=6) => (x == null || x === '') ? '' : Number(x).toFixed(d);
+        const pf = (x) => (x == null || x === '') ? '' : (Number(x) >= 0 ? `+${Number(x).toFixed(2)}%` : `${Number(x).toFixed(2)}%`);
+        tr.innerHTML = `
+            <td class="mono">${r.symbol}</td>
+            <td>${r.interval}</td>
+            <td>${fmt(r.close2)}</td>
+            <td>${fmt(r.ema2)}</td>
+            <td>${fmt(r.close1)}</td>
+            <td>${fmt(r.ema1)}</td>
+            <td class="${r.match ? 'ok' : 'bad'}">${r.match ? '충족' : '불충족'}</td>
+            <td>${fmt(r.lastPrice)}</td>
+            <td>${fmt(r.todayOpen)}</td>
+            <td class="${(r.pctFromTodayOpen ?? 0) >= 0 ? 'ok' : 'bad'}">${pf(r.pctFromTodayOpen)}</td>
+            <td class="small">${r.note || ''}</td>
+        `;
+        $tbody.appendChild(tr);
     }
 
-    async function fetchKlines1D(symbol, limit) {
-        const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${limit}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`klines 실패(${symbol}): ` + res.status);
+    // ======= Binance API =======
+    async function fetchUSDTPerpSymbols() {
+        const res = await fetch(`${API}/fapi/v1/exchangeInfo`);
+        if (!res.ok) throw new Error('exchangeInfo 실패: ' + res.status);
         const data = await res.json();
-        // 배열: [openTime, open, high, low, close, volume, closeTime, ...]
+        return data.symbols
+            .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+            .map(s => s.symbol);
+    }
+
+    async function fetchKlines(symbol, interval, limit) {
+        const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`klines 실패(${symbol} ${interval}): ` + res.status);
+        const data = await res.json();
         return data.map(row => ({
             openTime: row[0],
             open: Number(row[1]),
@@ -203,19 +222,33 @@
         }));
     }
 
+    async function fetchAllLastPricesMap() {
+        // 한 번에 모든 심볼 현재가
+        const res = await fetch(`${API}/fapi/v1/ticker/price`);
+        if (!res.ok) throw new Error('ticker/price 실패: ' + res.status);
+        const arr = await res.json();
+        const map = new Map(arr.map(o => [o.symbol, Number(o.price)]));
+        return map;
+    }
+
+    async function fetchTodayOpen1D(symbol) {
+        // 1d klines 2개(어제, 오늘). 마지막 원소의 open이 오늘(UTC) 시가.
+        const kl = await fetchKlines(symbol, '1d', 2);
+        if (!kl.length) return null;
+        return kl[kl.length - 1].open;
+    }
+
     // ======= EMA =======
     function ema(values, length) {
         if (values.length < length) return [];
         const k = 2 / (length + 1);
         const out = new Array(values.length);
-        // 초기값: 첫 length개 SMA
         let sum = 0;
         for (let i = 0; i < length; i++) sum += values[i];
         out[length - 1] = sum / length;
         for (let i = length; i < values.length; i++) {
             out[i] = values[i] * k + out[i - 1] * (1 - k);
         }
-        // 앞쪽 비어있는 부분은 undefined 유지
         return out;
     }
 
@@ -224,8 +257,8 @@
         const closes = candles.map(c => c.close);
         const e = ema(closes, length);
         const lastIdx = candles.length - 1;
-        const iPrev = lastIdx - 1; // 1봉 전
-        const iPrev2 = lastIdx - 2; // 2봉 전
+        const iPrev = lastIdx - 1;   // 1봉 전 (완료봉)
+        const iPrev2 = lastIdx - 2;  // 2봉 전 (완료봉)
         if (iPrev2 < 0 || !e[iPrev] || !e[iPrev2]) {
             return { ok: false, reason: '데이터 부족' };
         }
@@ -237,10 +270,7 @@
         const cond1 = close2 < ema2;
         const cond2 = close1 > ema1;
 
-        return {
-            ok: (cond1 && cond2),
-            close2, ema2, close1, ema1
-        };
+        return { ok: (cond1 && cond2), close2, ema2, close1, ema1 };
     }
 
     // ======= 스캔 루프 =======
@@ -248,15 +278,17 @@
         abortFlag = false;
         $tbody.innerHTML = '';
         lastResults = [];
-        $status.textContent = '심볼 목록 불러오는 중...';
 
-        const limit = Math.max(parseInt($klineLimit.value, 10) || 200, 60);
+        const interval = $interval.value;
+        document.getElementById('tfBadge').textContent = `현재 간격: ${interval}`;
         const emaLen = Math.max(parseInt($emaLength.value, 10) || 50, 2);
+        const limit = Math.max(parseInt($klineLimit.value, 10) || 200, emaLen + 2);
         const conc = Math.min(Math.max(parseInt($concurrency.value, 10) || 5, 1), 20);
 
+        $status.textContent = '심볼 목록 불러오는 중...';
         let symbols = await fetchUSDTPerpSymbols();
 
-        // 사용자가 필터를 지정하면 해당 심볼만 스캔
+        // 심볼 필터
         const filter = ($symbolFilter.value || '').trim();
         if (filter) {
             const picks = filter.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
@@ -268,38 +300,73 @@
         setProgress(0, total);
         $status.textContent = `스캔 시작: ${total} 종목`;
 
-        // 간단한 작업 큐 (동시성 제한)
+        // 현재가 맵 한 번에 준비
+        let priceMap = new Map();
+        try {
+            priceMap = await fetchAllLastPricesMap();
+        } catch (e) {
+            console.warn('현재가 맵 실패(개별 조회는 생략):', e);
+        }
+
+        // 작업 큐
         const queue = [...symbols];
         const workers = new Array(conc).fill(0).map(() => worker());
         await Promise.all(workers);
-        $status.textContent = `완료: ${lastResults.filter(r => r.match).length} 종목 조건 충족 / 총 ${total}`;
+        const matched = lastResults.filter(r => r.match).length;
+        $status.textContent = `완료: ${matched} 종목 조건 충족 / 총 ${total}`;
 
         async function worker() {
             while (queue.length && !abortFlag) {
                 const sym = queue.shift();
                 try {
-                    const candles = await fetchKlines1D(sym, limit);
+                    // 선택 간격 klines로 크로스 판정
+                    const candles = await fetchKlines(sym, interval, limit);
                     const res = checkCondition(candles, emaLen);
+
+                    // 현재가
+                    const lastPrice = priceMap.get(sym) ?? null;
+
+                    // 오늘(UTC) 일봉 시가
+                    let todayOpen = null;
+                    try {
+                        todayOpen = await fetchTodayOpen1D(sym);
+                    } catch (e) {
+                        // ignore per-symbol open failure
+                    }
+
+                    // % 변화 = (현재가 - 오늘시가)/오늘시가 * 100
+                    let pctFromTodayOpen = null;
+                    if (todayOpen && lastPrice) {
+                        pctFromTodayOpen = ((lastPrice - todayOpen) / todayOpen) * 100;
+                    }
+
                     const row = {
                         symbol: sym,
+                        interval,
                         close2: res.close2,
                         ema2: res.ema2,
                         close1: res.close1,
                         ema1: res.ema1,
                         match: !!res.ok,
+                        lastPrice,
+                        todayOpen,
+                        pctFromTodayOpen,
                         note: res.ok ? '' : (res.reason || '')
                     };
                     lastResults.push(row);
                     if (row.match) addRow(row);
                 } catch (e) {
-                    const row = { symbol: sym, close2: '', ema2: '', close1: '', ema1: '', match: false, note: (e && e.message) ? e.message : '에러' };
+                    const row = {
+                        symbol: sym, interval,
+                        close2: '', ema2: '', close1: '', ema1: '',
+                        match: false, lastPrice: '', todayOpen: '', pctFromTodayOpen: '',
+                        note: (e && e.message) ? e.message : '에러'
+                    };
                     lastResults.push(row);
-                    // 에러는 표에는 추가하지 않음 (결과 정리 시 보려면 여기서 addRow(row)로 바꾸세요)
                 } finally {
                     done += 1;
                     setProgress(done, total);
                     $status.textContent = `스캔 중... ${done}/${total}`;
-                    // 너무 빠른 폭격 방지: 살짝 휴지
                     await sleep(50);
                 }
             }
@@ -307,6 +374,10 @@
     }
 
     // ======= 이벤트 =======
+    document.getElementById('interval').addEventListener('change', () => {
+        document.getElementById('tfBadge').textContent = `현재 간격: ${document.getElementById('interval').value}`;
+    });
+
     $scanBtn.addEventListener('click', async () => {
         if ($scanBtn.disabled) return;
         $scanBtn.disabled = true;
@@ -336,7 +407,7 @@
         const csv = toCSV(matched);
         const now = new Date();
         const ts = now.toISOString().slice(0,19).replace(/[:T]/g,'-');
-        downloadText(`scanner_1d_ema${document.getElementById('emaLength').value}_${ts}.csv`, csv);
+        downloadText(`scanner_${document.getElementById('interval').value}_ema${document.getElementById('emaLength').value}_${ts}.csv`, csv);
     });
 </script>
 </body>
