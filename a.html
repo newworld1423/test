@@ -1,334 +1,416 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>15분봉 시간대별 평균 상승/하락 분석기</title>
-<style>
-  :root {
-    --bg: #0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1; --pos:#1db954; --neg:#ff4d4f; --accent:#6ea8fe;
-  }
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial;}
-  header{padding:24px 20px 8px;max-width:1100px;margin:0 auto;}
-  h1{margin:0 0 8px;font-size:22px}
-  .muted{color:var(--muted)}
-  .wrap{max-width:1100px;margin:0 auto;padding:16px 20px 40px}
-  .card{background:var(--card);border:1px solid #242938;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow: 0 6px 20px rgba(0,0,0,.25);}
-  .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-  .controls label{font-weight:600}
-  .controls input[type=file]{background:#0f1117;border:1px dashed #30384b;color:var(--muted);padding:10px;border-radius:10px}
-  .select, button{background:#0f1117;border:1px solid #30384b;color:#e8ebf1;border-radius:10px;padding:10px 12px}
-  button{cursor:pointer}
-  button.primary{background:linear-gradient(180deg,#2a3b6b,#1d2a4b);border-color:#3b4a6a}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  .summary{display:flex;flex-wrap:wrap;gap:12px}
-  .pill{background:#101420;border:1px solid #2a3246;border-radius:999px;padding:6px 10px}
-  table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
-  thead th{position:sticky;top:0;background:#121522;border-bottom:1px solid #2f3750;z-index:1}
-  th,td{padding:10px 10px;text-align:right}
-  th:first-child, td:first-child{text-align:left}
-  tbody tr:nth-child(odd){background:#0f121a}
-  tbody tr:hover{background:#171b28}
-  .up{color:var(--pos);font-weight:700}
-  .down{color:var(--neg);font-weight:700}
-  .dir-badge{font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid #2e384d}
-  .dir-up{color:var(--pos);background:#0e2016;border-color:#1f5c38}
-  .dir-down{color:var(--neg);background:#2a1314;border-color:#6b2a2b}
-  .dir-flat{color:#c6cbd9;background:#1a1e2a;border-color:#2f3750}
-  .scroll-x{overflow:auto}
-  footer{opacity:.8;margin-top:20px}
-</style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>15분봉 시간대별 평균 상승/하락 분석기</title>
+    <style>
+        :root {
+            --bg: #0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1; --pos:#1db954; --neg:#ff4d4f; --accent:#6ea8fe;
+        }
+        body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial;}
+        header{padding:24px 20px 8px;max-width:1100px;margin:0 auto;}
+        h1{margin:0 0 8px;font-size:22px}
+        .muted{color:var(--muted)}
+        .wrap{max-width:1100px;margin:0 auto;padding:16px 20px 40px}
+        .card{background:var(--card);border:1px solid #242938;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow: 0 6px 20px rgba(0,0,0,.25);}
+        .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+        .controls label{font-weight:600}
+        .controls input[type=file]{background:#0f1117;border:1px dashed #30384b;color:var(--muted);padding:10px;border-radius:10px}
+        .select, button{background:#0f1117;border:1px solid #30384b;color:#e8ebf1;border-radius:10px;padding:10px 12px}
+        button{cursor:pointer}
+        button.primary{background:linear-gradient(180deg,#2a3b6b,#1d2a4b);border-color:#3b4a6a}
+        button:disabled{opacity:.5;cursor:not-allowed}
+        .summary{display:flex;flex-wrap:wrap;gap:12px}
+        .pill{background:#101420;border:1px solid #2a3246;border-radius:999px;padding:6px 10px}
+        table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
+        thead th{position:sticky;top:0;background:#121522;border-bottom:1px solid #2f3750;z-index:1}
+        th,td{padding:10px 10px;text-align:right;white-space:nowrap}
+        th:first-child, td:first-child{text-align:left}
+        tbody tr:nth-child(odd){background:#0f121a}
+        tbody tr:hover{background:#171b28}
+        .up{color:var(--pos);font-weight:700}
+        .down{color:var(--neg);font-weight:700}
+        .dir-badge{font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid #2e384d}
+        .dir-up{color:var(--pos);background:#0e2016;border-color:#1f5c38}
+        .dir-down{color:var(--neg);background:#2a1314;border-color:#6b2a2b}
+        .dir-flat{color:#c6cbd9;background:#1a1e2a;border-color:#2f3750}
+        .scroll-x{overflow:auto}
+        footer{opacity:.8;margin-top:20px}
+
+        /* sort header */
+        th.sortable{cursor:pointer;user-select:none}
+        th.sortable .label{display:inline-flex;gap:6px;align-items:center}
+        th.sortable .arrow{opacity:.35;font-size:11px}
+        th.sortable.active .arrow{opacity:1}
+    </style>
 </head>
 <body>
-  <header>
-    <h1>15분봉 시간대별 평균 상승/하락 분석기</h1>
-    <div class="muted">Binance 15m kline CSV(일 단위) 여러 개 업로드 → 시각(예: 09:00, 09:15 …)별 평균 수익률과 상승/하락 빈도 산출</div>
-  </header>
+    <header>
+        <h1>15분봉 시간대별 평균 상승/하락 분석기</h1>
+        <div class="muted">Binance 15m kline CSV(일 단위) 여러 개 업로드 → 시각(예: 09:00, 09:15 …)별 평균 수익률과 상승/하락 빈도 산출</div>
+    </header>
 
-  <div class="wrap">
-    <div class="card">
-      <div class="controls">
-        <label for="files">15m CSV 파일 선택</label>
-        <input id="files" type="file" accept=".csv" multiple />
-        <label for="tz">시간대</label>
-        <select id="tz" class="select">
-          <option value="LOCAL">브라우저 Local (기본)</option>
-          <option value="UTC">UTC</option>
-          <option value="KST">KST (UTC+9)</option>
-        </select>
-        <button id="analyze" class="primary">분석 시작</button>
-        <button id="download" disabled>CSV로 저장</button>
-      </div>
-      <div id="status" class="muted" style="margin-top:10px"></div>
+    <div class="wrap">
+        <div class="card">
+            <div class="controls">
+                <label for="files">15m CSV 파일 선택</label>
+                <input id="files" type="file" accept=".csv" multiple />
+                <label for="tz">시간대</label>
+                <select id="tz" class="select">
+                    <option value="LOCAL">브라우저 Local (기본)</option>
+                    <option value="UTC">UTC</option>
+                    <option value="KST">KST (UTC+9)</option>
+                </select>
+                <button id="analyze" class="primary">분석 시작</button>
+                <button id="download" disabled>CSV로 저장</button>
+            </div>
+            <div id="status" class="muted" style="margin-top:10px"></div>
+        </div>
+
+        <div id="summary" class="card" style="display:none">
+            <div class="summary" id="summary-items"></div>
+        </div>
+
+        <div class="card scroll-x" id="table-card" style="display:none">
+            <table id="result">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-key="time"><span class="label">시각 (15분) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="direction"><span class="label">방향 <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="avgPct"><span class="label">평균 수익률(%) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="upRatePct"><span class="label">상승 빈도(%) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="downRatePct"><span class="label">하락 빈도(%) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="avgUpPct"><span class="label">상승 평균(%) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="avgDownPct"><span class="label">하락 평균(%) <span class="arrow">—</span></span></th>
+                        <th class="sortable" data-key="n"><span class="label">표본 수 <span class="arrow">—</span></span></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <footer class="muted">
+            • CSV 형식: <code>open_time,open,high,low,close,volume,close_time,...</code> (헤더 없는 Binance 기본 CSV도 지원)<br/>
+            • 수익률 = <code>(close - open) / open × 100</code> (각 15분 캔들 기준). 중복 타임스탬프는 자동 제거됩니다.<br/>
+            • 여러 심볼 파일을 섞어 올리면 <b>모두 합산</b>해 통계가 계산됩니다.
+        </footer>
     </div>
 
-    <div id="summary" class="card" style="display:none">
-      <div class="summary" id="summary-items"></div>
-    </div>
+    <script>
+        const $ = (sel) => document.querySelector(sel);
+        const pad2 = (n) => String(n).padStart(2, '0');
 
-    <div class="card scroll-x" id="table-card" style="display:none">
-      <table id="result">
-        <thead>
-          <tr>
-            <th>시각 (15분)</th>
-            <th>방향</th>
-            <th>평균 수익률(%)</th>
-            <th>상승 빈도(%)</th>
-            <th>하락 빈도(%)</th>
-            <th>상승 평균(%)</th>
-            <th>하락 평균(%)</th>
-            <th>표본 수</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+        const state = {
+            rows: [],           // {ms, open, close}
+            buckets: new Map(), // key "HH:MM" -> agg
+            tzMode: 'LOCAL',
+            result: [],         // array for table/export (기본 원본, 정렬은 별도 함수로)
+        };
 
-    <footer class="muted">
-      • CSV 형식: <code>open_time,open,high,low,close,volume,close_time,...</code> (헤더 없는 Binance 기본 CSV도 지원)<br/>
-      • 수익률 = <code>(close - open) / open × 100</code> (각 15분 캔들 기준). 중복 타임스탬프는 자동 제거됩니다.<br/>
-      • 여러 심볼 파일을 섞어 올리면 **모두 합산**해 통계가 계산됩니다.
-    </footer>
-  </div>
+        // 정렬 상태
+        const sortState = {
+            key: 'time',
+            asc: true
+        };
 
-<script>
-const $ = (sel) => document.querySelector(sel);
-const pad2 = (n) => String(n).padStart(2, '0');
+        $('#analyze').addEventListener('click', handleAnalyze);
+        $('#download').addEventListener('click', handleDownload);
 
-const state = {
-  rows: [],           // {ms, open, close}
-  buckets: new Map(), // key "HH:MM" -> agg
-  tzMode: 'LOCAL',
-  result: [],         // array for table/export
-};
+        // 헤더 클릭 이벤트 등록
+        document.addEventListener('DOMContentLoaded', () => {
+            const ths = Array.from($('#result thead tr').children);
+            ths.forEach(th => {
+                th.addEventListener('click', () => {
+                    const key = th.dataset.key;
+                    if (!key) return;
+                    if (sortState.key === key) {
+                        sortState.asc = !sortState.asc;
+                    } else {
+                        sortState.key = key;
+                        sortState.asc = true;
+                    }
+                    renderTable(); // 현재 state.result을 정렬 상태에 맞춰 렌더
+                    markActiveHeader();
+                });
+            });
+            markActiveHeader();
+        });
 
-$('#analyze').addEventListener('click', handleAnalyze);
-$('#download').addEventListener('click', handleDownload);
+        function markActiveHeader() {
+            const ths = Array.from($('#result thead tr').children);
+            ths.forEach(th => {
+                const arrow = th.querySelector('.arrow');
+                th.classList.remove('active');
+                if (arrow) arrow.textContent = '—';
+                if (th.dataset.key === sortState.key) {
+                    th.classList.add('active');
+                    if (arrow) arrow.textContent = sortState.asc ? '▲' : '▼';
+                }
+            });
+        }
 
-async function handleAnalyze(){
-  state.tzMode = $('#tz').value;
-  const files = $('#files').files;
-  if(!files || files.length === 0){
-    setStatus('CSV 파일을 선택해 주세요.');
-    return;
-  }
-  disableUI(true);
-  setStatus(`파일 ${files.length}개 로딩 중...`);
+        async function handleAnalyze(){
+            state.tzMode = $('#tz').value;
+            const files = $('#files').files;
+            if(!files || files.length === 0){
+                setStatus('CSV 파일을 선택해 주세요.');
+                return;
+            }
+            disableUI(true);
+            setStatus(`파일 ${files.length}개 로딩 중...`);
 
-  try{
-    state.rows = [];
-    // read all files
-    for(let i=0;i<files.length;i++){
-      const f = files[i];
-      setStatus(`(${i+1}/${files.length}) ${f.name} 읽는 중...`);
-      const text = await f.text();
-      parseCsvAppend(text);
-    }
+            try{
+                state.rows = [];
+                // read all files
+                for(let i=0;i<files.length;i++){
+                    const f = files[i];
+                    setStatus(`(${i+1}/${files.length}) ${f.name} 읽는 중...`);
+                    const text = await f.text();
+                    parseCsvAppend(text);
+                }
 
-    if(state.rows.length === 0){
-      setStatus('읽을 수 있는 15m 캔들이 없습니다. 파일/형식을 확인해 주세요.');
-      disableUI(false);
-      return;
-    }
+                if(state.rows.length === 0){
+                    setStatus('읽을 수 있는 15m 캔들이 없습니다. 파일/형식을 확인해 주세요.');
+                    disableUI(false);
+                    return;
+                }
 
-    // dedup by timestamp (ms)
-    const byTs = new Map();
-    for(const r of state.rows){
-      byTs.set(r.ms, r); // 마지막 등장 레코드로 덮어씀
-    }
-    const uniq = Array.from(byTs.values()).sort((a,b)=>a.ms-b.ms);
+                // dedup by timestamp (ms)
+                const byTs = new Map();
+                for(const r of state.rows){
+                    byTs.set(r.ms, r); // 마지막 등장 레코드로 덮어씀
+                }
+                const uniq = Array.from(byTs.values()).sort((a,b)=>a.ms-b.ms);
 
-    // group by 15m time-of-day label
-    state.buckets = new Map();
-    for(const r of uniq){
-      const label = timeLabel(r.ms, state.tzMode); // "HH:MM"
-      const ret = (r.close - r.open) / r.open;     // arithmetic return
-      let agg = state.buckets.get(label);
-      if(!agg){
-        agg = { label, count:0, sumRet:0, upCount:0, downCount:0, flatCount:0, sumUp:0, sumDown:0 };
-        state.buckets.set(label, agg);
-      }
-      agg.count++;
-      agg.sumRet += ret;
-      if(ret > 0){ agg.upCount++; agg.sumUp += ret; }
-      else if(ret < 0){ agg.downCount++; agg.sumDown += ret; }
-      else { agg.flatCount++; }
-    }
+                // group by 15m time-of-day label
+                state.buckets = new Map();
+                for(const r of uniq){
+                    const label = timeLabel(r.ms, state.tzMode); // "HH:MM"
+                    const ret = (r.close - r.open) / r.open;     // arithmetic return
+                    let agg = state.buckets.get(label);
+                    if(!agg){
+                        agg = { label, count:0, sumRet:0, upCount:0, downCount:0, flatCount:0, sumUp:0, sumDown:0 };
+                        state.buckets.set(label, agg);
+                    }
+                    agg.count++;
+                    agg.sumRet += ret;
+                    if(ret > 0){ agg.upCount++; agg.sumUp += ret; }
+                    else if(ret < 0){ agg.downCount++; agg.sumDown += ret; }
+                    else { agg.flatCount++; }
+                }
 
-    // build sorted result rows (00:00 .. 23:45)
-    const labels = [];
-    for(let h=0; h<24; h++){
-      for(let m of [0,15,30,45]){
-        labels.push(`${pad2(h)}:${pad2(m)}`);
-      }
-    }
-    const out = [];
-    for(const lab of labels){
-      const a = state.buckets.get(lab) || {label:lab,count:0,sumRet:0,upCount:0,downCount:0,flatCount:0,sumUp:0,sumDown:0};
-      const avg = a.count ? (a.sumRet / a.count) : 0;
-      const upRate = a.count ? (a.upCount / a.count) : 0;
-      const downRate = a.count ? (a.downCount / a.count) : 0;
-      const avgUp = a.upCount ? (a.sumUp / a.upCount) : 0;
-      const avgDown = a.downCount ? (a.sumDown / a.downCount) : 0;
+                // build sorted result rows (00:00 .. 23:45)
+                const labels = [];
+                for(let h=0; h<24; h++){
+                    for(let m of [0,15,30,45]){
+                        labels.push(`${pad2(h)}:${pad2(m)}`);
+                    }
+                }
+                const out = [];
+                for(const lab of labels){
+                    const a = state.buckets.get(lab) || {label:lab,count:0,sumRet:0,upCount:0,downCount:0,flatCount:0,sumUp:0,sumDown:0};
+                    const avg = a.count ? (a.sumRet / a.count) : 0;
+                    const upRate = a.count ? (a.upCount / a.count) : 0;
+                    const downRate = a.count ? (a.downCount / a.count) : 0;
+                    const avgUp = a.upCount ? (a.sumUp / a.upCount) : 0;
+                    const avgDown = a.downCount ? (a.sumDown / a.downCount) : 0;
 
-      out.push({
-        time: lab,
-        direction: avg > 0 ? '상승' : (avg < 0 ? '하락' : '중립'),
-        avgPct: avg * 100,
-        upRatePct: upRate * 100,
-        downRatePct: downRate * 100,
-        avgUpPct: avgUp * 100,         // 양수
-        avgDownPct: avgDown * 100,     // 음수(하락폭)
-        n: a.count
-      });
-    }
-    state.result = out;
+                    out.push({
+                        time: lab,
+                        direction: avg > 0 ? '상승' : (avg < 0 ? '하락' : '중립'),
+                        avgPct: avg * 100,
+                        upRatePct: upRate * 100,
+                        downRatePct: downRate * 100,
+                        avgUpPct: avgUp * 100,         // 양수
+                        avgDownPct: avgDown * 100,     // 음수(하락폭)
+                        n: a.count
+                    });
+                }
+                state.result = out;
 
-    renderTable(out);
-    renderSummary(out);
-    $('#table-card').style.display = '';
-    $('#summary').style.display = '';
-    $('#download').disabled = false;
+                renderTable();
+                renderSummary(out);
+                $('#table-card').style.display = '';
+                $('#summary').style.display = '';
+                $('#download').disabled = false;
 
-    setStatus(`완료! 총 ${uniq.length.toLocaleString()}개 캔들, 96개 시각 버킷 통계 생성 (${state.tzMode}).`);
-  }catch(err){
-    console.error(err);
-    setStatus('오류: ' + err.message);
-  }finally{
-    disableUI(false);
-  }
-}
+                setStatus(`완료! 총 ${uniq.length.toLocaleString()}개 캔들, 96개 시각 버킷 통계 생성 (${state.tzMode}).`);
+                markActiveHeader();
+            }catch(err){
+                console.error(err);
+                setStatus('오류: ' + err.message);
+            }finally{
+                disableUI(false);
+            }
+        }
 
-/** Parse Binance 12-col CSV(헤더 유무 상관없음). Keep ms, open, close */
-function parseCsvAppend(text){
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  for(let i=0;i<lines.length;i++){
-    const line = lines[i].trim();
-    if(!line || line.startsWith('#')) continue;
+        /** Parse Binance 12-col CSV(헤더 유무 상관없음). Keep ms, open, close */
+        function parseCsvAppend(text){
+            const lines = text.split(/\r?\n/).filter(Boolean);
+            for(let i=0;i<lines.length;i++){
+                const line = lines[i].trim();
+                if(!line || line.startsWith('#')) continue;
 
-    const cols = line.split(',');
-    if(cols.length < 5){
-      // 헤더일 수 있음. 그냥 스킵
-      continue;
-    }
-    const ms = Number(cols[0]);
-    const o = Number(cols[1]);
-    const h = Number(cols[2]);
-    const l = Number(cols[3]);
-    const c = Number(cols[4]);
+                const cols = line.split(',');
+                if(cols.length < 5){
+                    // 헤더일 수 있음. 그냥 스킵
+                    continue;
+                }
+                const ms = Number(cols[0]);
+                const o = Number(cols[1]);
+                const h = Number(cols[2]);
+                const l = Number(cols[3]);
+                const c = Number(cols[4]);
 
-    // 첫 컬럼이 숫자가 아니면(헤더) 스킵
-    if(!Number.isFinite(ms) || !Number.isFinite(o) || !Number.isFinite(c)){
-      continue;
-    }
-    state.rows.push({ ms, open:o, close:c });
-  }
-}
+                // 첫 컬럼이 숫자가 아니면(헤더) 스킵
+                if(!Number.isFinite(ms) || !Number.isFinite(o) || !Number.isFinite(c)){
+                    continue;
+                }
+                state.rows.push({ ms, open:o, close:c });
+            }
+        }
 
-function timeLabel(ms, mode){
-  if(mode === 'UTC'){
-    const d = new Date(ms);
-    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
-  }else if(mode === 'KST'){
-    // UTC+9 보정 후 UTC getter 사용
-    const d = new Date(ms + 9*60*60*1000);
-    return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
-  }else{
-    // LOCAL (브라우저)
-    const d = new Date(ms);
-    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  }
-}
+        function timeLabel(ms, mode){
+            if(mode === 'UTC'){
+                const d = new Date(ms);
+                return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+            }else if(mode === 'KST'){
+                // UTC+9 보정 후 UTC getter 사용
+                const d = new Date(ms + 9*60*60*1000);
+                return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+            }else{
+                // LOCAL (브라우저)
+                const d = new Date(ms);
+                return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+            }
+        }
 
-function renderTable(rows){
-  const tb = $('#result tbody');
-  tb.innerHTML = '';
-  const fmt = (v, digits=3) => (Number.isFinite(v) ? v.toFixed(digits) : '—');
+        // 현재 sortState에 맞게 정렬된 배열 반환
+        function getSortedRows() {
+            const arr = [...state.result];
+            const key = sortState.key;
+            const asc = sortState.asc ? 1 : -1;
 
-  for(const r of rows){
-    const tr = document.createElement('tr');
+            // direction(상승/중립/하락) 전용 정렬 우선순위
+            const dirRank = { '상승': 2, '중립': 1, '하락': 0 };
 
-    const dirClass = r.direction === '상승' ? 'dir-up' : (r.direction === '하락' ? 'dir-down' : 'dir-flat');
+            return arr.sort((a, b) => {
+                let va = a[key];
+                let vb = b[key];
 
-    tr.innerHTML = `
-      <td>${r.time}</td>
-      <td><span class="dir-badge ${dirClass}">${r.direction}</span></td>
-      <td class="${r.avgPct>0?'up':(r.avgPct<0?'down':'')}">${fmt(r.avgPct,3)}</td>
-      <td>${fmt(r.upRatePct,2)}</td>
-      <td>${fmt(r.downRatePct,2)}</td>
-      <td class="up">${fmt(r.avgUpPct,3)}</td>
-      <td class="down">${fmt(r.avgDownPct,3)}</td>
-      <td>${r.n}</td>
-    `;
-    tb.appendChild(tr);
-  }
-}
+                if (key === 'direction') {
+                    va = dirRank[va] ?? -1;
+                    vb = dirRank[vb] ?? -1;
+                } else if (key === 'time') {
+                    // "HH:MM" 문자열 정렬 → 문자열 비교로 충분 (사전 순=시간 순)
+                    // 그대로 두면 됨
+                } else {
+                    // 숫자 비교를 위해 보정
+                    va = Number(va);
+                    vb = Number(vb);
+                    if (!Number.isFinite(va)) va = -Infinity;
+                    if (!Number.isFinite(vb)) vb = -Infinity;
+                }
 
-function renderSummary(rows){
-  // 상위/하위 5개 시각 요약 (표본 수 기준 n>=10 필터)
-  const eligible = rows.filter(r=>r.n>=10);
-  const top = [...eligible].sort((a,b)=>b.avgPct - a.avgPct).slice(0,5);
-  const bottom = [...eligible].sort((a,b)=>a.avgPct - b.avgPct).slice(0,5);
-  const totalN = rows.reduce((s,r)=>s+r.n,0);
+                if (va < vb) return -1 * asc;
+                if (va > vb) return 1 * asc;
+                return 0;
+            });
+        }
 
-  const box = $('#summary-items');
-  box.innerHTML = `
-    <span class="pill">총 캔들: <b>${totalN.toLocaleString()}</b></span>
-    <span class="pill">표본수 10개 이상 시각 대상 상/하위 Top5</span>
-  `;
+        function renderTable(){
+            const tb = $('#result tbody');
+            tb.innerHTML = '';
+            const rows = getSortedRows();
+            const fmt = (v, digits=3) => (Number.isFinite(v) ? v.toFixed(digits) : '—');
 
-  const mk = (list, title) => {
-    const div = document.createElement('div');
-    div.style.marginTop = '8px';
-    div.innerHTML = `<div style="font-weight:700;margin:6px 0">${title}</div>` +
-      list.map(r =>
-        `<div class="pill" style="display:inline-block;margin:4px 6px 0 0">
-          ${r.time} <span class="${r.avgPct>0?'up':'down'}"><b>${r.avgPct.toFixed(3)}%</b></span>
-          · 상승빈도 ${r.upRatePct.toFixed(1)}% · n=${r.n}
-        </div>`
-      ).join('');
-    return div;
-  };
-  box.appendChild(mk(top, '상승 평균 수익률 상위 5개 시각'));
-  box.appendChild(mk(bottom, '하락 평균 수익률 상위 5개 시각'));
-}
+            for(const r of rows){
+                const tr = document.createElement('tr');
+                const dirClass = r.direction === '상승' ? 'dir-up' : (r.direction === '하락' ? 'dir-down' : 'dir-flat');
+                tr.innerHTML = `
+                    <td>${r.time}</td>
+                    <td><span class="dir-badge ${dirClass}">${r.direction}</span></td>
+                    <td class="${r.avgPct>0?'up':(r.avgPct<0?'down':'')}">${fmt(r.avgPct,3)}</td>
+                    <td>${fmt(r.upRatePct,2)}</td>
+                    <td>${fmt(r.downRatePct,2)}</td>
+                    <td class="up">${fmt(r.avgUpPct,3)}</td>
+                    <td class="down">${fmt(r.avgDownPct,3)}</td>
+                    <td>${r.n}</td>
+                `;
+                tb.appendChild(tr);
+            }
+        }
 
-function handleDownload(){
-  if(!state.result || state.result.length===0) return;
-  const header = ['time','direction','avg_return_pct','up_rate_pct','down_rate_pct','avg_up_pct','avg_down_pct','count'];
-  const lines = [header.join(',')];
-  for(const r of state.result){
-    lines.push([
-      r.time, r.direction,
-      r.avgPct.toFixed(6),
-      r.upRatePct.toFixed(2),
-      r.downRatePct.toFixed(2),
-      Number.isFinite(r.avgUpPct)?r.avgUpPct.toFixed(6):'',
-      Number.isFinite(r.avgDownPct)?r.avgDownPct.toFixed(6):'',
-      r.n
-    ].join(','));
-  }
-  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '15m_timebucket_return_stats.csv';
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(url);
-  a.remove();
-}
+        function renderSummary(rows){
+            // 상위/하위 5개 시각 요약 (표본 수 기준 n>=10 필터)
+            const eligible = rows.filter(r=>r.n>=10);
+            const top = [...eligible].sort((a,b)=>b.avgPct - a.avgPct).slice(0,5);
+            const bottom = [...eligible].sort((a,b)=>a.avgPct - b.avgPct).slice(0,5);
+            const totalN = rows.reduce((s,r)=>s+r.n,0);
 
-function disableUI(disabled){
-  $('#analyze').disabled = disabled;
-  $('#download').disabled = disabled || !state.result?.length;
-  $('#files').disabled = disabled;
-  $('#tz').disabled = disabled;
-}
+            const box = $('#summary-items');
+            box.innerHTML = `
+                <span class="pill">총 캔들: <b>${totalN.toLocaleString()}</b></span>
+                <span class="pill">표본수 10개 이상 시각 대상 상/하위 Top5</span>
+            `;
 
-function setStatus(msg){
-  $('#status').textContent = msg;
-}
-</script>
+            const mk = (list, title) => {
+                const div = document.createElement('div');
+                div.style.marginTop = '8px';
+                div.innerHTML = `<div style="font-weight:700;margin:6px 0">${title}</div>` +
+                    list.map(r =>
+                        `<div class="pill" style="display:inline-block;margin:4px 6px 0 0">
+                            ${r.time} <span class="${r.avgPct>0?'up':'down'}"><b>${r.avgPct.toFixed(3)}%</b></span>
+                            · 상승빈도 ${r.upRatePct.toFixed(1)}% · n=${r.n}
+                        </div>`
+                    ).join('');
+                return div;
+            };
+            box.appendChild(mk(top, '상승 평균 수익률 상위 5개 시각'));
+            box.appendChild(mk(bottom, '하락 평균 수익률 상위 5개 시각'));
+        }
+
+        function handleDownload(){
+            if(!state.result || state.result.length===0) return;
+            const header = ['time','direction','avg_return_pct','up_rate_pct','down_rate_pct','avg_up_pct','avg_down_pct','count'];
+            const lines = [header.join(',')];
+
+            // 현재 정렬 상태 그대로 저장
+            const exportRows = getSortedRows();
+
+            for(const r of exportRows){
+                lines.push([
+                    r.time, r.direction,
+                    (Number.isFinite(r.avgPct)? r.avgPct.toFixed(6): ''),
+                    (Number.isFinite(r.upRatePct)? r.upRatePct.toFixed(2): ''),
+                    (Number.isFinite(r.downRatePct)? r.downRatePct.toFixed(2): ''),
+                    (Number.isFinite(r.avgUpPct)? r.avgUpPct.toFixed(6): ''),
+                    (Number.isFinite(r.avgDownPct)? r.avgDownPct.toFixed(6): ''),
+                    r.n
+                ].join(','));
+            }
+            const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '15m_timebucket_return_stats.csv';
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            a.remove();
+        }
+
+        function disableUI(disabled){
+            $('#analyze').disabled = disabled;
+            $('#download').disabled = disabled || !state.result?.length;
+            $('#files').disabled = disabled;
+            $('#tz').disabled = disabled;
+        }
+
+        function setStatus(msg){
+            $('#status').textContent = msg;
+        }
+    </script>
 </body>
 </html>
