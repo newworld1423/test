@@ -2,353 +2,276 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
+    <title>Binance Futures 15m EMA50 Cross Scanner (USDT Perp)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>USDT-M Perpetual 스캐너 (종가 > EMA50 > EMA200, 전 타임프레임)</title>
     <style>
-        :root {
-            --bg:#0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1; --pos:#1db954; --accent:#6ea8fe; --warn:#ffb020;
+        :root{
+            --bg:#0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1;
+            --pos:#1db954; --neg:#ff4d4f; --accent:#6ea8fe; --line:#2a2f3a;
         }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0; background: var(--bg); color: var(--text);
-            font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial, sans-serif;
-        }
-        header { padding: 20px; max-width: 1200px; margin: 0 auto; }
-        h1 { margin: 0 0 8px; font-size: 22px; }
-        .muted { color: var(--muted); }
-        .controls, .notice { background: var(--card); padding: 16px; border-radius: 16px; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end; }
-        .controls .row { display: grid; gap: 8px; }
-        label { font-size: 12px; color: var(--muted); }
-        input, select, button {
-            width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a2f3a; background: #0f1218; color: var(--text);
-        }
-        button.primary { background: var(--accent); color: #0b0c0f; font-weight: 600; border: none; }
-        button.stop { background: #2a2f3a; color: var(--text); font-weight: 600; border: 1px solid #3a4150; }
-        main { max-width: 1200px; margin: 16px auto 40px; padding: 0 20px; }
-        .status { display:flex; gap:10px; align-items:center; margin: 14px 0; }
-        .bar { flex:1; height: 10px; background:#1b1f2a; border-radius: 999px; overflow: hidden; }
-        .bar > i { display:block; height:100%; width:0%; background: var(--accent); }
-        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 16px; overflow: hidden; }
-        th, td { padding: 12px 10px; border-bottom: 1px solid #202534; text-align: left; }
-        th { position: sticky; top: 0; background: #181c27; font-size: 12px; color: var(--muted); }
-        tbody tr:hover { background: rgba(110,168,254,0.08); }
-        .ok { color: var(--pos); font-weight: 700; }
-        .bad { color: var(--warn); font-weight: 600; }
-        .right { text-align: right; }
-        .pill { display:inline-block; padding:2px 8px; border:1px solid #2a2f3a; border-radius:999px; color:var(--muted); font-size:12px; }
-        footer { max-width: 1200px; margin: 20px auto 40px; padding: 0 20px; color: var(--muted); }
-        .notice { margin-top: 14px; }
-        .kbd { display:inline-block; padding:2px 6px; border-radius:6px; background:#0f1218; border:1px solid #2a2f3a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color:var(--muted);}
-        .tiny { font-size: 12px; color: var(--muted); }
+        *{box-sizing:border-box}
+        body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans KR',Arial}
+        header{max-width:1200px;margin:0 auto;padding:24px 16px 8px}
+        h1{margin:0 0 6px;font-size:20px}
+        .muted{color:var(--muted)}
+        .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px}
+        .controls label{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);padding:8px 10px;border-radius:8px}
+        .controls input{background:transparent;border:none;outline:none;color:var(--text);width:120px}
+        .btn{background:var(--accent);color:#0b0c0f;border:none;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+        .btn:disabled{opacity:.6;cursor:not-allowed}
+        .wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
+        table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border-bottom:1px solid var(--line);padding:10px;text-align:center}
+        th{background:var(--card);position:sticky;top:0}
+        tbody tr:hover{background:#12141a}
+        .right{text-align:right}
+        .pos{color:var(--pos)}
+        .neg{color:var(--neg)}
+        .badge{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#11141a;color:var(--muted);font-size:12px}
+        .status{margin-top:8px}
+        .footer-note{margin-top:10px;color:var(--muted);font-size:12px}
+        .small{font-size:12px}
+        .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     </style>
 </head>
 <body>
-    <header>
-        <h1>USDT-M 무기한 스캐너 <span class="muted">| 종가 &gt; EMA50 &gt; EMA200 (모든 타임프레임)</span></h1>
-        <div class="controls">
-            <div class="row">
-                <label>동시 요청(Concurrency)</label>
-                <select id="concurrency">
-                    <option value="1">1 (가장 안전)</option>
-                    <option value="2" selected>2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                </select>
-            </div>
-            <div class="row">
-                <label>최대 심볼 수 (상위 거래대금 기준)</label>
-                <select id="maxSymbols">
-                    <option value="50">50</option>
-                    <option value="100" selected>100</option>
-                    <option value="150">150</option>
-                    <option value="200">200</option>
-                    <option value="500">500 (매우 느림)</option>
-                </select>
-            </div>
-            <div class="row" style="grid-template-columns: 1fr 1fr; gap: 8px;">
-                <button id="startBtn" class="primary">스캔 시작</button>
-                <button id="stopBtn" class="stop">중지</button>
-            </div>
-        </div>
-        <div class="notice tiny">
-            • 바이낸스 선물 API( <span class="kbd">https://fapi.binance.com</span> )에 직접 요청합니다. 브라우저/네트워크 환경에 따라 레이트리밋이 발생할 수 있어요.<br/>
-            • 모든 타임프레임(1m,3m,5m,15m,1h,4h,1d)에서 동시에 조건을 만족하는 심볼만 결과에 표시됩니다.<br/>
-            • EMA는 각 타임프레임별로 최근 210개 캔들로 계산합니다(버퍼 포함).<br/>
-        </div>
-    </header>
+<header>
+    <h1>바이낸스 선물 15분봉 EMA50 크로스 스캐너 <span class="badge">USDT Perp</span></h1>
+    <div class="muted small">조건: <span class="mono">2봉전 종가 &lt; 50EMA</span> 이고 <span class="mono">1봉전 종가 &gt; 50EMA</span> (15분봉 기준)</div>
 
-    <main>
-        <div class="status">
-            <div class="pill" id="statusText">대기 중</div>
-            <div class="bar"><i id="barFill"></i></div>
-            <div class="pill"><span id="progressCount">0</span></div>
-        </div>
+    <div class="controls">
+        <label>최소 24h 거래대금(USDT):
+            <input id="minQuoteVolume" type="number" step="100000" value="20000000" />
+        </label>
+        <label>동시성(Concurrent Requests):
+            <input id="concurrency" type="number" min="1" max="20" value="8" />
+        </label>
+        <button id="scanBtn" class="btn">재스캔</button>
+        <span id="status" class="status muted">대기 중…</span>
+    </div>
+</header>
 
-        <table id="resultTable">
-            <thead>
-                <tr>
-                    <th>심볼</th>
-                    <th class="right">24h 거래대금(USDT)</th>
-                    <th>조건</th>
-                    <th>체크 시간</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+<div class="wrap">
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th style="width:140px">심볼</th>
+                <th>최신가</th>
+                <th>24h 거래대금 (quoteVolume, USDT)</th>
+                <th>24h 변동률</th>
+                <th>조건 일치 캔들</th>
+                <th>체크 시각</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div class="footer-note">
+        데이터: Binance Futures API (USDT Perpetual). 최신 15분봉 300개로 EMA50 계산. 마지막 봉은 진행 중일 수 있음 → 조건은 <b>1·2봉 전</b>으로 판정.
+    </div>
+</div>
 
-        <div class="notice tiny">
-            팁: 성능이 느리면 동시 요청을 1~2로 낮추고, 최대 심볼 수도 50~100으로 줄여보세요. 일부 환경에서 CORS/리밋으로 실패할 수 있으며, “중지” 후 재시도하면 됩니다.
-        </div>
-    </main>
+<script>
+    // ====== 설정 ======
+    const FAPI = 'https://fapi.binance.com'; // Binance Futures API base
+    const INTERVAL = '15m';
+    const LIMIT = 300; // EMA50 계산을 위한 여유 확보
+    const EMA_PERIOD = 50;
 
-    <footer>
-        <div class="tiny">© 스캐너 예제 — 학습·연구용. 투자 판단은 본인 책임입니다.</div>
-    </footer>
+    const $tbody = document.querySelector('#resultTable tbody');
+    const $scanBtn = document.getElementById('scanBtn');
+    const $status = document.getElementById('status');
+    const $minQuoteVolume = document.getElementById('minQuoteVolume');
+    const $concurrency = document.getElementById('concurrency');
 
-    <script>
-        const API = 'https://fapi.binance.com';
-        const INTERVALS = ['1m', '3m', '5m', '15m', '1h', '4h', '1d']; // 모든 타임프레임
-        const EMA_SHORT = 50;
-        const EMA_LONG = 200;
-        const KLINES_LIMIT = 210; // 버퍼 포함 (EMA 계산 안정화)
+    // 숫자 포맷터
+    const fmt0 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    const fmt2 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const pct = (n) => (Number(n) >= 0 ? `<span class="pos">+${fmt2(n)}%</span>` : `<span class="neg">${fmt2(n)}%</span>`);
 
-        let aborter = null;
-
-        // ----- 유틸 -----
-        function sleep(ms) {
-            return new Promise(res => setTimeout(res, ms));
+    // 지수이동평균
+    function ema(values, period) {
+        const k = 2 / (period + 1);
+        const out = new Array(values.length).fill(null);
+        let sum = 0;
+        for (let i = 0; i < values.length; i++) {
+            const v = Number(values[i]);
+            if (i < period) {
+                sum += v;
+                if (i === period - 1) out[i] = sum / period;
+            } else {
+                out[i] = v * k + out[i - 1] * (1 - k);
+            }
         }
+        return out;
+    }
 
-        async function fetchJSON(url, signal, retries = 2, backoffMs = 500) {
-            for (let i = 0; i <= retries; i++) {
+    // 유틸: 제한 동시성 실행
+    async function pLimitAll(items, limit, worker) {
+        const results = [];
+        let i = 0;
+        const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+            while (i < items.length) {
+                const cur = i++;
                 try {
-                    const res = await fetch(url, { signal, cache: 'no-cache', mode: 'cors' });
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
+                    results[cur] = await worker(items[cur], cur);
                 } catch (e) {
-                    if (signal?.aborted) throw e;
-                    if (i === retries) throw e;
-                    await sleep(backoffMs * (i + 1));
+                    results[cur] = { error: e };
                 }
             }
-        }
+        });
+        await Promise.all(workers);
+        return results;
+    }
 
-        function calcEMA(values, period) {
-            // values: number[] (close prices), oldest -> newest 순서
-            if (values.length < period) return null;
-            const k = 2 / (period + 1);
-            let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period; // SMA로 초기화
-            for (let i = period; i < values.length; i++) {
-                ema = values[i] * k + ema * (1 - k);
-            }
-            return ema;
-        }
+    async function fetchJSON(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+        return res.json();
+    }
 
-        function formatNumber(x) {
-            if (x == null) return '-';
-            const n = Number(x);
-            if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-            if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-            return n.toLocaleString();
-        }
+    async function getPerpUSDTTradingSymbols() {
+        // 선물 exchangeInfo
+        const info = await fetchJSON(`${FAPI}/fapi/v1/exchangeInfo`);
+        const list = info.symbols.filter(s =>
+            s.contractType === 'PERPETUAL' &&
+            s.quoteAsset === 'USDT' &&
+            s.status === 'TRADING'
+        ).map(s => s.symbol);
+        return list;
+    }
 
-        function setProgress(done, total) {
-            const pct = total ? Math.round((done / total) * 100) : 0;
-            document.getElementById('barFill').style.width = pct + '%';
-            document.getElementById('progressCount').textContent = `${done} / ${total}`;
+    async function get24hTickersMap() {
+        // 모든 선물 24h ticker
+        const arr = await fetchJSON(`${FAPI}/fapi/v1/ticker/24hr`);
+        const map = new Map();
+        for (const t of arr) {
+            map.set(t.symbol, t);
         }
+        return map;
+    }
 
-        function setStatus(text) {
-            document.getElementById('statusText').textContent = text;
+    async function getKlines(symbol) {
+        const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${LIMIT}`;
+        const data = await fetchJSON(url);
+        // kline: [openTime, open, high, low, close, volume, closeTime, ...]
+        const closes = data.map(k => Number(k[4]));
+        const volumes = data.map(k => Number(k[5]));
+        return { closes, volumes, raw: data };
+    }
+
+    function checkCondition(closes) {
+        if (!closes || closes.length < EMA_PERIOD + 2) return { ok: false };
+        const ema50 = ema(closes, EMA_PERIOD);
+        const n = closes.length;
+
+        // 판정은 2봉 전 / 1봉 전 기준
+        const close_2 = closes[n - 3];
+        const close_1 = closes[n - 2];
+        const ema_2 = ema50[n - 3];
+        const ema_1 = ema50[n - 2];
+
+        if (ema_2 == null || ema_1 == null) return { ok: false };
+
+        const cond = (close_2 < ema_2) && (close_1 > ema_1);
+        return { ok: cond, indices: { i2: n - 3, i1: n - 2 }, values: { close_2, ema_2, close_1, ema_1 } };
+    }
+
+    function renderRows(rows) {
+        $tbody.innerHTML = '';
+        const now = new Date();
+        for (const r of rows) {
+            const tr = document.createElement('tr');
+
+            const symTD = document.createElement('td');
+            symTD.innerHTML = `<a href="https://www.binance.com/ko/futures/${r.symbol}" target="_blank" rel="noopener">${r.symbol}</a>`;
+            tr.appendChild(symTD);
+
+            const priceTD = document.createElement('td');
+            priceTD.className = 'right mono';
+            priceTD.textContent = r.lastPrice != null ? r.lastPrice : '-';
+            tr.appendChild(priceTD);
+
+            const qvTD = document.createElement('td');
+            qvTD.className = 'right mono';
+            qvTD.textContent = r.quoteVolume != null ? fmt0(r.quoteVolume) : '-';
+            tr.appendChild(qvTD);
+
+            const chgTD = document.createElement('td');
+            chgTD.innerHTML = r.priceChangePercent != null ? pct(r.priceChangePercent) : '-';
+            tr.appendChild(chgTD);
+
+            const condTD = document.createElement('td');
+            condTD.innerHTML = `<span class="badge">2봉 전 C(${fmt2(r.check?.values?.close_2)}) &lt; EMA50(${fmt2(r.check?.values?.ema_2)})</span> · 
+                                <span class="badge">1봉 전 C(${fmt2(r.check?.values?.close_1)}) &gt; EMA50(${fmt2(r.check?.values?.ema_1)})</span>`;
+            tr.appendChild(condTD);
+
+            const timeTD = document.createElement('td');
+            timeTD.className = 'small';
+            timeTD.textContent = now.toLocaleString();
+            tr.appendChild(timeTD);
+
+            $tbody.appendChild(tr);
         }
+    }
 
-        // ----- 데이터 획득 -----
-        async function getUSDTPerpSymbols(signal) {
-            // 선물 exchangeInfo에서 USDT 무기한·TRADING 심볼만
-            const info = await fetchJSON(`${API}/fapi/v1/exchangeInfo`, signal);
-            return info.symbols
-                .filter(s =>
-                    s.contractType === 'PERPETUAL' &&
-                    s.quoteAsset === 'USDT' &&
-                    s.status === 'TRADING'
-                )
-                .map(s => s.symbol);
-        }
+    async function scan() {
+        try {
+            $scanBtn.disabled = true;
+            $status.textContent = '심볼 수집 중…';
 
-        async function getTopByQuoteVolume(symbols, signal, topN = 100) {
-            // 24h ticker에서 quoteVolume 수집
-            // 대량 호출이므로 순차 + 살짝 딜레이
-            const results = [];
-            for (let i = 0; i < symbols.length; i++) {
-                const sym = symbols[i];
+            const [symbols, tickerMap] = await Promise.all([
+                getPerpUSDTTradingSymbols(),
+                get24hTickersMap()
+            ]);
+
+            // 24h quoteVolume 필터 먼저 적용(네트워크 절약)
+            const minQV = Number($minQuoteVolume.value || 0);
+            const filtered = symbols.filter(s => {
+                const t = tickerMap.get(s);
+                return t && Number(t.quoteVolume) >= minQV;
+            });
+
+            $status.textContent = `총 ${symbols.length}개 중 거래대금 필터 통과 ${filtered.length}개 → 15분봉/EMA 체크 중…`;
+
+            const conc = Math.max(1, Math.min(20, Number($concurrency.value || 8)));
+            const results = await pLimitAll(filtered, conc, async (symbol) => {
                 try {
-                    const t = await fetchJSON(`${API}/fapi/v1/ticker/24hr?symbol=${sym}`, signal, 1);
-                    results.push({ symbol: sym, quoteVolume: Number(t.quoteVolume || 0) });
+                    const { closes } = await getKlines(symbol);
+                    const check = checkCondition(closes);
+                    if (!check.ok) return null;
+
+                    const t = tickerMap.get(symbol) || {};
+                    return {
+                        symbol,
+                        check,
+                        lastPrice: t.lastPrice ? Number(t.lastPrice) : null,
+                        quoteVolume: t.quoteVolume ? Number(t.quoteVolume) : null,
+                        priceChangePercent: t.priceChangePercent ? Number(t.priceChangePercent) : null
+                    };
                 } catch (e) {
-                    // skip on failure
+                    // 개별 심볼 실패는 무시
+                    return null;
                 }
-                if (i % 10 === 0) await sleep(40); // 살짝 쉬어주기
-            }
-            results.sort((a, b) => b.quoteVolume - a.quoteVolume);
-            return results.slice(0, topN);
+            });
+
+            const matched = results.filter(Boolean);
+            // 거래대금(quoteVolume) 내림차순 정렬
+            matched.sort((a, b) => (b.quoteVolume || 0) - (a.quoteVolume || 0));
+
+            renderRows(matched);
+            $status.textContent = `완료: 조건 일치 ${matched.length}개 (정렬: 24h 거래대금 내림차순)`;
+        } catch (e) {
+            console.error(e);
+            $status.textContent = `에러: ${e.message || e}`;
+        } finally {
+            $scanBtn.disabled = false;
         }
+    }
 
-        async function getCloses(symbol, interval, signal) {
-            const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${KLINES_LIMIT}`;
-            const data = await fetchJSON(url, signal, 1);
-            // kline: [openTime, open, high, low, close, volume, ...]
-            return data.map(k => Number(k[4]));
-        }
+    $scanBtn.addEventListener('click', scan);
 
-        async function checkAllTimeframes(symbol, signal) {
-            // 모든 INTERVALS에서 종가 > EMA50 > EMA200 조건을 만족하는지 검사
-            for (const itv of INTERVALS) {
-                const closes = await getCloses(symbol, itv, signal);
-                if (!closes || closes.length < EMA_LONG) return false;
-                const close = closes[closes.length - 1];
-                const ema50 = calcEMA(closes, EMA_SHORT);
-                const ema200 = calcEMA(closes, EMA_LONG);
-                if (ema50 == null || ema200 == null) return false;
-                const ok = (close > ema50) && (ema50 > ema200);
-                if (!ok) return false;
-                // 살짝 쿨다운 (레이트리밋 예방)
-                await sleep(30);
-            }
-            return true;
-        }
-
-        // ----- 실행 제어 (동시성 제한) -----
-        async function runScanner() {
-            aborter = new AbortController();
-            const { signal } = aborter;
-
-            try {
-                setStatus('심볼 목록 불러오는 중…');
-                setProgress(0, 0);
-
-                const allSymbols = await getUSDTPerpSymbols(signal);
-
-                const maxSymbols = Number(document.getElementById('maxSymbols').value);
-                setStatus('24h 거래대금 상위 심볼 추리는 중…');
-                const top = await getTopByQuoteVolume(allSymbols, signal, maxSymbols);
-                const symbols = top.map(t => t.symbol);
-
-                const total = symbols.length;
-                let done = 0;
-
-                setStatus(`스캔 중… (총 ${total}개 심볼)`);
-                setProgress(0, total);
-
-                const conc = Number(document.getElementById('concurrency').value);
-                const queue = symbols.slice();
-                const winners = [];
-
-                async function worker() {
-                    while (queue.length && !signal.aborted) {
-                        const sym = queue.shift();
-                        try {
-                            const ok = await checkAllTimeframes(sym, signal);
-                            if (ok) {
-                                // quoteVolume은 top 배열에서 가져오기
-                                const qv = top.find(x => x.symbol === sym)?.quoteVolume || 0;
-                                winners.push({
-                                    symbol: sym,
-                                    quoteVolume: qv,
-                                    checkedAt: new Date().toLocaleString()
-                                });
-                            }
-                        } catch (e) {
-                            // 실패는 무시 (네트워크/리밋/Abort 등)
-                        } finally {
-                            done += 1;
-                            setProgress(done, total);
-                        }
-                        // 약간의 간격
-                        await sleep(20);
-                    }
-                }
-
-                const workers = Array.from({ length: conc }, () => worker());
-                await Promise.all(workers);
-
-                // 거래대금 내림차순 정렬
-                winners.sort((a, b) => b.quoteVolume - a.quoteVolume);
-
-                // 렌더
-                renderTable(winners);
-
-                if (signal.aborted) {
-                    setStatus('중지됨');
-                } else {
-                    setStatus(`완료! (${winners.length}개 종목이 모든 타임프레임에서 조건 충족)`);
-                }
-            } catch (e) {
-                if (aborter?.signal?.aborted) {
-                    setStatus('중지됨');
-                } else {
-                    console.error(e);
-                    setStatus('오류 발생 (콘솔 참고)');
-                }
-            }
-        }
-
-        function stopScanner() {
-            if (aborter) {
-                aborter.abort();
-            }
-        }
-
-        // ----- 렌더링 -----
-        function renderTable(rows) {
-            const tbody = document.querySelector('#resultTable tbody');
-            tbody.innerHTML = '';
-            if (!rows.length) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 4;
-                td.className = 'muted';
-                td.textContent = '조건을 모두 만족하는 심볼이 없습니다.';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
-                return;
-            }
-            for (const r of rows) {
-                const tr = document.createElement('tr');
-
-                const tdSym = document.createElement('td');
-                tdSym.textContent = r.symbol;
-
-                const tdVol = document.createElement('td');
-                tdVol.className = 'right';
-                tdVol.textContent = formatNumber(r.quoteVolume);
-
-                const tdOk = document.createElement('td');
-                tdOk.innerHTML = '<span class="ok">모든 타임프레임 조건 충족</span>';
-
-                const tdTime = document.createElement('td');
-                tdTime.textContent = r.checkedAt;
-
-                tr.appendChild(tdSym);
-                tr.appendChild(tdVol);
-                tr.appendChild(tdOk);
-                tr.appendChild(tdTime);
-                tbody.appendChild(tr);
-            }
-        }
-
-        // ----- 이벤트 -----
-        document.getElementById('startBtn').addEventListener('click', () => {
-            stopScanner(); // 기존 작업 중지
-            renderTable([]); // 초기화
-            setStatus('시작 준비…');
-            setProgress(0, 0);
-            runScanner();
-        });
-        document.getElementById('stopBtn').addEventListener('click', () => {
-            stopScanner();
-        });
-    </script>
+    // 초기 1회 자동 실행
+    scan();
+</script>
 </body>
 </html>
