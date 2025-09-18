@@ -49,7 +49,7 @@
         <label>동시성(Concurrent):
             <input id="concurrency" type="number" min="1" max="20" value="8" />
         </label>
-        <button id="scanBtn" class="btn">재스캔</button>
+        <button id="scanBtn" class="btn">스캔 실행</button>
         <span id="status" class="status muted">대기 중…</span>
     </div>
 </header>
@@ -74,10 +74,9 @@
 </div>
 
 <script>
-    // ====== 설정 ======
-    const FAPI = 'https://fapi.binance.com'; // Binance Futures API base
+    const FAPI = 'https://fapi.binance.com';
     const INTERVAL = '15m';
-    const LIMIT = 300; // EMA 계산 여유치
+    const LIMIT = 300;
     const EMA_50 = 50;
     const EMA_200 = 200;
 
@@ -87,12 +86,10 @@
     const $minQuoteVolume = document.getElementById('minQuoteVolume');
     const $concurrency = document.getElementById('concurrency');
 
-    // 숫자 포맷터
     const fmt0 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
     const fmt2 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
     const pct = (n) => (Number(n) >= 0 ? `<span class="pos">+${fmt2(n)}%</span>` : `<span class="neg">${fmt2(n)}%</span>`);
 
-    // 지수이동평균
     function ema(values, period) {
         const k = 2 / (period + 1);
         const out = new Array(values.length).fill(null);
@@ -109,7 +106,6 @@
         return out;
     }
 
-    // 제한 동시성 실행
     async function pLimitAll(items, limit, worker) {
         const results = [];
         let i = 0;
@@ -151,18 +147,17 @@
         const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${LIMIT}`;
         const data = await fetchJSON(url);
         const closes = data.map(k => Number(k[4]));
-        return { closes, raw: data };
+        return { closes };
     }
 
     function checkCondition(closes) {
-        // EMA200까지 필요 → 최소 202개 이상 + 판정용 2봉 여유
         if (!closes || closes.length < EMA_200 + 2) return { ok: false };
         const e50 = ema(closes, EMA_50);
         const e200 = ema(closes, EMA_200);
         const n = closes.length;
 
-        const c2 = closes[n - 3];      // 2봉 전 종가
-        const c1 = closes[n - 2];      // 1봉 전 종가
+        const c2 = closes[n - 3];
+        const c1 = closes[n - 2];
         const e50_2 = e50[n - 3];
         const e50_1 = e50[n - 2];
         const e200_2 = e200[n - 3];
@@ -170,9 +165,6 @@
 
         if ([e50_2,e50_1,e200_2,e200_1].some(v => v == null)) return { ok: false };
 
-        // 조건:
-        // 1) 2봉 전: C > EMA50 && C < EMA200
-        // 2) 1봉 전: C > EMA200 && C > EMA50
         const cond2 = (c2 > e50_2) && (c2 < e200_2);
         const cond1 = (c1 > e200_1) && (c1 > e50_1);
         const ok = cond2 && cond1;
@@ -185,39 +177,17 @@
         const now = new Date();
         for (const r of rows) {
             const tr = document.createElement('tr');
-
-            const symTD = document.createElement('td');
-            symTD.innerHTML = `<a href="https://www.binance.com/ko/futures/${r.symbol}" target="_blank" rel="noopener">${r.symbol}</a>`;
-            tr.appendChild(symTD);
-
-            const priceTD = document.createElement('td');
-            priceTD.className = 'right mono';
-            priceTD.textContent = r.lastPrice != null ? r.lastPrice : '-';
-            tr.appendChild(priceTD);
-
-            const qvTD = document.createElement('td');
-            qvTD.className = 'right mono';
-            qvTD.textContent = r.quoteVolume != null ? fmt0(r.quoteVolume) : '-';
-            tr.appendChild(qvTD);
-
-            const chgTD = document.createElement('td');
-            chgTD.innerHTML = r.priceChangePercent != null ? pct(r.priceChangePercent) : '-';
-            tr.appendChild(chgTD);
-
-            const condTD = document.createElement('td');
-            const v = r.check?.values || {};
-            condTD.innerHTML =
-                `<div class="small">
-                    <div><span class="badge">2봉 전</span> C=${fmt2(v.c2)} · EMA50=${fmt2(v.e50_2)} · EMA200=${fmt2(v.e200_2)}</div>
-                    <div><span class="badge">1봉 전</span> C=${fmt2(v.c1)} · EMA50=${fmt2(v.e50_1)} · EMA200=${fmt2(v.e200_1)}</div>
-                 </div>`;
-            tr.appendChild(condTD);
-
-            const timeTD = document.createElement('td');
-            timeTD.className = 'small';
-            timeTD.textContent = now.toLocaleString();
-            tr.appendChild(timeTD);
-
+            tr.innerHTML = `
+                <td><a href="https://www.binance.com/ko/futures/${r.symbol}" target="_blank">${r.symbol}</a></td>
+                <td class="right mono">${r.lastPrice ?? '-'}</td>
+                <td class="right mono">${r.quoteVolume != null ? fmt0(r.quoteVolume) : '-'}</td>
+                <td>${r.priceChangePercent != null ? pct(r.priceChangePercent) : '-'}</td>
+                <td class="small">
+                    <div><span class="badge">2봉 전</span> C=${fmt2(r.check.values.c2)} · EMA50=${fmt2(r.check.values.e50_2)} · EMA200=${fmt2(r.check.values.e200_2)}</div>
+                    <div><span class="badge">1봉 전</span> C=${fmt2(r.check.values.c1)} · EMA50=${fmt2(r.check.values.e50_1)} · EMA200=${fmt2(r.check.values.e200_1)}</div>
+                </td>
+                <td class="small">${now.toLocaleString()}</td>
+            `;
             $tbody.appendChild(tr);
         }
     }
@@ -232,14 +202,13 @@
                 get24hTickersMap()
             ]);
 
-            // 사전 필터: 최소 거래대금
             const minQV = Number($minQuoteVolume.value || 0);
             const cand = symbols.filter(s => {
                 const t = tickerMap.get(s);
                 return t && Number(t.quoteVolume) >= minQV;
             });
 
-            $status.textContent = `총 ${symbols.length}개 중 거래대금 ≥ ${fmt0(minQV)} 조건 통과 ${cand.length}개 → 15분봉/EMA 체크 중…`;
+            $status.textContent = `총 ${symbols.length}개 중 ${cand.length}개 → EMA 체크 중…`;
 
             const conc = Math.max(1, Math.min(20, Number($concurrency.value || 8)));
             const results = await pLimitAll(cand, conc, async (symbol) => {
@@ -262,11 +231,10 @@
             });
 
             const matched = results.filter(Boolean);
-            // 거래대금 "낮은 순" (오름차순)
             matched.sort((a, b) => (a.quoteVolume || 0) - (b.quoteVolume || 0));
 
             renderRows(matched);
-            $status.textContent = `완료: 조건 일치 ${matched.length}개 (정렬: 24h 거래대금 오름차순)`;
+            $status.textContent = `완료: 조건 일치 ${matched.length}개 (거래대금 오름차순)`;
         } catch (e) {
             console.error(e);
             $status.textContent = `에러: ${e.message || e}`;
@@ -276,7 +244,6 @@
     }
 
     document.getElementById('scanBtn').addEventListener('click', scan);
-    scan(); // 초기 1회 자동 실행
 </script>
 </body>
 </html>
