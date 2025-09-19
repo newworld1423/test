@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>바이낸스 선물 USDT페어 거래량 급증 스캐너</title>
+    <title>바이낸스 선물 USDT — 거래량 급증 스캐너 (Pro / MTF / RSI / ADX)</title>
     <style>
         :root {
             --bg: #0b0c0f; --card:#161a23; --muted:#8b92a6; --text:#e8ebf1;
@@ -11,10 +11,10 @@
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial; }
-        header { padding: 22px 18px 10px; max-width: 1200px; margin: 0 auto; }
+        header { padding: 22px 18px 10px; max-width: 1280px; margin: 0 auto; }
         h1 { margin: 0 0 8px; font-size: 20px; }
         .muted { color: var(--muted); }
-        .wrap { max-width: 1200px; margin: 0 auto; padding: 12px 18px 28px; }
+        .wrap { max-width: 1280px; margin: 0 auto; padding: 12px 18px 28px; }
 
         .panel { background: var(--card); border: 1px solid #1f2430; border-radius: 16px; padding: 14px; }
         .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
@@ -27,7 +27,7 @@
         button.primary { background: var(--accent); border-color: var(--accent); color: #0b0c0f; font-weight: 600; }
         button.ghost { background: transparent; border-color: #2a3140; }
 
-        .toolbar { display: flex; gap: 10px; margin-top: 12px; }
+        .toolbar { display: flex; gap: 10px; margin-top: 12px; align-items: center; }
         .status { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
 
@@ -45,7 +45,7 @@
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
         .note { margin-top: 10px; color: var(--muted); font-size: 12px; }
 
-        @media (max-width: 880px) {
+        @media (max-width: 1100px) {
             .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .toolbar { flex-direction: column; align-items: stretch; }
             .status { margin: 0; }
@@ -54,46 +54,105 @@
 </head>
 <body>
 <header>
-    <h1>바이낸스 선물 USDT페어 거래량 급증 스캐너</h1>
-    <div class="muted">마지막 1개 봉의 거래량이 직전 N봉 평균 대비 얼마나 커졌는지(스파이크 비율)로 정렬합니다.</div>
+    <h1>바이낸스 선물 USDT — 거래량 급증 스캐너 (Pro)</h1>
+    <div class="muted">100% 급등형 씨앗 탐색 기본 + 연속 스파이크 가중치 + RSI/ADX + MTF 합성 점수. (quoteVolume=USD)</div>
 </header>
 
 <div class="wrap">
     <div class="panel">
+        <div class="grid" style="margin-bottom:10px">
+            <div class="item" style="grid-column: span 3;">
+                <label>프리셋 (Profiles)</label>
+                <select id="preset">
+                    <option value="seed100" selected>🔥 100% 급등형 씨앗 (5m / N20 / ×8 / ≥$100k / Top150 / 20s)</option>
+                    <option value="scalp">⚡ 초단타 스캘핑 (1m / N40 / ×6 / ≥$80k / Top80 / 12s)</option>
+                    <option value="day15">✅ 15m 단타 (15m / N30 / ×4 / ≥$300k / Top100 / 45s)</option>
+                    <option value="intraday1h">🕐 인트라데이 (1h / N24 / ×3 / ≥$1.5M / Top60 / 180s)</option>
+                </select>
+            </div>
+            <div class="item">
+                <label>&nbsp;</label>
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input id="autoScanOnPreset" type="checkbox" checked />
+                    적용 즉시 스캔
+                </label>
+            </div>
+            <div class="item">
+                <label>&nbsp;</label>
+                <button id="applyPresetBtn" class="ghost">프리셋 적용</button>
+            </div>
+        </div>
+
         <div class="grid">
             <div class="item">
-                <label>캔들 간격 (Interval)</label>
+                <label>기본 간격 (Base Interval)</label>
                 <select id="interval">
                     <option value="1m">1m</option>
-                    <option value="5m">5m</option>
-                    <option value="15m" selected>15m</option>
+                    <option value="5m" selected>5m</option>
+                    <option value="15m">15m</option>
                     <option value="1h">1h</option>
                 </select>
             </div>
             <div class="item">
-                <label>기준 구간 (Lookback, 직전 N봉 평균)</label>
-                <input id="lookback" type="number" min="5" max="200" step="1" value="30" />
+                <label>기준 구간 N (직전 N봉 평균)</label>
+                <input id="lookback" type="number" min="5" max="200" step="1" value="20" />
             </div>
             <div class="item">
                 <label>스파이크 배수 (현재봉 ÷ 평균 ≥)</label>
-                <input id="threshold" type="number" min="1" max="50" step="0.1" value="3" />
+                <input id="threshold" type="number" min="1" max="50" step="0.1" value="8" />
             </div>
             <div class="item">
-                <label>최소 거래량 (현재봉, Base)</label>
-                <input id="minVol" type="number" min="0" step="0.0001" value="0" />
+                <label>최소 거래대금 USD (현재봉 quoteVolume)</label>
+                <input id="minQuoteUSD" type="number" min="0" step="1000" value="100000" />
             </div>
             <div class="item">
                 <label>상위 노출 개수 (Top N)</label>
-                <input id="topN" type="number" min="5" max="300" step="1" value="100" />
+                <input id="topN" type="number" min="5" max="300" step="1" value="150" />
             </div>
             <div class="item">
                 <label>자동 갱신 (초)</label>
-                <input id="refreshSec" type="number" min="0" step="1" value="0" />
+                <input id="refreshSec" type="number" min="0" step="1" value="20" />
+            </div>
+        </div>
+
+        <div class="grid" style="margin-top:8px">
+            <div class="item">
+                <label>MTF 사용 (5m/15m/1h)</label>
+                <select id="mtfMode">
+                    <option value="on" selected>사용</option>
+                    <option value="off">사용 안 함</option>
+                </select>
+            </div>
+            <div class="item">
+                <label>지표 기간 (RSI/ADX)</label>
+                <input id="indPeriod" type="number" min="7" max="30" step="1" value="14" />
+            </div>
+            <div class="item">
+                <label>연속 스파이크 가중치</label>
+                <select id="streakWeighting">
+                    <option value="std" selected>표준(최근 3봉)</option>
+                    <option value="off">사용 안 함</option>
+                </select>
+            </div>
+            <div class="item">
+                <label>점수 가중 (스파이크/MTF/지표)</label>
+                <input id="weights" type="text" value="0.6,0.25,0.15" />
+                <small class="muted">예: 0.6,0.25,0.15 (합 1)</small>
+            </div>
+            <div class="item">
+                <label>&nbsp;</label>
+                <label style="display:flex;align-items:center;gap:8px;">
+                    <input id="strictFilter" type="checkbox" />
+                    엄격 필터(비정상 고저폭 컷)
+                </label>
+            </div>
+            <div class="item">
+                <label>&nbsp;</label>
+                <button id="scanBtn" class="primary">스캔</button>
             </div>
         </div>
 
         <div class="toolbar">
-            <button id="scanBtn" class="primary">스캔</button>
             <button id="stopBtn" class="ghost">자동 갱신 중지</button>
             <div class="status">
                 <span class="dot" id="dot"></span>
@@ -102,9 +161,11 @@
         </div>
 
         <div class="note">
-            • 선물 퍼페추얼 심볼만 포함 (e.g., BTCUSDT, ETHUSDT).  
-            • 스파이크 비율 = <span class="mono">현재봉 거래량 / 직전 N봉 평균 거래량</span>  
-            • 거래량은 선물 K라인의 <span class="mono">volume(베이스자산)</span> 사용. 필요시 quoteVolume으로 변경 가능.
+            • 스파이크 비율 = <span class="mono">현재봉 quoteVolume(USD) / 직전 N봉 평균 quoteVolume</span>  
+            • 연속 스파이크: 최근 3봉 중 임계치 통과 개수(0~3)에 따라 가점.  
+            • RSI/ADX는 기본 간격에서 계산 (지표 기간 기본 14).  
+            • MTF 합성: 기본(5m) + 15m + 1h에서 추세/스파이크 신호를 스코어링.  
+            • “점수 가중”은 [스파이크, MTF, 지표] 순입니다.
         </div>
     </div>
 
@@ -112,12 +173,17 @@
         <thead>
             <tr>
                 <th data-sort="symbol">심볼</th>
-                <th data-sort="ratio">스파이크 비율</th>
-                <th data-sort="vol">현재봉 거래량</th>
-                <th data-sort="avg">평균 거래량(N)</th>
-                <th data-sort="chg">현재봉 %변화</th>
+                <th data-sort="score">최종점수</th>
+                <th data-sort="ratio">스파이크×</th>
+                <th data-sort="streak">연속</th>
+                <th data-sort="nowQ">현재봉 USD</th>
+                <th data-sort="avgQ">평균 USD</th>
+                <th data-sort="rsi">RSI</th>
+                <th data-sort="adx">ADX</th>
+                <th data-sort="mtf">MTF점수</th>
+                <th data-sort="chg">현재봉 %</th>
                 <th data-sort="price">현재가</th>
-                <th data-sort="time">캔들 시간(종가)</th>
+                <th data-sort="time">종가시간</th>
                 <th>링크</th>
             </tr>
         </thead>
@@ -126,20 +192,38 @@
 </div>
 
 <script>
-    // ===== 설정 =====
+    // ====================== 기본 설정 ======================
     const FAPI = 'https://fapi.binance.com';
     const EXCHANGE_INFO_URL = FAPI + '/fapi/v1/exchangeInfo';
     const KLINES_URL = FAPI + '/fapi/v1/klines';
-    const CONCURRENCY = 8;         // 동시 요청 제한
-    const RETRY = 2;               // 실패 재시도 횟수
-    const TIMEOUT_MS = 12000;      // 각 요청 타임아웃
+    const CONCURRENCY = 6;              // Pro: MTF까지 조회하므로 동시성 약간 낮춤
+    const RETRY = 2;
+    const TIMEOUT_MS = 12000;
+
+    const PRESETS = {
+        seed100: { label: '100% 급등형', interval: '5m', lookback: 20, threshold: 8, minQuoteUSD: 100000, topN: 150, refreshSec: 20 },
+        scalp:   { label: '초단타 스캘핑', interval: '1m', lookback: 40, threshold: 6, minQuoteUSD: 80000,  topN: 80,  refreshSec: 12 },
+        day15:   { label: '15m 단타',    interval: '15m', lookback: 30, threshold: 4, minQuoteUSD: 300000, topN: 100, refreshSec: 45 },
+        intraday1h: { label: '1h 인트라데이', interval: '1h', lookback: 24, threshold: 3, minQuoteUSD: 1500000, topN: 60, refreshSec: 180 }
+    };
+
+    // ====================== DOM ======================
+    const $preset = document.getElementById('preset');
+    const $autoScanOnPreset = document.getElementById('autoScanOnPreset');
+    const $applyPresetBtn = document.getElementById('applyPresetBtn');
 
     const $interval = document.getElementById('interval');
     const $lookback = document.getElementById('lookback');
     const $threshold = document.getElementById('threshold');
-    const $minVol = document.getElementById('minVol');
+    const $minQuoteUSD = document.getElementById('minQuoteUSD');
     const $topN = document.getElementById('topN');
     const $refreshSec = document.getElementById('refreshSec');
+
+    const $mtfMode = document.getElementById('mtfMode');
+    const $indPeriod = document.getElementById('indPeriod');
+    const $streakWeighting = document.getElementById('streakWeighting');
+    const $weights = document.getElementById('weights');
+    const $strictFilter = document.getElementById('strictFilter');
 
     const $scanBtn = document.getElementById('scanBtn');
     const $stopBtn = document.getElementById('stopBtn');
@@ -150,19 +234,17 @@
     let autoTimer = null;
     let abortAll = null;
 
+    // ====================== 유틸 ======================
     function setStatus(text, busy = false) {
         $status.textContent = text;
         $dot.style.background = busy ? '#5fd4fb' : '#ffb020';
     }
-
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
     function withTimeout(promise, ms, label = 'timeout') {
         let timer;
         const t = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(label)), ms); });
         return Promise.race([promise, t]).finally(() => clearTimeout(timer));
     }
-
     async function safeFetch(url, opts = {}, tries = RETRY) {
         for (let i = 0; i <= tries; i++) {
             try {
@@ -173,52 +255,191 @@
             }
         }
     }
+    function sum(arr) { return arr.reduce((a,b)=>a+b,0); }
+    function ema(values, period) {
+        if (values.length < period) return [];
+        const k = 2 / (period + 1);
+        const out = [];
+        let emaPrev = values.slice(0, period).reduce((a,b)=>a+b,0) / period;
+        out[period - 1] = emaPrev;
+        for (let i = period; i < values.length; i++) {
+            emaPrev = values[i] * k + emaPrev * (1 - k);
+            out[i] = emaPrev;
+        }
+        return out;
+    }
+    function rsiFromCloses(closes, period = 14) {
+        if (closes.length < period + 1) return null;
+        let gains = 0, losses = 0;
+        for (let i = 1; i <= period; i++) {
+            const diff = closes[i] - closes[i-1];
+            if (diff >= 0) gains += diff; else losses -= diff;
+        }
+        let avgGain = gains / period, avgLoss = losses / period;
+        for (let i = period + 1; i < closes.length; i++) {
+            const diff = closes[i] - closes[i-1];
+            avgGain = (avgGain * (period - 1) + Math.max(diff,0)) / period;
+            avgLoss = (avgLoss * (period - 1) + Math.max(-diff,0)) / period;
+        }
+        const rs = avgLoss === 0 ? 100 : avgGain / (avgLoss || 1e-9);
+        const rsi = 100 - (100 / (1 + rs));
+        return rsi;
+    }
+    function adxFromOHLC(ohlc, period = 14) {
+        // ohlc: [{high, low, close}, ...] 최신 순이 아니라 오름차순이어야 함 (우리는 배열이 오래된->최신 순)
+        if (ohlc.length < period + 1) return null;
+        const tr = [], plusDM = [], minusDM = [];
+        for (let i = 1; i < ohlc.length; i++) {
+            const h = ohlc[i].high, l = ohlc[i].low, cPrev = ohlc[i-1].close;
+            const upMove = h - ohlc[i-1].high;
+            const downMove = ohlc[i-1].low - l;
+            tr.push(Math.max(h - l, Math.abs(h - cPrev), Math.abs(l - cPrev)));
+            plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+            minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
+        }
+        // Wilder smoothing
+        function wilderSMA(arr, p) {
+            const out = [];
+            let s = sum(arr.slice(0, p));
+            out[p-1] = s;
+            for (let i = p; i < arr.length; i++) {
+                s = out[i-1] - (out[i-1] / p) + arr[i];
+                out[i] = s;
+            }
+            return out;
+        }
+        const trN = wilderSMA(tr, period);
+        const pDMN = wilderSMA(plusDM, period);
+        const mDMN = wilderSMA(minusDM, period);
+        const adxArr = [];
+        for (let i = period - 1; i < trN.length; i++) {
+            const pDI = 100 * (pDMN[i] / trN[i]);
+            const mDI = 100 * (mDMN[i] / trN[i]);
+            const dx = 100 * (Math.abs(pDI - mDI) / Math.max(pDI + mDI, 1e-9));
+            adxArr.push(dx);
+        }
+        if (adxArr.length < period) return null;
+        // Smooth DX to ADX
+        let adx = sum(adxArr.slice(0, period)) / period;
+        for (let i = period; i < adxArr.length; i++) {
+            adx = (adx * (period - 1) + adxArr[i]) / period;
+        }
+        return adx;
+    }
 
-    // 1) 선물 USDT Perpetual 심볼 목록 수집
+    // ====================== 데이터 조회 ======================
     async function fetchFuturesUSDTPerpSymbols() {
         const res = await safeFetch(EXCHANGE_INFO_URL);
         const json = await res.json();
-        // USDT 마진 & PERPETUAL 유형만
         return json.symbols
             .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
             .map(s => s.symbol);
     }
-
-    // 2) 심볼당 K라인 가져와서 거래량 스파이크 계산
-    //    - 마지막 봉(가장 최근 종가가 닫힌 봉)을 기준
-    async function fetchSymbolSpike(symbol, interval, lookback) {
-        const limit = Math.max(lookback + 2, 35); // 여유분
+    async function fetchKlines(symbol, interval, limit) {
         const url = `${KLINES_URL}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
         const res = await safeFetch(url);
         const arr = await res.json();
-        if (!Array.isArray(arr) || arr.length < lookback + 1) return null;
+        return Array.isArray(arr) ? arr : null;
+    }
 
-        // K라인 포맷:
-        // [0] openTime, [1] open, [2] high, [3] low, [4] close, [5] volume, [6] closeTime,
-        // [7] quoteVolume, [8] numTrades, [9] takerBuyBase, [10] takerBuyQuote, [11] ignore]
-        const last = arr[arr.length - 1];
-        const prevSlice = arr.slice(arr.length - 1 - lookback, arr.length - 1);
+    // ====================== 스파이크/지표/MTF 계산 ======================
+    function calcSpikeMetrics(klines, lookback, threshold, strictFilter) {
+        if (!klines || klines.length < lookback + 3) return null;
+        const last = klines[klines.length - 1];
+        const prevSlice = klines.slice(klines.length - 1 - lookback, klines.length - 1);
 
-        const nowVol = parseFloat(last[5]);
-        const avgVol = prevSlice.reduce((a, c) => a + parseFloat(c[5]), 0) / prevSlice.length;
+        // 품질: 평균 구간 중 0 USD 캔들 과다 시 컷
+        const nonZeroPrev = prevSlice.filter(c => parseFloat(c[7]) > 0);
+        if (nonZeroPrev.length < Math.max(5, Math.floor(lookback * 0.6))) return null;
+
+        const nowQ = parseFloat(last[7]);
+        const avgQ = prevSlice.reduce((a, c) => a + parseFloat(c[7]), 0) / prevSlice.length;
+        const ratio = avgQ > 0 ? nowQ / avgQ : 0;
 
         const open = parseFloat(last[1]);
         const close = parseFloat(last[4]);
-        const chgPct = ((close - open) / open) * 100;
-        const ratio = avgVol > 0 ? nowVol / avgVol : 0;
+        const chgPct = open > 0 ? ((close - open) / open) * 100 : 0;
 
-        return {
-            symbol,
-            ratio,
-            nowVol,
-            avgVol,
-            chgPct,
-            price: close,
-            closeTime: last[6]
-        };
+        if (strictFilter) {
+            const high = parseFloat(last[2]), low = parseFloat(last[3]);
+            if (open > 0 && (high - low) / open > 0.25) return null; // 과격한 스프레드 컷
+        }
+
+        // 연속 스파이크(최근 3봉)
+        let streak = 0;
+        const back = klines.slice(-4, -1); // 마지막 직전 3봉
+        for (const c of back) {
+            const q = parseFloat(c[7]);
+            const win = klines.slice(klines.indexOf(c) - lookback, klines.indexOf(c));
+            if (win.length === lookback) {
+                const avg = win.reduce((a, x) => a + parseFloat(x[7]), 0) / lookback;
+                if (avg > 0 && q / avg >= threshold) streak++;
+            }
+        }
+
+        return { nowQ, avgQ, ratio, chgPct, open, close, streak };
     }
 
-    // 3) 동시성 제한 큐
+    function calcRSIADX(klines, period) {
+        if (!klines || klines.length < period + 2) return { rsi: null, adx: null };
+        const closes = klines.map(k => parseFloat(k[4]));
+        const ohlc = klines.map(k => ({ high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]) }));
+        const rsi = rsiFromCloses(closes, period);
+        const adx = adxFromOHLC(ohlc, period);
+        return { rsi, adx };
+    }
+
+    async function calcMTF(symbol, baseInterval, lookback, threshold, strictFilter) {
+        // 기본 + 15m + 1h 스코어 (간단 가중 평균)
+        const intervals = ['15m', '1h'];
+        const out = [];
+        for (const itv of intervals) {
+            const kl = await fetchKlines(symbol, itv, Math.max(lookback + 6, 40));
+            const spike = calcSpikeMetrics(kl, Math.min(lookback, 30), Math.max(2, threshold - 2), strictFilter);
+            if (!spike) { out.push(0); continue; }
+            // 간단한 상태 점수: ratio 정규화 + chgPct/5 제한 + streak(0~3) * 0.2
+            const r = Math.min(spike.ratio / (threshold - 2), 2.5);
+            const m = Math.max(-1, Math.min(1, (spike.chgPct / 5)));
+            const s = (spike.streak || 0) * 0.2;
+            out.push(Math.max(0, r * 0.7 + m * 0.2 + s * 0.1));
+        }
+        // 평균 (0~약 2.5 사이)
+        const mtfScore = out.length ? out.reduce((a,b)=>a+b,0) / out.length : 0;
+        return mtfScore;
+    }
+
+    // 최종 점수 산식
+    function finalScore(spikeRatio, streak, rsi, adx, mtfScore, weights) {
+        // 스파이크 점수: ratio를 threshold 대비로 정규화, 연속 가중
+        const spikeBase = Math.max(0, Math.min(3, spikeRatio)); // 0~3 캡
+        const streakBonus = (streak || 0) * 0.25;              // 0~0.75
+        const spikeScore = spikeBase + streakBonus;            // ~0~3.75
+
+        // 지표 점수: RSI 55~70 우대, 80↑ 페널티; ADX 20~35 우대, 50↑ 과열 페널티
+        let rsiScore = 0;
+        if (rsi != null) {
+            if (rsi >= 50 && rsi <= 75) rsiScore = (rsi - 50) / 25; // 0~1
+            else if (rsi > 80) rsiScore = 0.2;                      // 과열
+            else if (rsi < 35) rsiScore = 0.1;                      // 약함
+            else rsiScore = 0.4;
+        }
+        let adxScore = 0;
+        if (adx != null) {
+            if (adx >= 18 && adx <= 40) adxScore = (adx - 18) / 22; // 0~1
+            else if (adx > 55) adxScore = 0.3;                      // 과열
+            else if (adx < 15) adxScore = 0.1;                      // 약함
+            else adxScore = 0.5;
+        }
+        const indiScore = (rsiScore * 0.5) + (adxScore * 0.5);      // 0~1
+
+        // MTF 점수(0~약 2.5)를 0~1로 압축
+        const mtfNorm = Math.min(1, mtfScore / 2.0);
+
+        const [wSpike, wMTF, wInd] = weights; // 합 1 가정
+        return wSpike * spikeScore + wMTF * mtfNorm + wInd * indiScore;
+    }
+
+    // ====================== 동시성 처리 ======================
     async function mapLimit(items, limit, worker) {
         const ret = [];
         let i = 0;
@@ -239,16 +460,31 @@
         return ret;
     }
 
-    // 4) 스캔 메인
+    // ====================== 스캔 루틴 ======================
     async function scan() {
         if (abortAll) { try { abortAll.abort(); } catch(e){} }
         abortAll = new AbortController();
 
         const interval = $interval.value;
-        const lookback = Math.max(5, parseInt($lookback.value || '30', 10));
-        const threshold = parseFloat($threshold.value || '3');
-        const minVol = parseFloat($minVol.value || '0');
-        const topN = Math.max(1, parseInt($topN.value || '100', 10));
+        const lookback = Math.max(5, parseInt($lookback.value || '20', 10));
+        const threshold = parseFloat($threshold.value || '8');
+        const minQuoteUSD = parseFloat($minQuoteUSD.value || '100000');
+        const topN = Math.max(1, parseInt($topN.value || '150', 10));
+        const refreshSec = Math.max(0, parseInt($refreshSec.value || '20', 10));
+        const mtfOn = $mtfMode.value === 'on';
+        const indPeriod = Math.max(7, parseInt($indPeriod.value || '14', 10));
+        const streakMode = $streakWeighting.value;
+        const strictFilter = $strictFilter.checked;
+
+        // 가중치 파싱
+        let w = [0.6, 0.25, 0.15];
+        try {
+            const parts = ($weights.value || '0.6,0.25,0.15').split(',').map(x => parseFloat(x.trim()));
+            if (parts.length === 3 && parts.every(x => Number.isFinite(x))) {
+                const s = parts[0] + parts[1] + parts[2];
+                if (s > 0) w = parts.map(x => x / s);
+            }
+        } catch {}
 
         setStatus('심볼 불러오는 중…', true);
         let symbols = [];
@@ -261,35 +497,75 @@
 
         setStatus(`총 ${symbols.length}개 심볼 스캔 중… (${interval}, N=${lookback})`, true);
 
-        // 심볼 순서는 무관. 네트워크 부담 완화를 위해 약간의 대기 삽입 가능.
         const results = await mapLimit(symbols, CONCURRENCY, async (sym) => {
             try {
-                const r = await fetchSymbolSpike(sym, interval, lookback);
-                if (!r) return null;
-                if (r.nowVol < minVol) return null;
-                if (r.ratio < threshold) return null;
-                return r;
+                // 기본 간격 K라인
+                const baseK = await fetchKlines(sym, interval, Math.max(lookback + 20, 60));
+                const spike = calcSpikeMetrics(baseK, lookback, threshold, strictFilter);
+                if (!spike) return null;
+                if (spike.nowQ < minQuoteUSD) return null;
+                if (spike.ratio < threshold) return null;
+
+                // 연속 스파이크 가중치
+                const streak = (streakMode === 'std') ? (spike.streak || 0) : 0;
+
+                // 지표
+                const { rsi, adx } = calcRSIADX(baseK, indPeriod);
+
+                // MTF
+                let mtfScore = 0;
+                if (mtfOn) {
+                    mtfScore = await calcMTF(sym, interval, lookback, threshold, strictFilter);
+                }
+
+                // 최종 점수
+                const ratioNorm = Math.min(3, spike.ratio / threshold); // threshold 대비 3배 캡
+                const score = finalScore(ratioNorm, streak, rsi, adx, mtfScore, w);
+
+                const last = baseK[baseK.length - 1];
+                const price = parseFloat(last[4]);
+                const closeTime = last[6];
+
+                return {
+                    symbol: sym,
+                    score,
+                    ratio: spike.ratio,
+                    streak,
+                    nowQ: spike.nowQ,
+                    avgQ: spike.avgQ,
+                    rsi,
+                    adx,
+                    mtfScore,
+                    chgPct: spike.chgPct,
+                    price,
+                    closeTime
+                };
             } catch (e) {
                 return null;
             }
         });
 
         const list = results.filter(Boolean)
-            .sort((a, b) => b.ratio - a.ratio)
+            .sort((a, b) => b.score - a.score)
             .slice(0, topN);
 
         render(list);
         setStatus(`완료: ${list.length}개 감지`, false);
+
+        // 자동 갱신
+        if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+        if (refreshSec > 0) {
+            autoTimer = setInterval(scan, Math.max(5, refreshSec) * 1000);
+            setStatus(`자동 갱신 ${Math.max(5, refreshSec)}초`, true);
+        }
     }
 
-    // 5) 렌더
+    // ====================== 렌더 & 정렬 ======================
     function render(rows) {
-        const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
+        const fmt0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
         const fmt2 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
-        const toTime = (t) => {
-            const d = new Date(t);
-            return d.toLocaleString();
-        };
+        const fmt6 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
+        const toTime = (t) => new Date(t).toLocaleString();
 
         $tbody.innerHTML = rows.map(r => {
             const cls = r.chgPct >= 0 ? 'good' : 'bad';
@@ -298,11 +574,16 @@
             return `
                 <tr>
                     <td class="mono">${r.symbol}</td>
-                    <td><span class="pill">${fmt2.format(r.ratio)}×</span></td>
-                    <td class="mono">${fmt.format(r.nowVol)}</td>
-                    <td class="mono">${fmt.format(r.avgVol)}</td>
+                    <td><span class="pill">${fmt2.format(r.score)}</span></td>
+                    <td class="mono">${fmt2.format(r.ratio)}×</td>
+                    <td class="mono">${r.streak}</td>
+                    <td class="mono">$${fmt0.format(r.nowQ)}</td>
+                    <td class="mono">$${fmt0.format(r.avgQ)}</td>
+                    <td class="mono">${r.rsi == null ? '-' : fmt2.format(r.rsi)}</td>
+                    <td class="mono">${r.adx == null ? '-' : fmt2.format(r.adx)}</td>
+                    <td class="mono">${fmt2.format(r.mtfScore)}</td>
                     <td class="${cls} mono">${fmt2.format(r.chgPct)}%</td>
-                    <td class="mono">${fmt.format(r.price)}</td>
+                    <td class="mono">${fmt6.format(r.price)}</td>
                     <td class="mono">${toTime(r.closeTime)}</td>
                     <td>
                         <a href="${tv}" target="_blank" rel="noopener">TV</a> ·
@@ -313,47 +594,51 @@
         }).join('');
     }
 
-    // 6) 정렬 (헤더 클릭)
-    let sortKey = 'ratio';
+    let sortKey = 'score';
     let sortDir = 'desc';
     document.querySelectorAll('thead th[data-sort]').forEach(th => {
         th.addEventListener('click', () => {
             const key = th.getAttribute('data-sort');
-            if (sortKey === key) {
-                sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
-            } else {
-                sortKey = key; sortDir = 'desc';
-            }
-            // 현재 테이블을 다시 정렬 (빠른 UX용)
+            if (sortKey === key) sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
+            else { sortKey = key; sortDir = 'desc'; }
+
             const rows = Array.from($tbody.querySelectorAll('tr')).map(tr => {
                 const tds = tr.querySelectorAll('td');
-                const obj = {
+                const money = (s) => parseFloat(s.replace(/[$,]/g, '')) || 0;
+                return {
                     symbol: tds[0].textContent.trim(),
-                    ratio: parseFloat(tds[1].innerText.replace(/[^0-9.]/g,'')) || 0,
-                    nowVol: parseFloat(tds[2].innerText.replace(/,/g,'')) || 0,
-                    avgVol: parseFloat(tds[3].innerText.replace(/,/g,'')) || 0,
-                    chgPct: parseFloat(tds[4].innerText.replace('%','')) || 0,
-                    price: parseFloat(tds[5].innerText.replace(/,/g,'')) || 0,
-                    time: tds[6].textContent.trim(),
-                    links: tds[7].innerHTML
+                    score: parseFloat(tds[1].innerText) || 0,
+                    ratio: parseFloat(tds[2].innerText) || 0,
+                    streak: parseFloat(tds[3].innerText) || 0,
+                    nowQ: money(tds[4].innerText),
+                    avgQ: money(tds[5].innerText),
+                    rsi: tds[6].innerText === '-' ? null : parseFloat(tds[6].innerText),
+                    adx: tds[7].innerText === '-' ? null : parseFloat(tds[7].innerText),
+                    mtf: parseFloat(tds[8].innerText) || 0,
+                    chgPct: parseFloat(tds[9].innerText) || 0,
+                    price: parseFloat(tds[10].innerText.replace(/,/g,'')) || 0,
+                    time: tds[11].textContent.trim(),
+                    links: tds[12].innerHTML
                 };
-                return obj;
             });
             rows.sort((a,b) => {
                 if (a[sortKey] < b[sortKey]) return sortDir === 'asc' ? -1 : 1;
                 if (a[sortKey] > b[sortKey]) return sortDir === 'asc' ? 1 : -1;
                 return 0;
             });
-            // 재렌더
             $tbody.innerHTML = rows.map(r => {
-                const cls = r.chgPct >= 0 ? 'good' : 'bad';
                 return `
                     <tr>
                         <td class="mono">${r.symbol}</td>
-                        <td><span class="pill">${r.ratio.toFixed(2)}×</span></td>
-                        <td class="mono">${r.nowVol.toLocaleString()}</td>
-                        <td class="mono">${r.avgVol.toLocaleString()}</td>
-                        <td class="${cls} mono">${r.chgPct.toFixed(2)}%</td>
+                        <td><span class="pill">${r.score.toFixed(2)}</span></td>
+                        <td class="mono">${r.ratio.toFixed(2)}×</td>
+                        <td class="mono">${r.streak}</td>
+                        <td class="mono">$${r.nowQ.toLocaleString()}</td>
+                        <td class="mono">$${r.avgQ.toLocaleString()}</td>
+                        <td class="mono">${r.rsi == null ? '-' : r.rsi.toFixed(2)}</td>
+                        <td class="mono">${r.adx == null ? '-' : r.adx.toFixed(2)}</td>
+                        <td class="mono">${r.mtf.toFixed(2)}</td>
+                        <td class="mono">${r.chgPct.toFixed(2)}%</td>
                         <td class="mono">${r.price.toLocaleString()}</td>
                         <td class="mono">${r.time}</td>
                         <td>${r.links}</td>
@@ -363,7 +648,33 @@
         });
     });
 
-    // 7) 버튼/자동
+    // ====================== 프리셋 적용 & 자동 ======================
+    function applyPreset(key, andScan = false) {
+        const p = PRESETS[key] || PRESETS.seed100;
+        $interval.value = p.interval;
+        $lookback.value = p.lookback;
+        $threshold.value = p.threshold;
+        $minQuoteUSD.value = p.minQuoteUSD;
+        $topN.value = p.topN;
+        $refreshSec.value = p.refreshSec;
+
+        if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+        if (andScan) {
+            scan();
+            const sec = parseInt($refreshSec.value || '0', 10);
+            if (sec > 0) {
+                autoTimer = setInterval(scan, Math.max(5, sec) * 1000);
+                setStatus(`자동 갱신 ${Math.max(5, sec)}초`, true);
+            }
+        }
+    }
+    document.getElementById('applyPresetBtn').addEventListener('click', () => {
+        applyPreset($preset.value, $autoScanOnPreset.checked);
+    });
+    $preset.addEventListener('change', () => {
+        applyPreset($preset.value, $autoScanOnPreset.checked);
+    });
+
     $scanBtn.addEventListener('click', () => {
         if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
         scan();
@@ -373,13 +684,13 @@
             setStatus(`자동 갱신 ${Math.max(5, sec)}초`, true);
         }
     });
-
     $stopBtn.addEventListener('click', () => {
         if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
         setStatus('자동 갱신 중지', false);
     });
 
-    // 초기 상태
+    // 초기 실행
+    applyPreset('seed100', true);
     setStatus('대기', false);
 </script>
 </body>
