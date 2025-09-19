@@ -2,248 +2,574 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Futures 15m EMA50/200 조건 스캐너 (USDT Perp)</title>
+    <title>Binance Perp USDT 하이브리드 스캐너 (Trend → Swing / Range → Grid)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-        :root{
-            --bg:#0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1;
-            --pos:#1db954; --neg:#ff4d4f; --accent:#6ea8fe; --line:#2a2f3a;
+        :root {
+            --bg:#0b0c0f; --card:#151821; --muted:#8b92a6; --text:#e8ebf1; --pos:#1db954; --neg:#ff4d4f; --accent:#6ea8fe; --warn:#ffb020;
         }
-        *{box-sizing:border-box}
-        body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans KR',Arial}
-        header{max-width:1200px;margin:0 auto;padding:24px 16px 8px}
-        h1{margin:0 0 6px;font-size:20px}
-        .muted{color:var(--muted)}
-        .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px}
-        .controls label{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);padding:8px 10px;border-radius:8px}
-        .controls input{background:transparent;border:none;outline:none;color:var(--text);width:140px}
-        .btn{background:var(--accent);color:#0b0c0f;border:none;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
-        .btn:disabled{opacity:.6;cursor:not-allowed}
-        .wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
-        table{width:100%;border-collapse:collapse;margin-top:16px}
-        th,td{border-bottom:1px solid var(--line);padding:10px;text-align:center}
-        th{background:var(--card);position:sticky;top:0}
-        tbody tr:hover{background:#12141a}
-        .right{text-align:right}
-        .pos{color:var(--pos)}
-        .neg{color:var(--neg)}
-        .badge{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#11141a;color:var(--muted);font-size:12px}
-        .status{margin-top:8px}
-        .footer-note{margin-top:10px;color:var(--muted);font-size:12px}
-        .small{font-size:12px}
-        .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+        * { box-sizing: border-box; }
+        body { margin:0; background:var(--bg); color:var(--text); font:14px/1.55 system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial; }
+        header { max-width:1200px; margin:0 auto; padding:22px 18px 8px; }
+        h1 { margin:0 0 6px; font-size:20px; }
+        .muted { color:var(--muted); }
+        .panel { max-width:1200px; margin:0 auto; padding:12px 18px 18px; }
+        .controls { display:grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap:10px; }
+        .control { background:var(--card); padding:10px; border-radius:12px; }
+        label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+        input, select, button { width:100%; padding:10px; border-radius:10px; border:1px solid #242838; background:#0e1118; color:var(--text); }
+        button { background:var(--accent); border:none; color:#0b0c0f; font-weight:700; cursor:pointer; }
+        button:disabled { filter:saturate(0.3); cursor:not-allowed; }
+        .row { display:flex; gap:10px; margin-top:10px; }
+        .hint { color:var(--muted); font-size:12px; }
+        .stats { margin-top:10px; color:var(--muted); font-size:13px; }
+        .wrap { max-width:1200px; margin:6px auto 30px; padding:0 18px; }
+        table { width:100%; border-collapse: collapse; background:var(--card); border-radius:14px; overflow: hidden; }
+        th, td { padding:10px; border-bottom:1px solid #242838; text-align:right; }
+        th { position:sticky; top:0; background:#1a1e2b; z-index:1; font-weight:700; }
+        td:first-child, th:first-child, td:nth-child(2), th:nth-child(2), td:nth-child(3), th:nth-child(3) { text-align:left; }
+        tr:hover { background:#1b1f2d; }
+        .tag { padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; }
+        .tag-trend-up { background:rgba(29,185,84,.12); color:var(--pos); }
+        .tag-trend-dn { background:rgba(255,77,79,.12); color:var(--neg); }
+        .tag-range { background:rgba(255,176,32,.12); color:var(--warn); }
+        .tag-swing { background:rgba(110,168,254,.12); color:var(--accent); }
+        .tag-grid { background:rgba(255,176,32,.12); color:var(--warn); }
+        .adxl { color:var(--muted); font-size:12px; }
+        .pos { color:var(--pos); }
+        .neg { color:var(--neg); }
+        .loading { color:var(--muted); font-size:13px; margin-top:8px; }
+        .notice { margin:10px 0; color:#ced4ff; font-size:12px; }
+        .foot { color:var(--muted); font-size:12px; text-align:right; margin-top:6px; }
+        .pill { display:inline-flex; gap:6px; align-items:center; }
+        .sep { opacity:.35; padding:0 6px; }
+        .sortable { cursor:pointer; }
     </style>
 </head>
 <body>
 <header>
-    <h1>바이낸스 선물 15분봉 EMA50/200 조건 스캐너 <span class="badge">USDT Perp</span></h1>
-    <div class="muted small">
-        조건: <span class="mono">2봉 전 C &gt; EMA50 &amp;&amp; C &lt; EMA200</span> ·
-        <span class="mono">1봉 전 C &gt; EMA200 &amp;&amp; C &gt; EMA50</span>
-    </div>
-
-    <div class="controls">
-        <label>최소 24h 거래대금(USDT):
-            <input id="minQuoteVolume" type="number" step="100000" value="0" />
-        </label>
-        <label>동시성(Concurrent):
-            <input id="concurrency" type="number" min="1" max="20" value="8" />
-        </label>
-        <button id="scanBtn" class="btn">스캔 실행</button>
-        <span id="status" class="status muted">대기 중…</span>
-    </div>
+    <h1>Binance Perp USDT 하이브리드 스캐너</h1>
+    <div class="muted">추세 필터로 시장 상태를 구분해 <b>추세(스윙)</b> 또는 <b>횡보(격자)</b> 전략을 추천합니다.</div>
 </header>
 
-<div class="wrap">
+<section class="panel">
+    <div class="controls">
+        <div class="control">
+            <label>인터벌 (kline interval)</label>
+            <select id="interval">
+                <option value="15m">15m</option>
+                <option value="1h" selected>1h</option>
+                <option value="4h">4h</option>
+                <option value="1d">1d</option>
+            </select>
+        </div>
+        <div class="control">
+            <label>캔들 수(최신 기준)</label>
+            <input id="limit" type="number" value="400" min="150" step="50" />
+            <div class="hint">지표 계산 위해 최소 150 이상 권장</div>
+        </div>
+        <div class="control">
+            <label>최대 심볼 수 (상위 거래대금)</label>
+            <input id="maxSymbols" type="number" value="120" min="10" step="10" />
+            <div class="hint">상위 24h 거래대금 기준으로 제한</div>
+        </div>
+        <div class="control">
+            <label>요청 간 지연 (ms)</label>
+            <input id="delayMs" type="number" value="60" min="0" step="10" />
+            <div class="hint">API 레이트 리밋 회피용</div>
+        </div>
+        <div class="control">
+            <label>ADX 임계값</label>
+            <input id="adxThr" type="number" value="22" min="5" step="1" />
+            <div class="hint">≥ 임계값 ⇒ 추세로 간주</div>
+        </div>
+        <div class="control">
+            <label>스윙 진입: EMA 근접 허용(%)</label>
+            <input id="nearEmaPct" type="number" value="0.7" min="0.1" step="0.1" />
+            <div class="hint">가격이 EMA50 ±X%면 “근접”</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="control" style="flex:1;">
+            <label>격자 제안 폭(최근 N봉 고저폭 %) / 스텝</label>
+            <div class="row" style="gap:8px;">
+                <input id="gridLookback" type="number" value="120" min="40" step="10" />
+                <input id="gridBandPct" type="number" value="60" min="10" step="5" />
+                <input id="gridSteps" type="number" value="10" min="4" step="1" />
+            </div>
+            <div class="hint">예: 최근 120봉 고저폭의 60%를 격자 밴드로 사용, 스텝 10</div>
+        </div>
+        <div class="control" style="width:220px;">
+            <label>정렬</label>
+            <select id="sortBy">
+                <option value="score">추천 점수(내림차순)</option>
+                <option value="adx">ADX (내림차순)</option>
+                <option value="atrp">ATR% (내림차순)</option>
+                <option value="vol">24h 거래대금 (내림차순)</option>
+                <option value="symbol">심볼명 (오름차순)</option>
+            </select>
+        </div>
+        <div class="control" style="width:220px;">
+            <label>필터</label>
+            <select id="filterMode">
+                <option value="all">전체</option>
+                <option value="swing">스윙만</option>
+                <option value="grid">격자만</option>
+            </select>
+        </div>
+        <div class="control" style="width:240px;">
+            <label>&nbsp;</label>
+            <button id="scanBtn">스캔 실행</button>
+            <div id="progress" class="loading"></div>
+        </div>
+    </div>
+
+    <div class="notice">※ 참고: 본 스캐너는 교육/리서치용이며, 수수료·슬리피지·펀딩비·미체결 위험 등은 별도 고려가 필요합니다. 실거래 전 반드시 자체 검증을 진행하세요.</div>
+    <div class="stats" id="stats"></div>
+</section>
+
+<section class="wrap">
     <table id="resultTable">
         <thead>
             <tr>
-                <th style="width:140px">심볼</th>
-                <th>최신가</th>
-                <th>24h 거래대금 (quoteVolume, USDT)</th>
-                <th>24h 변동률</th>
-                <th>조건 체크(2봉/1봉)</th>
-                <th>체크 시각</th>
+                <th class="sortable" data-key="symbol">심볼</th>
+                <th>상태</th>
+                <th>추천</th>
+                <th class="sortable" data-key="adx">ADX</th>
+                <th class="sortable" data-key="atrp">ATR%</th>
+                <th>EMA50 / EMA200</th>
+                <th>방향</th>
+                <th>근접도(EMA50)</th>
+                <th>격자 제안 (센터±폭, 스텝)</th>
+                <th class="sortable" data-key="vol">24h 거래대금(USDT)</th>
+                <th class="sortable" data-key="score">추천 점수</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
-    <div class="footer-note">
-        데이터: Binance Futures API (USDT Perpetual). 15분봉 최근 300개로 EMA50/EMA200 계산. 진행 중 봉은 제외하고 <b>1·2봉 전</b>으로 판정합니다.
-    </div>
-</div>
+    <div class="foot" id="foot"></div>
+</section>
 
 <script>
-    const FAPI = 'https://fapi.binance.com';
-    const INTERVAL = '15m';
-    const LIMIT = 300;
-    const EMA_50 = 50;
-    const EMA_200 = 200;
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 유틸 / 수학 함수
+    // ─────────────────────────────────────────────────────────────────────────────
+    function sleep(ms) {
+        return new Promise(res => setTimeout(res, ms));
+    }
 
-    const $tbody = document.querySelector('#resultTable tbody');
-    const $scanBtn = document.getElementById('scanBtn');
-    const $status = document.getElementById('status');
-    const $minQuoteVolume = document.getElementById('minQuoteVolume');
-    const $concurrency = document.getElementById('concurrency');
-
-    const fmt0 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
-    const fmt2 = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
-    const pct = (n) => (Number(n) >= 0 ? `<span class="pos">+${fmt2(n)}%</span>` : `<span class="neg">${fmt2(n)}%</span>`);
-
-    function ema(values, period) {
+    function ema(arr, period) {
+        if (arr.length < period) return Array(arr.length).fill(NaN);
         const k = 2 / (period + 1);
-        const out = new Array(values.length).fill(null);
-        let sum = 0;
-        for (let i = 0; i < values.length; i++) {
-            const v = Number(values[i]);
-            if (i < period) {
-                sum += v;
-                if (i === period - 1) out[i] = sum / period;
-            } else {
-                out[i] = v * k + out[i - 1] * (1 - k);
-            }
+        const out = Array(arr.length).fill(NaN);
+        // 초기 SMA로 시드
+        let sma = 0;
+        for (let i = 0; i < period; i++) sma += arr[i];
+        sma /= period;
+        out[period - 1] = sma;
+        for (let i = period; i < arr.length; i++) {
+            out[i] = arr[i] * k + out[i - 1] * (1 - k);
         }
         return out;
     }
 
-    async function pLimitAll(items, limit, worker) {
-        const results = [];
-        let i = 0;
-        const workers = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
-            while (i < items.length) {
-                const cur = i++;
-                try {
-                    results[cur] = await worker(items[cur], cur);
-                } catch (e) {
-                    results[cur] = { error: e };
-                }
-            }
-        });
-        await Promise.all(workers);
-        return results;
+    function trueRange(high, low, closePrev) {
+        const a = high - low;
+        const b = Math.abs(high - closePrev);
+        const c = Math.abs(low - closePrev);
+        return Math.max(a, b, c);
     }
 
-    async function fetchJSON(url) {
+    function atr(high, low, close, period=14) {
+        const out = Array(close.length).fill(NaN);
+        for (let i = 1; i < close.length; i++) {
+            const tr = trueRange(high[i], low[i], close[i-1]);
+            out[i] = tr;
+        }
+        // RMA of TR
+        const rma = Array(close.length).fill(NaN);
+        let sum = 0;
+        let alpha = 1 / period;
+        for (let i = 1; i <= period; i++) sum += out[i] || 0;
+        rma[period] = sum / period;
+        for (let i = period + 1; i < close.length; i++) {
+            rma[i] = (rma[i-1] * (period - 1) + (out[i] || 0)) / period;
+        }
+        return rma;
+    }
+
+    // ADX(14) 간단 구현
+    function adx(high, low, close, period=14) {
+        const len = close.length;
+        const plusDM = Array(len).fill(0);
+        const minusDM = Array(len).fill(0);
+        for (let i = 1; i < len; i++) {
+            const upMove = high[i] - high[i-1];
+            const downMove = low[i-1] - low[i];
+            plusDM[i] = (upMove > downMove && upMove > 0) ? upMove : 0;
+            minusDM[i] = (downMove > upMove && downMove > 0) ? downMove : 0;
+        }
+        // TR (RMA)
+        const trArr = Array(len).fill(0);
+        for (let i = 1; i < len; i++) {
+            trArr[i] = trueRange(high[i], low[i], close[i-1]);
+        }
+        const rma = (arr) => {
+            const out = Array(len).fill(NaN);
+            let sum = 0;
+            for (let i = 1; i <= period; i++) sum += arr[i] || 0;
+            out[period] = sum / period;
+            for (let i = period + 1; i < len; i++) {
+                out[i] = (out[i-1] * (period - 1) + (arr[i] || 0)) / period;
+            }
+            return out;
+        };
+        const trRma = rma(trArr);
+        const pdmRma = rma(plusDM);
+        const mdmRma = rma(minusDM);
+
+        const pDI = Array(len).fill(NaN);
+        const mDI = Array(len).fill(NaN);
+        for (let i = 0; i < len; i++) {
+            pDI[i] = trRma[i] ? (pdmRma[i] / trRma[i]) * 100 : NaN;
+            mDI[i] = trRma[i] ? (mdmRma[i] / trRma[i]) * 100 : NaN;
+        }
+        const dx = Array(len).fill(NaN);
+        for (let i = 0; i < len; i++) {
+            const den = (pDI[i] + mDI[i]);
+            dx[i] = den ? (Math.abs(pDI[i] - mDI[i]) / den) * 100 : NaN;
+        }
+        // ADX = RMA(DX, period)
+        const adxArr = Array(len).fill(NaN);
+        let sum = 0;
+        for (let i = 0; i <= period; i++) sum += (dx[i] || 0);
+        adxArr[period] = sum / (period + 1);
+        for (let i = period + 1; i < len; i++) {
+            adxArr[i] = (adxArr[i-1] * (period - 1) + (dx[i] || 0)) / period;
+        }
+        return { adx: adxArr, pDI, mDI };
+    }
+
+    function percentile(val, base) {
+        return base ? (val / base) * 100.0 : NaN;
+    }
+
+    function formatNum(n, d=2) {
+        if (n === undefined || n === null || isNaN(n)) return '';
+        return Number(n).toFixed(d);
+    }
+
+    function human(n) {
+        if (!isFinite(n)) return '';
+        const abs = Math.abs(n);
+        if (abs >= 1e9) return (n/1e9).toFixed(2) + 'B';
+        if (abs >= 1e6) return (n/1e6).toFixed(2) + 'M';
+        if (abs >= 1e3) return (n/1e3).toFixed(2) + 'K';
+        return String(Math.round(n));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Binance API
+    // ─────────────────────────────────────────────────────────────────────────────
+    const FAPI = "https://fapi.binance.com";
+
+    async function fetchExchangeInfo() {
+        const url = `${FAPI}/fapi/v1/exchangeInfo`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+        if (!res.ok) throw new Error("exchangeInfo error");
         return res.json();
     }
 
-    async function getPerpUSDTTradingSymbols() {
-        const info = await fetchJSON(`${FAPI}/fapi/v1/exchangeInfo`);
-        return info.symbols
-            .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
-            .map(s => s.symbol);
+    async function fetch24hTickers() {
+        const url = `${FAPI}/fapi/v1/ticker/24hr`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("24hr ticker error");
+        return res.json();
     }
 
-    async function get24hTickersMap() {
-        const arr = await fetchJSON(`${FAPI}/fapi/v1/ticker/24hr`);
-        const map = new Map();
-        for (const t of arr) map.set(t.symbol, t);
-        return map;
+    async function fetchKlines(symbol, interval, limit=400) {
+        const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`klines error ${symbol}`);
+        const data = await res.json();
+        // kline: [openTime, open, high, low, close, volume, closeTime, ...]
+        const out = data.map(d => ({
+            t: d[0],
+            o: +d[1],
+            h: +d[2],
+            l: +d[3],
+            c: +d[4],
+            v: +d[5],
+            ct: d[6]
+        }));
+        return out;
     }
 
-    async function getKlines(symbol) {
-        const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${LIMIT}`;
-        const data = await fetchJSON(url);
-        const closes = data.map(k => Number(k[4]));
-        return { closes };
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 스캔 로직
+    // ─────────────────────────────────────────────────────────────────────────────
+    async function getPerpUSDTUniverse(maxSymbols) {
+        const [exInfo, tickers] = await Promise.all([
+            fetchExchangeInfo(),
+            fetch24hTickers()
+        ]);
+
+        const perps = new Set();
+        for (const s of exInfo.symbols) {
+            if (s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING") {
+                perps.add(s.symbol);
+            }
+        }
+
+        // 24h 거래대금으로 정렬 (quoteVolume = USDT 기준)
+        const filtered = tickers
+            .filter(t => perps.has(t.symbol))
+            .map(t => ({
+                symbol: t.symbol,
+                quoteVolume: +t.quoteVolume || 0
+            }))
+            .sort((a, b) => b.quoteVolume - a.quoteVolume);
+
+        return filtered.slice(0, maxSymbols);
     }
 
-    function checkCondition(closes) {
-        if (!closes || closes.length < EMA_200 + 2) return { ok: false };
-        const e50 = ema(closes, EMA_50);
-        const e200 = ema(closes, EMA_200);
-        const n = closes.length;
+    function analyzeSeries(klines, params) {
+        const close = klines.map(k => k.c);
+        const high  = klines.map(k => k.h);
+        const low   = klines.map(k => k.l);
 
-        const c2 = closes[n - 3];
-        const c1 = closes[n - 2];
-        const e50_2 = e50[n - 3];
-        const e50_1 = e50[n - 2];
-        const e200_2 = e200[n - 3];
-        const e200_1 = e200[n - 2];
+        const ema50  = ema(close, 50);
+        const ema200 = ema(close, 200);
 
-        if ([e50_2,e50_1,e200_2,e200_1].some(v => v == null)) return { ok: false };
+        const atrArr = atr(high, low, close, 14);
+        const atrP   = atrArr.map((v, i) => percentile(v, close[i]));
 
-        const cond2 = (c2 > e50_2) && (c2 < e200_2);
-        const cond1 = (c1 > e200_1) && (c1 > e50_1);
-        const ok = cond2 && cond1;
+        const { adx: adxArr, pDI, mDI } = adx(high, low, close, 14);
 
-        return { ok, values: { c2, e50_2, e200_2, c1, e50_1, e200_1 } };
+        const last = klines.length - 1;
+
+        const isUpTrend = ema50[last] > ema200[last];
+        const isDnTrend = ema50[last] < ema200[last];
+
+        const adxVal = adxArr[last];
+        const atrPct = atrP[last];
+
+        // 추세 판단: ADX >= thr 면 추세 / 아니면 횡보
+        const isTrend = adxVal >= params.adxThr;
+
+        // 스윙 근접도: 가격이 EMA50로부터 몇 % 떨어져있는가
+        const nearEmaPct = Math.abs((close[last] - ema50[last]) / ema50[last]) * 100;
+
+        let state = "RANGE";
+        let direction = "-";
+        if (isTrend) {
+            if (isUpTrend) { state = "TREND"; direction = "UP"; }
+            else if (isDnTrend) { state = "TREND"; direction = "DOWN"; }
+            else { state = "TREND"; direction = "FLAT"; }
+        }
+
+        // 추천 전략 & 점수
+        let recommend = "GRID";
+        let score = 0;
+        if (state === "TREND") {
+            recommend = "SWING";
+            // 점수: ADX 가중 + 추세 방향성 + EMA50 근접 보너스(근접할수록 가산)
+            const nearBonus = Math.max(0, (params.nearEmaPct - nearEmaPct)); // 근접하면 +, 멀면 0
+            score = (adxVal || 0) * 1.2 + nearBonus * 2 + (isUpTrend || isDnTrend ? 5 : 0);
+        } else {
+            recommend = "GRID";
+            // 점수: ATR% (변동성) 위주 + ADX 낮을수록 가산
+            const lowAdxBonus = Math.max(0, params.adxThr - (adxVal || 0));
+            score = (atrPct || 0) * 1.0 + lowAdxBonus * 1.5;
+        }
+
+        // 격자 제안: 최근 N봉 고저폭의 일부를 밴드로
+        const N = Math.min(params.gridLookback, klines.length);
+        const slice = klines.slice(-N);
+        const hiN = Math.max(...slice.map(k => k.h));
+        const loN = Math.min(...slice.map(k => k.l));
+        const center = (hiN + loN) / 2;
+        const range = hiN - loN;
+        const band = range * (params.gridBandPct / 100); // 밴드 폭
+        const gridInfo = {
+            center,
+            band,
+            steps: params.gridSteps,
+            lower: center - band/2,
+            upper: center + band/2,
+            stepSize: band / Math.max(1, params.gridSteps)
+        };
+
+        return {
+            state,
+            direction,
+            adx: adxVal,
+            atrp: atrPct,
+            ema50: ema50[last],
+            ema200: ema200[last],
+            nearEmaPct,
+            recommend,
+            score,
+            gridInfo
+        };
     }
 
     function renderRows(rows) {
-        $tbody.innerHTML = '';
-        const now = new Date();
+        const tbody = document.querySelector("#resultTable tbody");
+        tbody.innerHTML = "";
         for (const r of rows) {
-            const tr = document.createElement('tr');
+            const tr = document.createElement("tr");
+            const tagState =
+                r.state === "TREND"
+                    ? (r.direction === "UP" ? '<span class="tag tag-trend-up">TREND↑</span>' :
+                       r.direction === "DOWN" ? '<span class="tag tag-trend-dn">TREND↓</span>' :
+                       '<span class="tag tag-trend-up">TREND</span>')
+                    : '<span class="tag tag-range">RANGE</span>';
+            const tagReco = r.recommend === "SWING"
+                ? '<span class="tag tag-swing">SWING</span>'
+                : '<span class="tag tag-grid">GRID</span>';
+
+            const dirTxt =
+                r.direction === "UP" ? '<span class="pos">UP</span>' :
+                r.direction === "DOWN" ? '<span class="neg">DOWN</span>' : '-';
+
+            const gridTxt = `${formatNum(r.gridInfo.center)} ± ${formatNum(r.gridInfo.band/2)} (${r.gridInfo.steps} steps)`;
+
             tr.innerHTML = `
-                <td><a href="https://www.binance.com/ko/futures/${r.symbol}" target="_blank">${r.symbol}</a></td>
-                <td class="right mono">${r.lastPrice ?? '-'}</td>
-                <td class="right mono">${r.quoteVolume != null ? fmt0(r.quoteVolume) : '-'}</td>
-                <td>${r.priceChangePercent != null ? pct(r.priceChangePercent) : '-'}</td>
-                <td class="small">
-                    <div><span class="badge">2봉 전</span> C=${fmt2(r.check.values.c2)} · EMA50=${fmt2(r.check.values.e50_2)} · EMA200=${fmt2(r.check.values.e200_2)}</div>
-                    <div><span class="badge">1봉 전</span> C=${fmt2(r.check.values.c1)} · EMA50=${fmt2(r.check.values.e50_1)} · EMA200=${fmt2(r.check.values.e200_1)}</div>
-                </td>
-                <td class="small">${now.toLocaleString()}</td>
+                <td>${r.symbol}</td>
+                <td>${tagState}</td>
+                <td>${tagReco}</td>
+                <td>${formatNum(r.adx, 1)}</td>
+                <td>${formatNum(r.atrp, 2)}</td>
+                <td>${formatNum(r.ema50, 4)} / ${formatNum(r.ema200, 4)}</td>
+                <td>${dirTxt}</td>
+                <td>${formatNum(r.nearEmaPct, 2)}%</td>
+                <td>${gridTxt}</td>
+                <td>${human(r.quoteVolume)}</td>
+                <td>${formatNum(r.score, 2)}</td>
             `;
-            $tbody.appendChild(tr);
+            tbody.appendChild(tr);
         }
     }
 
-    async function scan() {
-        try {
-            $scanBtn.disabled = true;
-            $status.textContent = '심볼 수집 중…';
+    function sortRows(rows, key, asc=false) {
+        const mult = asc ? 1 : -1;
+        if (key === "symbol") {
+            rows.sort((a,b) => a.symbol.localeCompare(b.symbol) * (asc ? 1 : -1));
+            return rows;
+        }
+        rows.sort((a,b) => {
+            const av = a[key] ?? -Infinity;
+            const bv = b[key] ?? -Infinity;
+            return (av - bv) * mult;
+        });
+        return rows;
+    }
 
-            const [symbols, tickerMap] = await Promise.all([
-                getPerpUSDTTradingSymbols(),
-                get24hTickersMap()
-            ]);
+    // ─────────────────────────────────────────────────────────────────────────────
+    // 메인 스캔
+    // ─────────────────────────────────────────────────────────────────────────────
+    (function main(){
+        const scanBtn = document.getElementById("scanBtn");
+        const progress = document.getElementById("progress");
+        const stats = document.getElementById("stats");
+        const foot = document.getElementById("foot");
+        const sortSel = document.getElementById("sortBy");
+        const filterSel = document.getElementById("filterMode");
+        let cacheRows = [];
 
-            const minQV = Number($minQuoteVolume.value || 0);
-            const cand = symbols.filter(s => {
-                const t = tickerMap.get(s);
-                return t && Number(t.quoteVolume) >= minQV;
-            });
+        async function runScan() {
+            // 읽기
+            const interval = document.getElementById("interval").value;
+            const limit = Number(document.getElementById("limit").value);
+            const maxSymbols = Number(document.getElementById("maxSymbols").value);
+            const delayMs = Number(document.getElementById("delayMs").value);
+            const adxThr = Number(document.getElementById("adxThr").value);
+            const nearEmaPct = Number(document.getElementById("nearEmaPct").value);
+            const gridLookback = Number(document.getElementById("gridLookback").value);
+            const gridBandPct = Number(document.getElementById("gridBandPct").value);
+            const gridSteps = Number(document.getElementById("gridSteps").value);
 
-            $status.textContent = `총 ${symbols.length}개 중 ${cand.length}개 → EMA 체크 중…`;
+            const params = { adxThr, nearEmaPct, gridLookback, gridBandPct, gridSteps };
 
-            const conc = Math.max(1, Math.min(20, Number($concurrency.value || 8)));
-            const results = await pLimitAll(cand, conc, async (symbol) => {
-                try {
-                    const { closes } = await getKlines(symbol);
-                    const check = checkCondition(closes);
-                    if (!check.ok) return null;
+            scanBtn.disabled = true;
+            progress.textContent = "심볼 목록 수집 중…";
+            stats.textContent = "";
+            foot.textContent = "";
+            cacheRows = [];
+            renderRows(cacheRows);
 
-                    const t = tickerMap.get(symbol) || {};
-                    return {
-                        symbol,
-                        check,
-                        lastPrice: t.lastPrice ? Number(t.lastPrice) : null,
-                        quoteVolume: t.quoteVolume ? Number(t.quoteVolume) : null,
-                        priceChangePercent: t.priceChangePercent ? Number(t.priceChangePercent) : null
-                    };
-                } catch {
-                    return null;
+            try {
+                const universe = await getPerpUSDTUniverse(maxSymbols);
+                progress.textContent = `총 ${universe.length}개 심볼 스캔 중… (인터벌 ${interval}, 캔들 ${limit})`;
+                let done = 0;
+                for (const u of universe) {
+                    try {
+                        const kl = await fetchKlines(u.symbol, interval, limit);
+                        if (kl.length < Math.max(210, limit * 0.5)) {
+                            // 지표 계산에 너무 짧으면 스킵
+                            // (200EMA, ADX 안정화 등을 고려)
+                        }
+                        const res = analyzeSeries(kl, params);
+                        cacheRows.push({
+                            symbol: u.symbol,
+                            quoteVolume: u.quoteVolume,
+                            ...res
+                        });
+                    } catch (e) {
+                        // ignore symbol
+                    }
+                    done++;
+                    if (delayMs > 0) await sleep(delayMs);
+                    if (done % 5 === 0) {
+                        progress.textContent = `진행률: ${done}/${universe.length}`;
+                    }
                 }
-            });
 
-            const matched = results.filter(Boolean);
-            matched.sort((a, b) => (a.quoteVolume || 0) - (b.quoteVolume || 0));
+                // 필터/정렬 적용
+                const filtered = cacheRows.filter(r => {
+                    if (filterSel.value === "swing") return r.recommend === "SWING";
+                    if (filterSel.value === "grid") return r.recommend === "GRID";
+                    return true;
+                });
 
-            renderRows(matched);
-            $status.textContent = `완료: 조건 일치 ${matched.length}개 (거래대금 오름차순)`;
-        } catch (e) {
-            console.error(e);
-            $status.textContent = `에러: ${e.message || e}`;
-        } finally {
-            $scanBtn.disabled = false;
+                const sortKey = sortSel.value;
+                const asc = (sortKey === "symbol");
+                const sorted = sortRows(filtered, sortKey, asc);
+
+                renderRows(sorted);
+
+                const swingCnt = cacheRows.filter(r => r.recommend === "SWING").length;
+                const gridCnt = cacheRows.filter(r => r.recommend === "GRID").length;
+                stats.textContent = `스캔 완료: ${cacheRows.length}개 | SWING: ${swingCnt}개, GRID: ${gridCnt}개`;
+                foot.textContent = `Tip: SWING은 EMA50±${nearEmaPct}% 근접 시 재진입 신호로, GRID는 최근 ${gridLookback}봉 범위를 기준으로 밴드(${gridBandPct}%)·스텝(${gridSteps})을 참고하세요.`;
+                progress.textContent = "";
+
+            } catch (e) {
+                progress.textContent = "오류가 발생했어요. 콘솔을 확인하세요.";
+                console.error(e);
+            } finally {
+                scanBtn.disabled = false;
+            }
         }
-    }
 
-    document.getElementById('scanBtn').addEventListener('click', scan);
+        scanBtn.addEventListener("click", runScan);
+
+        // 헤더 클릭 정렬(보조)
+        document.querySelectorAll("th.sortable").forEach(th => {
+            th.addEventListener("click", () => {
+                const key = th.dataset.key;
+                const asc = (key === "symbol");
+                const filtered = cacheRows.filter(r => {
+                    if (filterSel.value === "swing") return r.recommend === "SWING";
+                    if (filterSel.value === "grid") return r.recommend === "GRID";
+                    return true;
+                });
+                renderRows(sortRows(filtered, key, asc));
+            });
+        });
+    })();
 </script>
 </body>
 </html>
