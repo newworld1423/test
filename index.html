@@ -21,13 +21,13 @@
         .ok { color: #0a7; }
         .warn { color: #b60; }
         .err { color: #c00; }
-        .controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+        .controls { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
         @media (max-width: 900px) { .controls { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
 <body>
     <h1>USDT-PERP 15분봉 — “종가&lt;EMA50 연속 → 종가&gt;EMA50 연속” 스캐너</h1>
-    <div class="muted">현재봉은 자동 제외, 직전 200개 봉으로만 분석합니다.</div>
+    <div class="muted">현재봉은 자동 제외, 직전 200개 봉으로만 분석합니다. 24h 거래량은 USDT 기준(quoteVolume)으로 표기됩니다.</div>
 
     <div class="controls">
         <label>EMA 기간
@@ -50,8 +50,12 @@
                 <option value="aboveDesc">상단 연속 ↓</option>
                 <option value="belowDesc">하단 연속 ↓</option>
                 <option value="recentCrossDesc">최근 교차시간 ↓</option>
+                <option value="volDesc">24h 거래량(USDT) ↓</option>
                 <option value="symbolAsc">심볼 ↑</option>
             </select>
+        </label>
+        <label>거래량 최소(USDT)
+            <input id="minQuoteVol" type="number" value="0" min="0" step="1000000" title="24h quoteVolume USDT 기준 필터">
         </label>
     </div>
 
@@ -74,6 +78,7 @@
                 <th>최근 종가</th>
                 <th>최근 EMA</th>
                 <th>괴리(%)</th>
+                <th>24h 거래량(USDT)</th>
                 <th>데이터(봉)</th>
             </tr>
         </thead>
@@ -87,6 +92,7 @@
     const statusEl = document.getElementById('status');
     let abortFlag = false;
     let lastResults = [];
+    let volMap = new Map(); // symbol -> quoteVolume(USDT)
 
     function log(msg, type = 'info') {
         const prefix = type === 'error' ? '[ERR] ' : type === 'warn' ? '[WARN] ' : '';
@@ -99,9 +105,17 @@
         return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
     }
 
+    function humanUSDT(n) {
+        if (!isFinite(n) || n == null) return '-';
+        const abs = Math.abs(n);
+        if (abs >= 1e9) return (n / 1e9).toFixed(2).replace(/\.00$/, '') + 'B';
+        if (abs >= 1e6) return (n / 1e6).toFixed(2).replace(/\.00$/, '') + 'M';
+        if (abs >= 1e3) return (n / 1e3).toFixed(2).replace(/\.00$/, '') + 'K';
+        return Math.round(n).toString();
+    }
+
     function toKST(ts) {
-        // ts: ms
-        const date = new Date(ts + (9 * 60 * 60 * 1000)); // KST offset
+        const date = new Date(ts + (9 * 60 * 60 * 1000));
         return date.toISOString().replace('T', ' ').replace('.000Z', '');
     }
 
@@ -121,19 +135,35 @@
         return symbols;
     }
 
+    // 한 번에 전체 24h 티커를 받아서 quoteVolume(USDT)을 맵에 저장
+    async function fetch24hAll() {
+        const url = `${FAPI}/fapi/v1/ticker/24hr`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('24hr ticker 요청 실패');
+        const arr = await res.json();
+        const m = new Map();
+        for (const t of arr) {
+            // t.symbol, t.quoteVolume(string)
+            if (t && t.symbol && typeof t.quoteVolume !== 'undefined') {
+                const qv = Number(t.quoteVolume);
+                if (isFinite(qv)) m.set(t.symbol, qv);
+            }
+        }
+        return m;
+    }
+
     async function fetchKlines(symbol, interval = '15m', limit = 230) {
         const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`${symbol} klines 실패`);
         const data = await res.json();
-        return data; // [ [openTime, open, high, low, close, volume, closeTime, ...], ... ]
+        return data;
     }
 
     function computeEMA(closes, period) {
         const ema = new Array(closes.length).fill(null);
         if (closes.length < period) return ema;
 
-        // seed with SMA(period)
         let sum = 0;
         for (let i = 0; i < period; i++) sum += closes[i];
         let prev = sum / period;
@@ -149,11 +179,9 @@
     }
 
     function analyzeRuns(times, closes, ema, minAbove = 1, minBelow = 1) {
-        // 마지막 인덱스 = 현재봉 제외한 가장 최근 봉
         const n = closes.length;
         if (n < 5) return null;
 
-        // 상태: 1(above), -1(below), 0(equal or no ema)
         const state = (i) => {
             if (ema[i] == null) return 0;
             if (closes[i] > ema[i]) return 1;
@@ -162,26 +190,23 @@
         };
 
         let i = n - 1;
-        // 뒤에서부터 동등(0) 스킵
         while (i >= 0 && state(i) === 0) i--;
         if (i < 0) return null;
 
-        // 1) 상단 연속 A
         const lastSign = state(i);
-        if (lastSign !== 1) return null; // 마지막 상태가 상단 연속이어야 함
+        if (lastSign !== 1) return null;
 
         let aboveLen = 0;
         const endAboveIdx = i;
         while (i >= 0 && state(i) === 1) { aboveLen++; i--; }
 
-        // 2) 직전 하단 연속 B
-        while (i >= 0 && state(i) === 0) i--; // 동등 구간 스킵
+        while (i >= 0 && state(i) === 0) i--;
         let belowLen = 0;
         const startBelowIdx = i;
         while (i >= 0 && state(i) === -1) { belowLen++; i--; }
 
         if (aboveLen >= minAbove && belowLen >= minBelow) {
-            const crossIdx = startBelowIdx + 1; // 하단 구간 끝난 직후 = 교차 발생 추정 지점
+            const crossIdx = startBelowIdx + 1;
             return {
                 aboveLen,
                 belowLen,
@@ -193,10 +218,6 @@
             };
         }
         return null;
-    }
-
-    function sleep(ms) {
-        return new Promise(r => setTimeout(r, ms));
     }
 
     async function runWithConcurrency(items, limit, worker) {
@@ -236,12 +257,15 @@
         lastResults = results.filter(Boolean);
         const sortBy = document.getElementById('sortBy').value;
         const arr = [...lastResults];
+
         if (sortBy === 'aboveDesc') {
             arr.sort((a, b) => (b.aboveLen - a.aboveLen) || (b.belowLen - a.belowLen));
         } else if (sortBy === 'belowDesc') {
             arr.sort((a, b) => (b.belowLen - a.belowLen) || (b.aboveLen - a.aboveLen));
         } else if (sortBy === 'recentCrossDesc') {
             arr.sort((a, b) => (b.crossTime - a.crossTime));
+        } else if (sortBy === 'volDesc') {
+            arr.sort((a, b) => ((b.quoteVolume ?? 0) - (a.quoteVolume ?? 0)));
         } else if (sortBy === 'symbolAsc') {
             arr.sort((a, b) => a.symbol.localeCompare(b.symbol));
         }
@@ -257,6 +281,7 @@
                 <td>${fmtNum(r.lastClose, 6)}</td>
                 <td>${fmtNum(r.lastEma, 6)}</td>
                 <td>${fmtNum(r.gapPct, 3)}</td>
+                <td>${humanUSDT(r.quoteVolume)}</td>
                 <td>${r.dataPoints}</td>
             `;
             tableBody.appendChild(tr);
@@ -269,7 +294,7 @@
             alert('내보낼 결과가 없습니다.');
             return;
         }
-        const header = ['symbol','aboveLen','belowLen','crossTime(KST)','lastClose','lastEMA','gapPct','dataPoints'];
+        const header = ['symbol','aboveLen','belowLen','crossTime(KST)','lastClose','lastEMA','gapPct','quoteVolume(USDT)','dataPoints'];
         const lines = [header.join(',')];
         for (const r of lastResults) {
             lines.push([
@@ -280,6 +305,7 @@
                 r.lastClose,
                 r.lastEma,
                 r.gapPct,
+                r.quoteVolume ?? 0,
                 r.dataPoints
             ].join(','));
         }
@@ -298,13 +324,14 @@
         abortFlag = false;
         tableBody.innerHTML = '';
         logEl.textContent = '';
-        statusEl.textContent = '심볼 수집 중...';
+        statusEl.textContent = '심볼/거래량 수집 중...';
 
         const emaPeriod = parseInt(document.getElementById('emaPeriod').value, 10);
         const lookback = parseInt(document.getElementById('lookback').value, 10);
         const minAbove = parseInt(document.getElementById('minAbove').value, 10);
         const minBelow = parseInt(document.getElementById('minBelow').value, 10);
         const concurrency = parseInt(document.getElementById('concurrency').value, 10);
+        const minQuoteVol = parseFloat(document.getElementById('minQuoteVol').value || '0');
 
         if (lookback < emaPeriod + 5) {
             alert('분석 봉 수는 EMA 기간보다 충분히 커야 합니다.');
@@ -312,44 +339,50 @@
         }
 
         try {
+            // 1) 심볼
             const symbols = await fetchUSDTPerpSymbols();
             log(`심볼 ${symbols.length}개 수집 완료`, 'info');
-            statusEl.textContent = `클라인 로딩 중... (총 ${symbols.length}개)`;
 
-            const limit = Math.max(lookback + 20, emaPeriod + 60); // 여유분
-            const worker = async (symbol, i) => {
+            // 2) 24h 거래량(USDT, quoteVolume) 일괄 수집
+            volMap = await fetch24hAll();
+            // 필요한 심볼만 남기기 & 최소 거래량 필터
+            const filtered = symbols.filter(sym => {
+                const qv = volMap.get(sym) ?? 0;
+                return qv >= minQuoteVol;
+            });
+            log(`24h 거래량 필터 통과: ${filtered.length}개 (최소 ${minQuoteVol.toLocaleString()} USDT)`, 'info');
+
+            statusEl.textContent = `클라인 로딩 중... (총 ${filtered.length}개)`;
+            const limit = Math.max(lookback + 20, emaPeriod + 60);
+
+            const worker = async (symbol) => {
                 if (abortFlag) return null;
 
-                // klines 불러오기
                 const raw = await fetchKlines(symbol, '15m', Math.min(1000, limit));
                 if (!Array.isArray(raw) || raw.length < lookback + 1) {
                     log(`${symbol} 데이터 부족(${raw.length})`, 'warn');
                     return null;
                 }
 
-                // 현재봉(마지막 1개) 제외
                 const sliced = raw.slice(0, -1);
-                // 뒤에서 200개만 분석
                 const tail = sliced.slice(-lookback);
 
                 const times = tail.map(k => k[0]);
                 const closes = tail.map(k => Number(k[4]));
-
-                // EMA 계산 (tail 전체 기준)
-                // EMA는 tail 내에서 계산하되, 초기 시드가 부족하지 않도록 tail 길이와 period를 체크
                 const ema = computeEMA(closes, emaPeriod);
 
                 const hit = analyzeRuns(times, closes, ema, minAbove, minBelow);
                 if (hit) {
                     return {
                         symbol,
+                        quoteVolume: volMap.get(symbol) ?? 0,
                         ...hit
                     };
                 }
                 return null;
             };
 
-            const results = await runWithConcurrency(symbols, concurrency, worker);
+            const results = await runWithConcurrency(filtered, concurrency, worker);
             const hits = results.filter(x => x && !x.error);
             const errors = results.filter(x => x && x.error);
 
