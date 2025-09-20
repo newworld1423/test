@@ -2,419 +2,371 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp 1m — 50EMA Scanner</title>
+    <title>Binance USDT-PERP 15m — EMA50 연속성 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-        :root {
-            --gap: 12px;
-            --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-        }
-        body {
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif;
-            line-height: 1.45;
-            margin: 0 auto;
-            padding: 24px;
-            max-width: 1200px;
-        }
-        h1 { margin: 0 0 8px; }
-        .bar {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: var(--gap);
-            margin-bottom: 16px;
-            align-items: end;
-        }
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: var(--gap);
-        }
-        .controls label {
-            display: flex;
-            flex-direction: column;
-            font-size: 14px;
-            gap: 6px;
-        }
-        input[type="number"], select {
-            height: 36px;
-            padding: 0 8px;
-            font-size: 14px;
-        }
-        button {
-            height: 40px;
-            padding: 0 14px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .status {
-            font-family: var(--mono);
-            white-space: pre-wrap;
-            background: #f6f8fa;
-            border: 1px solid #e5e7eb;
-            padding: 10px;
-            border-radius: 6px;
-            min-height: 44px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-            font-variant-numeric: tabular-nums;
-        }
-        thead th {
-            position: sticky;
-            top: 0;
-            background: #fff;
-            border-bottom: 2px solid #e5e7eb;
-            text-align: left;
-            padding: 10px 8px;
-            font-size: 13px;
-        }
-        tbody td {
-            border-bottom: 1px solid #eee;
-            padding: 8px;
-            font-size: 13px;
-        }
-        .right { text-align: right; }
-        .mono  { font-family: var(--mono); }
-        .green { color: #138000; }
-        .red   { color: #b00020; }
-        .muted { color: #6b7280; }
-        .chip {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: #eef2ff;
-            border: 1px solid #dbeafe;
-            font-size: 12px;
-        }
+        :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; }
+        body { margin: 20px; }
+        .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        label { font-size: 14px; }
+        input, select, button { padding: 8px 10px; font-size: 14px; }
+        button { cursor: pointer; }
+        .muted { color: #666; font-size: 13px; }
+        .log { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; border: 1px solid #ddd; padding: 10px; border-radius: 8px; max-height: 180px; overflow: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: right; }
+        th:nth-child(1), td:nth-child(1) { text-align: left; position: sticky; left: 0; background: #fff; }
+        tr:hover { background: #fafafa; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #f1f5f9; font-size: 12px; }
+        .ok { color: #0a7; }
+        .warn { color: #b60; }
+        .err { color: #c00; }
+        .controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+        @media (max-width: 900px) { .controls { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
 <body>
-    <h1>Binance 선물 USDT — 1분봉 50EMA 스캐너</h1>
-    <p class="muted">최근 200개 1분봉에서 <strong>종가 &gt; 50EMA</strong> 인 봉 개수를 세고, 많은 순으로 정렬합니다.</p>
+    <h1>USDT-PERP 15분봉 — “종가&lt;EMA50 연속 → 종가&gt;EMA50 연속” 스캐너</h1>
+    <div class="muted">현재봉은 자동 제외, 직전 200개 봉으로만 분석합니다.</div>
 
-    <div class="bar">
-        <div class="controls">
-            <label>
-                봉 개수 (limit)
-                <input id="limit" type="number" min="60" max="1000" value="200" />
-            </label>
-            <label>
-                EMA 기간
-                <input id="period" type="number" min="2" max="500" value="50" />
-            </label>
-            <label>
-                동시 요청 (concurrency)
-                <input id="concurrency" type="number" min="1" max="20" value="8" />
-            </label>
-            <label>
-                간격(ms, 배치마다)
-                <input id="batchDelay" type="number" min="0" max="5000" value="400" />
-            </label>
-            <label>
-                인터벌
-                <select id="interval">
-                    <option value="1m" selected>1m</option>
-                    <option value="3m">3m</option>
-                    <option value="5m">5m</option>
-                    <option value="15m">15m</option>
-                </select>
-            </label>
-            <div style="align-self:center; display:flex; gap:8px; margin-top: 20px;">
-                <button id="btnScan">스캔 시작</button>
-                <button id="btnStop" disabled>중지</button>
-                <button id="btnExport" disabled>CSV 내보내기</button>
-            </div>
-        </div>
-        <div style="justify-self:end; align-self:center;">
-            <span class="chip" id="chipSymbols">-</span>
-        </div>
+    <div class="controls">
+        <label>EMA 기간
+            <input id="emaPeriod" type="number" value="50" min="2">
+        </label>
+        <label>분석 봉 수
+            <input id="lookback" type="number" value="200" min="50" max="500">
+        </label>
+        <label>최소 ‘상단 연속’(A)
+            <input id="minAbove" type="number" value="1" min="1" max="200">
+        </label>
+        <label>최소 ‘하단 연속’(B)
+            <input id="minBelow" type="number" value="1" min="1" max="200">
+        </label>
+        <label>동시 요청(Throttle)
+            <input id="concurrency" type="number" value="8" min="1" max="20">
+        </label>
+        <label>정렬
+            <select id="sortBy">
+                <option value="aboveDesc">상단 연속 ↓</option>
+                <option value="belowDesc">하단 연속 ↓</option>
+                <option value="recentCrossDesc">최근 교차시간 ↓</option>
+                <option value="symbolAsc">심볼 ↑</option>
+            </select>
+        </label>
     </div>
 
-    <div class="status" id="status">준비됨.</div>
+    <div class="row" style="margin-top:10px;">
+        <button id="scanBtn">스캔 시작</button>
+        <button id="stopBtn">중지</button>
+        <button id="exportBtn">CSV 저장</button>
+        <span id="status" class="badge">대기</span>
+    </div>
+
+    <div class="log" id="log" style="margin-top:10px;"></div>
 
     <table id="resultTable">
         <thead>
             <tr>
-                <th>#</th>
-                <th>Symbol</th>
-                <th class="right">count_above</th>
-                <th class="right">defined_bars</th>
-                <th class="right">pct_above</th>
-                <th class="right">last_close</th>
-                <th class="right">last_ema50</th>
-                <th>last_above</th>
+                <th>심볼</th>
+                <th>상단 연속(A)</th>
+                <th>하단 연속(B)</th>
+                <th>교차시각(KST)</th>
+                <th>최근 종가</th>
+                <th>최근 EMA</th>
+                <th>괴리(%)</th>
+                <th>데이터(봉)</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
 
 <script>
-(function(){
-    "use strict";
+    const FAPI = 'https://fapi.binance.com';
+    const logEl = document.getElementById('log');
+    const tableBody = document.querySelector('#resultTable tbody');
+    const statusEl = document.getElementById('status');
+    let abortFlag = false;
+    let lastResults = [];
 
-    const API_BASE = "https://fapi.binance.com";
-    const $ = (sel) => document.querySelector(sel);
-
-    const els = {
-        limit: $("#limit"),
-        period: $("#period"),
-        concurrency: $("#concurrency"),
-        batchDelay: $("#batchDelay"),
-        interval: $("#interval"),
-        btnScan: $("#btnScan"),
-        btnStop: $("#btnStop"),
-        btnExport: $("#btnExport"),
-        status: $("#status"),
-        tableBody: $("#resultTable tbody"),
-        chipSymbols: $("#chipSymbols"),
-    };
-
-    let stopRequested = false;
-    let results = [];
-
-    function setStatus(text) {
-        els.status.textContent = text;
+    function log(msg, type = 'info') {
+        const prefix = type === 'error' ? '[ERR] ' : type === 'warn' ? '[WARN] ' : '';
+        logEl.textContent += prefix + msg + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function sleep(ms) {
-        return new Promise(res => setTimeout(res, ms));
+    function fmtNum(n, d = 4) {
+        if (!isFinite(n)) return '-';
+        return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
     }
 
-    async function fetchJSON(url, params) {
-        const u = new URL(url);
-        if (params && typeof params === "object") {
-            Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-        }
-        const r = await fetch(u.toString(), { method: "GET" });
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-        return r.json();
+    function toKST(ts) {
+        // ts: ms
+        const date = new Date(ts + (9 * 60 * 60 * 1000)); // KST offset
+        return date.toISOString().replace('T', ' ').replace('.000Z', '');
     }
 
-    async function getUSDTPerpSymbols() {
-        const data = await fetchJSON(`${API_BASE}/fapi/v1/exchangeInfo`);
-        const symbols = (data.symbols || [])
+    async function fetchUSDTPerpSymbols() {
+        const url = `${FAPI}/fapi/v1/exchangeInfo`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('exchangeInfo 요청 실패');
+        const json = await res.json();
+        const symbols = json.symbols
             .filter(s =>
-                s.quoteAsset === "USDT" &&
-                s.contractType === "PERPETUAL" &&
-                s.status === "TRADING"
+                s.quoteAsset === 'USDT' &&
+                s.contractType === 'PERPETUAL' &&
+                s.status === 'TRADING'
             )
             .map(s => s.symbol)
             .sort();
         return symbols;
     }
 
-    async function getKlines1m(symbol, interval, limit) {
-        return fetchJSON(`${API_BASE}/fapi/v1/klines`, {
-            symbol,
-            interval,
-            limit: String(limit)
-        });
+    async function fetchKlines(symbol, interval = '15m', limit = 230) {
+        const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${symbol} klines 실패`);
+        const data = await res.json();
+        return data; // [ [openTime, open, high, low, close, volume, closeTime, ...], ... ]
     }
 
-    function ema(values, period) {
-        const out = new Array(values.length).fill(NaN);
-        if (values.length < period) return out;
+    function computeEMA(closes, period) {
+        const ema = new Array(closes.length).fill(null);
+        if (closes.length < period) return ema;
 
+        // seed with SMA(period)
         let sum = 0;
-        for (let i = 0; i < period; i++) sum += values[i];
-        const sma = sum / period;
-        out[period - 1] = sma;
+        for (let i = 0; i < period; i++) sum += closes[i];
+        let prev = sum / period;
+        ema[period - 1] = prev;
 
         const k = 2 / (period + 1);
-        let prev = sma;
-        for (let i = period; i < values.length; i++) {
-            prev = (values[i] - prev) * k + prev;
-            out[i] = prev;
+        for (let i = period; i < closes.length; i++) {
+            const cur = closes[i] * k + prev * (1 - k);
+            ema[i] = cur;
+            prev = cur;
         }
-        return out;
+        return ema;
     }
 
-    function analyzeSymbol(symbol, klines, period) {
-        const closes = klines.map(k => parseFloat(k[4]));
-        const emaVec = ema(closes, period);
+    function analyzeRuns(times, closes, ema, minAbove = 1, minBelow = 1) {
+        // 마지막 인덱스 = 현재봉 제외한 가장 최근 봉
+        const n = closes.length;
+        if (n < 5) return null;
 
-        let count = 0;
-        let defined = 0;
-        for (let i = 0; i < closes.length; i++) {
-            const e = emaVec[i];
-            if (!Number.isNaN(e)) {
-                defined++;
-                if (closes[i] > e) count++;
-            }
-        }
-        const pct = defined ? (count / defined * 100) : 0;
-        const lastClose = closes[closes.length - 1];
-        const lastEma = emaVec[emaVec.length - 1];
-        const lastAbove = !Number.isNaN(lastEma) ? (lastClose > lastEma) : false;
-
-        return {
-            symbol,
-            count_above: count,
-            defined_bars: defined,
-            pct_above: Number(pct.toFixed(2)),
-            last_close: lastClose,
-            last_ema50: lastEma,
-            last_above: lastAbove
+        // 상태: 1(above), -1(below), 0(equal or no ema)
+        const state = (i) => {
+            if (ema[i] == null) return 0;
+            if (closes[i] > ema[i]) return 1;
+            if (closes[i] < ema[i]) return -1;
+            return 0;
         };
-    }
 
-    function renderTable(rows) {
-        const tbody = els.tableBody;
-        tbody.innerHTML = "";
-        rows.forEach((row, idx) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td class="right mono">${idx + 1}</td>
-                <td class="mono">${row.symbol}</td>
-                <td class="right mono">${row.count_above}</td>
-                <td class="right mono">${row.defined_bars}</td>
-                <td class="right mono">${row.pct_above.toFixed(2)}%</td>
-                <td class="right mono">${row.last_close}</td>
-                <td class="right mono">${Number.isNaN(row.last_ema50) ? "-" : row.last_ema50}</td>
-                <td>${row.last_above ? '<span class="green">▲</span>' : '<span class="red">▼</span>'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
+        let i = n - 1;
+        // 뒤에서부터 동등(0) 스킵
+        while (i >= 0 && state(i) === 0) i--;
+        if (i < 0) return null;
 
-    function sortResults(arr) {
-        return [...arr].sort((a, b) => {
-            if (b.count_above !== a.count_above) return b.count_above - a.count_above;
-            if (b.pct_above !== a.pct_above) return b.pct_above - a.pct_above;
-            return (b.last_above === a.last_above) ? 0 : (b.last_above ? 1 : -1);
-        });
-    }
+        // 1) 상단 연속 A
+        const lastSign = state(i);
+        if (lastSign !== 1) return null; // 마지막 상태가 상단 연속이어야 함
 
-    function chunk(array, size) {
-        const out = [];
-        for (let i = 0; i < array.length; i += size) out.push(array.slice(i, i + size));
-        return out;
-    }
+        let aboveLen = 0;
+        const endAboveIdx = i;
+        while (i >= 0 && state(i) === 1) { aboveLen++; i--; }
 
-    async function scan() {
-        stopRequested = false;
-        results = [];
-        els.btnScan.disabled = true;
-        els.btnStop.disabled = false;
-        els.btnExport.disabled = true;
-        setStatus("심볼 목록 불러오는 중...");
+        // 2) 직전 하단 연속 B
+        while (i >= 0 && state(i) === 0) i--; // 동등 구간 스킵
+        let belowLen = 0;
+        const startBelowIdx = i;
+        while (i >= 0 && state(i) === -1) { belowLen++; i--; }
 
-        try {
-            const symbols = await getUSDTPerpSymbols();
-            els.chipSymbols.textContent = `${symbols.length} symbols`;
-            setStatus(`총 ${symbols.length}개 심볼 스캔 시작`);
-
-            const limit = Math.max(60, Math.min(1000, parseInt(els.limit.value, 10) || 200));
-            const period = Math.max(2, Math.min(500, parseInt(els.period.value, 10) || 50));
-            const interval = els.interval.value;
-            const concurrency = Math.max(1, Math.min(20, parseInt(els.concurrency.value, 10) || 8));
-            const batchDelay = Math.max(0, Math.min(5000, parseInt(els.batchDelay.value, 10) || 400));
-
-            // 배치(동시 요청 제한)
-            const batches = chunk(symbols, concurrency);
-            let done = 0;
-
-            for (let b = 0; b < batches.length; b++) {
-                if (stopRequested) break;
-
-                const tasks = batches[b].map(async (sym) => {
-                    try {
-                        const kl = await getKlines1m(sym, interval, limit);
-                        const row = analyzeSymbol(sym, kl, period);
-                        results.push(row);
-                    } catch (err) {
-                        // 실패 심볼은 건너뜀
-                    } finally {
-                        done++;
-                    }
-                });
-
-                await Promise.all(tasks);
-
-                const sorted = sortResults(results);
-                renderTable(sorted);
-                setStatus(`진행: ${done}/${symbols.length} (배치 ${b + 1}/${batches.length})`);
-
-                if (b < batches.length - 1 && batchDelay > 0) {
-                    await sleep(batchDelay);
-                }
-            }
-
-            const finalSorted = sortResults(results);
-            renderTable(finalSorted);
-            setStatus(stopRequested
-                ? `중지됨. 수집된 ${results.length}개 심볼 결과 정렬 완료`
-                : `완료! ${results.length}개 심볼 스캔 및 정렬 완료`
-            );
-            els.btnExport.disabled = results.length === 0;
-
-        } catch (e) {
-            console.error(e);
-            setStatus(`오류: ${e && e.message ? e.message : e}`);
-        } finally {
-            els.btnScan.disabled = false;
-            els.btnStop.disabled = true;
+        if (aboveLen >= minAbove && belowLen >= minBelow) {
+            const crossIdx = startBelowIdx + 1; // 하단 구간 끝난 직후 = 교차 발생 추정 지점
+            return {
+                aboveLen,
+                belowLen,
+                crossTime: times[crossIdx] ?? times[0],
+                lastClose: closes[endAboveIdx],
+                lastEma: ema[endAboveIdx],
+                gapPct: ((closes[endAboveIdx] - ema[endAboveIdx]) / ema[endAboveIdx]) * 100,
+                dataPoints: n
+            };
         }
+        return null;
     }
 
-    function stop() {
-        stopRequested = true;
-        els.btnStop.disabled = true;
-        setStatus("중지 요청됨… 현재 배치가 끝나면 멈춥니다.");
+    function sleep(ms) {
+        return new Promise(r => setTimeout(r, ms));
     }
 
-    function toCSV(rows) {
-        const headers = [
-            "symbol",
-            "count_above",
-            "defined_bars",
-            "pct_above",
-            "last_close",
-            "last_ema50",
-            "last_above"
-        ];
-        const lines = [headers.join(",")];
-        rows.forEach(r => {
-            const line = [
-                r.symbol,
-                r.count_above,
-                r.defined_bars,
-                r.pct_above,
-                r.last_close,
-                Number.isNaN(r.last_ema50) ? "" : r.last_ema50,
-                r.last_above
-            ].join(",");
-            lines.push(line);
+    async function runWithConcurrency(items, limit, worker) {
+        const results = [];
+        let idx = 0;
+        let active = 0;
+
+        return new Promise((resolve) => {
+            const launchNext = () => {
+                if (abortFlag) return resolve(results);
+                while (active < limit && idx < items.length) {
+                    const curIndex = idx++;
+                    const item = items[curIndex];
+                    active++;
+                    (async () => {
+                        try {
+                            const out = await worker(item, curIndex);
+                            results[curIndex] = out;
+                        } catch (e) {
+                            results[curIndex] = { error: e.message };
+                        } finally {
+                            active--;
+                            if (idx >= items.length && active === 0) {
+                                resolve(results);
+                            } else {
+                                launchNext();
+                            }
+                        }
+                    })();
+                }
+            };
+            launchNext();
         });
-        return lines.join("\n");
+    }
+
+    function render(results) {
+        lastResults = results.filter(Boolean);
+        const sortBy = document.getElementById('sortBy').value;
+        const arr = [...lastResults];
+        if (sortBy === 'aboveDesc') {
+            arr.sort((a, b) => (b.aboveLen - a.aboveLen) || (b.belowLen - a.belowLen));
+        } else if (sortBy === 'belowDesc') {
+            arr.sort((a, b) => (b.belowLen - a.belowLen) || (b.aboveLen - a.aboveLen));
+        } else if (sortBy === 'recentCrossDesc') {
+            arr.sort((a, b) => (b.crossTime - a.crossTime));
+        } else if (sortBy === 'symbolAsc') {
+            arr.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        }
+
+        tableBody.innerHTML = '';
+        for (const r of arr) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${r.symbol}</strong></td>
+                <td>${r.aboveLen}</td>
+                <td>${r.belowLen}</td>
+                <td>${toKST(r.crossTime)}</td>
+                <td>${fmtNum(r.lastClose, 6)}</td>
+                <td>${fmtNum(r.lastEma, 6)}</td>
+                <td>${fmtNum(r.gapPct, 3)}</td>
+                <td>${r.dataPoints}</td>
+            `;
+            tableBody.appendChild(tr);
+        }
+        statusEl.textContent = `결과: ${arr.length}개`;
     }
 
     function exportCSV() {
-        const sorted = sortResults(results);
-        const csv = toCSV(sorted);
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-        const name = `binance_usdt_perp_1m_ema50_scan_${ts}.csv`;
-
+        if (!lastResults.length) {
+            alert('내보낼 결과가 없습니다.');
+            return;
+        }
+        const header = ['symbol','aboveLen','belowLen','crossTime(KST)','lastClose','lastEMA','gapPct','dataPoints'];
+        const lines = [header.join(',')];
+        for (const r of lastResults) {
+            lines.push([
+                r.symbol,
+                r.aboveLen,
+                r.belowLen,
+                toKST(r.crossTime),
+                r.lastClose,
+                r.lastEma,
+                r.gapPct,
+                r.dataPoints
+            ].join(','));
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
-        a.download = name;
+        a.download = 'ema50_sequence_scan.csv';
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
     }
 
-    els.btnScan.addEventListener("click", scan);
-    els.btnStop.addEventListener("click", stop);
-    els.btnExport.addEventListener("click", exportCSV);
+    async function scan() {
+        abortFlag = false;
+        tableBody.innerHTML = '';
+        logEl.textContent = '';
+        statusEl.textContent = '심볼 수집 중...';
 
-    // 최초 상태
-    renderTable([]);
-})();
+        const emaPeriod = parseInt(document.getElementById('emaPeriod').value, 10);
+        const lookback = parseInt(document.getElementById('lookback').value, 10);
+        const minAbove = parseInt(document.getElementById('minAbove').value, 10);
+        const minBelow = parseInt(document.getElementById('minBelow').value, 10);
+        const concurrency = parseInt(document.getElementById('concurrency').value, 10);
+
+        if (lookback < emaPeriod + 5) {
+            alert('분석 봉 수는 EMA 기간보다 충분히 커야 합니다.');
+            return;
+        }
+
+        try {
+            const symbols = await fetchUSDTPerpSymbols();
+            log(`심볼 ${symbols.length}개 수집 완료`, 'info');
+            statusEl.textContent = `클라인 로딩 중... (총 ${symbols.length}개)`;
+
+            const limit = Math.max(lookback + 20, emaPeriod + 60); // 여유분
+            const worker = async (symbol, i) => {
+                if (abortFlag) return null;
+
+                // klines 불러오기
+                const raw = await fetchKlines(symbol, '15m', Math.min(1000, limit));
+                if (!Array.isArray(raw) || raw.length < lookback + 1) {
+                    log(`${symbol} 데이터 부족(${raw.length})`, 'warn');
+                    return null;
+                }
+
+                // 현재봉(마지막 1개) 제외
+                const sliced = raw.slice(0, -1);
+                // 뒤에서 200개만 분석
+                const tail = sliced.slice(-lookback);
+
+                const times = tail.map(k => k[0]);
+                const closes = tail.map(k => Number(k[4]));
+
+                // EMA 계산 (tail 전체 기준)
+                // EMA는 tail 내에서 계산하되, 초기 시드가 부족하지 않도록 tail 길이와 period를 체크
+                const ema = computeEMA(closes, emaPeriod);
+
+                const hit = analyzeRuns(times, closes, ema, minAbove, minBelow);
+                if (hit) {
+                    return {
+                        symbol,
+                        ...hit
+                    };
+                }
+                return null;
+            };
+
+            const results = await runWithConcurrency(symbols, concurrency, worker);
+            const hits = results.filter(x => x && !x.error);
+            const errors = results.filter(x => x && x.error);
+
+            log(`히트: ${hits.length}개`);
+            if (errors.length) log(`오류 발생: ${errors.length}건`, 'warn');
+
+            render(hits);
+        } catch (e) {
+            log(e.message, 'error');
+            statusEl.textContent = '오류';
+        }
+    }
+
+    document.getElementById('scanBtn').addEventListener('click', scan);
+    document.getElementById('stopBtn').addEventListener('click', () => { abortFlag = true; statusEl.textContent = '중지 요청'; });
+    document.getElementById('exportBtn').addEventListener('click', exportCSV);
+    document.getElementById('sortBy').addEventListener('change', () => render(lastResults));
 </script>
 </body>
 </html>
