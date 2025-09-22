@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT-PERP 15m — EMA50 연속성 스캐너</title>
+    <title>Binance USDT-PERP 1분봉 — EMA50 연속성 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; }
@@ -18,32 +18,29 @@
         th:nth-child(1), td:nth-child(1) { text-align: left; position: sticky; left: 0; background: #fff; }
         tr:hover { background: #fafafa; }
         .badge { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #f1f5f9; font-size: 12px; }
-        .ok { color: #0a7; }
-        .warn { color: #b60; }
-        .err { color: #c00; }
         .controls { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
         @media (max-width: 900px) { .controls { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
 <body>
-    <h1>USDT-PERP 15분봉 — “종가&lt;EMA50 연속 → 종가&gt;EMA50 연속” 스캐너</h1>
-    <div class="muted">현재봉은 자동 제외, 직전 200개 봉으로만 분석합니다. 24h 거래량은 USDT 기준(quoteVolume)으로 표기됩니다.</div>
+    <h1>USDT-PERP <strong>1분봉</strong> — “종가&lt;EMA50 연속 → 종가&gt;EMA50 연속” 스캐너</h1>
+    <div class="muted">현재봉은 자동 제외, 직전 200개 봉으로만 분석합니다. 24h 거래량은 USDT 기준(quoteVolume)을 M/B로 축약 표기합니다.</div>
 
     <div class="controls">
         <label>EMA 기간
             <input id="emaPeriod" type="number" value="50" min="2">
         </label>
         <label>분석 봉 수
-            <input id="lookback" type="number" value="200" min="50" max="500">
+            <input id="lookback" type="number" value="200" min="50" max="1000">
         </label>
         <label>최소 ‘상단 연속’(A)
-            <input id="minAbove" type="number" value="1" min="1" max="200">
+            <input id="minAbove" type="number" value="1" min="1" max="500">
         </label>
         <label>최소 ‘하단 연속’(B)
-            <input id="minBelow" type="number" value="1" min="1" max="200">
+            <input id="minBelow" type="number" value="1" min="1" max="500">
         </label>
         <label>동시 요청(Throttle)
-            <input id="concurrency" type="number" value="8" min="1" max="20">
+            <input id="concurrency" type="number" value="6" min="1" max="20">
         </label>
         <label>정렬
             <select id="sortBy">
@@ -87,6 +84,7 @@
 
 <script>
     const FAPI = 'https://fapi.binance.com';
+    const INTERVAL = '1m'; // ✅ 1분봉 고정
     const logEl = document.getElementById('log');
     const tableBody = document.querySelector('#resultTable tbody');
     const statusEl = document.getElementById('status');
@@ -135,7 +133,6 @@
         return symbols;
     }
 
-    // 한 번에 전체 24h 티커를 받아서 quoteVolume(USDT)을 맵에 저장
     async function fetch24hAll() {
         const url = `${FAPI}/fapi/v1/ticker/24hr`;
         const res = await fetch(url);
@@ -143,7 +140,6 @@
         const arr = await res.json();
         const m = new Map();
         for (const t of arr) {
-            // t.symbol, t.quoteVolume(string)
             if (t && t.symbol && typeof t.quoteVolume !== 'undefined') {
                 const qv = Number(t.quoteVolume);
                 if (isFinite(qv)) m.set(t.symbol, qv);
@@ -152,12 +148,11 @@
         return m;
     }
 
-    async function fetchKlines(symbol, interval = '15m', limit = 230) {
+    async function fetchKlines(symbol, interval, limit) {
         const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`${symbol} klines 실패`);
-        const data = await res.json();
-        return data;
+        return res.json();
     }
 
     function computeEMA(closes, period) {
@@ -313,7 +308,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'ema50_sequence_scan.csv';
+        a.download = 'ema50_sequence_scan_1m.csv';
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -339,13 +334,10 @@
         }
 
         try {
-            // 1) 심볼
             const symbols = await fetchUSDTPerpSymbols();
             log(`심볼 ${symbols.length}개 수집 완료`, 'info');
 
-            // 2) 24h 거래량(USDT, quoteVolume) 일괄 수집
             volMap = await fetch24hAll();
-            // 필요한 심볼만 남기기 & 최소 거래량 필터
             const filtered = symbols.filter(sym => {
                 const qv = volMap.get(sym) ?? 0;
                 return qv >= minQuoteVol;
@@ -357,14 +349,12 @@
 
             const worker = async (symbol) => {
                 if (abortFlag) return null;
-
-                const raw = await fetchKlines(symbol, '15m', Math.min(1000, limit));
+                const raw = await fetchKlines(symbol, INTERVAL, Math.min(1000, limit));
                 if (!Array.isArray(raw) || raw.length < lookback + 1) {
                     log(`${symbol} 데이터 부족(${raw.length})`, 'warn');
                     return null;
                 }
-
-                const sliced = raw.slice(0, -1);
+                const sliced = raw.slice(0, -1);     // 현재봉 제외
                 const tail = sliced.slice(-lookback);
 
                 const times = tail.map(k => k[0]);
