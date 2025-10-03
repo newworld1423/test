@@ -58,7 +58,7 @@
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
 
-        <!-- ✅ 정렬 프리셋 -->
+        <!-- 정렬 프리셋 -->
         <div class="control">
             <label>정렬 프리셋</label>
             <select id="sortPreset">
@@ -89,6 +89,8 @@
                 <th>심볼</th>
                 <th>상방연속 개수</th>
                 <th>상방연속 평균 거래대금(Quote)</th>
+                <th>상방연속 시작봉 거래대금(Quote)</th>
+                <th>시작봉 거래대금 vs 평균(%)</th>
                 <th>Δ% (마지막 종료봉 종가-EMA50)</th>
             </tr>
         </thead>
@@ -96,9 +98,9 @@
     </table>
 
     <p class="hint">
-        • “현재봉 제외” 처리: 마지막 진행 중 15분봉은 제외하고 그 이전 데이터만 사용합니다.<br>
-        • 결과 포함 조건: 마지막 종료봉부터 연속 <strong>종가 &gt; EMA50</strong>이 <strong>2개 이상</strong>.<br>
-        • 평균 거래대금(Quote)은 “상방연속으로 잡힌 구간”의 각 캔들 quoteAssetVolume 평균입니다.
+        • 현재 진행 15분봉은 제외하고 이전 데이터만 계산합니다.<br>
+        • 결과 포함: 마지막 종료봉부터 연속 <strong>종가 &gt; EMA50</strong>이 <strong>2개 이상</strong>.<br>
+        • “시작봉”은 현재 상방연속 구간의 첫 번째 봉(연속이 1로 시작된 시점)입니다.
     </p>
 
 <script>
@@ -169,10 +171,11 @@
 
     function toNum(x) { return typeof x === "string" ? parseFloat(x) : x; }
 
-    // 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수 계산 + 그 구간 평균 quote 볼륨 계산
+    // 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수 계산
+    // + 그 구간 평균 Quote, 시작봉 Quote, 시작봉 프리미엄(%)
     function streakFromLastClosed(closes, ema, volsQuote, windowLen) {
         const lastClosed = closes.length - 2; // 현재 진행봉 제외
-        if (lastClosed < 0) return { aboveLen: 0, lastClosed, avgQuote: 0 };
+        if (lastClosed < 0) return { aboveLen: 0, lastClosed, avgQuote: 0, startQuote: 0, startPremiumPct: 0 };
 
         const end = lastClosed;
         const start = Math.max(0, end - windowLen + 1);
@@ -180,7 +183,7 @@
         // EMA null 구간 건너뛰기
         let s = start;
         while (s <= end && (ema[s] == null)) s++;
-        if (s > end) return { aboveLen: 0, lastClosed, avgQuote: 0 };
+        if (s > end) return { aboveLen: 0, lastClosed, avgQuote: 0, startQuote: 0, startPremiumPct: 0 };
 
         let aboveLen = 0;
         let sumQuote = 0;
@@ -189,33 +192,44 @@
                 aboveLen++;
                 sumQuote += volsQuote[i];
             } else {
-                break; // 연속 끊기면 중단
+                break;
             }
         }
-        const avgQuote = aboveLen > 0 ? (sumQuote / aboveLen) : 0;
-        return { aboveLen, lastClosed, avgQuote };
+        if (aboveLen === 0) return { aboveLen: 0, lastClosed, avgQuote: 0, startQuote: 0, startPremiumPct: 0 };
+
+        const startIdx = end - aboveLen + 1; // 상방연속 시작봉 인덱스
+        const avgQuote = sumQuote / aboveLen;
+        const startQuote = volsQuote[startIdx];
+        const startPremiumPct = avgQuote > 0 ? ((startQuote - avgQuote) / avgQuote) * 100 : 0;
+
+        return { aboveLen, lastClosed, avgQuote, startQuote, startPremiumPct };
     }
 
     function buildRow(rec) {
-        const signClass = rec.deltaPct > 0 ? "ok" : (rec.deltaPct < 0 ? "warn" : "neu");
+        const deltaClass = rec.deltaPct > 0 ? "ok" : (rec.deltaPct < 0 ? "warn" : "neu");
+        const premClass = rec.startPremiumPct > 0 ? "ok" : (rec.startPremiumPct < 0 ? "warn" : "neu");
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td><strong>${rec.symbol}</strong></td>
             <td><span class="pill ok">${rec.aboveLen}</span></td>
             <td class="mono">${rec.avgQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-            <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
+            <td class="mono">${rec.startQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td class="mono"><span class="pill ${premClass}">${rec.startPremiumPct.toFixed(2)}%</span></td>
+            <td class="mono"><span class="pill ${deltaClass}">${rec.deltaPct.toFixed(2)}%</span></td>
         `;
         return tr;
     }
 
     function toCSV(rows) {
-        const header = ["symbol","aboveLen","avgQuote","deltaPct"];
+        const header = ["symbol","aboveLen","avgQuote","startQuote","startPremiumPct","deltaPct"];
         const lines = [header.join(",")];
         for (const r of rows) {
             lines.push([
                 r.symbol,
                 r.aboveLen,
                 r.avgQuote,
+                r.startQuote,
+                r.startPremiumPct.toFixed(4),
                 r.deltaPct.toFixed(4)
             ].join(","));
         }
@@ -259,6 +273,7 @@
     }
 
     function render(results) {
+        const tbody = document.querySelector("#resultTable tbody");
         tbody.innerHTML = "";
         for (const r of results) tbody.appendChild(buildRow(r));
     }
@@ -301,15 +316,12 @@
                     const kl = await fetchKlines(symbol, DEFAULT_LIMIT, maxRetries);
                     // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume(base),[6]closeTime,[7]quoteAssetVolume, ...
                     const closes = kl.map(k => toNum(k[4]));
-                    const closeTimes = kl.map(k => k[6]); // (시간은 내부 계산용으로만 사용)
                     const volsQuote = kl.map(k => toNum(k[7]));
-
                     const ema = computeEMA(closes, emaPeriod);
 
-                    // 마지막 종료봉 기준 상방연속 + 평균 거래대금(Quote)
-                    const { aboveLen, lastClosed, avgQuote } = streakFromLastClosed(closes, ema, volsQuote, windowLen);
+                    const { aboveLen, lastClosed, avgQuote, startQuote, startPremiumPct } =
+                        streakFromLastClosed(closes, ema, volsQuote, windowLen);
 
-                    // 조건: 연속 상방 개수 >= 2 (기본)
                     if (aboveLen >= Math.max(2, minAbove)) {
                         const emaLast = ema[lastClosed];
                         if (emaLast == null) throw new Error("EMA 부족");
@@ -322,11 +334,13 @@
                             symbol,
                             aboveLen,
                             avgQuote,
+                            startQuote,
+                            startPremiumPct,
                             deltaPct
                         });
                     }
                 } catch (e) {
-                    /* 심볼 단위 실패는 건너뜀 */
+                    /* 개별 심볼 실패는 패스 */
                 } finally {
                     done++;
                     if (done % concurrency === 0 && delayMs > 0) await sleep(delayMs);
@@ -339,7 +353,6 @@
 
         await Promise.all(workers);
 
-        // ✅ 프리셋 정렬 후 렌더
         lastResults = results;
         const sorted = sortResults(lastResults, sortPresetEl.value);
         render(sorted);
@@ -349,13 +362,12 @@
         exportBtn.onclick = () => {
             const csv = toCSV(sorted);
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-            download(`scan_15m_ema50_aboveStreak_avgQuote_${stamp}.csv`, csv);
+            download(`scan_15m_ema50_aboveStreak_avgQuote_startPremium_${stamp}.csv`, csv);
         };
 
         scanBtn.disabled = false;
     }
 
-    // 프리셋 변경 시 즉시 재정렬
     sortPresetEl.addEventListener("change", () => {
         if (!lastResults.length) return;
         const sorted = sortResults(lastResults, sortPresetEl.value);
