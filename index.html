@@ -35,6 +35,7 @@
         .pill { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
         .ok { background: #d1fae5; color: #065f46; }
         .warn { background: #fee2e2; color: #991b1b; }
+        .neu { background: #e5e7eb; color: #111827; }
         .grid { display: grid; gap: 10px; }
         .hint { font-size: 12px; opacity: .75; }
         .row-actions { display:flex; gap:8px; }
@@ -73,7 +74,7 @@
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
 
-        <!-- ✅ 추가: 정렬 프리셋 -->
+        <!-- 정렬 프리셋(기존과 동일) -->
         <div class="control">
             <label>정렬 프리셋</label>
             <select id="sortPreset">
@@ -81,6 +82,7 @@
                 <option value="belowThenAbove">이전하방연속 ↓ → 이전상방연속 ↓</option>
                 <option value="aboveOnly">이전상방연속 ↓</option>
                 <option value="belowOnly">이전하방연속 ↓</option>
+                <option value="deltaPct">Δ% (종가-EMA50) ↓</option>
                 <option value="crossoverRecent">전환 시작 시간(최근순) ↓</option>
                 <option value="lastCloseRecent">최근 종가 시간(최근순) ↓</option>
                 <option value="symbolAZ">심볼 A→Z</option>
@@ -111,6 +113,7 @@
         <th data-key="crossoverTime">전환 시작(상방 연속 시작) 시간</th>
         <th data-key="belowLen">이전 하방 연속</th>
         <th data-key="aboveLen">이전 상방 연속</th>
+        <th data-key="deltaPct">Δ% (종가-EMA50)</th>
         <th data-key="freshAbove">현재 상방 유지</th>
         <th>동작</th>
     </tr>
@@ -119,9 +122,9 @@
 </table>
 
 <p class="hint">
-    • “현재봉 제외” 처리로 <strong>마지막 미완료 15분봉은 버림</strong> — 분석은 그 이전 봉들로만 수행합니다.<br>
-    • 조건: 윈도우(기본 96개) 내부에서 <strong>연속 하방(종가 &lt; EMA50)</strong> 구간이 있고, 그 <strong>이후</strong>에 <strong>연속 상방(종가 &gt; EMA50)</strong> 구간이 이어진 케이스만 표에 표시합니다.<br>
-    • 연속 최소 길이(하방/상방)는 기본 3개이며, UI에서 조절 가능합니다.
+    • “현재봉 제외” 처리로 <strong>마지막 미완료 15분봉은 제외</strong>하고 분석합니다.<br>
+    • 윈도우(기본 96개) 내부에서 <strong>연속 하방(종가 &lt; EMA50)</strong> 이후 <strong>연속 상방(종가 &gt; EMA50)</strong>이 이어진 심볼만 표시합니다.<br>
+    • Δ%는 “마지막 종료봉” 기준 <strong>((종가 - EMA50)/EMA50)×100</strong> 입니다.
 </p>
 
 <script>
@@ -138,7 +141,7 @@
     const exportBtn = el("exportBtn");
     const sortPresetEl = el("sortPreset");
 
-    let lastResults = []; // ✅ 최신 스캔 결과 보관
+    let lastResults = [];
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -216,6 +219,7 @@
     }
 
     function buildRow(rec) {
+        const signClass = rec.deltaPct > 0 ? 'ok' : (rec.deltaPct < 0 ? 'warn' : 'neu');
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td><strong>${rec.symbol}</strong></td>
@@ -224,6 +228,7 @@
             <td class="mono">${rec.crossoverTime ? formatTs(rec.crossoverTime) : "-"}</td>
             <td><span class="pill warn">${rec.belowLen}</span></td>
             <td><span class="pill ok">${rec.aboveLen}</span></td>
+            <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
             <td>${rec.freshAbove ? '<span class="pill ok">상방 유지</span>' : '<span class="pill warn">깨짐</span>'}</td>
             <td class="row-actions">
                 <a target="_blank" rel="noopener" href="https://www.binance.com/ko/futures/${rec.symbol}">선물 차트</a>
@@ -236,7 +241,7 @@
 
     function toCSV(data) {
         const header = [
-            "symbol","lastCloseTime","lastClose","crossoverTime","belowLen","aboveLen","freshAbove"
+            "symbol","lastCloseTime","lastClose","crossoverTime","belowLen","aboveLen","deltaPct","freshAbove"
         ];
         const lines = [header.join(",")];
         for (const d of data) {
@@ -247,6 +252,7 @@
                 d.crossoverTime ? new Date(d.crossoverTime).toISOString() : "",
                 d.belowLen,
                 d.aboveLen,
+                d.deltaPct.toFixed(4),
                 d.freshAbove ? "1" : "0"
             ].join(","));
         }
@@ -290,7 +296,7 @@
                 data.sort((a, b) => {
                     if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
                     if (b.belowLen !== a.belowLen) return b.belowLen - a.belowLen;
-                    return b.crossoverTime - a.crossoverTime; // 동률시 최신 전환 우선
+                    return b.crossoverTime - a.crossoverTime;
                 });
                 break;
             case "belowThenAbove":
@@ -305,6 +311,9 @@
                 break;
             case "belowOnly":
                 data.sort((a, b) => b.belowLen - a.belowLen || (b.crossoverTime - a.crossoverTime));
+                break;
+            case "deltaPct":
+                data.sort((a, b) => b.deltaPct - a.deltaPct);
                 break;
             case "crossoverRecent":
                 data.sort((a, b) => b.crossoverTime - a.crossoverTime);
@@ -372,14 +381,20 @@
 
                     const analysis = analyzeWindow(closes, ema, windowLen, minBelow, minAbove);
                     if (analysis) {
-                        const freshAbove = closes[lastClosedIdx] > ema[lastClosedIdx];
+                        const emaLast = ema[lastClosedIdx];
+                        if (emaLast == null) throw new Error("EMA 부족");
+                        const lastClose = closes[lastClosedIdx];
+                        const deltaPct = ((lastClose - emaLast) / emaLast) * 100;
+
+                        const freshAbove = lastClose > emaLast;
                         results.push({
                             symbol,
                             lastCloseTime: closeTimes[lastClosedIdx],
-                            lastClose: closes[lastClosedIdx],
+                            lastClose,
                             crossoverTime: closeTimes[analysis.pivot],
                             belowLen: analysis.maxBelowLen,
                             aboveLen: analysis.aboveLen,
+                            deltaPct,
                             freshAbove
                         });
                     }
@@ -399,7 +414,6 @@
 
         await Promise.all(workers);
 
-        // ✅ 스캔 완료 → 프리셋 정렬 후 렌더
         lastResults = results;
         const sorted = sortResults(lastResults, sortPresetEl.value);
         render(sorted);
@@ -415,14 +429,14 @@
         scanBtn.disabled = false;
     }
 
-    // ✅ 프리셋 변경 시 즉시 재정렬/재렌더
+    // 프리셋 변경 시 즉시 재정렬
     sortPresetEl.addEventListener("change", () => {
         if (!lastResults.length) return;
         const sorted = sortResults(lastResults, sortPresetEl.value);
         render(sorted);
     });
 
-    // 헤더 클릭 정렬(수동 정렬도 계속 지원)
+    // 헤더 클릭 정렬
     (function initHeaderSort() {
         const ths = document.querySelectorAll("#resultTable thead th[data-key]");
         let sortKey = "aboveLen";
@@ -435,7 +449,7 @@
                 const rows = Array.from(tbody.querySelectorAll("tr"));
                 const idxMap = {
                     symbol: 0, lastCloseTime: 1, lastClose: 2, crossoverTime: 3,
-                    belowLen: 4, aboveLen: 5, freshAbove: 6
+                    belowLen: 4, aboveLen: 5, deltaPct: 6, freshAbove: 7
                 };
                 const colIdx = idxMap[sortKey] ?? 5;
 
@@ -444,12 +458,18 @@
                     const b = rb.children[colIdx].textContent.trim();
                     let av = a, bv = b;
                     if (colIdx === 1 || colIdx === 3) {
+                        // 날짜
                         av = a === "-" ? 0 : new Date(a).getTime();
                         bv = b === "-" ? 0 : new Date(b).getTime();
                     } else if (colIdx === 2 || colIdx === 4 || colIdx === 5) {
+                        // 숫자
                         av = parseFloat(a.replace(/[,]/g, "")) || 0;
                         bv = parseFloat(b.replace(/[,]/g, "")) || 0;
                     } else if (colIdx === 6) {
+                        // Δ%: "12.34%" → 12.34
+                        av = parseFloat(a.replace(/[%]/g, "")) || 0;
+                        bv = parseFloat(b.replace(/[%]/g, "")) || 0;
+                    } else if (colIdx === 7) {
                         av = a.includes("유지") ? 1 : 0;
                         bv = b.includes("유지") ? 1 : 0;
                     }
