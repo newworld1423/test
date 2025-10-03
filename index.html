@@ -2,94 +2,62 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp — 15m EMA50 연속 전환 스캐너</title>
+    <title>15m EMA50 상방연속 스캐너 (USDT PERP)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { color-scheme: light dark; }
-        body {
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, sans-serif;
-            margin: 0; padding: 24px; line-height: 1.5;
-        }
-        header { display: grid; gap: 12px; margin-bottom: 16px; }
-        .controls {
-            display: grid; gap: 8px;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            align-items: end;
-        }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; margin: 0; padding: 24px; }
+        h1 { margin: 0 0 12px; }
+        .controls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; margin-bottom: 12px; }
         .control { display: grid; gap: 6px; }
-        label { font-size: 14px; opacity: 0.8; }
-        input[type="number"], select { padding: 8px 10px; font-size: 14px; }
-        button {
-            padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        }
-        .primary { background: #4f46e5; color: #fff; }
-        .muted { background: #e5e7eb; color: #111; }
+        label { font-size: 14px; opacity: .8; }
+        input[type="number"] { padding: 8px 10px; font-size: 14px; }
+        button { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; }
+        .primary { background: #4f46e5; color: white; }
+        .muted { background: #e5e7eb; }
+        .status { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; opacity: .85; margin-top: 8px; }
         .bar-wrap { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
         .bar { height: 100%; width: 0%; background: #10b981; transition: width .2s ease; }
-        .status { font-size: 13px; opacity: .8; }
         table { width: 100%; border-collapse: collapse; margin-top: 16px; }
         th, td { padding: 10px; border-bottom: 1px solid rgba(0,0,0,.1); text-align: left; font-size: 14px; }
-        th { cursor: pointer; user-select: none; }
+        th { user-select: none; }
         .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
         .pill { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
         .ok { background: #d1fae5; color: #065f46; }
         .warn { background: #fee2e2; color: #991b1b; }
         .neu { background: #e5e7eb; color: #111827; }
-        .grid { display: grid; gap: 10px; }
-        .hint { font-size: 12px; opacity: .75; }
-        .row-actions { display:flex; gap:8px; }
+        .row-actions { display: flex; gap: 8px; }
+        .hint { font-size: 12px; opacity: .75; margin-top: 10px; }
     </style>
 </head>
 <body>
-<header class="grid">
-    <h1>Binance USDT Perp — 15분봉 EMA50 전환(연속) 스캐너</h1>
+    <h1>15분봉 EMA50 상방연속 스캐너 (USDT PERP)</h1>
+
     <div class="controls">
         <div class="control">
-            <label>연속 하방 구간 최소 캔들 수 (종가 &lt; EMA50)</label>
-            <input id="minBelow" type="number" min="1" value="3" />
+            <label>연속 상방 최소 개수 (기본 2)</label>
+            <input id="minAbove" type="number" min="1" value="2" />
         </div>
         <div class="control">
-            <label>연속 상방 구간 최소 캔들 수 (종가 &gt; EMA50)</label>
-            <input id="minAbove" type="number" min="1" value="3" />
-        </div>
-        <div class="control">
-            <label>스캔 범위(이전 캔들 수, 현재봉 제외)</label>
+            <label>검사 윈도우 (현재봉 제외, 기본 96)</label>
             <input id="windowLen" type="number" min="10" max="200" value="96" />
         </div>
         <div class="control">
-            <label>EMA 기간</label>
+            <label>EMA 기간 (기본 50)</label>
             <input id="emaPeriod" type="number" min="3" max="200" value="50" />
         </div>
         <div class="control">
-            <label>동시 요청 개수 (Concurrency)</label>
+            <label>동시 요청 (기본 6)</label>
             <input id="concurrency" type="number" min="1" max="20" value="6" />
         </div>
         <div class="control">
-            <label>요청 간 딜레이 (ms, 각 배치 간)</label>
+            <label>배치 딜레이(ms, 기본 150)</label>
             <input id="delayMs" type="number" min="0" max="5000" value="150" />
         </div>
         <div class="control">
-            <label>재시도 (429/5xx) 최대 횟수</label>
+            <label>재시도 (429/5xx, 기본 2)</label>
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
-
-        <!-- 정렬 프리셋 -->
-        <div class="control">
-            <label>정렬 프리셋</label>
-            <select id="sortPreset">
-                <option value="aboveThenBelow" selected>이전상방연속 ↓ → 이전하방연속 ↓</option>
-                <option value="belowThenAbove">이전하방연속 ↓ → 이전상방연속 ↓</option>
-                <option value="aboveOnly">이전상방연속 ↓</option>
-                <option value="belowOnly">이전하방연속 ↓</option>
-                <option value="deltaPct">Δ% (종가-EMA50) ↓</option>
-                <option value="volQuote">거래량(Quote) ↓</option>
-                <option value="crossoverRecent">전환 시작 시간(최근순) ↓</option>
-                <option value="lastCloseRecent">최근 종가 시간(최근순) ↓</option>
-                <option value="symbolAZ">심볼 A→Z</option>
-            </select>
-        </div>
-
         <div class="control">
             <label>&nbsp;</label>
             <button id="scanBtn" class="primary">스캔 시작</button>
@@ -99,42 +67,37 @@
             <button id="exportBtn" class="muted" disabled>CSV 내보내기</button>
         </div>
     </div>
-    <div class="grid">
-        <div class="bar-wrap"><div id="bar" class="bar"></div></div>
-        <div class="status mono" id="status">준비됨</div>
-    </div>
-</header>
 
-<table id="resultTable">
-    <thead>
-    <tr>
-        <th data-key="symbol">심볼</th>
-        <th data-key="lastCloseTime">최근 종가(종료봉) 시간</th>
-        <th data-key="lastClose">최근 종가</th>
-        <th data-key="crossoverTime">전환 시작(상방 연속 시작) 시간</th>
-        <th data-key="belowLen">이전 하방 연속</th>
-        <th data-key="aboveLen">이전 상방 연속</th>
-        <th data-key="deltaPct">Δ% (종가-EMA50)</th>
-        <th data-key="volBase">종료봉 거래량(Base)</th>
-        <th data-key="volQuote">종료봉 거래량(Quote)</th>
-        <th data-key="freshAbove">현재 상방 유지</th>
-        <th>동작</th>
-    </tr>
-    </thead>
-    <tbody></tbody>
-</table>
+    <div class="bar-wrap"><div id="bar" class="bar"></div></div>
+    <div id="status" class="status">준비됨</div>
 
-<p class="hint">
-    • “현재봉 제외” 처리로 <strong>마지막 미완료 15분봉은 제외</strong>하고 분석합니다.<br>
-    • 윈도우(기본 96개) 내부에서 <strong>연속 하방(종가 &lt; EMA50)</strong> 이후 <strong>연속 상방(종가 &gt; EMA50)</strong>이 이어진 심볼만 표시합니다.<br>
-    • Δ%는 “마지막 종료봉” 기준 <strong>((종가 - EMA50)/EMA50)×100</strong>, 거래량은 같은 종료봉의 <strong>base/quote</strong>를 표기합니다.
-</p>
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th>심볼</th>
+                <th>마지막 종료봉 시간</th>
+                <th>마지막 종가</th>
+                <th>상방연속 개수</th>
+                <th>거래량(Base)</th>
+                <th>거래대금(Quote)</th>
+                <th>Δ% (종가-EMA50)</th>
+                <th>링크</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <p class="hint">
+        • “현재봉 제외” 처리: 마지막 진행 중 15분봉은 제외하고 그 이전 데이터만 사용합니다.<br>
+        • 결과 포함 조건: 마지막 종료봉부터 연속 <strong>종가 &gt; EMA50</strong>이 <strong>2개 이상</strong>.<br>
+        • 정렬: <strong>상방연속 개수 ↓ → 거래대금(Quote) ↓ → Δ%(종가-EMA50) ↓</strong>.
+    </p>
 
 <script>
     const EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo";
     const KLINES_URL = "https://fapi.binance.com/fapi/v1/klines";
     const INTERVAL = "15m";
-    const DEFAULT_LIMIT = 200;
+    const DEFAULT_LIMIT = 200; // EMA 워밍업 + 96 윈도우
 
     const el = (id) => document.getElementById(id);
     const statusEl = el("status");
@@ -142,149 +105,29 @@
     const tbody = document.querySelector("#resultTable tbody");
     const scanBtn = el("scanBtn");
     const exportBtn = el("exportBtn");
-    const sortPresetEl = el("sortPreset");
-
-    let lastResults = [];
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     async function fetchJsonWithRetry(url, maxRetries, attempt = 0) {
         try {
-            const res = await fetch(url, { method: "GET" });
+            const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return await res.json();
-        } catch (err) {
+        } catch (e) {
             if (attempt < maxRetries) {
                 const backoff = 400 * Math.pow(2, attempt);
                 await sleep(backoff);
                 return fetchJsonWithRetry(url, maxRetries, attempt + 1);
             }
-            throw err;
+            throw e;
         }
-    }
-
-    function computeEMA(values, period) {
-        const k = 2 / (period + 1);
-        const ema = new Array(values.length).fill(null);
-        if (values.length < period) return ema;
-        let sum = 0;
-        for (let i = 0; i < period; i++) sum += values[i];
-        let prev = sum / period;
-        ema[period - 1] = prev;
-        for (let i = period; i < values.length; i++) {
-            const v = values[i];
-            const next = v * k + prev * (1 - k);
-            ema[i] = next;
-            prev = next;
-        }
-        return ema;
-    }
-
-    function formatTs(ms) {
-        const d = new Date(ms);
-        return d.toLocaleString("ko-KR", { hour12: false });
-    }
-
-    function toNumber(x) { return typeof x === "string" ? parseFloat(x) : x; }
-
-    function analyzeWindow(closes, ema, windowLen, minBelow, minAbove) {
-        const lastClosed = closes.length - 2;
-        if (lastClosed < 1) return null;
-
-        const end = lastClosed;
-        const start = Math.max(0, end - windowLen + 1);
-
-        const isAbove = (i) => closes[i] > ema[i];
-        const isBelow = (i) => closes[i] < ema[i];
-
-        let i = start;
-        while (i <= end && (ema[i] == null)) i++;
-        if (i > end) return null;
-
-        for (let pivot = i; pivot <= end; pivot++) {
-            if (!isAbove(pivot)) continue;
-
-            let belowRunMax = 0, cur = 0;
-            for (let j = i; j < pivot; j++) {
-                if (isBelow(j)) { cur++; belowRunMax = Math.max(belowRunMax, cur); }
-                else cur = 0;
-            }
-            if (belowRunMax < minBelow) continue;
-
-            let aboveLen = 0;
-            let k = pivot;
-            while (k <= end && isAbove(k)) { aboveLen++; k++; }
-            if (aboveLen < minAbove) continue;
-
-            return { pivot, aboveLen, maxBelowLen: belowRunMax };
-        }
-        return null;
-    }
-
-    function buildRow(rec) {
-        const signClass = rec.deltaPct > 0 ? 'ok' : (rec.deltaPct < 0 ? 'warn' : 'neu');
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td><strong>${rec.symbol}</strong></td>
-            <td class="mono">${formatTs(rec.lastCloseTime)}</td>
-            <td class="mono">${rec.lastClose.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-            <td class="mono">${rec.crossoverTime ? formatTs(rec.crossoverTime) : "-"}</td>
-            <td><span class="pill warn">${rec.belowLen}</span></td>
-            <td><span class="pill ok">${rec.aboveLen}</span></td>
-            <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
-            <td class="mono">${rec.volBase.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-            <td class="mono">${rec.volQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-            <td>${rec.freshAbove ? '<span class="pill ok">상방 유지</span>' : '<span class="pill warn">깨짐</span>'}</td>
-            <td class="row-actions">
-                <a target="_blank" rel="noopener" href="https://www.binance.com/ko/futures/${rec.symbol}">선물 차트</a>
-                <a target="_blank" rel="noopener" href="https://www.tradingview.com/chart/?symbol=BINANCE%3A${rec.symbol.replace('USDT','USDT.P')}"
-                   title="TradingView: BINANCE perpetual 표기 주의">TV</a>
-            </td>
-        `;
-        return tr;
-    }
-
-    function toCSV(data) {
-        const header = [
-            "symbol","lastCloseTime","lastClose","crossoverTime",
-            "belowLen","aboveLen","deltaPct","volBase","volQuote","freshAbove"
-        ];
-        const lines = [header.join(",")];
-        for (const d of data) {
-            lines.push([
-                d.symbol,
-                new Date(d.lastCloseTime).toISOString(),
-                d.lastClose,
-                d.crossoverTime ? new Date(d.crossoverTime).toISOString() : "",
-                d.belowLen,
-                d.aboveLen,
-                d.deltaPct.toFixed(4),
-                d.volBase,
-                d.volQuote,
-                d.freshAbove ? "1" : "0"
-            ].join(","));
-        }
-        return lines.join("\n");
-    }
-
-    function downloadText(filename, text) {
-        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
     }
 
     async function loadSymbols(maxRetries) {
         const data = await fetchJsonWithRetry(EXCHANGE_INFO_URL, maxRetries);
         const out = [];
         for (const s of data.symbols) {
-            if (
-                s.quoteAsset === "USDT" &&
-                s.contractType === "PERPETUAL" &&
-                s.status === "TRADING" &&
-                !s.pair?.endsWith("_NEXTQUARTER")
-            ) {
+            if (s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING") {
                 out.push(s.symbol);
             }
         }
@@ -297,75 +140,113 @@
         return fetchJsonWithRetry(url, maxRetries);
     }
 
-    function sortResults(results, preset) {
-        const data = [...results];
-        switch (preset) {
-            case "aboveThenBelow":
-                data.sort((a, b) => {
-                    if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
-                    if (b.belowLen !== a.belowLen) return b.belowLen - a.belowLen;
-                    return b.crossoverTime - a.crossoverTime;
-                });
-                break;
-            case "belowThenAbove":
-                data.sort((a, b) => {
-                    if (b.belowLen !== a.belowLen) return b.belowLen - a.belowLen;
-                    if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
-                    return b.crossoverTime - a.crossoverTime;
-                });
-                break;
-            case "aboveOnly":
-                data.sort((a, b) => b.aboveLen - a.aboveLen || (b.crossoverTime - a.crossoverTime));
-                break;
-            case "belowOnly":
-                data.sort((a, b) => b.belowLen - a.belowLen || (b.crossoverTime - a.crossoverTime));
-                break;
-            case "deltaPct":
-                data.sort((a, b) => b.deltaPct - a.deltaPct);
-                break;
-            case "volQuote":
-                data.sort((a, b) => b.volQuote - a.volQuote);
-                break;
-            case "crossoverRecent":
-                data.sort((a, b) => b.crossoverTime - a.crossoverTime);
-                break;
-            case "lastCloseRecent":
-                data.sort((a, b) => b.lastCloseTime - a.lastCloseTime);
-                break;
-            case "symbolAZ":
-                data.sort((a, b) => a.symbol.localeCompare(b.symbol));
-                break;
-            default:
-                break;
+    function computeEMA(values, period) {
+        const k = 2 / (period + 1);
+        const ema = new Array(values.length).fill(null);
+        if (values.length < period) return ema;
+        let sum = 0;
+        for (let i = 0; i < period; i++) sum += values[i];
+        let prev = sum / period;
+        ema[period - 1] = prev;
+        for (let i = period; i < values.length; i++) {
+            const next = values[i] * k + prev * (1 - k);
+            ema[i] = next;
+            prev = next;
         }
-        return data;
+        return ema;
     }
 
-    function render(results) {
-        tbody.innerHTML = "";
-        for (const r of results) tbody.appendChild(buildRow(r));
+    function fmtTs(ms) {
+        return new Date(ms).toLocaleString("ko-KR", { hour12: false });
+    }
+
+    function toNum(x) { return typeof x === "string" ? parseFloat(x) : x; }
+
+    // ✅ 핵심: 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수만 계산
+    function countAboveFromLastClosed(closes, ema, windowLen) {
+        const lastClosed = closes.length - 2; // 현재 진행봉 제외
+        if (lastClosed < 0) return { aboveLen: 0, lastClosed };
+        const end = lastClosed;
+        const start = Math.max(0, end - windowLen + 1);
+
+        // EMA가 null인 구간 지나치기
+        let s = start;
+        while (s <= end && (ema[s] == null)) s++;
+        if (s > end) return { aboveLen: 0, lastClosed };
+
+        let aboveLen = 0;
+        for (let i = end; i >= s; i--) {
+            if (closes[i] > ema[i]) {
+                aboveLen++;
+            } else {
+                break; // 연속이 끊기면 종료
+            }
+        }
+        return { aboveLen, lastClosed };
+    }
+
+    function buildRow(rec) {
+        const signClass = rec.deltaPct > 0 ? "ok" : (rec.deltaPct < 0 ? "warn" : "neu");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><strong>${rec.symbol}</strong></td>
+            <td class="mono">${fmtTs(rec.lastCloseTime)}</td>
+            <td class="mono">${rec.lastClose.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+            <td><span class="pill ok">${rec.aboveLen}</span></td>
+            <td class="mono">${rec.volBase.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+            <td class="mono">${rec.volQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
+            <td class="row-actions">
+                <a target="_blank" rel="noopener" href="https://www.binance.com/ko/futures/${rec.symbol}">선물</a>
+                <a target="_blank" rel="noopener" href="https://www.tradingview.com/chart/?symbol=BINANCE%3A${rec.symbol.replace('USDT','USDT.P')}">TV</a>
+            </td>
+        `;
+        return tr;
+    }
+
+    function toCSV(rows) {
+        const header = ["symbol","lastCloseTime","lastClose","aboveLen","volBase","volQuote","deltaPct"];
+        const lines = [header.join(",")];
+        for (const r of rows) {
+            lines.push([
+                r.symbol,
+                new Date(r.lastCloseTime).toISOString(),
+                r.lastClose,
+                r.aboveLen,
+                r.volBase,
+                r.volQuote,
+                r.deltaPct.toFixed(4)
+            ].join(","));
+        }
+        return lines.join("\n");
+    }
+
+    function download(filename, text) {
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
     }
 
     async function scanAll() {
         scanBtn.disabled = true;
         exportBtn.disabled = true;
         tbody.innerHTML = "";
-        lastResults = [];
 
-        const minBelow = Math.max(1, parseInt(el("minBelow").value, 10));
-        const minAbove = Math.max(1, parseInt(el("minAbove").value, 10));
-        const windowLen = Math.min(200, Math.max(10, parseInt(el("windowLen").value, 10)));
-        const emaPeriod = Math.min(200, Math.max(3, parseInt(el("emaPeriod").value, 10)));
+        const minAbove = Math.max(1, parseInt(el("minAbove").value, 10)); // 기본 2
+        const windowLen = Math.min(200, Math.max(10, parseInt(el("windowLen").value, 10))); // 기본 96
+        const emaPeriod = Math.min(200, Math.max(3, parseInt(el("emaPeriod").value, 10)));  // 기본 50
         const concurrency = Math.min(20, Math.max(1, parseInt(el("concurrency").value, 10)));
         const delayMs = Math.min(5000, Math.max(0, parseInt(el("delayMs").value, 10)));
         const maxRetries = Math.min(5, Math.max(0, parseInt(el("maxRetries").value, 10)));
 
-        statusEl.textContent = "심볼 목록 불러오는 중…";
-        let symbols;
+        statusEl.textContent = "심볼 목록 로드 중…";
+        let symbols = [];
         try {
             symbols = await loadSymbols(maxRetries);
         } catch (e) {
-            statusEl.textContent = `심볼 로드 실패: ${e.message}`;
+            statusEl.textContent = "심볼 로드 실패: " + e.message;
             scanBtn.disabled = false;
             return;
         }
@@ -374,7 +255,7 @@
         let done = 0;
         const results = [];
 
-        statusEl.textContent = `총 ${total}개 USDT PERP 심볼 스캔 시작`;
+        statusEl.textContent = `총 ${total}개 심볼 스캔 시작`;
         barEl.style.width = "0%";
 
         const queue = [...symbols];
@@ -383,45 +264,43 @@
                 const symbol = queue.shift();
                 try {
                     const kl = await fetchKlines(symbol, DEFAULT_LIMIT, maxRetries);
-                    // kline: [0]openTime, [1]open, [2]high, [3]low, [4]close, [5]volume(base),
-                    //        [6]closeTime, [7]quoteAssetVolume(USDT), ...
-                    const closes = kl.map(k => toNumber(k[4]));
-                    const volsBase = kl.map(k => toNumber(k[5]));
+                    // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume(base),[6]closeTime,[7]quoteAssetVolume, ...
+                    const closes = kl.map(k => toNum(k[4]));
+                    const volsBase = kl.map(k => toNum(k[5]));
                     const closeTimes = kl.map(k => k[6]);
-                    const volsQuote = kl.map(k => toNumber(k[7]));
+                    const volsQuote = kl.map(k => toNum(k[7]));
 
                     const ema = computeEMA(closes, emaPeriod);
-                    const lastClosedIdx = closes.length - 2; // 현재 진행봉 제외
-                    if (lastClosedIdx < 0) throw new Error("캔들이 부족");
 
-                    const analysis = analyzeWindow(closes, ema, windowLen, minBelow, minAbove);
-                    if (analysis) {
-                        const emaLast = ema[lastClosedIdx];
+                    // 마지막 종료봉 인덱스
+                    const { aboveLen, lastClosed } = countAboveFromLastClosed(closes, ema, windowLen);
+
+                    // 조건: 연속 상방 개수 >= 2 (기본)
+                    if (aboveLen >= Math.max(2, minAbove)) {
+                        const emaLast = ema[lastClosed];
                         if (emaLast == null) throw new Error("EMA 부족");
-                        const lastClose = closes[lastClosedIdx];
+                        const lastClose = closes[lastClosed];
+
+                        // 안전차단: 반드시 위에 있어야 함
+                        if (!(lastClose > emaLast)) throw new Error("상방 불충족");
+
                         const deltaPct = ((lastClose - emaLast) / emaLast) * 100;
 
-                        const freshAbove = lastClose > emaLast;
                         results.push({
                             symbol,
-                            lastCloseTime: closeTimes[lastClosedIdx],
+                            lastCloseTime: closeTimes[lastClosed],
                             lastClose,
-                            crossoverTime: closeTimes[analysis.pivot],
-                            belowLen: analysis.maxBelowLen,
-                            aboveLen: analysis.aboveLen,
-                            deltaPct,
-                            volBase: volsBase[lastClosedIdx],
-                            volQuote: volsQuote[lastClosedIdx],
-                            freshAbove
+                            aboveLen,
+                            volBase: volsBase[lastClosed],
+                            volQuote: volsQuote[lastClosed],
+                            deltaPct
                         });
                     }
-                } catch (err) {
-                    /* 개별 심볼 실패는 건너뜀 */
+                } catch (e) {
+                    // 심볼 단위 실패는 무시
                 } finally {
                     done++;
-                    if (done % concurrency === 0 && delayMs > 0) {
-                        await sleep(delayMs);
-                    }
+                    if (done % concurrency === 0 && delayMs > 0) await sleep(delayMs);
                     const pct = Math.round((done / total) * 100);
                     barEl.style.width = pct + "%";
                     statusEl.textContent = `스캔 진행: ${done}/${total} (${pct}%)`;
@@ -431,72 +310,25 @@
 
         await Promise.all(workers);
 
-        lastResults = results;
-        const sorted = sortResults(lastResults, sortPresetEl.value);
-        render(sorted);
+        // ✅ 정렬: 상방연속 ↓ → 거래대금(Quote) ↓ → Δ% ↓
+        results.sort((a, b) => {
+            if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
+            if (b.volQuote !== a.volQuote) return b.volQuote - a.volQuote;
+            return b.deltaPct - a.deltaPct;
+        });
 
-        statusEl.textContent = `완료: ${results.length}개 심볼이 조건을 만족 (${total}개 중)`;
+        for (const r of results) tbody.appendChild(buildRow(r));
+
+        statusEl.textContent = `완료: ${results.length}개 심볼이 조건 충족 (${total}개 중)`;
         exportBtn.disabled = results.length === 0;
         exportBtn.onclick = () => {
-            const csv = toCSV(sorted);
+            const csv = toCSV(results);
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-            downloadText(`scan_15m_ema50_${stamp}.csv`, csv);
+            download(`scan_15m_ema50_aboveStreak_${stamp}.csv`, csv);
         };
 
         scanBtn.disabled = false;
     }
-
-    // 프리셋 변경 시 즉시 재정렬
-    sortPresetEl.addEventListener("change", () => {
-        if (!lastResults.length) return;
-        const sorted = sortResults(lastResults, sortPresetEl.value);
-        render(sorted);
-    });
-
-    // 헤더 클릭 정렬
-    (function initHeaderSort() {
-        const ths = document.querySelectorAll("#resultTable thead th[data-key]");
-        let sortKey = "aboveLen";
-        let asc = false;
-        ths.forEach(th => {
-            th.addEventListener("click", () => {
-                const key = th.getAttribute("data-key");
-                if (sortKey === key) asc = !asc; else { sortKey = key; asc = false; }
-
-                const rows = Array.from(tbody.querySelectorAll("tr"));
-                const idxMap = {
-                    symbol: 0, lastCloseTime: 1, lastClose: 2, crossoverTime: 3,
-                    belowLen: 4, aboveLen: 5, deltaPct: 6, volBase: 7, volQuote: 8, freshAbove: 9
-                };
-                const colIdx = idxMap[sortKey] ?? 5;
-
-                rows.sort((ra, rb) => {
-                    const a = ra.children[colIdx].textContent.trim();
-                    const b = rb.children[colIdx].textContent.trim();
-                    let av = a, bv = b;
-                    if (colIdx === 1 || colIdx === 3) {
-                        av = a === "-" ? 0 : new Date(a).getTime();
-                        bv = b === "-" ? 0 : new Date(b).getTime();
-                    } else if (colIdx === 2 || colIdx === 4 || colIdx === 5) {
-                        av = parseFloat(a.replace(/[,]/g, "")) || 0;
-                        bv = parseFloat(b.replace(/[,]/g, "")) || 0;
-                    } else if (colIdx === 6) {
-                        av = parseFloat(a.replace(/[%]/g, "")) || 0; // Δ%
-                        bv = parseFloat(b.replace(/[%]/g, "")) || 0;
-                    } else if (colIdx === 7 || colIdx === 8) {
-                        av = parseFloat(a.replace(/[,]/g, "")) || 0; // volume
-                        bv = parseFloat(b.replace(/[,]/g, "")) || 0;
-                    } else if (colIdx === 9) {
-                        av = a.includes("유지") ? 1 : 0;
-                        bv = b.includes("유지") ? 1 : 0;
-                    }
-                    return asc ? (av > bv ? 1 : av < bv ? -1 : 0) : (av < bv ? 1 : av > bv ? -1 : 0);
-                });
-                tbody.innerHTML = "";
-                rows.forEach(r => tbody.appendChild(r));
-            });
-        });
-    }());
 
     el("scanBtn").addEventListener("click", scanAll);
 </script>
