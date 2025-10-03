@@ -18,7 +18,7 @@
         }
         .control { display: grid; gap: 6px; }
         label { font-size: 14px; opacity: 0.8; }
-        input[type="number"] { padding: 8px 10px; font-size: 14px; }
+        input[type="number"], select { padding: 8px 10px; font-size: 14px; }
         button {
             padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer;
             box-shadow: 0 2px 10px rgba(0,0,0,0.08);
@@ -72,6 +72,21 @@
             <label>재시도 (429/5xx) 최대 횟수</label>
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
+
+        <!-- ✅ 추가: 정렬 프리셋 -->
+        <div class="control">
+            <label>정렬 프리셋</label>
+            <select id="sortPreset">
+                <option value="aboveThenBelow" selected>이전상방연속 ↓ → 이전하방연속 ↓</option>
+                <option value="belowThenAbove">이전하방연속 ↓ → 이전상방연속 ↓</option>
+                <option value="aboveOnly">이전상방연속 ↓</option>
+                <option value="belowOnly">이전하방연속 ↓</option>
+                <option value="crossoverRecent">전환 시작 시간(최근순) ↓</option>
+                <option value="lastCloseRecent">최근 종가 시간(최근순) ↓</option>
+                <option value="symbolAZ">심볼 A→Z</option>
+            </select>
+        </div>
+
         <div class="control">
             <label>&nbsp;</label>
             <button id="scanBtn" class="primary">스캔 시작</button>
@@ -95,7 +110,7 @@
         <th data-key="lastClose">최근 종가</th>
         <th data-key="crossoverTime">전환 시작(상방 연속 시작) 시간</th>
         <th data-key="belowLen">이전 하방 연속</th>
-        <th data-key="aboveLen">이후 상방 연속</th>
+        <th data-key="aboveLen">이전 상방 연속</th>
         <th data-key="freshAbove">현재 상방 유지</th>
         <th>동작</th>
     </tr>
@@ -112,8 +127,8 @@
 <script>
     const EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo";
     const KLINES_URL = "https://fapi.binance.com/fapi/v1/klines";
-    const INTERVAL = "15m"; // 고정
-    const DEFAULT_LIMIT = 200; // EMA 워밍업 + 윈도우 확보용
+    const INTERVAL = "15m";
+    const DEFAULT_LIMIT = 200;
 
     const el = (id) => document.getElementById(id);
     const statusEl = el("status");
@@ -121,6 +136,9 @@
     const tbody = document.querySelector("#resultTable tbody");
     const scanBtn = el("scanBtn");
     const exportBtn = el("exportBtn");
+    const sortPresetEl = el("sortPreset");
+
+    let lastResults = []; // ✅ 최신 스캔 결과 보관
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -140,10 +158,8 @@
     }
 
     function computeEMA(values, period) {
-        // values: number[]
         const k = 2 / (period + 1);
         const ema = new Array(values.length).fill(null);
-        // 첫 SMA로 시작
         if (values.length < period) return ema;
         let sum = 0;
         for (let i = 0; i < period; i++) sum += values[i];
@@ -160,42 +176,28 @@
 
     function formatTs(ms) {
         const d = new Date(ms);
-        // 한국 시간대 가독 출력
         return d.toLocaleString("ko-KR", { hour12: false });
-        // 참고: Binance 타임스탬프는 UTC 기준 밀리초
     }
 
     function toNumber(x) { return typeof x === "string" ? parseFloat(x) : x; }
 
     function analyzeWindow(closes, ema, windowLen, minBelow, minAbove) {
-        // 마지막 요소는 "현재 진행 봉"일 수 있으므로 제외: lastIndex = closes.length - 2
         const lastClosed = closes.length - 2;
         if (lastClosed < 1) return null;
 
-        // 윈도우 시작/끝 인덱스 (둘 다 포함)
         const end = lastClosed;
         const start = Math.max(0, end - windowLen + 1);
 
-        // closes[start..end], ema[start..end] 대상으로 탐색
-        // 목표: start..end 내에서
-        // 1) 종가<EMA 의 연속 구간 (길이>=minBelow)
-        // 2) 그 이후에 종가>EMA 의 연속 구간 (길이>=minAbove)
-        // 3) 마지막 종가(= closes[end])가 EMA보다 커서 현재 상방 유지 확인(선택적이지만 보통 원하심)
         const isAbove = (i) => closes[i] > ema[i];
         const isBelow = (i) => closes[i] < ema[i];
 
-        // EMA가 null인 초기 구간은 제외
         let i = start;
-        while (i <= end && (ema[i] === null || ema[i] === undefined)) i++;
+        while (i <= end && (ema[i] == null)) i++;
         if (i > end) return null;
 
-        // 아래→위 전환을 찾되, 전환 직전까지 충분한 하방 연속, 전환 후 충분한 상방 연속
-        // 전환 포인트를 "상방 연속 구간이 시작된 첫 인덱스"로 정의
         for (let pivot = i; pivot <= end; pivot++) {
-            if (!isAbove(pivot)) continue; // 상방 연속 시작 후보는 above여야 함
+            if (!isAbove(pivot)) continue;
 
-            // 뒤로 가며 직전이 below였는지 확인하여 "전환 직전" 경계 확인(엄밀히 직전이 below일 필요는 없지만, 의미상 전환 감지)
-            // 대신 보다 명확히: pivot 이전에 minBelow 이상 연속 below 구간이 존재했는지 체크
             let belowRunMax = 0, cur = 0;
             for (let j = i; j < pivot; j++) {
                 if (isBelow(j)) { cur++; belowRunMax = Math.max(belowRunMax, cur); }
@@ -203,18 +205,12 @@
             }
             if (belowRunMax < minBelow) continue;
 
-            // pivot부터 상방 연속 길이 측정
             let aboveLen = 0;
             let k = pivot;
             while (k <= end && isAbove(k)) { aboveLen++; k++; }
             if (aboveLen < minAbove) continue;
 
-            // 조건 만족: 가장 이른 pivot 반환
-            return {
-                pivot,                 // 상방 연속 시작 인덱스
-                aboveLen,              // 상방 연속 길이 (윈도우 끝에서 끊길 수 있음)
-                maxBelowLen: belowRunMax
-            };
+            return { pivot, aboveLen, maxBelowLen: belowRunMax };
         }
         return null;
     }
@@ -265,7 +261,6 @@
         URL.revokeObjectURL(url);
     }
 
-    // 심볼 목록 로드 (USDT, PERPETUAL, TRADING)
     async function loadSymbols(maxRetries) {
         const data = await fetchJsonWithRetry(EXCHANGE_INFO_URL, maxRetries);
         const out = [];
@@ -274,7 +269,7 @@
                 s.quoteAsset === "USDT" &&
                 s.contractType === "PERPETUAL" &&
                 s.status === "TRADING" &&
-                !s.pair?.endsWith("_NEXTQUARTER") // 방어적
+                !s.pair?.endsWith("_NEXTQUARTER")
             ) {
                 out.push(s.symbol);
             }
@@ -288,10 +283,54 @@
         return fetchJsonWithRetry(url, maxRetries);
     }
 
+    function sortResults(results, preset) {
+        const data = [...results];
+        switch (preset) {
+            case "aboveThenBelow":
+                data.sort((a, b) => {
+                    if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
+                    if (b.belowLen !== a.belowLen) return b.belowLen - a.belowLen;
+                    return b.crossoverTime - a.crossoverTime; // 동률시 최신 전환 우선
+                });
+                break;
+            case "belowThenAbove":
+                data.sort((a, b) => {
+                    if (b.belowLen !== a.belowLen) return b.belowLen - a.belowLen;
+                    if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
+                    return b.crossoverTime - a.crossoverTime;
+                });
+                break;
+            case "aboveOnly":
+                data.sort((a, b) => b.aboveLen - a.aboveLen || (b.crossoverTime - a.crossoverTime));
+                break;
+            case "belowOnly":
+                data.sort((a, b) => b.belowLen - a.belowLen || (b.crossoverTime - a.crossoverTime));
+                break;
+            case "crossoverRecent":
+                data.sort((a, b) => b.crossoverTime - a.crossoverTime);
+                break;
+            case "lastCloseRecent":
+                data.sort((a, b) => b.lastCloseTime - a.lastCloseTime);
+                break;
+            case "symbolAZ":
+                data.sort((a, b) => a.symbol.localeCompare(b.symbol));
+                break;
+            default:
+                break;
+        }
+        return data;
+    }
+
+    function render(results) {
+        tbody.innerHTML = "";
+        for (const r of results) tbody.appendChild(buildRow(r));
+    }
+
     async function scanAll() {
         scanBtn.disabled = true;
         exportBtn.disabled = true;
         tbody.innerHTML = "";
+        lastResults = [];
 
         const minBelow = Math.max(1, parseInt(el("minBelow").value, 10));
         const minAbove = Math.max(1, parseInt(el("minAbove").value, 10));
@@ -318,28 +357,23 @@
         statusEl.textContent = `총 ${total}개 USDT PERP 심볼 스캔 시작`;
         barEl.style.width = "0%";
 
-        // 간단한 작업 풀
         const queue = [...symbols];
-        const workers = new Array(concurrency).fill(0).map(async (_, workerIdx) => {
+        const workers = new Array(concurrency).fill(0).map(async () => {
             while (queue.length) {
                 const symbol = queue.shift();
                 try {
                     const kl = await fetchKlines(symbol, DEFAULT_LIMIT, maxRetries);
-                    // kline: [openTime, open, high, low, close, volume, closeTime, ...]
-                    // 마지막 요소(인덱스 length-1)는 진행 중 캔들이 포함되므로 나중에 제외
                     const closes = kl.map(k => toNumber(k[4]));
-                    const closeTimes = kl.map(k => k[6]); // closeTime ms
+                    const closeTimes = kl.map(k => k[6]);
 
                     const ema = computeEMA(closes, emaPeriod);
-
-                    // 현재봉 제외 -> lastClosed = closes.length - 2
                     const lastClosedIdx = closes.length - 2;
                     if (lastClosedIdx < 0) throw new Error("캔들이 부족");
 
                     const analysis = analyzeWindow(closes, ema, windowLen, minBelow, minAbove);
                     if (analysis) {
                         const freshAbove = closes[lastClosedIdx] > ema[lastClosedIdx];
-                        const rec = {
+                        results.push({
                             symbol,
                             lastCloseTime: closeTimes[lastClosedIdx],
                             lastClose: closes[lastClosedIdx],
@@ -347,16 +381,13 @@
                             belowLen: analysis.maxBelowLen,
                             aboveLen: analysis.aboveLen,
                             freshAbove
-                        };
-                        results.push(rec);
+                        });
                     }
                 } catch (err) {
-                    // 심볼 개별 실패는 무시하고 진행
-                    // console.warn(symbol, err);
+                    /* 개별 심볼 실패는 건너뜀 */
                 } finally {
                     done++;
                     if (done % concurrency === 0 && delayMs > 0) {
-                        // 배치 간 살짝 쉬어 레이트 리밋 완화
                         await sleep(delayMs);
                     }
                     const pct = Math.round((done / total) * 100);
@@ -368,18 +399,15 @@
 
         await Promise.all(workers);
 
-        // 정렬: 상방 연속 길이 ↓, 전환 최신순 ↓
-        results.sort((a, b) => {
-            if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
-            return b.crossoverTime - a.crossoverTime;
-        });
-
-        for (const r of results) tbody.appendChild(buildRow(r));
+        // ✅ 스캔 완료 → 프리셋 정렬 후 렌더
+        lastResults = results;
+        const sorted = sortResults(lastResults, sortPresetEl.value);
+        render(sorted);
 
         statusEl.textContent = `완료: ${results.length}개 심볼이 조건을 만족 (${total}개 중)`;
         exportBtn.disabled = results.length === 0;
         exportBtn.onclick = () => {
-            const csv = toCSV(results);
+            const csv = toCSV(sorted);
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadText(`scan_15m_ema50_${stamp}.csv`, csv);
         };
@@ -387,8 +415,15 @@
         scanBtn.disabled = false;
     }
 
-    // 간단 정렬(헤더 클릭)
-    (function initSort() {
+    // ✅ 프리셋 변경 시 즉시 재정렬/재렌더
+    sortPresetEl.addEventListener("change", () => {
+        if (!lastResults.length) return;
+        const sorted = sortResults(lastResults, sortPresetEl.value);
+        render(sorted);
+    });
+
+    // 헤더 클릭 정렬(수동 정렬도 계속 지원)
+    (function initHeaderSort() {
         const ths = document.querySelectorAll("#resultTable thead th[data-key]");
         let sortKey = "aboveLen";
         let asc = false;
@@ -409,7 +444,6 @@
                     const b = rb.children[colIdx].textContent.trim();
                     let av = a, bv = b;
                     if (colIdx === 1 || colIdx === 3) {
-                        // 날짜
                         av = a === "-" ? 0 : new Date(a).getTime();
                         bv = b === "-" ? 0 : new Date(b).getTime();
                     } else if (colIdx === 2 || colIdx === 4 || colIdx === 5) {
@@ -427,7 +461,7 @@
         });
     }());
 
-    scanBtn.addEventListener("click", () => { scanAll(); });
+    el("scanBtn").addEventListener("click", scanAll);
 </script>
 </body>
 </html>
