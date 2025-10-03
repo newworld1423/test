@@ -74,7 +74,7 @@
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
 
-        <!-- 정렬 프리셋(기존과 동일) -->
+        <!-- 정렬 프리셋 -->
         <div class="control">
             <label>정렬 프리셋</label>
             <select id="sortPreset">
@@ -83,6 +83,7 @@
                 <option value="aboveOnly">이전상방연속 ↓</option>
                 <option value="belowOnly">이전하방연속 ↓</option>
                 <option value="deltaPct">Δ% (종가-EMA50) ↓</option>
+                <option value="volQuote">거래량(Quote) ↓</option>
                 <option value="crossoverRecent">전환 시작 시간(최근순) ↓</option>
                 <option value="lastCloseRecent">최근 종가 시간(최근순) ↓</option>
                 <option value="symbolAZ">심볼 A→Z</option>
@@ -114,6 +115,8 @@
         <th data-key="belowLen">이전 하방 연속</th>
         <th data-key="aboveLen">이전 상방 연속</th>
         <th data-key="deltaPct">Δ% (종가-EMA50)</th>
+        <th data-key="volBase">종료봉 거래량(Base)</th>
+        <th data-key="volQuote">종료봉 거래량(Quote)</th>
         <th data-key="freshAbove">현재 상방 유지</th>
         <th>동작</th>
     </tr>
@@ -124,7 +127,7 @@
 <p class="hint">
     • “현재봉 제외” 처리로 <strong>마지막 미완료 15분봉은 제외</strong>하고 분석합니다.<br>
     • 윈도우(기본 96개) 내부에서 <strong>연속 하방(종가 &lt; EMA50)</strong> 이후 <strong>연속 상방(종가 &gt; EMA50)</strong>이 이어진 심볼만 표시합니다.<br>
-    • Δ%는 “마지막 종료봉” 기준 <strong>((종가 - EMA50)/EMA50)×100</strong> 입니다.
+    • Δ%는 “마지막 종료봉” 기준 <strong>((종가 - EMA50)/EMA50)×100</strong>, 거래량은 같은 종료봉의 <strong>base/quote</strong>를 표기합니다.
 </p>
 
 <script>
@@ -229,6 +232,8 @@
             <td><span class="pill warn">${rec.belowLen}</span></td>
             <td><span class="pill ok">${rec.aboveLen}</span></td>
             <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
+            <td class="mono">${rec.volBase.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+            <td class="mono">${rec.volQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
             <td>${rec.freshAbove ? '<span class="pill ok">상방 유지</span>' : '<span class="pill warn">깨짐</span>'}</td>
             <td class="row-actions">
                 <a target="_blank" rel="noopener" href="https://www.binance.com/ko/futures/${rec.symbol}">선물 차트</a>
@@ -241,7 +246,8 @@
 
     function toCSV(data) {
         const header = [
-            "symbol","lastCloseTime","lastClose","crossoverTime","belowLen","aboveLen","deltaPct","freshAbove"
+            "symbol","lastCloseTime","lastClose","crossoverTime",
+            "belowLen","aboveLen","deltaPct","volBase","volQuote","freshAbove"
         ];
         const lines = [header.join(",")];
         for (const d of data) {
@@ -253,6 +259,8 @@
                 d.belowLen,
                 d.aboveLen,
                 d.deltaPct.toFixed(4),
+                d.volBase,
+                d.volQuote,
                 d.freshAbove ? "1" : "0"
             ].join(","));
         }
@@ -315,6 +323,9 @@
             case "deltaPct":
                 data.sort((a, b) => b.deltaPct - a.deltaPct);
                 break;
+            case "volQuote":
+                data.sort((a, b) => b.volQuote - a.volQuote);
+                break;
             case "crossoverRecent":
                 data.sort((a, b) => b.crossoverTime - a.crossoverTime);
                 break;
@@ -372,11 +383,15 @@
                 const symbol = queue.shift();
                 try {
                     const kl = await fetchKlines(symbol, DEFAULT_LIMIT, maxRetries);
+                    // kline: [0]openTime, [1]open, [2]high, [3]low, [4]close, [5]volume(base),
+                    //        [6]closeTime, [7]quoteAssetVolume(USDT), ...
                     const closes = kl.map(k => toNumber(k[4]));
+                    const volsBase = kl.map(k => toNumber(k[5]));
                     const closeTimes = kl.map(k => k[6]);
+                    const volsQuote = kl.map(k => toNumber(k[7]));
 
                     const ema = computeEMA(closes, emaPeriod);
-                    const lastClosedIdx = closes.length - 2;
+                    const lastClosedIdx = closes.length - 2; // 현재 진행봉 제외
                     if (lastClosedIdx < 0) throw new Error("캔들이 부족");
 
                     const analysis = analyzeWindow(closes, ema, windowLen, minBelow, minAbove);
@@ -395,6 +410,8 @@
                             belowLen: analysis.maxBelowLen,
                             aboveLen: analysis.aboveLen,
                             deltaPct,
+                            volBase: volsBase[lastClosedIdx],
+                            volQuote: volsQuote[lastClosedIdx],
                             freshAbove
                         });
                     }
@@ -449,7 +466,7 @@
                 const rows = Array.from(tbody.querySelectorAll("tr"));
                 const idxMap = {
                     symbol: 0, lastCloseTime: 1, lastClose: 2, crossoverTime: 3,
-                    belowLen: 4, aboveLen: 5, deltaPct: 6, freshAbove: 7
+                    belowLen: 4, aboveLen: 5, deltaPct: 6, volBase: 7, volQuote: 8, freshAbove: 9
                 };
                 const colIdx = idxMap[sortKey] ?? 5;
 
@@ -458,18 +475,18 @@
                     const b = rb.children[colIdx].textContent.trim();
                     let av = a, bv = b;
                     if (colIdx === 1 || colIdx === 3) {
-                        // 날짜
                         av = a === "-" ? 0 : new Date(a).getTime();
                         bv = b === "-" ? 0 : new Date(b).getTime();
                     } else if (colIdx === 2 || colIdx === 4 || colIdx === 5) {
-                        // 숫자
                         av = parseFloat(a.replace(/[,]/g, "")) || 0;
                         bv = parseFloat(b.replace(/[,]/g, "")) || 0;
                     } else if (colIdx === 6) {
-                        // Δ%: "12.34%" → 12.34
-                        av = parseFloat(a.replace(/[%]/g, "")) || 0;
+                        av = parseFloat(a.replace(/[%]/g, "")) || 0; // Δ%
                         bv = parseFloat(b.replace(/[%]/g, "")) || 0;
-                    } else if (colIdx === 7) {
+                    } else if (colIdx === 7 || colIdx === 8) {
+                        av = parseFloat(a.replace(/[,]/g, "")) || 0; // volume
+                        bv = parseFloat(b.replace(/[,]/g, "")) || 0;
+                    } else if (colIdx === 9) {
                         av = a.includes("유지") ? 1 : 0;
                         bv = b.includes("유지") ? 1 : 0;
                     }
