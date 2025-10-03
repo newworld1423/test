@@ -26,7 +26,6 @@
         .ok { background: #d1fae5; color: #065f46; }
         .warn { background: #fee2e2; color: #991b1b; }
         .neu { background: #e5e7eb; color: #111827; }
-        .row-actions { display: flex; gap: 8px; }
         .hint { font-size: 12px; opacity: .75; margin-top: 10px; }
     </style>
 </head>
@@ -63,9 +62,9 @@
         <div class="control">
             <label>정렬 프리셋</label>
             <select id="sortPreset">
-                <option value="streakQuoteDelta" selected>상방연속 ↓ → 거래대금(Quote) ↓ → Δ% ↓</option>
+                <option value="streakAvgQuoteDelta" selected>상방연속 ↓ → 평균 거래대금(Quote) ↓ → Δ% ↓</option>
                 <option value="streakOnly">상방연속 ↓</option>
-                <option value="quoteOnly">거래대금(Quote) ↓</option>
+                <option value="avgQuoteOnly">평균 거래대금(Quote) ↓</option>
                 <option value="deltaOnly">Δ% (종가-EMA50) ↓</option>
                 <option value="symbolAZ">심볼 A→Z</option>
             </select>
@@ -88,13 +87,9 @@
         <thead>
             <tr>
                 <th>심볼</th>
-                <th>마지막 종료봉 시간</th>
-                <th>마지막 종가</th>
                 <th>상방연속 개수</th>
-                <th>거래량(Base)</th>
-                <th>거래대금(Quote)</th>
-                <th>Δ% (종가-EMA50)</th>
-                <th>링크</th>
+                <th>상방연속 평균 거래대금(Quote)</th>
+                <th>Δ% (마지막 종료봉 종가-EMA50)</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -103,7 +98,7 @@
     <p class="hint">
         • “현재봉 제외” 처리: 마지막 진행 중 15분봉은 제외하고 그 이전 데이터만 사용합니다.<br>
         • 결과 포함 조건: 마지막 종료봉부터 연속 <strong>종가 &gt; EMA50</strong>이 <strong>2개 이상</strong>.<br>
-        • 정렬 프리셋: 상단 select에서 변경 가능합니다.
+        • 평균 거래대금(Quote)은 “상방연속으로 잡힌 구간”의 각 캔들 quoteAssetVolume 평균입니다.
     </p>
 
 <script>
@@ -172,33 +167,33 @@
         return ema;
     }
 
-    function fmtTs(ms) {
-        return new Date(ms).toLocaleString("ko-KR", { hour12: false });
-    }
-
     function toNum(x) { return typeof x === "string" ? parseFloat(x) : x; }
 
-    // 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수 계산
-    function countAboveFromLastClosed(closes, ema, windowLen) {
+    // 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수 계산 + 그 구간 평균 quote 볼륨 계산
+    function streakFromLastClosed(closes, ema, volsQuote, windowLen) {
         const lastClosed = closes.length - 2; // 현재 진행봉 제외
-        if (lastClosed < 0) return { aboveLen: 0, lastClosed };
+        if (lastClosed < 0) return { aboveLen: 0, lastClosed, avgQuote: 0 };
+
         const end = lastClosed;
         const start = Math.max(0, end - windowLen + 1);
 
         // EMA null 구간 건너뛰기
         let s = start;
         while (s <= end && (ema[s] == null)) s++;
-        if (s > end) return { aboveLen: 0, lastClosed };
+        if (s > end) return { aboveLen: 0, lastClosed, avgQuote: 0 };
 
         let aboveLen = 0;
+        let sumQuote = 0;
         for (let i = end; i >= s; i--) {
             if (closes[i] > ema[i]) {
                 aboveLen++;
+                sumQuote += volsQuote[i];
             } else {
-                break;
+                break; // 연속 끊기면 중단
             }
         }
-        return { aboveLen, lastClosed };
+        const avgQuote = aboveLen > 0 ? (sumQuote / aboveLen) : 0;
+        return { aboveLen, lastClosed, avgQuote };
     }
 
     function buildRow(rec) {
@@ -206,31 +201,21 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td><strong>${rec.symbol}</strong></td>
-            <td class="mono">${fmtTs(rec.lastCloseTime)}</td>
-            <td class="mono">${rec.lastClose.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
             <td><span class="pill ok">${rec.aboveLen}</span></td>
-            <td class="mono">${rec.volBase.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
-            <td class="mono">${rec.volQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+            <td class="mono">${rec.avgQuote.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
             <td class="mono"><span class="pill ${signClass}">${rec.deltaPct.toFixed(2)}%</span></td>
-            <td class="row-actions">
-                <a target="_blank" rel="noopener" href="https://www.binance.com/ko/futures/${rec.symbol}">선물</a>
-                <a target="_blank" rel="noopener" href="https://www.tradingview.com/chart/?symbol=BINANCE%3A${rec.symbol.replace('USDT','USDT.P')}">TV</a>
-            </td>
         `;
         return tr;
     }
 
     function toCSV(rows) {
-        const header = ["symbol","lastCloseTime","lastClose","aboveLen","volBase","volQuote","deltaPct"];
+        const header = ["symbol","aboveLen","avgQuote","deltaPct"];
         const lines = [header.join(",")];
         for (const r of rows) {
             lines.push([
                 r.symbol,
-                new Date(r.lastCloseTime).toISOString(),
-                r.lastClose,
                 r.aboveLen,
-                r.volBase,
-                r.volQuote,
+                r.avgQuote,
                 r.deltaPct.toFixed(4)
             ].join(","));
         }
@@ -248,18 +233,18 @@
     function sortResults(results, preset) {
         const data = [...results];
         switch (preset) {
-            case "streakQuoteDelta":
+            case "streakAvgQuoteDelta":
                 data.sort((a, b) => {
                     if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
-                    if (b.volQuote !== a.volQuote) return b.volQuote - a.volQuote;
+                    if (b.avgQuote !== a.avgQuote) return b.avgQuote - a.avgQuote;
                     return b.deltaPct - a.deltaPct;
                 });
                 break;
             case "streakOnly":
                 data.sort((a, b) => b.aboveLen - a.aboveLen);
                 break;
-            case "quoteOnly":
-                data.sort((a, b) => b.volQuote - a.volQuote);
+            case "avgQuoteOnly":
+                data.sort((a, b) => b.avgQuote - a.avgQuote);
                 break;
             case "deltaOnly":
                 data.sort((a, b) => b.deltaPct - a.deltaPct);
@@ -316,33 +301,27 @@
                     const kl = await fetchKlines(symbol, DEFAULT_LIMIT, maxRetries);
                     // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume(base),[6]closeTime,[7]quoteAssetVolume, ...
                     const closes = kl.map(k => toNum(k[4]));
-                    const volsBase = kl.map(k => toNum(k[5]));
-                    const closeTimes = kl.map(k => k[6]);
+                    const closeTimes = kl.map(k => k[6]); // (시간은 내부 계산용으로만 사용)
                     const volsQuote = kl.map(k => toNum(k[7]));
 
                     const ema = computeEMA(closes, emaPeriod);
 
-                    // 마지막 종료봉 기준 상방연속
-                    const { aboveLen, lastClosed } = countAboveFromLastClosed(closes, ema, windowLen);
+                    // 마지막 종료봉 기준 상방연속 + 평균 거래대금(Quote)
+                    const { aboveLen, lastClosed, avgQuote } = streakFromLastClosed(closes, ema, volsQuote, windowLen);
 
                     // 조건: 연속 상방 개수 >= 2 (기본)
                     if (aboveLen >= Math.max(2, minAbove)) {
                         const emaLast = ema[lastClosed];
                         if (emaLast == null) throw new Error("EMA 부족");
                         const lastClose = closes[lastClosed];
-
-                        // 안전: 반드시 위에 있어야 함
                         if (!(lastClose > emaLast)) throw new Error("상방 불충족");
 
                         const deltaPct = ((lastClose - emaLast) / emaLast) * 100;
 
                         results.push({
                             symbol,
-                            lastCloseTime: closeTimes[lastClosed],
-                            lastClose,
                             aboveLen,
-                            volBase: volsBase[lastClosed],
-                            volQuote: volsQuote[lastClosed],
+                            avgQuote,
                             deltaPct
                         });
                     }
@@ -370,13 +349,13 @@
         exportBtn.onclick = () => {
             const csv = toCSV(sorted);
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-            download(`scan_15m_ema50_aboveStreak_${stamp}.csv`, csv);
+            download(`scan_15m_ema50_aboveStreak_avgQuote_${stamp}.csv`, csv);
         };
 
         scanBtn.disabled = false;
     }
 
-    // 정렬 프리셋 변경 시 즉시 재정렬
+    // 프리셋 변경 시 즉시 재정렬
     sortPresetEl.addEventListener("change", () => {
         if (!lastResults.length) return;
         const sorted = sortResults(lastResults, sortPresetEl.value);
