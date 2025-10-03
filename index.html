@@ -11,7 +11,7 @@
         .controls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; margin-bottom: 12px; }
         .control { display: grid; gap: 6px; }
         label { font-size: 14px; opacity: .8; }
-        input[type="number"] { padding: 8px 10px; font-size: 14px; }
+        input[type="number"], select { padding: 8px 10px; font-size: 14px; }
         button { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; }
         .primary { background: #4f46e5; color: white; }
         .muted { background: #e5e7eb; }
@@ -58,6 +58,19 @@
             <label>재시도 (429/5xx, 기본 2)</label>
             <input id="maxRetries" type="number" min="0" max="5" value="2" />
         </div>
+
+        <!-- ✅ 정렬 프리셋 -->
+        <div class="control">
+            <label>정렬 프리셋</label>
+            <select id="sortPreset">
+                <option value="streakQuoteDelta" selected>상방연속 ↓ → 거래대금(Quote) ↓ → Δ% ↓</option>
+                <option value="streakOnly">상방연속 ↓</option>
+                <option value="quoteOnly">거래대금(Quote) ↓</option>
+                <option value="deltaOnly">Δ% (종가-EMA50) ↓</option>
+                <option value="symbolAZ">심볼 A→Z</option>
+            </select>
+        </div>
+
         <div class="control">
             <label>&nbsp;</label>
             <button id="scanBtn" class="primary">스캔 시작</button>
@@ -90,14 +103,14 @@
     <p class="hint">
         • “현재봉 제외” 처리: 마지막 진행 중 15분봉은 제외하고 그 이전 데이터만 사용합니다.<br>
         • 결과 포함 조건: 마지막 종료봉부터 연속 <strong>종가 &gt; EMA50</strong>이 <strong>2개 이상</strong>.<br>
-        • 정렬: <strong>상방연속 개수 ↓ → 거래대금(Quote) ↓ → Δ%(종가-EMA50) ↓</strong>.
+        • 정렬 프리셋: 상단 select에서 변경 가능합니다.
     </p>
 
 <script>
     const EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo";
     const KLINES_URL = "https://fapi.binance.com/fapi/v1/klines";
     const INTERVAL = "15m";
-    const DEFAULT_LIMIT = 200; // EMA 워밍업 + 96 윈도우
+    const DEFAULT_LIMIT = 200;
 
     const el = (id) => document.getElementById(id);
     const statusEl = el("status");
@@ -105,6 +118,9 @@
     const tbody = document.querySelector("#resultTable tbody");
     const scanBtn = el("scanBtn");
     const exportBtn = el("exportBtn");
+    const sortPresetEl = el("sortPreset");
+
+    let lastResults = [];
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -162,14 +178,14 @@
 
     function toNum(x) { return typeof x === "string" ? parseFloat(x) : x; }
 
-    // ✅ 핵심: 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수만 계산
+    // 마지막 종료봉부터 뒤로 연속 "종가 > EMA" 개수 계산
     function countAboveFromLastClosed(closes, ema, windowLen) {
         const lastClosed = closes.length - 2; // 현재 진행봉 제외
         if (lastClosed < 0) return { aboveLen: 0, lastClosed };
         const end = lastClosed;
         const start = Math.max(0, end - windowLen + 1);
 
-        // EMA가 null인 구간 지나치기
+        // EMA null 구간 건너뛰기
         let s = start;
         while (s <= end && (ema[s] == null)) s++;
         if (s > end) return { aboveLen: 0, lastClosed };
@@ -179,7 +195,7 @@
             if (closes[i] > ema[i]) {
                 aboveLen++;
             } else {
-                break; // 연속이 끊기면 종료
+                break;
             }
         }
         return { aboveLen, lastClosed };
@@ -229,10 +245,44 @@
         URL.revokeObjectURL(url);
     }
 
+    function sortResults(results, preset) {
+        const data = [...results];
+        switch (preset) {
+            case "streakQuoteDelta":
+                data.sort((a, b) => {
+                    if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
+                    if (b.volQuote !== a.volQuote) return b.volQuote - a.volQuote;
+                    return b.deltaPct - a.deltaPct;
+                });
+                break;
+            case "streakOnly":
+                data.sort((a, b) => b.aboveLen - a.aboveLen);
+                break;
+            case "quoteOnly":
+                data.sort((a, b) => b.volQuote - a.volQuote);
+                break;
+            case "deltaOnly":
+                data.sort((a, b) => b.deltaPct - a.deltaPct);
+                break;
+            case "symbolAZ":
+                data.sort((a, b) => a.symbol.localeCompare(b.symbol));
+                break;
+            default:
+                break;
+        }
+        return data;
+    }
+
+    function render(results) {
+        tbody.innerHTML = "";
+        for (const r of results) tbody.appendChild(buildRow(r));
+    }
+
     async function scanAll() {
         scanBtn.disabled = true;
         exportBtn.disabled = true;
         tbody.innerHTML = "";
+        lastResults = [];
 
         const minAbove = Math.max(1, parseInt(el("minAbove").value, 10)); // 기본 2
         const windowLen = Math.min(200, Math.max(10, parseInt(el("windowLen").value, 10))); // 기본 96
@@ -272,7 +322,7 @@
 
                     const ema = computeEMA(closes, emaPeriod);
 
-                    // 마지막 종료봉 인덱스
+                    // 마지막 종료봉 기준 상방연속
                     const { aboveLen, lastClosed } = countAboveFromLastClosed(closes, ema, windowLen);
 
                     // 조건: 연속 상방 개수 >= 2 (기본)
@@ -281,7 +331,7 @@
                         if (emaLast == null) throw new Error("EMA 부족");
                         const lastClose = closes[lastClosed];
 
-                        // 안전차단: 반드시 위에 있어야 함
+                        // 안전: 반드시 위에 있어야 함
                         if (!(lastClose > emaLast)) throw new Error("상방 불충족");
 
                         const deltaPct = ((lastClose - emaLast) / emaLast) * 100;
@@ -297,7 +347,7 @@
                         });
                     }
                 } catch (e) {
-                    // 심볼 단위 실패는 무시
+                    /* 심볼 단위 실패는 건너뜀 */
                 } finally {
                     done++;
                     if (done % concurrency === 0 && delayMs > 0) await sleep(delayMs);
@@ -310,25 +360,28 @@
 
         await Promise.all(workers);
 
-        // ✅ 정렬: 상방연속 ↓ → 거래대금(Quote) ↓ → Δ% ↓
-        results.sort((a, b) => {
-            if (b.aboveLen !== a.aboveLen) return b.aboveLen - a.aboveLen;
-            if (b.volQuote !== a.volQuote) return b.volQuote - a.volQuote;
-            return b.deltaPct - a.deltaPct;
-        });
-
-        for (const r of results) tbody.appendChild(buildRow(r));
+        // ✅ 프리셋 정렬 후 렌더
+        lastResults = results;
+        const sorted = sortResults(lastResults, sortPresetEl.value);
+        render(sorted);
 
         statusEl.textContent = `완료: ${results.length}개 심볼이 조건 충족 (${total}개 중)`;
         exportBtn.disabled = results.length === 0;
         exportBtn.onclick = () => {
-            const csv = toCSV(results);
+            const csv = toCSV(sorted);
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
             download(`scan_15m_ema50_aboveStreak_${stamp}.csv`, csv);
         };
 
         scanBtn.disabled = false;
     }
+
+    // 정렬 프리셋 변경 시 즉시 재정렬
+    sortPresetEl.addEventListener("change", () => {
+        if (!lastResults.length) return;
+        const sorted = sortResults(lastResults, sortPresetEl.value);
+        render(sorted);
+    });
 
     el("scanBtn").addEventListener("click", scanAll);
 </script>
