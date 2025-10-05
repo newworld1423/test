@@ -23,7 +23,7 @@
         .pill.wait { background: #6b728022; color: #6b7280; border: 1px solid #6b728055; }
         .muted { color: #6b7280; font-size: 12px; }
         .row .field { display: flex; flex-direction: column; }
-        .actions { display: flex; gap: 8px; align-items: center; }
+        .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .badge { font-size: 12px; border: 1px dashed #9995; padding: 2px 8px; border-radius: 999px; }
         .ok { color: #16a34a; }
         .warn { color: #ca8a04; }
@@ -92,6 +92,8 @@
                 <button id="autoBtn">15분 자동 스캔 시작</button>
                 <button id="stopBtn">자동 중지</button>
                 <button id="exportBtn">CSV 내보내기</button>
+                <!-- 추가: 히스토리 버튼 -->
+                <button id="histBtn">점수 히스토리</button>
             </div>
             <div id="nextTick" class="badge"></div>
         </div>
@@ -124,6 +126,25 @@
             </table>
         </div>
         <p class="muted small" style="margin-top:8px;">* 신호는 마지막 완료 봉 기준. RSI는 14 기본, ATR%는 변동성 참고용. 점수는 트렌드/모멘텀을 종합한 휴리스틱(0~100).</p>
+    </div>
+
+    <!-- 추가: 히스토리 카드 -->
+    <div class="card" id="histCard" style="display:none;">
+        <h2 style="margin:0 0 8px; font-size:16px;">오늘 09:00~현재 (로컬 시간) 15분 히스토리</h2>
+        <div class="grid">
+            <table id="histTable">
+                <thead>
+                    <tr>
+                        <th>심볼</th>
+                        <th>시간</th>
+                        <th>신호</th>
+                        <th>점수</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <p class="muted small" style="margin-top:8px;">* 브라우저 로컬 시간 기준. 진행 중인 현재 봉은 제외하고 마지막 완료 봉까지만 계산합니다.</p>
     </div>
 
 <script>
@@ -201,7 +222,7 @@
     function msUntilNextQuarterHour() {
         const now = new Date();
         const minutes = now.getUTCMinutes();
-        const nextQuarter = Math.ceil((minutes + 0.001) / 15) * 15; // avoid boundary
+        const nextQuarter = Math.ceil((minutes + 0.001) / 15) * 15; // 경계 회피
         const target = new Date(now);
         if (nextQuarter >= 60) {
             target.setUTCHours(now.getUTCHours() + 1, 0, 0, 0);
@@ -230,7 +251,7 @@
 
     // ===== Strategy (heuristic scoring) =====
     function evaluateSignal(klines, cfg) {
-        // Exclude current building candle: use last CLOSED = index length-2
+        // 현재 진행 중 봉 제외, 마지막 완료 봉 사용
         if (klines.length < 100) return null;
         const closes = klines.map(k => k.close);
         const highs = klines.map(k => k.high);
@@ -305,6 +326,7 @@
         autoBtn: document.getElementById('autoBtn'),
         stopBtn: document.getElementById('stopBtn'),
         exportBtn: document.getElementById('exportBtn'),
+        histBtn: document.getElementById('histBtn'), // 추가
         nextTick: document.getElementById('nextTick'),
         bar: document.getElementById('bar'),
         progressText: document.getElementById('progressText'),
@@ -453,11 +475,147 @@
 
     let lastRows = [];
 
+    // ===== Helpers for history =====
+    function startOfTodayAt9Local() {
+        const now = new Date();
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0); // 로컬 09:00
+        return d.getTime(); // ms
+    }
+
+    function formatLocalHHMM(ms) {
+        const d = new Date(ms);
+        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function computeIndicatorsForAll(klines, cfg) {
+        const closes = klines.map(k => k.close);
+        const highs  = klines.map(k => k.high);
+        const lows   = klines.map(k => k.low);
+        return {
+            closes,
+            emaFastArr: ema(closes, cfg.emaFast),
+            emaSlowArr: ema(closes, cfg.emaSlow),
+            rsiArr: rsi(closes, cfg.rsiLen),
+            atrArr: atr(highs, lows, closes, 14),
+        };
+    }
+
+    function evaluateAtIndex(idx, ind, cfg) {
+        const C   = ind.closes[idx];
+        const EF  = ind.emaFastArr[idx];
+        const ES  = ind.emaSlowArr[idx];
+        const RSI = ind.rsiArr[idx];
+        const ATR = ind.atrArr[idx];
+
+        const consecUp = countConsecutiveAbove(ind.closes, ind.emaFastArr, idx);
+        const atrPct = ATR ? (ATR / C) * 100 : null;
+
+        let scoreLong = 0, scoreShort = 0;
+        if (C > EF) scoreLong += 15; else scoreShort += 15;
+        if (EF > ES) scoreLong += 20; else scoreShort += 20;
+
+        if (RSI != null) {
+            if (RSI >= 52 && RSI <= 75) scoreLong += 20;
+            if (RSI <= 48 && RSI >= 25) scoreShort += 20;
+            if (RSI > 75) scoreLong += 5;
+            if (RSI < 25) scoreShort += 5;
+        }
+
+        const consecDn = countConsecutiveAbove(ind.emaFastArr, ind.closes, idx);
+        if (consecUp >= cfg.consecMin) scoreLong += Math.min(20, consecUp * 2);
+        if (consecDn >= cfg.consecMin) scoreShort += Math.min(20, consecDn * 2);
+
+        if (atrPct != null) {
+            if (atrPct >= 0.5 && atrPct <= 3) { scoreLong += 10; scoreShort += 10; }
+        }
+
+        let side = "WAIT", score = 0;
+        if (scoreLong - scoreShort >= 10) { side = "LONG"; score = Math.min(100, scoreLong); }
+        else if (scoreShort - scoreLong >= 10) { side = "SHORT"; score = Math.min(100, scoreShort); }
+        else { score = Math.max(scoreLong, scoreShort) / 2; }
+
+        return { side, score: Math.round(score) };
+    }
+
+    async function buildHistoryRows() {
+        const cfg = getCfg();
+        const symbols = parseSymbols(els.symbols.value);
+        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: BTCUSDT, ETHUSDT'); return []; }
+
+        const start9LocalMs = startOfTodayAt9Local();
+        const rows = [];
+
+        els.bar.style.width = '0%';
+        els.progressText.textContent = `히스토리 수집 시작 (0/${symbols.length})`;
+
+        let i = 0;
+        for (const sym of symbols) {
+            try {
+                const ks = await fetchKlines(sym, '15m', cfg.limitCandles);
+
+                // 마지막 완료 봉 인덱스
+                const lastIdx = ks.length - 2;
+                if (lastIdx < 0) { i++; continue; }
+
+                // 09:00(로컬) 이후 ~ 마지막 완료 봉까지의 15분 봉만 사용
+                const ind = computeIndicatorsForAll(ks, cfg);
+                for (let idx = 0; idx <= lastIdx; idx++) {
+                    const ct = ks[idx].closeTime; // UTC ms
+                    if (ct >= start9LocalMs && ct <= ks[lastIdx].closeTime) {
+                        const ev = evaluateAtIndex(idx, ind, cfg);
+                        rows.push({
+                            symbol: sym,
+                            timeLocal: formatLocalHHMM(ct),
+                            side: ev.side,
+                            score: ev.score,
+                            sortKey: ct
+                        });
+                    }
+                }
+            } catch (e) {
+                // 심볼 단위 에러는 히스토리에서 스킵
+            }
+
+            i++;
+            const pct = Math.round((i / symbols.length) * 100);
+            els.bar.style.width = pct + '%';
+            els.progressText.textContent = `히스토리 수집 중 ${i}/${symbols.length}`;
+            if (cfg.delayMs > 0) await sleep(cfg.delayMs);
+        }
+
+        els.progressText.textContent = `히스토리 완료 (${symbols.length}/${symbols.length})`;
+        return rows;
+    }
+
+    function renderHistory(rows) {
+        // 심볼, 시간 오름차순
+        const sorted = [...rows].sort((a, b) => {
+            if (a.symbol === b.symbol) return a.sortKey - b.sortKey;
+            return a.symbol.localeCompare(b.symbol);
+        });
+
+        const tbody = document.querySelector('#histTable tbody');
+        tbody.innerHTML = sorted.map(r => `
+            <tr>
+                <td class="mono">${r.symbol}</td>
+                <td class="mono small">${r.timeLocal}</td>
+                <td>${badge(r.side)}</td>
+                <td>${r.score}</td>
+            </tr>
+        `).join('');
+
+        document.getElementById('histCard').style.display = 'block';
+    }
+
     // ===== Bindings =====
     els.runBtn.addEventListener('click', scanOnce);
     els.autoBtn.addEventListener('click', scheduleAuto);
     els.stopBtn.addEventListener('click', stopAuto);
     els.exportBtn.addEventListener('click', exportCSV);
+    els.histBtn.addEventListener('click', async () => {
+        const rows = await buildHistoryRows();
+        renderHistory(rows);
+    });
 
     // Demo defaults
     els.symbols.value = 'SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT';
