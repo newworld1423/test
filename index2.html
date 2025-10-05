@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp 15m Scanner — 2% Target + History (Quarter Aligned)</title>
+    <title>Binance USDT Perp 15m — 2% Target + History (A-Method Aligned)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { color-scheme: light dark; }
@@ -11,7 +11,7 @@
         .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
         label { display: block; font-weight: 600; margin-bottom: 6px; }
         input, select, button, textarea { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #9993; }
-        textarea { width: 480px; height: 88px; }
+        textarea { width: 520px; height: 88px; }
         .card { border: 1px solid #9993; border-radius: 16px; padding: 16px; margin-top: 16px; box-shadow: 0 4px 10px #0000000a; }
         .grid { overflow: auto; max-height: 70vh; }
         table { border-collapse: collapse; width: 100%; min-width: 980px; }
@@ -33,14 +33,14 @@
     </style>
 </head>
 <body>
-    <h1>Binance 15분 스캐너 — 2% 타깃 점수 + 히스토리 (15분 경계 정렬)</h1>
-    <p class="muted">*교육/리서치 용도. 주문 실행 없음. 현재 진행 중 봉 제외, <b>마지막 완료 봉</b> 기준으로 평가합니다.</p>
+    <h1>Binance 15분 스캐너 — 2% 타깃 점수 + 히스토리 (A-Method 동기화)</h1>
+    <p class="muted">*교육/리서치 용도. 주문 실행 없음. 현재 진행 중 봉 제외, <b>방금 닫힌 봉</b> 기준. 자동/수동 스캔 모두 동일 봉을 평가합니다.</p>
 
     <div class="card">
         <div class="row">
             <div class="field">
-                <label for="symbols">심볼 목록 (쉼표/공백 구분, 예: <span class="mono">BTCUSDT, ETHUSDT, SOLUSDT</span>)</label>
-                <textarea id="symbols" placeholder="BTCUSDT, ETHUSDT, SOLUSDT"></textarea>
+                <label for="symbols">심볼 목록 (쉼표/공백 구분, 예: <span class="mono">SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT</span>)</label>
+                <textarea id="symbols" placeholder="SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT"></textarea>
             </div>
             <div class="field">
                 <label>전략 파라미터</label>
@@ -131,12 +131,12 @@
             </table>
         </div>
         <p class="muted small" style="margin-top:8px;">
-            * “필요캔들”은 목표(기본 2%) 달성에 필요한 15분 봉 수의 근사치(목표% / ATR%). 표시 시각은 15분 경계로 정규화됩니다.
+            * “필요캔들”은 목표(기본 2%) 달성에 필요한 15분 봉 수의 근사치(목표% / ATR%). 표시는 15분 경계로 정규화됩니다.
         </p>
     </div>
 
     <div class="card" id="histCard" style="display:none;">
-        <h2 style="margin:0 0 8px; font-size:16px;">오늘 09:00~현재 (로컬 시간) 15분 히스토리</h2>
+        <h2 style="margin:0 0 8px; font-size:16px;">오늘 09:00~현재 (로컬) 15분 히스토리 — A-Method 동기화</h2>
         <div class="grid">
             <table id="histTable">
                 <thead>
@@ -150,7 +150,7 @@
                 <tbody></tbody>
             </table>
         </div>
-        <p class="muted small" style="margin-top:8px;">* 브라우저 로컬 시간 기준. 진행 중 봉 제외, 마지막 완료 봉까지. 모든 시각은 15분 경계로 정규화.</p>
+        <p class="muted small" style="margin-top:8px;">* 히스토리 마지막 시각도 ‘방금 닫힌 봉’ 기준으로 자동/수동 스캔과 동일.</p>
     </div>
 
 <script>
@@ -224,7 +224,7 @@
         return c;
     }
 
-    // ===== 15분 경계 정렬 & 타이머 =====
+    // ===== 15분 경계 정렬 & 타겟 봉 동기화 =====
     function msUntilNextQuarterHour() {
         const now = new Date();
         const sec = now.getUTCSeconds();
@@ -243,22 +243,39 @@
         return target.getTime() - now.getTime();
     }
 
-    // Binance closeTime은 보통 경계 1ms 전(…:14:59.999Z)이므로 +1ms 후 초/밀리초 0으로 고정
+    // Binance closeTime은 경계 1ms 전(…:14:59.999Z)이므로 +1ms → 정확 경계로 표시
     function normalizeQuarterCloseUTC(ms) {
         const d = new Date(ms + 1);
         d.setUTCSeconds(0, 0);
         return d.getTime();
     }
-
     function utcQuarterISO(ms) {
         const n = normalizeQuarterCloseUTC(ms);
         const d = new Date(n);
         return d.toISOString().replace('T', ' ').replace('.000Z', 'Z');
     }
-
-    function formatLocalHHMMFromClose(ms) {
-        const d = new Date(normalizeQuarterCloseUTC(ms));
+    function formatLocalHHMMFromNorm(msNorm) {
+        const d = new Date(msNorm);
         return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    // 방금 닫힌 봉의 closeTime(=최근 15분 경계 - 1ms)
+    function lastClosedTargetCloseMs(nowMs = Date.now()) {
+        const quarter = Math.floor(nowMs / 900000) * 900000; // 15m = 900000ms
+        return quarter - 1;
+    }
+
+    // 목표 closeTime이 응답에 포함될 때까지 짧게 폴링 (최대 1500ms)
+    async function fetchKlinesEnsuringTarget(symbol, interval, limit, targetCloseMs, maxWaitMs = 1500) {
+        const deadline = Date.now() + maxWaitMs;
+        while (true) {
+            const ks = await fetchKlines(symbol, interval, limit);
+            const has = ks.some(k =>
+                normalizeQuarterCloseUTC(k.closeTime) === normalizeQuarterCloseUTC(targetCloseMs)
+            );
+            if (has || Date.now() >= deadline) return ks;
+            await sleep(150);
+        }
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -278,21 +295,6 @@
     }
 
     // ===== 2% Target Scoring =====
-    function evaluate2Percent(klines, cfg) {
-        if (klines.length < 100) return null;
-        const closes = klines.map(k => k.close);
-        const highs  = klines.map(k => k.high);
-        const lows   = klines.map(k => k.low);
-        const lastIdx = klines.length - 2; // 마지막 완료 봉
-
-        const EFarr = ema(closes, cfg.emaFast);
-        const ESarr = ema(closes, cfg.emaSlow);
-        const RSIarr = rsi(closes, cfg.rsiLen);
-        const ATRarr = atr(highs, lows, closes, 14);
-
-        return evaluate2PercentAtIndex(lastIdx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, klines[lastIdx].closeTime);
-    }
-
     function evaluate2PercentAtIndex(idx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, closeTime) {
         if (idx == null || idx < 0) return null;
         const C = closes[idx];
@@ -309,13 +311,12 @@
         const needCandles = cfg.targetPct / Math.max(atrp, 1e-6);
 
         function volScore(need) {
-            if (need < 1) return 15;
-            if (need <= 3) return 25;
+            if (need < 1) return 15;      // 과도 변동성
+            if (need <= 3) return 25;     // 이상적
             if (need <= 4) return 18;
             if (need <= 6) return 10;
             return 4;
         }
-
         function rrScore(side) {
             let risk = distEFpct;
             if (side === 'LONG' && !(C > EF)) risk = 3.0;
@@ -327,7 +328,6 @@
             if (rr >= 1.2) return 8;
             return 3;
         }
-
         function trendMomScore(side) {
             let s = 0;
             if (side === 'LONG') {
@@ -349,7 +349,6 @@
             }
             return s;
         }
-
         function persistenceScore(side) {
             let s = 0;
             const nearEFbonus = distEFpct <= 0.8 ? 10 : (distEFpct <= 1.2 ? 6 : 0);
@@ -443,7 +442,7 @@
         sorted.sort((a, b) => {
             switch (cfg.sortBy) {
                 case 'rsi': return (b.rsi ?? -1) - (a.rsi ?? -1);
-            case 'atrp': return (b.atrp ?? -1) - (a.atrp ?? -1);
+                case 'atrp': return (b.atrp ?? -1) - (a.atrp ?? -1);
                 case 'symbol': return a.symbol.localeCompare(b.symbol);
                 default: return (b.score2p ?? 0) - (a.score2p ?? 0);
             }
@@ -463,28 +462,48 @@
         `).join('');
     }
 
+    // ====== SCAN: A-Method로 동일 봉 보장 ======
     async function scanOnce() {
         const cfg = getCfg();
         const symbols = parseSymbols(els.symbols.value);
-        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: BTCUSDT, ETHUSDT'); return; }
+        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: SQDUSDT, ZECUSDT'); return; }
+
+        const targetCloseMs = lastClosedTargetCloseMs(Date.now()); // 방금 닫힌 봉
         const rows = [];
         els.bar.style.width = '0%';
         els.progressText.textContent = `스캔 시작 (0/${symbols.length})`;
+
         let i = 0;
         for (const sym of symbols) {
             try {
-                const ks = await fetchKlines(sym, '15m', cfg.limitCandles);
-                const evald = evaluate2Percent(ks, cfg);
-                if (evald) rows.push({ symbol: sym, ...evald });
+                const ks = await fetchKlinesEnsuringTarget(sym, '15m', cfg.limitCandles, targetCloseMs, 1500);
+                // 목표 봉 인덱스 찾기 (정규화해서 비교)
+                const targetNorm = normalizeQuarterCloseUTC(targetCloseMs);
+                const idx = ks.findIndex(k => normalizeQuarterCloseUTC(k.closeTime) === targetNorm);
+
+                const closes = ks.map(k => k.close);
+                const highs  = ks.map(k => k.high);
+                const lows   = ks.map(k => k.low);
+                const EFarr  = ema(closes, cfg.emaFast);
+                const ESarr  = ema(closes, cfg.emaSlow);
+                const RSIarr = rsi(closes, cfg.rsiLen);
+                const ATRarr = atr(highs, lows, closes, 14);
+
+                // 폴링 내에 목표 봉이 안 뜨면 안전하게 마지막 완료봉으로 대체
+                const useIdx = idx >= 0 ? idx : ks.length - 2;
+                const ev = evaluate2PercentAtIndex(useIdx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, ks[useIdx].closeTime);
+                if (ev) rows.push({ symbol: sym, ...ev });
             } catch (e) {
                 rows.push({ symbol: sym, side: 'WAIT', score2p: 0, close: null, rsi: null, atrp: null, distEFpct: null, needCandles: null, closeTime: null, error: String(e) });
             }
+
             i++;
             const pct = Math.round((i / symbols.length) * 100);
             els.bar.style.width = pct + '%';
             els.progressText.textContent = `스캔 중 ${i}/${symbols.length}`;
             if (cfg.delayMs > 0) await sleep(cfg.delayMs);
         }
+
         render(rows, cfg);
         els.progressText.textContent = `완료 (${symbols.length}/${symbols.length})`;
         lastRows = rows;
@@ -512,7 +531,7 @@
         autoTimer = setTimeout(async () => {
             await scanOnce();   // 경계 시각에 실행
             scheduleAuto();
-        }, wait);               // +버퍼 제거
+        }, wait);               // 버퍼 없이 정확 경계
     }
 
     function stopAuto() { clearTimeout(autoTimer); clearInterval(tickTimer); els.nextTick.textContent = '자동 스캔 꺼짐'; }
@@ -544,26 +563,23 @@
     let lastRows = [];
     let lastHistRows = [];
 
-    // ===== History (15분 정렬) =====
+    // ===== History (A-Method & 15분 정렬) =====
     function startOfTodayAt9LocalNormUTC() {
         const now = new Date();
         const local9 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
-        // 로컬 09:00을 UTC 타임스탬프로 취급하되 초/밀리초는 0으로
         const d = new Date(local9.getTime());
         d.setUTCSeconds(0, 0);
         return d.getTime();
     }
 
-    function formatLocalHHMMFromNorm(ms) {
-        const d = new Date(ms);
-        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-
     async function buildHistoryRows() {
         const cfg = getCfg();
         const symbols = parseSymbols(els.symbols.value);
-        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: BTCUSDT, ETHUSDT'); return []; }
+        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: SQDUSDT, ZECUSDT'); return []; }
 
+        // 히스토리의 마지막도 '방금 닫힌 봉'까지 포함 (스캔과 동일 타겟)
+        const targetCloseMs = lastClosedTargetCloseMs(Date.now());
+        const targetNorm = normalizeQuarterCloseUTC(targetCloseMs);
         const start9Norm = startOfTodayAt9LocalNormUTC();
         const rows = [];
 
@@ -573,9 +589,8 @@
         let i = 0;
         for (const sym of symbols) {
             try {
-                const ks = await fetchKlines(sym, '15m', cfg.limitCandles);
-                const lastIdx = ks.length - 2; // 마지막 완료 봉
-                if (lastIdx < 0) { i++; continue; }
+                // 목표 봉이 응답에 존재하도록 보장
+                const ks = await fetchKlinesEnsuringTarget(sym, '15m', cfg.limitCandles, targetCloseMs, 1500);
 
                 const closes = ks.map(k => k.close);
                 const highs  = ks.map(k => k.high);
@@ -585,12 +600,11 @@
                 const RSIarr = rsi(closes, cfg.rsiLen);
                 const ATRarr = atr(highs, lows, closes, 14);
 
-                const lastNorm = normalizeQuarterCloseUTC(ks[lastIdx].closeTime);
-
-                for (let idx = 0; idx <= lastIdx; idx++) {
+                for (let idx = 0; idx < ks.length; idx++) {
                     const ct = ks[idx].closeTime;
                     const ctNorm = normalizeQuarterCloseUTC(ct);
-                    if (ctNorm >= start9Norm && ctNorm <= lastNorm) {
+                    // 오늘 09:00(로컬) 이후 & 타겟(방금 닫힌 봉)까지
+                    if (ctNorm >= start9Norm && ctNorm <= targetNorm) {
                         const ev = evaluate2PercentAtIndex(idx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, ct);
                         if (ev) {
                             rows.push({
@@ -604,7 +618,7 @@
                     }
                 }
             } catch (e) {
-                // 심볼별 에러는 히스토리에서 스킵
+                // 심볼별 에러는 스킵
             }
 
             i++;
@@ -664,9 +678,8 @@
     });
     els.histCsvBtn.addEventListener('click', exportHistoryCSV);
 
-    // Demo defaults
+    // Defaults
     els.symbols.value = 'SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT';
 </script>
 </body>
 </html>
-
