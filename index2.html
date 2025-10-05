@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp 15m Scanner (User Symbols)</title>
+    <title>Binance USDT Perp 15m Scanner — 2% Target Scoring</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { color-scheme: light dark; }
         body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; margin: 0; padding: 24px; }
-        h1 { margin: 0 0 12px; font-size: 20px; }
+        h1 { margin: 0 0 8px; font-size: 20px; }
         .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
         label { display: block; font-weight: 600; margin-bottom: 6px; }
         input, select, button, textarea { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #9993; }
-        textarea { width: 460px; height: 88px; }
+        textarea { width: 480px; height: 88px; }
         .card { border: 1px solid #9993; border-radius: 16px; padding: 16px; margin-top: 16px; box-shadow: 0 4px 10px #0000000a; }
         .grid { overflow: auto; max-height: 70vh; }
         table { border-collapse: collapse; width: 100%; min-width: 980px; }
@@ -25,18 +25,16 @@
         .row .field { display: flex; flex-direction: column; }
         .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         .badge { font-size: 12px; border: 1px dashed #9995; padding: 2px 8px; border-radius: 999px; }
-        .ok { color: #16a34a; }
-        .warn { color: #ca8a04; }
-        .err { color: #dc2626; }
         .progress { height: 8px; background: #0001; border-radius: 999px; overflow: hidden; }
         .bar { height: 100%; width: 0%; background: #3b82f6; }
         .small { font-size: 12px; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .note { font-size: 12px; line-height: 1.4; }
     </style>
 </head>
 <body>
-    <h1>Binance 무기한 선물 15분 스캐너 (직접 지정 심볼)</h1>
-    <p class="muted">마지막 완료 봉(현재 진행 중 봉 제외) 기준으로 진입 신호를 평가합니다. 주문 실행 기능은 포함하지 않으며, 교육/리서치 용도입니다.</p>
+    <h1>Binance 15분 스캐너 — 2% 타깃 적합 점수</h1>
+    <p class="muted">*교육/리서치 용도. 주문 실행 없음. 마지막 완료 봉 기준 평가(진행 중 봉 제외).</p>
 
     <div class="card">
         <div class="row">
@@ -61,14 +59,18 @@
                     </div>
                     <div class="field">
                         <label for="consecMin">연속 종가 &gt; EMA빠른선</label>
-                        <input id="consecMin" type="number" value="3" min="0" />
+                        <input id="consecMin" type="number" value="2" min="0" />
                     </div>
                     <div class="field">
                         <label for="limitCandles">불러올 캔들 수</label>
-                        <input id="limitCandles" type="number" value="300" min="100" max="1000" />
+                        <input id="limitCandles" type="number" value="300" min="120" max="1000" />
                     </div>
                 </div>
                 <div class="row" style="margin-top:8px;">
+                    <div class="field">
+                        <label for="targetPct">목표 수익(%)</label>
+                        <input id="targetPct" type="number" value="2" min="0.5" step="0.1" />
+                    </div>
                     <div class="field">
                         <label for="delayMs">요청 간격(ms)</label>
                         <input id="delayMs" type="number" value="150" min="0" />
@@ -76,9 +78,8 @@
                     <div class="field">
                         <label for="sortBy">정렬</label>
                         <select id="sortBy">
-                            <option value="score">점수(내림차순)</option>
+                            <option value="score2p">2%점수(내림차순)</option>
                             <option value="rsi">RSI</option>
-                            <option value="consec">연속봉 수</option>
                             <option value="atrp">ATR%</option>
                             <option value="symbol">심볼</option>
                         </select>
@@ -86,23 +87,26 @@
                 </div>
             </div>
         </div>
+
         <div class="row" style="margin-top:12px; align-items:center;">
             <div class="actions">
                 <button id="runBtn">지금 스캔</button>
                 <button id="autoBtn">15분 자동 스캔 시작</button>
                 <button id="stopBtn">자동 중지</button>
                 <button id="exportBtn">CSV 내보내기</button>
-                <!-- 추가: 히스토리 버튼 -->
-                <button id="histBtn">점수 히스토리</button>
             </div>
             <div id="nextTick" class="badge"></div>
         </div>
+
         <div style="margin-top:12px; display:flex; gap:16px; align-items:center;">
             <div class="progress" style="flex:1;">
                 <div class="bar" id="bar"></div>
             </div>
             <div class="small" id="progressText">대기</div>
         </div>
+        <p class="note" style="margin-top:8px;">
+            권장 진입 기준: <b>점수 ≥ 75</b> (관찰: 65~74). 손절은 기본적으로 <b>EMA 빠른선</b> 이탈 기준을 가정합니다.
+        </p>
     </div>
 
     <div class="card">
@@ -112,39 +116,21 @@
                     <tr>
                         <th>심볼</th>
                         <th>신호</th>
-                        <th>점수</th>
+                        <th>2%점수</th>
                         <th>종가</th>
-                        <th>EMA<span id="emaFastHdr">50</span></th>
-                        <th>EMA<span id="emaSlowHdr">200</span></th>
-                        <th>RSI</th>
-                        <th>연속(종가&gt;EMA빠른)</th>
                         <th>ATR%</th>
+                        <th>RSI</th>
+                        <th>EF거리%</th>
+                        <th>필요캔들(≈2%/ATR%)</th>
                         <th>봉 시간(UTC)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
         </div>
-        <p class="muted small" style="margin-top:8px;">* 신호는 마지막 완료 봉 기준. RSI는 14 기본, ATR%는 변동성 참고용. 점수는 트렌드/모멘텀을 종합한 휴리스틱(0~100).</p>
-    </div>
-
-    <!-- 추가: 히스토리 카드 -->
-    <div class="card" id="histCard" style="display:none;">
-        <h2 style="margin:0 0 8px; font-size:16px;">오늘 09:00~현재 (로컬 시간) 15분 히스토리</h2>
-        <div class="grid">
-            <table id="histTable">
-                <thead>
-                    <tr>
-                        <th>심볼</th>
-                        <th>시간</th>
-                        <th>신호</th>
-                        <th>점수</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-        <p class="muted small" style="margin-top:8px;">* 브라우저 로컬 시간 기준. 진행 중인 현재 봉은 제외하고 마지막 완료 봉까지만 계산합니다.</p>
+        <p class="muted small" style="margin-top:8px;">
+            * “필요캔들”은 2% 달성에 필요한 15분 봉 수의 근사치(2% / ATR%). 진행 중 봉은 제외.
+        </p>
     </div>
 
 <script>
@@ -200,7 +186,6 @@
             const lc = Math.abs(lows[i] - closes[i - 1]);
             tr[i] = Math.max(hl, hc, lc);
         }
-        // Wilder's smoothing
         const out = new Array(closes.length).fill(null);
         let sum = 0;
         for (let i = 1; i <= length; i++) sum += tr[i] ?? 0;
@@ -222,7 +207,7 @@
     function msUntilNextQuarterHour() {
         const now = new Date();
         const minutes = now.getUTCMinutes();
-        const nextQuarter = Math.ceil((minutes + 0.001) / 15) * 15; // 경계 회피
+        const nextQuarter = Math.ceil((minutes + 0.001) / 15) * 15;
         const target = new Date(now);
         if (nextQuarter >= 60) {
             target.setUTCHours(now.getUTCHours() + 1, 0, 0, 0);
@@ -235,13 +220,12 @@
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     // ===== API =====
-    const BASE = "https://fapi.binance.com"; // Binance Futures
+    const BASE = "https://fapi.binance.com";
     async function fetchKlines(symbol, interval = "15m", limit = 300) {
         const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`${symbol} HTTP ${res.status}`);
         const data = await res.json();
-        // kline: [openTime, open, high, low, close, volume, closeTime, ...]
         return data.map(k => ({
             openTime: k[0],
             open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
@@ -249,65 +233,111 @@
         }));
     }
 
-    // ===== Strategy (heuristic scoring) =====
-    function evaluateSignal(klines, cfg) {
-        // 현재 진행 중 봉 제외, 마지막 완료 봉 사용
+    // ===== 2% Target Scoring =====
+    function evaluate2Percent(klines, cfg) {
         if (klines.length < 100) return null;
         const closes = klines.map(k => k.close);
-        const highs = klines.map(k => k.high);
-        const lows = klines.map(k => k.low);
-        const lastIdx = klines.length - 2; // last closed candle
+        const highs  = klines.map(k => k.high);
+        const lows   = klines.map(k => k.low);
+        const lastIdx = klines.length - 2; // 마지막 완료 봉
 
-        const emaFastArr = ema(closes, cfg.emaFast);
-        const emaSlowArr = ema(closes, cfg.emaSlow);
-        const rsiArr = rsi(closes, cfg.rsiLen);
-        const atrArr = atr(highs, lows, closes, 14);
+        const EFarr = ema(closes, cfg.emaFast);
+        const ESarr = ema(closes, cfg.emaSlow);
+        const RSIarr = rsi(closes, cfg.rsiLen);
+        const ATRarr = atr(highs, lows, closes, 14);
 
         const C = closes[lastIdx];
-        const EF = emaFastArr[lastIdx];
-        const ES = emaSlowArr[lastIdx];
-        const RSI = rsiArr[lastIdx];
-        const ATR = atrArr[lastIdx];
+        const EF = EFarr[lastIdx];
+        const ES = ESarr[lastIdx];
+        const RSI = RSIarr[lastIdx];
+        const ATR = ATRarr[lastIdx];
+        if (ATR == null) return null;
 
-        const consecUp = countConsecutiveAbove(closes, emaFastArr, lastIdx);
-        const atrPct = ATR ? (ATR / C) * 100 : null;
+        const atrp = (ATR / C) * 100;
+        const distEFpct = Math.abs(C - EF) / C * 100;
+        const consecUp = countConsecutiveAbove(closes, EFarr, lastIdx);
+        const consecDn = countConsecutiveAbove(EFarr, closes, lastIdx);
+        const needCandles = cfg.targetPct / Math.max(atrp, 1e-6); // 2%/ATR%
 
-        // Scoring 0~100
-        let scoreLong = 0, scoreShort = 0;
-        // Trend alignment
-        if (C > EF) scoreLong += 15; else scoreShort += 15;
-        if (EF > ES) scoreLong += 20; else scoreShort += 20;
-        // Momentum via RSI
-        if (RSI != null) {
-            if (RSI >= 52 && RSI <= 75) scoreLong += 20;
-            if (RSI <= 48 && RSI >= 25) scoreShort += 20;
-            if (RSI > 75) scoreLong += 5; // extended
-            if (RSI < 25) scoreShort += 5;
+        // 공통: 변동성/필요 캔들 스코어 (최대 25)
+        // 1~3캔들: 25, 3~4: 18, 4~6: 10, >6: 4, <1: 15 (너무 변동성 큼 → 약간 감점)
+        function volScore(need) {
+            if (need < 1) return 15;
+            if (need <= 3) return 25;
+            if (need <= 4) return 18;
+            if (need <= 6) return 10;
+            return 4;
         }
-        // Persistence above/below EMA Fast
-        if (consecUp >= cfg.consecMin) scoreLong += Math.min(20, consecUp * 2);
-        const consecDn = countConsecutiveAbove(emaFastArr, closes, lastIdx); // inverse
-        if (consecDn >= cfg.consecMin) scoreShort += Math.min(20, consecDn * 2);
-        // Volatility sweet-spot (optional)
-        if (atrPct != null) {
-            // prefer 0.5% ~ 3% range
-            if (atrPct >= 0.5 && atrPct <= 3) { scoreLong += 10; scoreShort += 10; }
+
+        // 리스크-리워드(RR) 스코어 (최대 25)
+        // 손절은 EF 이탈 가정. RR = target / risk, risk = |C - EF| / C * 100
+        function rrScore(side) {
+            let risk = distEFpct;
+            if (side === 'LONG' && !(C > EF)) risk = 3.0; // 추세 역행시 큰 리스크로 간주
+            if (side === 'SHORT' && !(C < EF)) risk = 3.0;
+            const rr = cfg.targetPct / Math.max(risk, 0.0001);
+            if (rr >= 2.5) return 25;
+            if (rr >= 2.0) return 20;
+            if (rr >= 1.5) return 12;
+            if (rr >= 1.2) return 8;
+            return 3;
         }
+
+        // 추세/모멘텀 스코어 (최대 30)
+        function trendMomScore(side) {
+            let s = 0;
+            if (side === 'LONG') {
+                if (C > EF) s += 12;
+                if (EF > ES) s += 12;
+                if (RSI != null) {
+                    if (RSI >= 55 && RSI <= 68) s += 6;
+                    else if (RSI > 68 && RSI <= 75) s += 3; // 과열 구간 약화
+                    else if (RSI < 50) s -= 4;
+                }
+            } else {
+                if (C < EF) s += 12;
+                if (EF < ES) s += 12;
+                if (RSI != null) {
+                    if (RSI >= 25 && RSI <= 45) s += 6;
+                    else if (RSI < 25) s += 3;  // 과매도 과도
+                    else if (RSI > 50) s -= 4;
+                }
+            }
+            return s;
+        }
+
+        // 지속성/되돌림 스코어 (최대 20)
+        function persistenceScore(side) {
+            let s = 0;
+            const nearEFbonus = distEFpct <= 0.8 ? 10 : (distEFpct <= 1.2 ? 6 : 0);
+            if (side === 'LONG') {
+                if (consecUp >= cfg.consecMin && consecUp <= 6) s += 6;
+                else if (consecUp > 6 && consecUp <= 9) s += 3; // 과열
+                s += nearEFbonus; // 되돌림 후 재상승 선호
+            } else {
+                if (consecDn >= cfg.consecMin && consecDn <= 6) s += 6;
+                else if (consecDn > 6 && consecDn <= 9) s += 3;
+                s += nearEFbonus;
+            }
+            return s;
+        }
+
+        const longScore  = volScore(needCandles) + rrScore('LONG')  + trendMomScore('LONG')  + persistenceScore('LONG');
+        const shortScore = volScore(needCandles) + rrScore('SHORT') + trendMomScore('SHORT') + persistenceScore('SHORT');
 
         let side = "WAIT", score = 0;
-        if (scoreLong - scoreShort >= 10) { side = "LONG"; score = Math.min(100, scoreLong); }
-        else if (scoreShort - scoreLong >= 10) { side = "SHORT"; score = Math.min(100, scoreShort); }
-        else { score = Math.max(scoreLong, scoreShort) / 2; }
+        if (longScore - shortScore >= 8) { side = "LONG"; score = Math.min(100, Math.round(longScore)); }
+        else if (shortScore - longScore >= 8) { side = "SHORT"; score = Math.min(100, Math.round(shortScore)); }
+        else { side = "WAIT"; score = Math.min(70, Math.round(Math.max(longScore, shortScore) * 0.7)); }
 
         return {
             side,
-            score: Math.round(score),
+            score2p: score,
             close: C,
-            emaFast: EF,
-            emaSlow: ES,
             rsi: RSI != null ? +RSI.toFixed(1) : null,
-            consec: side === 'LONG' ? consecUp : consecDn,
-            atrp: atrPct != null ? +atrPct.toFixed(2) : null,
+            atrp: +atrp.toFixed(2),
+            distEFpct: +distEFpct.toFixed(2),
+            needCandles: +needCandles.toFixed(2),
             closeTime: klines[lastIdx].closeTime
         };
     }
@@ -320,19 +350,17 @@
         rsiLen: document.getElementById('rsiLen'),
         consecMin: document.getElementById('consecMin'),
         limitCandles: document.getElementById('limitCandles'),
+        targetPct: document.getElementById('targetPct'),
         delayMs: document.getElementById('delayMs'),
         sortBy: document.getElementById('sortBy'),
         runBtn: document.getElementById('runBtn'),
         autoBtn: document.getElementById('autoBtn'),
         stopBtn: document.getElementById('stopBtn'),
         exportBtn: document.getElementById('exportBtn'),
-        histBtn: document.getElementById('histBtn'), // 추가
         nextTick: document.getElementById('nextTick'),
         bar: document.getElementById('bar'),
         progressText: document.getElementById('progressText'),
         tbody: document.querySelector('#table tbody'),
-        emaFastHdr: document.getElementById('emaFastHdr'),
-        emaSlowHdr: document.getElementById('emaSlowHdr'),
     };
 
     function getCfg() {
@@ -342,39 +370,10 @@
             rsiLen: +els.rsiLen.value,
             consecMin: +els.consecMin.value,
             limitCandles: +els.limitCandles.value,
+            targetPct: +els.targetPct.value,
             delayMs: +els.delayMs.value,
             sortBy: els.sortBy.value,
         };
-    }
-
-    function render(rows, cfg) {
-        els.emaFastHdr.textContent = cfg.emaFast;
-        els.emaSlowHdr.textContent = cfg.emaSlow;
-        // sort
-        const sorted = [...rows];
-        sorted.sort((a, b) => {
-            switch (cfg.sortBy) {
-                case 'rsi': return (b.rsi ?? -1) - (a.rsi ?? -1);
-                case 'consec': return (b.consec ?? 0) - (a.consec ?? 0);
-                case 'atrp': return (b.atrp ?? -1) - (a.atrp ?? -1);
-                case 'symbol': return a.symbol.localeCompare(b.symbol);
-                default: return (b.score ?? 0) - (a.score ?? 0);
-            }
-        });
-        els.tbody.innerHTML = sorted.map(r => `
-            <tr>
-                <td class="mono">${r.symbol}</td>
-                <td>${badge(r.side)}</td>
-                <td>${num(r.score)}</td>
-                <td>${num(r.close)}</td>
-                <td>${num(r.emaFast)}</td>
-                <td>${num(r.emaSlow)}</td>
-                <td>${r.rsi != null ? r.rsi.toFixed(1) : '-'}</td>
-                <td>${r.consec ?? '-'}</td>
-                <td>${r.atrp != null ? r.atrp.toFixed(2) + '%' : '-'}</td>
-                <td class="mono small">${utcTs(r.closeTime)}</td>
-            </tr>
-        `).join('');
     }
 
     function badge(side) {
@@ -385,13 +384,43 @@
 
     function num(n) {
         if (n == null || Number.isNaN(n)) return '-';
-        if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
-        return n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+        if (typeof n === 'number' && !Number.isInteger(n) && Math.abs(n) >= 1) {
+            return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+        }
+        if (typeof n === 'number') {
+            return n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+        }
+        return String(n);
     }
 
     function utcTs(ms) {
         const d = new Date(ms);
         return d.toISOString().replace('T', ' ').replace('.000Z', 'Z');
+    }
+
+    function render(rows, cfg) {
+        const sorted = [...rows];
+        sorted.sort((a, b) => {
+            switch (cfg.sortBy) {
+                case 'rsi': return (b.rsi ?? -1) - (a.rsi ?? -1);
+                case 'atrp': return (b.atrp ?? -1) - (a.atrp ?? -1);
+                case 'symbol': return a.symbol.localeCompare(b.symbol);
+                default: return (b.score2p ?? 0) - (a.score2p ?? 0);
+            }
+        });
+        els.tbody.innerHTML = sorted.map(r => `
+            <tr>
+                <td class="mono">${r.symbol}</td>
+                <td>${badge(r.side)}</td>
+                <td><b>${r.score2p}</b></td>
+                <td>${num(r.close)}</td>
+                <td>${r.atrp != null ? r.atrp.toFixed(2) + '%' : '-'}</td>
+                <td>${r.rsi != null ? r.rsi.toFixed(1) : '-'}</td>
+                <td>${r.distEFpct != null ? r.distEFpct.toFixed(2) + '%' : '-'}</td>
+                <td>${r.needCandles != null ? r.needCandles.toFixed(2) : '-'}</td>
+                <td class="mono small">${utcTs(r.closeTime)}</td>
+            </tr>
+        `).join('');
     }
 
     async function scanOnce() {
@@ -405,10 +434,10 @@
         for (const sym of symbols) {
             try {
                 const ks = await fetchKlines(sym, '15m', cfg.limitCandles);
-                const evald = evaluateSignal(ks, cfg);
+                const evald = evaluate2Percent(ks, cfg);
                 if (evald) rows.push({ symbol: sym, ...evald });
             } catch (e) {
-                rows.push({ symbol: sym, side: 'WAIT', score: 0, close: null, emaFast: null, emaSlow: null, rsi: null, consec: null, atrp: null, closeTime: null, error: String(e) });
+                rows.push({ symbol: sym, side: 'WAIT', score2p: 0, close: null, rsi: null, atrp: null, distEFpct: null, needCandles: null, closeTime: null, error: String(e) });
             }
             i++;
             const pct = Math.round((i / symbols.length) * 100);
@@ -418,7 +447,7 @@
         }
         render(rows, cfg);
         els.progressText.textContent = `완료 (${symbols.length}/${symbols.length})`;
-        lastRows = rows; // for CSV export
+        lastRows = rows;
     }
 
     function msToHHMMSS(ms) {
@@ -442,183 +471,46 @@
         }, 500);
         autoTimer = setTimeout(async () => {
             await scanOnce();
-            scheduleAuto(); // reschedule next 15m boundary
-        }, wait + 500); // small buffer after close
+            scheduleAuto();
+        }, wait + 500);
     }
 
     function stopAuto() { clearTimeout(autoTimer); clearInterval(tickTimer); els.nextTick.textContent = '자동 스캔 꺼짐'; }
 
     function exportCSV() {
         if (!lastRows || lastRows.length === 0) { alert('내보낼 데이터가 없습니다. 먼저 스캔을 실행하세요.'); return; }
-        const header = ['symbol','side','score','close','emaFast','emaSlow','rsi','consec','atrp','closeTimeUTC'];
+        const header = ['symbol','side','score2p','close','atrp','rsi','distEFpct','needCandles','closeTimeUTC'];
         const lines = [header.join(',')];
         for (const r of lastRows) {
             lines.push([
                 r.symbol,
                 r.side,
-                r.score,
+                r.score2p,
                 r.close ?? '',
-                r.emaFast ?? '',
-                r.emaSlow ?? '',
-                r.rsi ?? '',
-                r.consec ?? '',
                 r.atrp ?? '',
+                r.rsi ?? '',
+                r.distEFpct ?? '',
+                r.needCandles ?? '',
                 r.closeTime ? new Date(r.closeTime).toISOString() : ''
             ].join(','));
         }
         const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'scanner_15m.csv'; a.click();
+        a.href = url; a.download = 'scanner_15m_2pct.csv'; a.click();
         URL.revokeObjectURL(url);
     }
 
     let lastRows = [];
-
-    // ===== Helpers for history =====
-    function startOfTodayAt9Local() {
-        const now = new Date();
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0); // 로컬 09:00
-        return d.getTime(); // ms
-    }
-
-    function formatLocalHHMM(ms) {
-        const d = new Date(ms);
-        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-
-    function computeIndicatorsForAll(klines, cfg) {
-        const closes = klines.map(k => k.close);
-        const highs  = klines.map(k => k.high);
-        const lows   = klines.map(k => k.low);
-        return {
-            closes,
-            emaFastArr: ema(closes, cfg.emaFast),
-            emaSlowArr: ema(closes, cfg.emaSlow),
-            rsiArr: rsi(closes, cfg.rsiLen),
-            atrArr: atr(highs, lows, closes, 14),
-        };
-    }
-
-    function evaluateAtIndex(idx, ind, cfg) {
-        const C   = ind.closes[idx];
-        const EF  = ind.emaFastArr[idx];
-        const ES  = ind.emaSlowArr[idx];
-        const RSI = ind.rsiArr[idx];
-        const ATR = ind.atrArr[idx];
-
-        const consecUp = countConsecutiveAbove(ind.closes, ind.emaFastArr, idx);
-        const atrPct = ATR ? (ATR / C) * 100 : null;
-
-        let scoreLong = 0, scoreShort = 0;
-        if (C > EF) scoreLong += 15; else scoreShort += 15;
-        if (EF > ES) scoreLong += 20; else scoreShort += 20;
-
-        if (RSI != null) {
-            if (RSI >= 52 && RSI <= 75) scoreLong += 20;
-            if (RSI <= 48 && RSI >= 25) scoreShort += 20;
-            if (RSI > 75) scoreLong += 5;
-            if (RSI < 25) scoreShort += 5;
-        }
-
-        const consecDn = countConsecutiveAbove(ind.emaFastArr, ind.closes, idx);
-        if (consecUp >= cfg.consecMin) scoreLong += Math.min(20, consecUp * 2);
-        if (consecDn >= cfg.consecMin) scoreShort += Math.min(20, consecDn * 2);
-
-        if (atrPct != null) {
-            if (atrPct >= 0.5 && atrPct <= 3) { scoreLong += 10; scoreShort += 10; }
-        }
-
-        let side = "WAIT", score = 0;
-        if (scoreLong - scoreShort >= 10) { side = "LONG"; score = Math.min(100, scoreLong); }
-        else if (scoreShort - scoreLong >= 10) { side = "SHORT"; score = Math.min(100, scoreShort); }
-        else { score = Math.max(scoreLong, scoreShort) / 2; }
-
-        return { side, score: Math.round(score) };
-    }
-
-    async function buildHistoryRows() {
-        const cfg = getCfg();
-        const symbols = parseSymbols(els.symbols.value);
-        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: BTCUSDT, ETHUSDT'); return []; }
-
-        const start9LocalMs = startOfTodayAt9Local();
-        const rows = [];
-
-        els.bar.style.width = '0%';
-        els.progressText.textContent = `히스토리 수집 시작 (0/${symbols.length})`;
-
-        let i = 0;
-        for (const sym of symbols) {
-            try {
-                const ks = await fetchKlines(sym, '15m', cfg.limitCandles);
-
-                // 마지막 완료 봉 인덱스
-                const lastIdx = ks.length - 2;
-                if (lastIdx < 0) { i++; continue; }
-
-                // 09:00(로컬) 이후 ~ 마지막 완료 봉까지의 15분 봉만 사용
-                const ind = computeIndicatorsForAll(ks, cfg);
-                for (let idx = 0; idx <= lastIdx; idx++) {
-                    const ct = ks[idx].closeTime; // UTC ms
-                    if (ct >= start9LocalMs && ct <= ks[lastIdx].closeTime) {
-                        const ev = evaluateAtIndex(idx, ind, cfg);
-                        rows.push({
-                            symbol: sym,
-                            timeLocal: formatLocalHHMM(ct),
-                            side: ev.side,
-                            score: ev.score,
-                            sortKey: ct
-                        });
-                    }
-                }
-            } catch (e) {
-                // 심볼 단위 에러는 히스토리에서 스킵
-            }
-
-            i++;
-            const pct = Math.round((i / symbols.length) * 100);
-            els.bar.style.width = pct + '%';
-            els.progressText.textContent = `히스토리 수집 중 ${i}/${symbols.length}`;
-            if (cfg.delayMs > 0) await sleep(cfg.delayMs);
-        }
-
-        els.progressText.textContent = `히스토리 완료 (${symbols.length}/${symbols.length})`;
-        return rows;
-    }
-
-    function renderHistory(rows) {
-        // 심볼, 시간 오름차순
-        const sorted = [...rows].sort((a, b) => {
-            if (a.symbol === b.symbol) return a.sortKey - b.sortKey;
-            return a.symbol.localeCompare(b.symbol);
-        });
-
-        const tbody = document.querySelector('#histTable tbody');
-        tbody.innerHTML = sorted.map(r => `
-            <tr>
-                <td class="mono">${r.symbol}</td>
-                <td class="mono small">${r.timeLocal}</td>
-                <td>${badge(r.side)}</td>
-                <td>${r.score}</td>
-            </tr>
-        `).join('');
-
-        document.getElementById('histCard').style.display = 'block';
-    }
 
     // ===== Bindings =====
     els.runBtn.addEventListener('click', scanOnce);
     els.autoBtn.addEventListener('click', scheduleAuto);
     els.stopBtn.addEventListener('click', stopAuto);
     els.exportBtn.addEventListener('click', exportCSV);
-    els.histBtn.addEventListener('click', async () => {
-        const rows = await buildHistoryRows();
-        renderHistory(rows);
-    });
 
     // Demo defaults
-    els.symbols.value = 'SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT';
+    els.symbols.value = 'BTCUSDT, ETHUSDT, SOLUSDT, LINKUSDT, AVAXUSDT';
 </script>
 </body>
 </html>
