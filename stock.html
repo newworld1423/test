@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>1일봉 직전봉 상승률 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #151924;
+            --text: #e8ecf1;
+            --muted: #9aa4b2;
+            --pos: #18c37e;
+            --neg: #ff6b6b;
+            --accent: #5aa7ff;
+            --border: #242a38;
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, "Malgun Gothic", sans-serif;
+        }
+        .wrap {
+            max-width: 1080px;
+            margin: 40px auto;
+            padding: 0 16px;
+        }
+        .card {
+            background: linear-gradient(180deg, #151924 0%, #121620 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            padding: 20px;
+        }
+        h1 {
+            font-size: 20px;
+            margin: 0 0 12px;
+        }
+        .desc {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 220px 150px;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        textarea, input, select, button {
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #0e1220;
+            color: var(--text);
+        }
+        textarea {
+            padding: 12px;
+            min-height: 120px;
+            resize: vertical;
+        }
+        .right {
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 12px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+        }
+        button {
+            padding: 12px 14px;
+            font-weight: 700;
+            cursor: pointer;
+            background: linear-gradient(180deg, #1a55ff, #0040ff);
+            border: 0;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        th, td {
+            padding: 10px 12px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            font-variant-numeric: tabular-nums;
+        }
+        th {
+            text-align: center;
+            background: #0f1422;
+            color: #c8d3e3;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: .3px;
+        }
+        td.sym, th.sym {
+            text-align: left;
+        }
+        .pos { color: var(--pos); font-weight: 700; }
+        .neg { color: var(--neg); font-weight: 700; }
+        .skel {
+            opacity: .65;
+            font-style: italic;
+            color: var(--muted);
+        }
+        .footer {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .badge {
+            display: inline-block;
+            border: 1px solid var(--border);
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            color: #b7c3d9;
+            background: #0b0f1a;
+            margin-right: 6px;
+        }
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+            .right { grid-template-rows: none; grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        <h1>📈 1일봉 기준 직전봉 상승률 스캐너</h1>
+        <div class="desc">
+            종목 코드를 줄바꿈/쉼표로 입력하고 “스캔”을 누르세요. 미국 종목은 <span class="badge">AAPL → aapl.us</span>, 한국 종목은
+            <span class="badge">005930 → 005930.kr</span>로 자동 매핑합니다. 직접 <code>.us</code> 또는 <code>.kr</code>를 붙여도 됩니다.
+        </div>
+
+        <div class="grid">
+            <textarea id="symbols" placeholder="예) AAPL, NVDA, TSLA 또는&#10;005930, 000660, 035420"></textarea>
+
+            <div class="right">
+                <div class="row">
+                    <select id="guessRule">
+                        <option value="auto" selected>시장 자동 추론(.us / .kr)</option>
+                        <option value="us">미국 고정(.us)</option>
+                        <option value="kr">한국 고정(.kr)</option>
+                        <option value="raw">접미사 그대로 사용</option>
+                    </select>
+                    <select id="limitDays">
+                        <option value="365">최대 1년 데이터 다운로드</option>
+                        <option value="120" selected>최대 120일 데이터 다운로드</option>
+                        <option value="60">최대 60일</option>
+                        <option value="20">최대 20일</option>
+                    </select>
+                </div>
+                <div>
+                    <button id="scanBtn">스캔</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="hint">
+                    • **직전봉 몸통 상승률(시가 대비)** 과 **전일 등락률(전일 종가 대비)** 모두 표시합니다. <br/>
+                    • 데이터 소스: Stooq (일봉 CSV). 휴장/갱신 지연 시 직전 데이터가 반영될 수 있습니다.
+                </div>
+            </div>
+        </div>
+
+        <div id="tableWrap" style="margin-top:16px;">
+            <table id="resultTable">
+                <thead>
+                    <tr>
+                        <th class="sym">심볼</th>
+                        <th>일자(직전봉)</th>
+                        <th>시가</th>
+                        <th>고가</th>
+                        <th>저가</th>
+                        <th>종가</th>
+                        <th>거래량</th>
+                        <th>몸통상승률<br/>(시가대비)</th>
+                        <th>등락률<br/>(전일종가대비)</th>
+                        <th>메모</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr class="skel"><td class="sym">예시</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>심볼을 입력하고 스캔</td></tr>
+                </tbody>
+            </table>
+            <div class="footer">* 계산식: 몸통상승률 = (종가-시가)/시가×100, 등락률 = (종가-전일종가)/전일종가×100</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 간단 CSV 파서 (Stooq: date,open,high,low,close,volume)
+    function parseStooqCSV(text) {
+        const lines = text.trim().split(/\r?\n/);
+        // 첫 줄은 header
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols.length < 6) continue;
+            const [date, open, high, low, close, volume] = cols;
+            rows.push({
+                date,
+                open: Number(open),
+                high: Number(high),
+                low: Number(low),
+                close: Number(close),
+                volume: Number(volume)
+            });
+        }
+        return rows;
+    }
+
+    function formatNumber(n) {
+        if (n === null || n === undefined || Number.isNaN(n)) return '—';
+        return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+    }
+
+    function formatPct(n) {
+        if (n === null || n === undefined || Number.isNaN(n)) return '—';
+        return (n).toFixed(2) + '%';
+    }
+
+    // 심볼 추론: raw(그대로), us(모두 .us), kr(모두 .kr), auto(숫자면 .kr, 알파벳이면 .us)
+    function normalizeSymbol(input, rule = 'auto') {
+        const s = input.trim();
+        if (!s) return '';
+        const hasSuffix = /\.[a-z]{2,3}$/i.test(s);
+        if (rule === 'raw') return s.toLowerCase();
+        if (hasSuffix) return s.toLowerCase();
+
+        if (rule === 'us') return (s + '.us').toLowerCase();
+        if (rule === 'kr') return (s + '.kr').toLowerCase();
+
+        // auto
+        if (/^\d+$/.test(s)) return (s + '.kr').toLowerCase(); // 전부 숫자면 한국
+        return (s + '.us').toLowerCase(); // 그 외 알파벳은 미국
+    }
+
+    async function fetchStooqDaily(symbol, limitDays = 120) {
+        // Stooq CSV: https://stooq.com/q/d/l/?s=aapl.us&i=d
+        // limitDays는 클라이언트에서 잘라내기 (Stooq는 전체 반환)
+        const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const rows = parseStooqCSV(text);
+        // 최신부터 계산 편의 위해 뒤에서 자르기
+        return rows.slice(-limitDays);
+    }
+
+    function calcPrevCandleMetrics(rows) {
+        if (!rows || rows.length < 2) return null;
+        // 직전봉: 가장 마지막(최신) 행
+        const last = rows[rows.length - 1];
+        const prev = rows[rows.length - 2];
+
+        if (!isFinite(last.open) || !isFinite(last.close) || !isFinite(prev.close)) return null;
+
+        const bodyPct = ((last.close - last.open) / last.open) * 100; // 시가 대비
+        const dayPct = ((last.close - prev.close) / prev.close) * 100; // 전일 종가 대비
+
+        return {
+            date: last.date,
+            open: last.open,
+            high: last.high,
+            low: last.low,
+            close: last.close,
+            volume: last.volume,
+            bodyPct,
+            dayPct
+        };
+    }
+
+    function addRow(tbody, rawInput, sym, data, note = '') {
+        const tr = document.createElement('tr');
+
+        const tdSym = document.createElement('td');
+        tdSym.className = 'sym';
+        tdSym.textContent = rawInput + ' ';
+        const small = document.createElement('small');
+        small.style.color = '#8aa2c9';
+        small.textContent = `(${sym})`;
+        tdSym.appendChild(small);
+
+        const tdDate = document.createElement('td');
+        const tdOpen = document.createElement('td');
+        const tdHigh = document.createElement('td');
+        const tdLow = document.createElement('td');
+        const tdClose = document.createElement('td');
+        const tdVol = document.createElement('td');
+        const tdBody = document.createElement('td');
+        const tdDay = document.createElement('td');
+        const tdNote = document.createElement('td');
+
+        if (data) {
+            tdDate.textContent = data.date;
+            tdOpen.textContent = formatNumber(data.open);
+            tdHigh.textContent = formatNumber(data.high);
+            tdLow.textContent = formatNumber(data.low);
+            tdClose.textContent = formatNumber(data.close);
+            tdVol.textContent = formatNumber(data.volume);
+
+            tdBody.textContent = formatPct(data.bodyPct);
+            tdDay.textContent = formatPct(data.dayPct);
+
+            tdBody.className = data.bodyPct >= 0 ? 'pos' : 'neg';
+            tdDay.className = data.dayPct >= 0 ? 'pos' : 'neg';
+        } else {
+            tdDate.colSpan = 8;
+            tdDate.textContent = '데이터 없음';
+            tdDate.style.textAlign = 'center';
+        }
+
+        tdNote.textContent = note || '';
+
+        tr.appendChild(tdSym);
+        tr.appendChild(tdDate);
+        if (data) {
+            tr.appendChild(tdOpen);
+            tr.appendChild(tdHigh);
+            tr.appendChild(tdLow);
+            tr.appendChild(tdClose);
+            tr.appendChild(tdVol);
+            tr.appendChild(tdBody);
+            tr.appendChild(tdDay);
+        }
+        tr.appendChild(tdNote);
+        tbody.appendChild(tr);
+    }
+
+    async function scan() {
+        const btn = document.getElementById('scanBtn');
+        const tbody = document.getElementById('tbody');
+        const symbolsInput = document.getElementById('symbols').value;
+        const rule = document.getElementById('guessRule').value;
+        const limitDays = parseInt(document.getElementById('limitDays').value, 10);
+
+        tbody.innerHTML = '';
+        btn.disabled = true;
+        btn.textContent = '스캔 중…';
+
+        const rawList = symbolsInput
+            .split(/[\n,;]+/)
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        if (rawList.length === 0) {
+            addRow(tbody, '—', '—', null, '심볼을 입력하세요');
+            btn.disabled = false;
+            btn.textContent = '스캔';
+            return;
+        }
+
+        for (const raw of rawList) {
+            const sym = normalizeSymbol(raw, rule);
+
+            // 실패 시 대체 시도: 접미사를 바꿔서 재시도 (raw/auto에서만)
+            const candidates = [sym];
+            if (rule === 'auto' || rule === 'raw') {
+                if (!/\.[a-z]{2,3}$/.test(sym)) {
+                    candidates.push((raw + '.us').toLowerCase());
+                    candidates.push((raw + '.kr').toLowerCase());
+                } else {
+                    const base = sym.replace(/\.[a-z]{2,3}$/, '');
+                    candidates.push(base + '.us');
+                    candidates.push(base + '.kr');
+                }
+            }
+
+            let got = null, used = '', note = '';
+            for (const c of [...new Set(candidates)]) {
+                try {
+                    const rows = await fetchStooqDaily(c, limitDays);
+                    if (rows && rows.length >= 2) {
+                        const metrics = calcPrevCandleMetrics(rows);
+                        if (metrics) { got = metrics; used = c; break; }
+                    }
+                } catch (e) {
+                    note = '요청 실패';
+                }
+            }
+
+            if (!got) {
+                addRow(tbody, raw, used || sym, null, note || '데이터가 충분하지 않음(휴장/상장 폐지/심볼 불일치 가능)');
+            } else {
+                // 메모에 간단 상태
+                const bodyDir = got.bodyPct >= 0 ? '상승' : '하락';
+                const dayDir = got.dayPct >= 0 ? '상승' : '하락';
+                note = `몸통 ${bodyDir}, 전일대비 ${dayDir}`;
+                addRow(tbody, raw, used || sym, got, note);
+            }
+        }
+
+        btn.disabled = false;
+        btn.textContent = '스캔';
+    }
+
+    document.getElementById('scanBtn').addEventListener('click', scan);
+</script>
+</body>
+</html>
