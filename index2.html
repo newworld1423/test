@@ -2,684 +2,216 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp 15m — 2% Target + History (A-Method Aligned)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>코인 20일 스캐너 (1일봉)</title>
     <style>
-        :root { color-scheme: light dark; }
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, sans-serif; margin: 0; padding: 24px; }
-        h1 { margin: 0 0 8px; font-size: 20px; }
-        .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; }
-        input, select, button, textarea { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #9993; }
-        textarea { width: 520px; height: 88px; }
-        .card { border: 1px solid #9993; border-radius: 16px; padding: 16px; margin-top: 16px; box-shadow: 0 4px 10px #0000000a; }
-        .grid { overflow: auto; max-height: 70vh; }
-        table { border-collapse: collapse; width: 100%; min-width: 980px; }
-        th, td { padding: 10px 12px; border-bottom: 1px solid #00000014; text-align: right; }
-        th:nth-child(1), td:nth-child(1) { text-align: left; position: sticky; left: 0; background: canvas; }
-        .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; display: inline-block; }
-        .pill.long { background: #16a34a22; color: #16a34a; border: 1px solid #16a34a55; }
-        .pill.short { background: #dc262622; color: #dc2626; border: 1px solid #dc262655; }
-        .pill.wait { background: #6b728022; color: #6b7280; border: 1px solid #6b728055; }
-        .muted { color: #6b7280; font-size: 12px; }
-        .row .field { display: flex; flex-direction: column; }
-        .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        .badge { font-size: 12px; border: 1px dashed #9995; padding: 2px 8px; border-radius: 999px; }
-        .progress { height: 8px; background: #0001; border-radius: 999px; overflow: hidden; }
-        .bar { height: 100%; width: 0%; background: #3b82f6; }
-        .small { font-size: 12px; }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .note { font-size: 12px; line-height: 1.4; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; }
+        h1 { margin: 0 0 12px; }
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        input, select, button { padding: 8px 10px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; }
+        th { background: #f8fafc; white-space: nowrap; }
+        td.sticky, th.sticky { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; }
+        .tag { display: inline-block; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+        .ok { background: #ecfdf5; color: #047857; }
+        .fail { background: #fef2f2; color: #b91c1c; }
+        .muted { color: #6b7280; }
+        .hint { font-size: 12px; color: #6b7280; }
     </style>
 </head>
 <body>
-    <h1>Binance 15분 스캐너 — 2% 타깃 점수 + 히스토리 (A-Method 동기화)</h1>
-    <p class="muted">*교육/리서치 용도. 주문 실행 없음. 현재 진행 중 봉 제외, <b>방금 닫힌 봉</b> 기준. 자동/수동 스캔 모두 동일 봉을 평가합니다.</p>
+    <h1>코인 20일 스캐너 (1일봉)</h1>
 
-    <div class="card">
-        <div class="row">
-            <div class="field">
-                <label for="symbols">심볼 목록 (쉼표/공백 구분, 예: <span class="mono">SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT</span>)</label>
-                <textarea id="symbols" placeholder="SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT"></textarea>
-            </div>
-            <div class="field">
-                <label>전략 파라미터</label>
-                <div class="row">
-                    <div class="field">
-                        <label for="emaFast">EMA 빠른선</label>
-                        <input id="emaFast" type="number" value="50" min="3" />
-                    </div>
-                    <div class="field">
-                        <label for="emaSlow">EMA 느린선</label>
-                        <input id="emaSlow" type="number" value="200" min="5" />
-                    </div>
-                    <div class="field">
-                        <label for="rsiLen">RSI 길이</label>
-                        <input id="rsiLen" type="number" value="14" min="5" />
-                    </div>
-                    <div class="field">
-                        <label for="consecMin">연속 종가 &gt; EMA빠른선</label>
-                        <input id="consecMin" type="number" value="2" min="0" />
-                    </div>
-                    <div class="field">
-                        <label for="limitCandles">불러올 캔들 수</label>
-                        <input id="limitCandles" type="number" value="300" min="120" max="1000" />
-                    </div>
-                </div>
-                <div class="row" style="margin-top:8px;">
-                    <div class="field">
-                        <label for="targetPct">목표 수익(%)</label>
-                        <input id="targetPct" type="number" value="2" min="0.5" step="0.1" />
-                    </div>
-                    <div class="field">
-                        <label for="delayMs">요청 간격(ms)</label>
-                        <input id="delayMs" type="number" value="150" min="0" />
-                    </div>
-                    <div class="field">
-                        <label for="sortBy">정렬</label>
-                        <select id="sortBy">
-                            <option value="score2p">2%점수(내림차순)</option>
-                            <option value="rsi">RSI</option>
-                            <option value="atrp">ATR%</option>
-                            <option value="symbol">심볼</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row" style="margin-top:12px; align-items:center;">
-            <div class="actions">
-                <button id="runBtn">지금 스캔</button>
-                <button id="autoBtn">15분 자동 스캔</button>
-                <button id="stopBtn">자동 중지</button>
-                <button id="exportBtn">CSV 내보내기</button>
-                <button id="histBtn">점수 히스토리</button>
-                <button id="histCsvBtn">히스토리 CSV</button>
-            </div>
-            <div id="nextTick" class="badge"></div>
-        </div>
-
-        <div style="margin-top:12px; display:flex; gap:16px; align-items:center;">
-            <div class="progress" style="flex:1;">
-                <div class="bar" id="bar"></div>
-            </div>
-            <div class="small" id="progressText">대기</div>
-        </div>
-        <p class="note" style="margin-top:8px;">
-            권장 진입 기준: <b>점수 ≥ 75</b> (관찰: 65~74, 보류: &lt;65). 손절은 <b>EMA 빠른선</b> 이탈 기준 가정.
-        </p>
+    <div class="controls">
+        <label>심볼
+            <input id="symbol" value="BTCUSDT" />
+        </label>
+        <label>조회일수
+            <input id="days" type="number" value="20" min="5" max="500" />
+        </label>
+        <label>기본 성공 기준(%) 
+            <input id="baseThreshold" type="number" value="10" step="0.1" />
+        </label>
+        <button id="scanBtn">스캔</button>
+        <button id="csvBtn">CSV 다운로드</button>
+        <span class="hint">* 데이터: Binance 현물 / 1일봉</span>
     </div>
 
-    <div class="card">
-        <div class="grid">
-            <table id="table">
-                <thead>
-                    <tr>
-                        <th>심볼</th>
-                        <th>신호</th>
-                        <th>2%점수</th>
-                        <th>종가</th>
-                        <th>ATR%</th>
-                        <th>RSI</th>
-                        <th>EF거리%</th>
-                        <th>필요캔들(≈목표%/ATR%)</th>
-                        <th>봉 시간(UTC, 15분 정렬)</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-        <p class="muted small" style="margin-top:8px;">
-            * “필요캔들”은 목표(기본 2%) 달성에 필요한 15분 봉 수의 근사치(목표% / ATR%). 표시는 15분 경계로 정규화됩니다.
-        </p>
-    </div>
-
-    <div class="card" id="histCard" style="display:none;">
-        <h2 style="margin:0 0 8px; font-size:16px;">오늘 09:00~현재 (로컬) 15분 히스토리 — A-Method 동기화</h2>
-        <div class="grid">
-            <table id="histTable">
-                <thead>
-                    <tr>
-                        <th>심볼</th>
-                        <th>시간(HH:mm, 15분 정렬)</th>
-                        <th>신호</th>
-                        <th>2%점수</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
-        <p class="muted small" style="margin-top:8px;">* 히스토리 마지막 시각도 ‘방금 닫힌 봉’ 기준으로 자동/수동 스캔과 동일.</p>
-    </div>
+    <table id="result">
+        <thead>
+        <tr>
+            <th class="sticky">날짜</th>
+            <th>코인</th>
+            <th>직전봉 상승률</th>
+            <th>직전봉 저가</th>
+            <th>현재봉 시가</th>
+            <th>현재봉 고가</th>
+            <th>현재봉 저가</th>
+            <th>현재봉 (고가-시가)/시가</th>
+            <th>적용 기준(%)</th>
+            <th>성공 여부</th>
+            <th>실패 시 평균매수가</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
 <script>
-    // ===== Utilities =====
-    function parseSymbols(input) {
-        return Array.from(new Set(
-            input.split(/[^A-Z0-9]+/i)
-                .map(s => s.trim().toUpperCase())
-                .filter(Boolean)
-        ));
+/*
+ Binanace klines: https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=30
+ 반환 배열 각 원소: [ openTime, open, high, low, close, volume, closeTime, ... ]
+*/
+
+const $ = (sel) => document.querySelector(sel);
+const api = (symbol, limit=50) =>
+    `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}`;
+
+function fmtPct(x, digits=2) { return (x==null || isNaN(x)) ? "" : (x*100).toFixed(digits) + "%"; }
+function pct(x, digits=2) { return (x==null || isNaN(x)) ? "" : x.toFixed(digits) + "%"; }
+function n(x, digits=5) { return (x==null || isNaN(x)) ? "" : Number(x).toFixed(digits); }
+function ymd(ts) {
+    const d = new Date(ts);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth()+1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function toCSV(rows, headers) {
+    const esc = (v) => `"${String(v).replaceAll('"','""')}"`;
+    const head = headers.map(esc).join(",");
+    const body = rows.map(r => headers.map(h => esc(r[h] ?? "")).join(",")).join("\n");
+    return head + "\n" + body;
+}
+
+async function scan() {
+    const symbol = $("#symbol").value.trim().toUpperCase();
+    const days = Math.max(5, Math.min(500, Number($("#days").value) || 20));
+    const base = Number($("#baseThreshold").value) || 10;
+
+    const limit = days + 5; // 여유분(직전봉 계산용)
+    const url = api(symbol, limit);
+
+    let res;
+    try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        res = await r.json();
+    } catch (e) {
+        alert("데이터 요청 실패: " + e.message);
+        return;
     }
 
-    function ema(values, length) {
-        if (values.length === 0) return [];
-        const k = 2 / (length + 1);
-        const out = new Array(values.length).fill(null);
-        let prev = values[0];
-        out[0] = prev;
-        for (let i = 1; i < values.length; i++) {
-            prev = values[i] * k + prev * (1 - k);
-            out[i] = prev;
+    // 마지막 days개만 사용 (과거→현재 순으로 정렬되어 들어옴)
+    const data = res.slice(-days);
+    const rows = [];
+
+    // 물타기 단계 (실패할 때마다 1씩 증가, 성공 시 0으로 리셋)
+    let averagingLevel = 0;
+
+    for (let i = 0; i < data.length; i++) {
+        const prev = res[res.length - days - 1 + i]; // 현재행의 '직전봉'
+        const cur  = data[i];
+
+        if (!prev || !cur) continue;
+
+        const [pOpenTime, pOpen, pHigh, pLow, pClose] = [prev[0], +prev[1], +prev[2], +prev[3], +prev[4]];
+        const [cOpenTime, cOpen, cHigh, cLow, cClose] = [cur[0],  +cur[1],  +cur[2],  +cur[3],  +cur[4]];
+
+        // 직전봉 상승률 = (C - O) / O
+        const prevRise = (pClose - pOpen) / pOpen; // 비율
+
+        // 현재봉 (고가-시가)/시가
+        const curRise = (cHigh - cOpen) / cOpen; // 비율
+
+        // 물타기 레벨에 따른 가변 기준 (기본 10% → 5% → 2.5% …)
+        const appliedThresholdPct = (base * Math.pow(0.5, averagingLevel)); // %
+        const appliedThreshold = appliedThresholdPct / 100; // 비율
+
+        const success = (curRise >= appliedThreshold);
+
+        // 실패 시 평균매수가 규칙
+        // 1) 직전봉 저가 > 현재봉 저가 → (현재봉 시가 + 직전봉 저가) / 2
+        // 2) 직전봉 저가 <= 현재봉 저가 → 현재봉 시가
+        const avgBuyOnFail = (pLow > cLow) ? (cOpen + pLow) / 2 : cOpen;
+
+        // 물타기 단계 갱신
+        if (success) {
+            averagingLevel = 0;
+        } else {
+            averagingLevel += 1;
         }
-        return out;
+
+        rows.push({
+            "날짜": ymd(cOpenTime),
+            "코인": symbol,
+            "직전봉 상승률": pct(prevRise),
+            "직전봉 저가": n(pLow),
+            "현재봉 시가": n(cOpen),
+            "현재봉 고가": n(cHigh),
+            "현재봉 저가": n(cLow),
+            "현재봉 (고가-시가)/시가": pct(curRise),
+            "적용 기준(%)": appliedThresholdPct.toFixed(2) + "%",
+            "성공 여부": success ? "성공" : "실패",
+            "실패 시 평균매수가": n(avgBuyOnFail)
+        });
     }
 
-    function rsi(closes, length = 14) {
-        const out = new Array(closes.length).fill(null);
-        if (closes.length <= length) return out;
-        let gains = 0, losses = 0;
-        for (let i = 1; i <= length; i++) {
-            const ch = closes[i] - closes[i - 1];
-            gains += Math.max(0, ch);
-            losses += Math.max(0, -ch);
-        }
-        let avgGain = gains / length;
-        let avgLoss = losses / length;
-        out[length] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-        for (let i = length + 1; i < closes.length; i++) {
-            const ch = closes[i] - closes[i - 1];
-            const gain = Math.max(0, ch), loss = Math.max(0, -ch);
-            avgGain = (avgGain * (length - 1) + gain) / length;
-            avgLoss = (avgLoss * (length - 1) + loss) / length;
-            out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-        }
-        return out;
-    }
-
-    function atr(highs, lows, closes, length = 14) {
-        const tr = new Array(closes.length).fill(null);
-        for (let i = 1; i < closes.length; i++) {
-            const hl = highs[i] - lows[i];
-            const hc = Math.abs(highs[i] - closes[i - 1]);
-            const lc = Math.abs(lows[i] - closes[i - 1]);
-            tr[i] = Math.max(hl, hc, lc);
-        }
-        const out = new Array(closes.length).fill(null);
-        let sum = 0;
-        for (let i = 1; i <= length; i++) sum += tr[i] ?? 0;
-        out[length] = sum / length;
-        for (let i = length + 1; i < tr.length; i++) {
-            out[i] = (out[i - 1] * (length - 1) + (tr[i] ?? 0)) / length;
-        }
-        return out;
-    }
-
-    function countConsecutiveAbove(closes, series, uptoIndex) {
-        let c = 0;
-        for (let i = uptoIndex; i >= 0; i--) {
-            if (closes[i] > series[i]) c++; else break;
-        }
-        return c;
-    }
-
-    // ===== 15분 경계 정렬 & 타겟 봉 동기화 =====
-    function msUntilNextQuarterHour() {
-        const now = new Date();
-        const sec = now.getUTCSeconds();
-        const ms  = now.getUTCMilliseconds();
-        const minute = now.getUTCMinutes();
-        const rem = minute % 15;
-        const addMin = (rem === 0 && sec === 0 && ms === 0) ? 15 : (15 - rem);
-        const target = new Date(Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate(),
-            now.getUTCHours(),
-            minute + addMin,
-            0, 0
-        ));
-        return target.getTime() - now.getTime();
-    }
-
-    // Binance closeTime은 경계 1ms 전(…:14:59.999Z)이므로 +1ms → 정확 경계로 표시
-    function normalizeQuarterCloseUTC(ms) {
-        const d = new Date(ms + 1);
-        d.setUTCSeconds(0, 0);
-        return d.getTime();
-    }
-    function utcQuarterISO(ms) {
-        const n = normalizeQuarterCloseUTC(ms);
-        const d = new Date(n);
-        return d.toISOString().replace('T', ' ').replace('.000Z', 'Z');
-    }
-    function formatLocalHHMMFromNorm(msNorm) {
-        const d = new Date(msNorm);
-        return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-
-    // 방금 닫힌 봉의 closeTime(=최근 15분 경계 - 1ms)
-    function lastClosedTargetCloseMs(nowMs = Date.now()) {
-        const quarter = Math.floor(nowMs / 900000) * 900000; // 15m = 900000ms
-        return quarter - 1;
-    }
-
-    // 목표 closeTime이 응답에 포함될 때까지 짧게 폴링 (최대 1500ms)
-    async function fetchKlinesEnsuringTarget(symbol, interval, limit, targetCloseMs, maxWaitMs = 1500) {
-        const deadline = Date.now() + maxWaitMs;
-        while (true) {
-            const ks = await fetchKlines(symbol, interval, limit);
-            const has = ks.some(k =>
-                normalizeQuarterCloseUTC(k.closeTime) === normalizeQuarterCloseUTC(targetCloseMs)
-            );
-            if (has || Date.now() >= deadline) return ks;
-            await sleep(150);
-        }
-    }
-
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // ===== API =====
-    const BASE = "https://fapi.binance.com";
-    async function fetchKlines(symbol, interval = "15m", limit = 300) {
-        const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${symbol} HTTP ${res.status}`);
-        const data = await res.json();
-        return data.map(k => ({
-            openTime: k[0],
-            open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
-            closeTime: k[6]
-        }));
-    }
-
-    // ===== 2% Target Scoring =====
-    function evaluate2PercentAtIndex(idx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, closeTime) {
-        if (idx == null || idx < 0) return null;
-        const C = closes[idx];
-        const EF = EFarr[idx];
-        const ES = ESarr[idx];
-        const RSI = RSIarr[idx];
-        const ATR = ATRarr[idx];
-        if (ATR == null || EF == null || ES == null) return null;
-
-        const atrp = (ATR / C) * 100;
-        const distEFpct = Math.abs(C - EF) / C * 100;
-        const consecUp = countConsecutiveAbove(closes, EFarr, idx);
-        const consecDn = countConsecutiveAbove(EFarr, closes, idx);
-        const needCandles = cfg.targetPct / Math.max(atrp, 1e-6);
-
-        function volScore(need) {
-            if (need < 1) return 15;      // 과도 변동성
-            if (need <= 3) return 25;     // 이상적
-            if (need <= 4) return 18;
-            if (need <= 6) return 10;
-            return 4;
-        }
-        function rrScore(side) {
-            let risk = distEFpct;
-            if (side === 'LONG' && !(C > EF)) risk = 3.0;
-            if (side === 'SHORT' && !(C < EF)) risk = 3.0;
-            const rr = cfg.targetPct / Math.max(risk, 0.0001);
-            if (rr >= 2.5) return 25;
-            if (rr >= 2.0) return 20;
-            if (rr >= 1.5) return 12;
-            if (rr >= 1.2) return 8;
-            return 3;
-        }
-        function trendMomScore(side) {
-            let s = 0;
-            if (side === 'LONG') {
-                if (C > EF) s += 12;
-                if (EF > ES) s += 12;
-                if (RSI != null) {
-                    if (RSI >= 55 && RSI <= 68) s += 6;
-                    else if (RSI > 68 && RSI <= 75) s += 3;
-                    else if (RSI < 50) s -= 4;
-                }
+    // 표 렌더
+    const tbody = $("#result tbody");
+    tbody.innerHTML = "";
+    for (const r of rows) {
+        const tr = document.createElement("tr");
+        const cells = [
+            ["날짜", true],
+            ["코인"],
+            ["직전봉 상승률"],
+            ["직전봉 저가"],
+            ["현재봉 시가"],
+            ["현재봉 고가"],
+            ["현재봉 저가"],
+            ["현재봉 (고가-시가)/시가"],
+            ["적용 기준(%)"],
+            ["성공 여부"],
+            ["실패 시 평균매수가"]
+        ];
+        for (const [key, sticky] of cells) {
+            const td = document.createElement("td");
+            if (sticky) td.classList.add("sticky");
+            if (key === "성공 여부") {
+                const span = document.createElement("span");
+                span.className = "tag " + (r[key] === "성공" ? "ok" : "fail");
+                span.textContent = r[key];
+                td.appendChild(span);
             } else {
-                if (C < EF) s += 12;
-                if (EF < ES) s += 12;
-                if (RSI != null) {
-                    if (RSI >= 25 && RSI <= 45) s += 6;
-                    else if (RSI < 25) s += 3;
-                    else if (RSI > 50) s -= 4;
-                }
+                td.textContent = r[key];
             }
-            return s;
+            tr.appendChild(td);
         }
-        function persistenceScore(side) {
-            let s = 0;
-            const nearEFbonus = distEFpct <= 0.8 ? 10 : (distEFpct <= 1.2 ? 6 : 0);
-            if (side === 'LONG') {
-                if (consecUp >= cfg.consecMin && consecUp <= 6) s += 6;
-                else if (consecUp > 6 && consecUp <= 9) s += 3;
-                s += nearEFbonus;
-            } else {
-                if (consecDn >= cfg.consecMin && consecDn <= 6) s += 6;
-                else if (consecDn > 6 && consecDn <= 9) s += 3;
-                s += nearEFbonus;
-            }
-            return s;
-        }
-
-        const longScore  = volScore(needCandles) + rrScore('LONG')  + trendMomScore('LONG')  + persistenceScore('LONG');
-        const shortScore = volScore(needCandles) + rrScore('SHORT') + trendMomScore('SHORT') + persistenceScore('SHORT');
-
-        let side = "WAIT", score = 0;
-        if (longScore - shortScore >= 8) { side = "LONG"; score = Math.min(100, Math.round(longScore)); }
-        else if (shortScore - longScore >= 8) { side = "SHORT"; score = Math.min(100, Math.round(shortScore)); }
-        else { side = "WAIT"; score = Math.min(70, Math.round(Math.max(longScore, shortScore) * 0.7)); }
-
-        return {
-            side,
-            score2p: score,
-            close: C,
-            rsi: RSI != null ? +RSI.toFixed(1) : null,
-            atrp: +atrp.toFixed(2),
-            distEFpct: +distEFpct.toFixed(2),
-            needCandles: +needCandles.toFixed(2),
-            closeTime
-        };
+        tbody.appendChild(tr);
     }
 
-    // ===== UI glue =====
-    const els = {
-        symbols: document.getElementById('symbols'),
-        emaFast: document.getElementById('emaFast'),
-        emaSlow: document.getElementById('emaSlow'),
-        rsiLen: document.getElementById('rsiLen'),
-        consecMin: document.getElementById('consecMin'),
-        limitCandles: document.getElementById('limitCandles'),
-        targetPct: document.getElementById('targetPct'),
-        delayMs: document.getElementById('delayMs'),
-        sortBy: document.getElementById('sortBy'),
-        runBtn: document.getElementById('runBtn'),
-        autoBtn: document.getElementById('autoBtn'),
-        stopBtn: document.getElementById('stopBtn'),
-        exportBtn: document.getElementById('exportBtn'),
-        histBtn: document.getElementById('histBtn'),
-        histCsvBtn: document.getElementById('histCsvBtn'),
-        nextTick: document.getElementById('nextTick'),
-        bar: document.getElementById('bar'),
-        progressText: document.getElementById('progressText'),
-        tbody: document.querySelector('#table tbody'),
+    // CSV 다운로드
+    $("#csvBtn").onclick = () => {
+        const headers = ["날짜","코인","직전봉 상승률","직전봉 저가","현재봉 시가","현재봉 고가","현재봉 저가","현재봉 (고가-시가)/시가","적용 기준(%)","성공 여부","실패 시 평균매수가"];
+        const csv = toCSV(rows, headers);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${($("#symbol").value || "symbol")}_scan.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
     };
+}
 
-    function getCfg() {
-        return {
-            emaFast: +els.emaFast.value,
-            emaSlow: +els.emaSlow.value,
-            rsiLen: +els.rsiLen.value,
-            consecMin: +els.consecMin.value,
-            limitCandles: +els.limitCandles.value,
-            targetPct: +els.targetPct.value,
-            delayMs: +els.delayMs.value,
-            sortBy: els.sortBy.value,
-        };
-    }
+$("#scanBtn").addEventListener("click", scan);
 
-    function badge(side) {
-        if (side === 'LONG') return '<span class="pill long">LONG</span>';
-        if (side === 'SHORT') return '<span class="pill short">SHORT</span>';
-        return '<span class="pill wait">WAIT</span>';
-    }
-
-    function num(n) {
-        if (n == null || Number.isNaN(n)) return '-';
-        if (typeof n === 'number' && !Number.isInteger(n) && Math.abs(n) >= 1) {
-            return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
-        }
-        if (typeof n === 'number') {
-            return n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
-        }
-        return String(n);
-    }
-
-    function render(rows, cfg) {
-        const sorted = [...rows];
-        sorted.sort((a, b) => {
-            switch (cfg.sortBy) {
-                case 'rsi': return (b.rsi ?? -1) - (a.rsi ?? -1);
-                case 'atrp': return (b.atrp ?? -1) - (a.atrp ?? -1);
-                case 'symbol': return a.symbol.localeCompare(b.symbol);
-                default: return (b.score2p ?? 0) - (a.score2p ?? 0);
-            }
-        });
-        els.tbody.innerHTML = sorted.map(r => `
-            <tr>
-                <td class="mono">${r.symbol}</td>
-                <td>${badge(r.side)}</td>
-                <td><b>${r.score2p}</b></td>
-                <td>${num(r.close)}</td>
-                <td>${r.atrp != null ? r.atrp.toFixed(2) + '%' : '-'}</td>
-                <td>${r.rsi != null ? r.rsi.toFixed(1) : '-'}</td>
-                <td>${r.distEFpct != null ? r.distEFpct.toFixed(2) + '%' : '-'}</td>
-                <td>${r.needCandles != null ? r.needCandles.toFixed(2) : '-'}</td>
-                <td class="mono small">${utcQuarterISO(r.closeTime)}</td>
-            </tr>
-        `).join('');
-    }
-
-    // ====== SCAN: A-Method로 동일 봉 보장 ======
-    async function scanOnce() {
-        const cfg = getCfg();
-        const symbols = parseSymbols(els.symbols.value);
-        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: SQDUSDT, ZECUSDT'); return; }
-
-        const targetCloseMs = lastClosedTargetCloseMs(Date.now()); // 방금 닫힌 봉
-        const rows = [];
-        els.bar.style.width = '0%';
-        els.progressText.textContent = `스캔 시작 (0/${symbols.length})`;
-
-        let i = 0;
-        for (const sym of symbols) {
-            try {
-                const ks = await fetchKlinesEnsuringTarget(sym, '15m', cfg.limitCandles, targetCloseMs, 1500);
-                // 목표 봉 인덱스 찾기 (정규화해서 비교)
-                const targetNorm = normalizeQuarterCloseUTC(targetCloseMs);
-                const idx = ks.findIndex(k => normalizeQuarterCloseUTC(k.closeTime) === targetNorm);
-
-                const closes = ks.map(k => k.close);
-                const highs  = ks.map(k => k.high);
-                const lows   = ks.map(k => k.low);
-                const EFarr  = ema(closes, cfg.emaFast);
-                const ESarr  = ema(closes, cfg.emaSlow);
-                const RSIarr = rsi(closes, cfg.rsiLen);
-                const ATRarr = atr(highs, lows, closes, 14);
-
-                // 폴링 내에 목표 봉이 안 뜨면 안전하게 마지막 완료봉으로 대체
-                const useIdx = idx >= 0 ? idx : ks.length - 2;
-                const ev = evaluate2PercentAtIndex(useIdx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, ks[useIdx].closeTime);
-                if (ev) rows.push({ symbol: sym, ...ev });
-            } catch (e) {
-                rows.push({ symbol: sym, side: 'WAIT', score2p: 0, close: null, rsi: null, atrp: null, distEFpct: null, needCandles: null, closeTime: null, error: String(e) });
-            }
-
-            i++;
-            const pct = Math.round((i / symbols.length) * 100);
-            els.bar.style.width = pct + '%';
-            els.progressText.textContent = `스캔 중 ${i}/${symbols.length}`;
-            if (cfg.delayMs > 0) await sleep(cfg.delayMs);
-        }
-
-        render(rows, cfg);
-        els.progressText.textContent = `완료 (${symbols.length}/${symbols.length})`;
-        lastRows = rows;
-    }
-
-    function msToHHMMSS(ms) {
-        const s = Math.max(0, Math.floor(ms / 1000));
-        const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-        const ss = String(s % 60).padStart(2, '0');
-        return `${hh}:${mm}:${ss}`;
-    }
-
-    let autoTimer = null, tickTimer = null;
-    function scheduleAuto() {
-        clearTimeout(autoTimer); clearInterval(tickTimer);
-        const wait = msUntilNextQuarterHour();
-        const target = Date.now() + wait;
-        els.nextTick.textContent = `다음 스캔까지 ${msToHHMMSS(wait)} (분봉 마감 동기화)`;
-        tickTimer = setInterval(() => {
-            const left = target - Date.now();
-            if (left <= 0) { clearInterval(tickTimer); }
-            else { els.nextTick.textContent = `다음 스캔까지 ${msToHHMMSS(left)} (분봉 마감 동기화)`; }
-        }, 500);
-        autoTimer = setTimeout(async () => {
-            await scanOnce();   // 경계 시각에 실행
-            scheduleAuto();
-        }, wait);               // 버퍼 없이 정확 경계
-    }
-
-    function stopAuto() { clearTimeout(autoTimer); clearInterval(tickTimer); els.nextTick.textContent = '자동 스캔 꺼짐'; }
-
-    function exportCSV() {
-        if (!lastRows || lastRows.length === 0) { alert('내보낼 데이터가 없습니다. 먼저 스캔을 실행하세요.'); return; }
-        const header = ['symbol','side','score2p','close','atrp','rsi','distEFpct','needCandles','closeTimeUTC_quarter'];
-        const lines = [header.join(',')];
-        for (const r of lastRows) {
-            lines.push([
-                r.symbol,
-                r.side,
-                r.score2p,
-                r.close ?? '',
-                r.atrp ?? '',
-                r.rsi ?? '',
-                r.distEFpct ?? '',
-                r.needCandles ?? '',
-                new Date(normalizeQuarterCloseUTC(r.closeTime)).toISOString()
-            ].join(','));
-        }
-        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'scanner_15m_2pct.csv'; a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    let lastRows = [];
-    let lastHistRows = [];
-
-    // ===== History (A-Method & 15분 정렬) =====
-    function startOfTodayAt9LocalNormUTC() {
-        const now = new Date();
-        const local9 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
-        const d = new Date(local9.getTime());
-        d.setUTCSeconds(0, 0);
-        return d.getTime();
-    }
-
-    async function buildHistoryRows() {
-        const cfg = getCfg();
-        const symbols = parseSymbols(els.symbols.value);
-        if (symbols.length === 0) { alert('심볼을 입력하세요. 예: SQDUSDT, ZECUSDT'); return []; }
-
-        // 히스토리의 마지막도 '방금 닫힌 봉'까지 포함 (스캔과 동일 타겟)
-        const targetCloseMs = lastClosedTargetCloseMs(Date.now());
-        const targetNorm = normalizeQuarterCloseUTC(targetCloseMs);
-        const start9Norm = startOfTodayAt9LocalNormUTC();
-        const rows = [];
-
-        els.bar.style.width = '0%';
-        els.progressText.textContent = `히스토리 수집 시작 (0/${symbols.length})`;
-
-        let i = 0;
-        for (const sym of symbols) {
-            try {
-                // 목표 봉이 응답에 존재하도록 보장
-                const ks = await fetchKlinesEnsuringTarget(sym, '15m', cfg.limitCandles, targetCloseMs, 1500);
-
-                const closes = ks.map(k => k.close);
-                const highs  = ks.map(k => k.high);
-                const lows   = ks.map(k => k.low);
-                const EFarr  = ema(closes, cfg.emaFast);
-                const ESarr  = ema(closes, cfg.emaSlow);
-                const RSIarr = rsi(closes, cfg.rsiLen);
-                const ATRarr = atr(highs, lows, closes, 14);
-
-                for (let idx = 0; idx < ks.length; idx++) {
-                    const ct = ks[idx].closeTime;
-                    const ctNorm = normalizeQuarterCloseUTC(ct);
-                    // 오늘 09:00(로컬) 이후 & 타겟(방금 닫힌 봉)까지
-                    if (ctNorm >= start9Norm && ctNorm <= targetNorm) {
-                        const ev = evaluate2PercentAtIndex(idx, closes, EFarr, ESarr, RSIarr, ATRarr, cfg, ct);
-                        if (ev) {
-                            rows.push({
-                                symbol: sym,
-                                timeLocal: formatLocalHHMMFromNorm(ctNorm),
-                                side: ev.side,
-                                score2p: ev.score2p,
-                                sortKey: ctNorm
-                            });
-                        }
-                    }
-                }
-            } catch (e) {
-                // 심볼별 에러는 스킵
-            }
-
-            i++;
-            const pct = Math.round((i / symbols.length) * 100);
-            els.bar.style.width = pct + '%';
-            els.progressText.textContent = `히스토리 수집 중 ${i}/${symbols.length}`;
-            if (cfg.delayMs > 0) await sleep(cfg.delayMs);
-        }
-
-        els.progressText.textContent = `히스토리 완료 (${symbols.length}/${symbols.length})`;
-        return rows;
-    }
-
-    function renderHistory(rows) {
-        const sorted = [...rows].sort((a, b) => {
-            if (a.symbol === b.symbol) return a.sortKey - b.sortKey;
-            return a.symbol.localeCompare(b.symbol);
-        });
-        const tbody = document.querySelector('#histTable tbody');
-        tbody.innerHTML = sorted.map(r => `
-            <tr>
-                <td class="mono">${r.symbol}</td>
-                <td class="mono small">${r.timeLocal}</td>
-                <td>${badge(r.side)}</td>
-                <td>${r.score2p}</td>
-            </tr>
-        `).join('');
-        document.getElementById('histCard').style.display = 'block';
-        lastHistRows = sorted;
-    }
-
-    function exportHistoryCSV() {
-        if (!lastHistRows || lastHistRows.length === 0) {
-            alert('히스토리 데이터가 없습니다. 먼저 [점수 히스토리]를 실행하세요.');
-            return;
-        }
-        const header = ['symbol','timeLocal(HH:mm)','side','score2p'];
-        const lines = [header.join(',')];
-        for (const r of lastHistRows) {
-            lines.push([r.symbol, r.timeLocal, r.side, r.score2p].join(','));
-        }
-        const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'scanner_15m_history.csv'; a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    // ===== Bindings =====
-    els.runBtn.addEventListener('click', scanOnce);
-    els.autoBtn.addEventListener('click', scheduleAuto);
-    els.stopBtn.addEventListener('click', stopAuto);
-    els.exportBtn.addEventListener('click', exportCSV);
-    els.histBtn.addEventListener('click', async () => {
-        const rows = await buildHistoryRows();
-        renderHistory(rows);
-    });
-    els.histCsvBtn.addEventListener('click', exportHistoryCSV);
-
-    // Defaults
-    els.symbols.value = 'SQDUSDT, ZECUSDT, AIAUSDT, JELLYJELLYUSDT, STOUSDT';
+// 초기 1회 실행
+scan();
 </script>
 </body>
 </html>
