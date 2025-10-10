@@ -50,10 +50,11 @@ function ymd(t){const d=new Date(t);return d.toISOString().slice(0,10);}
 function n(x,d=5){return (x==null||isNaN(x))?"":Number(x).toFixed(d);}
 function pct(x,d=2){return (x==null||isNaN(x))?"":(x*100).toFixed(d)+"%";}
 
+// ✅ 무기한선물(fapi) 1일봉 가져오기
 async function fetchKlines(symbol,limit){
     const url=`https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}`;
     const r=await fetch(url);
-    if(!r.ok)throw new Error("HTTP "+r.status);
+    if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json();
     return j.map(a=>({openTime:a[0],open:+a[1],high:+a[2],low:+a[3],close:+a[4]}));
 }
@@ -74,14 +75,25 @@ function runScan(candles,symbol,days,basePct){
             "평균매수가":"","다음날 고가":"","달성률":"","성공여부":""
         };
         if(!inDCA){
-            if(curRise>=basePct/100){out["성공여부"]="성공";inDCA=false;threshold=basePct/100;avg=null;}
-            else{out["성공여부"]="실패";avg=(prevLow>curLow)?(curOpen+prevLow)/2:curOpen;
-                 inDCA=true;threshold=threshold/2;out["평균매수가"]=n(avg);}
+            if(curRise>=basePct/100){
+                out["성공여부"]="성공";
+                inDCA=false;threshold=basePct/100;avg=null;
+            }else{
+                out["성공여부"]="실패";
+                avg=(prevLow>curLow)?(curOpen+prevLow)/2:curOpen;
+                inDCA=true;threshold/=2;out["평균매수가"]=n(avg);
+            }
         }else{
             const achieve=(curHigh-avg)/avg;
             out["평균매수가"]=n(avg);out["다음날 고가"]=n(curHigh);out["달성률"]=pct(achieve);
-            if(achieve>=threshold){out["성공여부"]="성공";inDCA=false;threshold=basePct/100;avg=null;}
-            else{out["성공여부"]="실패";avg=(prevLow>curLow)?(curOpen+prevLow)/2:curOpen;threshold/=2;}
+            if(achieve>=threshold){
+                out["성공여부"]="성공";
+                inDCA=false;threshold=basePct/100;avg=null;
+            }else{
+                out["성공여부"]="실패";
+                avg=(prevLow>curLow)?(curOpen+prevLow)/2:curOpen;
+                threshold/=2;
+            }
         }
         rows.push(out);
     }
@@ -96,8 +108,12 @@ function render(rows){
         for(const k of order){
             const td=document.createElement("td");
             if(k==="날짜")td.classList.add("sticky");
-            if(k==="성공여부"){const s=document.createElement("span");s.className="badge "+(r[k]==="성공"?"ok":"fail");s.textContent=r[k];td.appendChild(s);}
-            else td.textContent=r[k]||"";
+            if(k==="성공여부"){
+                const s=document.createElement("span");
+                s.className="badge "+(r[k]==="성공"?"ok":"fail");
+                s.textContent=r[k];
+                td.appendChild(s);
+            }else td.textContent=r[k]||"";
             tr.appendChild(td);
         }
         tb.appendChild(tr);
@@ -115,14 +131,17 @@ let lastRows=[];
 $("#scanBtn").onclick=async()=>{
  try{
   $("#status").textContent="데이터 불러오는 중...";
-  const sym=$("#symbol").value.trim().toUpperCase(),days=+$("#days").value||10,base=+$("#base").value||10;
-  const kl=await fetchKlines(sym,days+5);
+  const sym=$("#symbol").value.trim().toUpperCase();
+  const days=Number($("#days").value) || 10;  // ✅ 문자열 → 숫자 변환
+  const base=Number($("#base").value) || 10;
+  const limit = Math.min(days + 5, 1000);     // ✅ 11 입력 시 16일분 가져옴
+  const kl=await fetchKlines(sym,limit);
   $("#status").textContent="스캔 계산 중...";
   lastRows=runScan(kl,sym,days,base);
   render(lastRows);
   $("#status").textContent=`${sym} ${days}일 데이터 스캔 완료`;
  }catch(e){
-  $("#status").innerHTML=`<span class="err">에러:</span> ${e.message}`;
+  $("#status").textContent="에러: "+e.message;
  }
 };
 
