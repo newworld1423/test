@@ -3,39 +3,67 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>코인 20일 스캐너 (1일봉)</title>
+    <title>코인 1일봉 스캐너 (프록시/외부요청 없음)</title>
     <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; }
-        h1 { margin: 0 0 12px; }
-        .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-        input, select, button { padding: 8px 10px; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; }
-        th { background: #f8fafc; white-space: nowrap; }
-        td.sticky, th.sticky { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; }
-        .tag { display: inline-block; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; background: #fafafa; }
+        h1 { margin: 0 0 12px; font-size: 20px; }
+        .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+        label { display: block; font-weight: 700; margin-bottom: 6px; }
+        input[type="number"], input[type="text"], textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+        textarea { min-height: 130px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+        .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        button { padding: 10px 14px; border: 1px solid #111827; background: #111827; color: #fff; border-radius: 8px; cursor: pointer; }
+        button.ghost { background: #fff; color: #111827; }
+        .muted { color: #6b7280; font-size: 12px; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 6px; font-weight: 700; font-size: 12px; }
         .ok { background: #ecfdf5; color: #047857; }
         .fail { background: #fef2f2; color: #b91c1c; }
-        .muted { color: #6b7280; }
-        .hint { font-size: 12px; color: #6b7280; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; }
+        th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right; font-size: 13px; }
+        th { background: #f8fafc; white-space: nowrap; }
+        td.sticky, th.sticky { position: sticky; left: 0; background: #fff; }
+        .nowrap { white-space: nowrap; }
     </style>
 </head>
 <body>
-    <h1>코인 20일 스캐너 (1일봉)</h1>
+    <h1>코인 1일봉 스캐너 (로컬 데이터만 · 외부요청 없음)</h1>
 
-    <div class="controls">
-        <label>심볼
-            <input id="symbol" value="BTCUSDT" />
-        </label>
-        <label>조회일수
-            <input id="days" type="number" value="20" min="5" max="500" />
-        </label>
-        <label>기본 성공 기준(%) 
-            <input id="baseThreshold" type="number" value="10" step="0.1" />
-        </label>
-        <button id="scanBtn">스캔</button>
-        <button id="csvBtn">CSV 다운로드</button>
-        <span class="hint">* 데이터: Binance 현물 / 1일봉</span>
+    <div class="grid">
+        <div class="card">
+            <label>심볼(표시에만 사용)</label>
+            <input id="symbol" type="text" value="BTCUSDT" />
+            <div class="row" style="margin-top:8px;">
+                <div style="flex:1">
+                    <label>최근 일수</label>
+                    <input id="days" type="number" value="20" min="5" max="500" />
+                </div>
+                <div style="flex:1">
+                    <label>기본 성공기준(%)</label>
+                    <input id="baseThreshold" type="number" value="10" step="0.1" />
+                </div>
+            </div>
+            <p class="muted" style="margin-top:6px">※ 데이터는 아래 CSV 업로드 또는 JSON 붙여넣기로 제공하세요.</p>
+            <div class="row" style="margin-top:8px;">
+                <button id="scanBtn">스캔</button>
+                <button id="csvBtn" class="ghost">결과 CSV 다운로드</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <label>CSV 업로드 (열 이름 예시)</label>
+            <input id="csvFile" type="file" accept=".csv" />
+            <p class="muted">
+                • 지원 열: <span class="nowrap">openTime, open, high, low, close</span><br/>
+                • openTime은 밀리초 타임스탬프 또는 YYYY-MM-DD 형식 지원
+            </p>
+        </div>
+
+        <div class="card">
+            <label>JSON 붙여넣기 (바이낸스 klines 배열 허용)</label>
+            <textarea id="jsonInput" placeholder='예) [[openTime, "open","high","low","close",...], ...]'></textarea>
+            <p class="muted">둘 중 하나만 넣어도 됩니다. JSON이 있으면 JSON을 우선.</p>
+        </div>
     </div>
 
     <table id="result">
@@ -43,176 +71,259 @@
         <tr>
             <th class="sticky">날짜</th>
             <th>코인</th>
-            <th>직전봉 상승률</th>
+            <th>상태</th>
+            <th>기준(%)</th>
             <th>직전봉 저가</th>
             <th>현재봉 시가</th>
             <th>현재봉 고가</th>
             <th>현재봉 저가</th>
-            <th>현재봉 (고가-시가)/시가</th>
-            <th>적용 기준(%)</th>
-            <th>성공 여부</th>
-            <th>실패 시 평균매수가</th>
+            <th>현재봉 (고-시)/시</th>
+            <th>평균매수가</th>
+            <th>다음날 고가</th>
+            <th>달성률</th>
+            <th>성공여부</th>
         </tr>
         </thead>
         <tbody></tbody>
     </table>
 
 <script>
-/*
- Binanace klines: https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=30
- 반환 배열 각 원소: [ openTime, open, high, low, close, volume, closeTime, ... ]
-*/
-
-const $ = (sel) => document.querySelector(sel);
-const api = (symbol, limit=50) => 
-  `https://cors.isomorphic-git.org/https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}`;
-
-function fmtPct(x, digits=2) { return (x==null || isNaN(x)) ? "" : (x*100).toFixed(digits) + "%"; }
-function pct(x, digits=2) { return (x==null || isNaN(x)) ? "" : x.toFixed(digits) + "%"; }
-function n(x, digits=5) { return (x==null || isNaN(x)) ? "" : Number(x).toFixed(digits); }
-function ymd(ts) {
-    const d = new Date(ts);
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth()+1).padStart(2, "0");
-    const dd = String(d.getUTCDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function toCSV(rows, headers) {
-    const esc = (v) => `"${String(v).replaceAll('"','""')}"`;
-    const head = headers.map(esc).join(",");
-    const body = rows.map(r => headers.map(h => esc(r[h] ?? "")).join(",")).join("\n");
-    return head + "\n" + body;
-}
-
-async function scan() {
-    const symbol = $("#symbol").value.trim().toUpperCase();
-    const days = Math.max(5, Math.min(500, Number($("#days").value) || 20));
-    const base = Number($("#baseThreshold").value) || 10;
-
-    const limit = days + 5; // 여유분(직전봉 계산용)
-    const url = api(symbol, limit);
-
-    let res;
-    try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        res = await r.json();
-    } catch (e) {
-        alert("데이터 요청 실패: " + e.message);
-        return;
+    // ===== 유틸 =====
+    function ymdFromAny(ts) {
+        // 숫자면 ms 기준, 문자열(YYYY-MM-DD)도 허용
+        const d = (typeof ts === "number") ? new Date(ts) : new Date(String(ts));
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
     }
+    function toNum(v) { return typeof v === "number" ? v : Number(v); }
+    function fmt(x, d=5) { return x==null || isNaN(x) ? "" : Number(x).toFixed(d); }
+    function pct(x, d=2) { return x==null || isNaN(x) ? "" : (x*100).toFixed(d) + "%"; }
+    const $ = (s) => document.querySelector(s);
 
-    // 마지막 days개만 사용 (과거→현재 순으로 정렬되어 들어옴)
-    const data = res.slice(-days);
-    const rows = [];
-
-    // 물타기 단계 (실패할 때마다 1씩 증가, 성공 시 0으로 리셋)
-    let averagingLevel = 0;
-
-    for (let i = 0; i < data.length; i++) {
-        const prev = res[res.length - days - 1 + i]; // 현재행의 '직전봉'
-        const cur  = data[i];
-
-        if (!prev || !cur) continue;
-
-        const [pOpenTime, pOpen, pHigh, pLow, pClose] = [prev[0], +prev[1], +prev[2], +prev[3], +prev[4]];
-        const [cOpenTime, cOpen, cHigh, cLow, cClose] = [cur[0],  +cur[1],  +cur[2],  +cur[3],  +cur[4]];
-
-        // 직전봉 상승률 = (C - O) / O
-        const prevRise = (pClose - pOpen) / pOpen; // 비율
-
-        // 현재봉 (고가-시가)/시가
-        const curRise = (cHigh - cOpen) / cOpen; // 비율
-
-        // 물타기 레벨에 따른 가변 기준 (기본 10% → 5% → 2.5% …)
-        const appliedThresholdPct = (base * Math.pow(0.5, averagingLevel)); // %
-        const appliedThreshold = appliedThresholdPct / 100; // 비율
-
-        const success = (curRise >= appliedThreshold);
-
-        // 실패 시 평균매수가 규칙
-        // 1) 직전봉 저가 > 현재봉 저가 → (현재봉 시가 + 직전봉 저가) / 2
-        // 2) 직전봉 저가 <= 현재봉 저가 → 현재봉 시가
-        const avgBuyOnFail = (pLow > cLow) ? (cOpen + pLow) / 2 : cOpen;
-
-        // 물타기 단계 갱신
-        if (success) {
-            averagingLevel = 0;
-        } else {
-            averagingLevel += 1;
+    // ===== 입력 파서 =====
+    async function parseCSV(file) {
+        const text = await file.text();
+        const lines = text.trim().split(/\r?\n/);
+        let headers = lines[0].split(",").map(h => h.trim());
+        const rows = [];
+        for (let i=1;i<lines.length;i++) {
+            const cols = lines[i].split(",").map(c => c.trim());
+            const obj = {};
+            headers.forEach((h,idx)=> obj[h] = cols[idx]);
+            rows.push(obj);
         }
-
-        rows.push({
-            "날짜": ymd(cOpenTime),
-            "코인": symbol,
-            "직전봉 상승률": pct(prevRise),
-            "직전봉 저가": n(pLow),
-            "현재봉 시가": n(cOpen),
-            "현재봉 고가": n(cHigh),
-            "현재봉 저가": n(cLow),
-            "현재봉 (고가-시가)/시가": pct(curRise),
-            "적용 기준(%)": appliedThresholdPct.toFixed(2) + "%",
-            "성공 여부": success ? "성공" : "실패",
-            "실패 시 평균매수가": n(avgBuyOnFail)
-        });
+        // 표준화
+        return rows.map(r => ({
+            openTime: isNaN(Number(r.openTime)) ? r.openTime : Number(r.openTime),
+            open: toNum(r.open),
+            high: toNum(r.high),
+            low: toNum(r.low),
+            close: toNum(r.close)
+        }));
     }
 
-    // 표 렌더
-    const tbody = $("#result tbody");
-    tbody.innerHTML = "";
-    for (const r of rows) {
-        const tr = document.createElement("tr");
-        const cells = [
-            ["날짜", true],
-            ["코인"],
-            ["직전봉 상승률"],
-            ["직전봉 저가"],
-            ["현재봉 시가"],
-            ["현재봉 고가"],
-            ["현재봉 저가"],
-            ["현재봉 (고가-시가)/시가"],
-            ["적용 기준(%)"],
-            ["성공 여부"],
-            ["실패 시 평균매수가"]
-        ];
-        for (const [key, sticky] of cells) {
-            const td = document.createElement("td");
-            if (sticky) td.classList.add("sticky");
-            if (key === "성공 여부") {
-                const span = document.createElement("span");
-                span.className = "tag " + (r[key] === "성공" ? "ok" : "fail");
-                span.textContent = r[key];
-                td.appendChild(span);
+    function parseJSON(text) {
+        const raw = JSON.parse(text);
+        // 바이낸스 klines 배열 형태 처리
+        if (Array.isArray(raw) && Array.isArray(raw[0])) {
+            return raw.map(a => ({
+                openTime: a[0],
+                open: toNum(a[1]),
+                high: toNum(a[2]),
+                low: toNum(a[3]),
+                close: toNum(a[4])
+            }));
+        }
+        // 객체 배열 {openTime,open,high,low,close}
+        if (Array.isArray(raw) && raw.length && typeof raw[0] === "object") {
+            return raw.map(o => ({
+                openTime: o.openTime,
+                open: toNum(o.open),
+                high: toNum(o.high),
+                low: toNum(o.low),
+                close: toNum(o.close)
+            }));
+        }
+        throw new Error("지원하지 않는 JSON 포맷");
+    }
+
+    // ===== 핵심 로직 =====
+    /*
+        상태 머신:
+        - inDCA=false(물타기 아님): 오늘 기준으로 (고-시)/시 >= 10% 면 성공. 실패면 물타기 진입,
+          avgPrice 계산(오늘), threshold = base/2 로 낮춤 (내일부터 이 기준으로 평가 시작).
+        - inDCA=true(물타기 중): 오늘은 "어제(실패일)에 정해둔 avgPrice"로 성공 여부 평가.
+          (오늘 고가-avg)/avg >= threshold 면 성공 → 초기화.
+          실패면 오늘의 prevLow/curLow로 avgPrice 재계산, threshold 절반으로 낮춤 (다음날 평가).
+    */
+    function runScan(candles, symbol, days, baseThresholdPct) {
+        // candles는 과거→현재 순서라고 가정. 최근 days개만 사용.
+        const data = candles.slice(-days);
+        if (data.length < 3) throw new Error("데이터가 너무 적습니다(최소 3일+ 권장).");
+
+        const rows = [];
+        let inDCA = false;
+        let threshold = baseThresholdPct / 100; // 비율
+        let avgPrice = null; // 물타기 중 평가용 기준가
+
+        for (let i = 1; i < data.length; i++) {
+            const prev = data[i-1];
+            const cur  = data[i];
+
+            // 표에 기본 칼럼 채우기용
+            const prevLow = prev.low;
+            const curOpen = cur.open;
+            const curHigh = cur.high;
+            const curLow  = cur.low;
+            const curRiseFromOpen = (curHigh - curOpen) / curOpen;
+
+            // 출력용 기본 값
+            const out = {
+                "날짜": ymdFromAny(cur.openTime),
+                "코인": symbol,
+                "상태": inDCA ? "물타기중" : "일반",
+                "기준(%)": (threshold*100).toFixed(2) + "%",
+                "직전봉 저가": fmt(prevLow),
+                "현재봉 시가": fmt(curOpen),
+                "현재봉 고가": fmt(curHigh),
+                "현재봉 저가": fmt(curLow),
+                "현재봉 (고-시)/시": pct(curRiseFromOpen),
+                "평균매수가": "",
+                "다음날 고가": "",
+                "달성률": "",
+                "성공여부": ""
+            };
+
+            if (!inDCA) {
+                // 일반 상태: 오늘 자체로 10% 기준 평가
+                const success = curRiseFromOpen >= (baseThresholdPct/100);
+                if (success) {
+                    out["성공여부"] = "성공";
+                    // 초기화(사실 이미 일반 상태)
+                    inDCA = false;
+                    threshold = baseThresholdPct/100;
+                    avgPrice = null;
+                } else {
+                    out["성공여부"] = "실패";
+                    // 물타기 진입: 오늘의 평균매수가 계산 (내일 평가)
+                    avgPrice = (prevLow > curLow) ? (curOpen + prevLow) / 2 : curOpen;
+                    inDCA = true;
+                    threshold = (baseThresholdPct/100) / 2; // 절반으로
+                    out["평균매수가"] = fmt(avgPrice);
+                }
+                rows.push(out);
             } else {
-                td.textContent = r[key];
+                // 물타기 상태: 오늘 = "다음날" 이므로 avgPrice 대비 오늘 고가로 성공여부 평가
+                const achieve = (curHigh - avgPrice) / avgPrice; // 달성률
+                out["평균매수가"] = fmt(avgPrice);
+                out["다음날 고가"] = fmt(curHigh);
+                out["달성률"] = pct(achieve);
+
+                if (achieve >= threshold) {
+                    // 성공 → 완전 초기화
+                    out["성공여부"] = "성공";
+                    inDCA = false;
+                    threshold = baseThresholdPct/100;
+                    avgPrice = null;
+                } else {
+                    // 실패 → 오늘로 평균매수가 갱신하고, 기준 절반으로 낮춤 (또 다음날 평가)
+                    out["성공여부"] = "실패";
+                    avgPrice = (prevLow > curLow) ? (curOpen + prevLow) / 2 : curOpen;
+                    threshold = threshold / 2;
+                    out["평균매수가"] = fmt(avgPrice);
+                    // 상태는 계속 물타기중 유지
+                }
+                rows.push(out);
             }
-            tr.appendChild(td);
         }
-        tbody.appendChild(tr);
+        return rows;
     }
 
-    // CSV 다운로드
-    $("#csvBtn").onclick = () => {
-        const headers = ["날짜","코인","직전봉 상승률","직전봉 저가","현재봉 시가","현재봉 고가","현재봉 저가","현재봉 (고가-시가)/시가","적용 기준(%)","성공 여부","실패 시 평균매수가"];
-        const csv = toCSV(rows, headers);
+    function renderTable(rows) {
+        const tbody = $("#result tbody");
+        tbody.innerHTML = "";
+        for (const r of rows) {
+            const tr = document.createElement("tr");
+            const order = ["날짜","코인","상태","기준(%)","직전봉 저가","현재봉 시가","현재봉 고가","현재봉 저가","현재봉 (고-시)/시","평균매수가","다음날 고가","달성률","성공여부"];
+            for (const k of order) {
+                const td = document.createElement("td");
+                if (k === "날짜") td.classList.add("sticky");
+                if (k === "성공여부") {
+                    const span = document.createElement("span");
+                    span.className = "badge " + (r[k] === "성공" ? "ok" : "fail");
+                    span.textContent = r[k];
+                    td.appendChild(span);
+                } else {
+                    td.textContent = r[k] ?? "";
+                }
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
+    }
+
+    function toCSV(rows) {
+        if (!rows.length) return "";
+        const headers = Object.keys(rows[0]);
+        const esc = s => `"${String(s).replaceAll('"','""')}"`;
+        const head = headers.map(esc).join(",");
+        const body = rows.map(r => headers.map(h => esc(r[h] ?? "")).join(",")).join("\n");
+        return head + "\n" + body;
+    }
+
+    // ===== 이벤트 =====
+    let lastRows = [];
+
+    $("#scanBtn").addEventListener("click", async () => {
+        try {
+            const symbol = $("#symbol").value.trim().toUpperCase() || "SYMBOL";
+            const days = Math.max(5, Math.min(500, Number($("#days").value)||20));
+            const base = Number($("#baseThreshold").value)||10;
+
+            let candles = null;
+
+            // JSON 우선
+            const jsonText = $("#jsonInput").value.trim();
+            if (jsonText) {
+                candles = parseJSON(jsonText);
+            } else {
+                const file = $("#csvFile").files[0];
+                if (!file) {
+                    alert("CSV 업로드 또는 JSON을 입력해주세요.");
+                    return;
+                }
+                candles = await parseCSV(file);
+            }
+
+            // 필수 필드 확인
+            if (!candles.length) throw new Error("유효한 데이터가 없습니다.");
+            for (const need of ["openTime","open","high","low","close"]) {
+                if (!(need in candles[0])) throw new Error("컬럼 누락: " + need);
+            }
+
+            lastRows = runScan(candles, symbol, days, base);
+            renderTable(lastRows);
+        } catch (e) {
+            console.error(e);
+            alert("스캔 중 오류: " + e.message);
+        }
+    });
+
+    $("#csvBtn").addEventListener("click", () => {
+        if (!lastRows.length) { alert("먼저 스캔을 실행하세요."); return; }
+        const csv = toCSV(lastRows);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
+        const url  = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${($("#symbol").value || "symbol")}_scan.csv`;
+        a.download = "scan_result.csv";
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-    };
-}
-
-$("#scanBtn").addEventListener("click", scan);
-
-// 초기 1회 실행
-scan();
+    });
 </script>
 </body>
 </html>
-
