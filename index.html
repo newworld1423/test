@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>15분봉 증감률 뷰어 (여러 CSV 지원)</title>
+    <title>15분봉 공동 방향 뷰어 (증감률만, 여러 코인 비교)</title>
     <style>
         :root {
             --bg: #0b0f16;
@@ -14,20 +14,11 @@
             --pos: #16a34a;
             --neg: #ef4444;
             --grid: #1f2937;
+            --warn: #f59e0b;
         }
         * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: var(--bg);
-            color: var(--text);
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-            line-height: 1.5;
-        }
-        header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--grid);
-            position: sticky; top: 0; background: linear-gradient(180deg, rgba(11,15,22,.95), rgba(11,15,22,.85)); backdrop-filter: blur(8px);
-        }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, "Apple Color Emoji", "Segoe UI Emoji"; line-height: 1.5; }
+        header { padding: 20px 24px; border-bottom: 1px solid var(--grid); position: sticky; top: 0; background: linear-gradient(180deg, rgba(11,15,22,.95), rgba(11,15,22,.85)); backdrop-filter: blur(8px); }
         h1 { margin: 0 0 4px; font-size: 20px; }
         .sub { color: var(--muted); font-size: 13px; }
         main { padding: 18px 24px 48px; }
@@ -40,8 +31,8 @@
         .btn.ghost { background: transparent; }
         .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--grid); color: var(--muted); }
         .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-        @media (min-width: 1100px) { .grid { grid-template-columns: 360px 1fr; } }
-        .list { max-height: 160px; overflow: auto; border: 1px solid var(--grid); border-radius: 12px; padding: 8px; font-size: 13px; background: #0d1320; }
+        @media (min-width: 1100px) { .grid { grid-template-columns: 380px 1fr; } }
+        .list { max-height: 140px; overflow: auto; border: 1px solid var(--grid); border-radius: 12px; padding: 8px; font-size: 13px; background: #0d1320; }
         .list div { padding: 6px 8px; border-radius: 8px; }
         .list div:hover { background: rgba(96,165,250,.12); }
         .tabs { display: flex; gap: 8px; margin-top: 16px; }
@@ -58,7 +49,6 @@
         .neg { color: var(--neg); }
         .muted { color: var(--muted); }
         .caps { text-transform: uppercase; letter-spacing: .02em; }
-        .hint { font-size: 12px; color: var(--muted); }
         .right { text-align: right; }
         .scroll { overflow: auto; max-height: 68vh; border: 1px solid var(--grid); border-radius: 12px; }
         .pill { background: #0d1320; border: 1px solid var(--grid); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
@@ -66,20 +56,32 @@
         .heat td[data-pct]::before { content: ""; position: absolute; inset: 2px; z-index: 0; border-radius: 6px; opacity: .35; }
         .heat td > span { position: relative; z-index: 1; }
         .footer { margin-top: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-        .hidden { display: none !important; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .controls .cell { background: #0d1320; border: 1px solid var(--grid); border-radius: 12px; padding: 10px; }
+        label.small { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+        input[type="number"], select { width: 100%; padding: 8px 10px; border: 1px solid var(--grid); background: #0b0f16; color: var(--text); border-radius: 10px; }
+        .tag { display: inline-flex; gap: 6px; align-items: center; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--grid); font-size: 12px; }
+        .tag.up { color: var(--pos); border-color: rgba(34,197,94,.35); }
+        .tag.down { color: var(--neg); border-color: rgba(239,68,68,.35); }
+        .tag.flat { color: var(--muted); border-color: rgba(148,163,184,.35); }
+        .status { font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+        .status.allup { background: rgba(34,197,94,.15); color: var(--pos); }
+        .status.alldown { background: rgba(239,68,68,.15); color: var(--neg); }
+        .status.mixed { background: rgba(96,165,250,.15); color: var(--text); }
+        .status.allflat { background: rgba(148,163,184,.15); color: var(--muted); }
     </style>
 </head>
 <body>
     <header>
-        <h1>15분봉 증감률 뷰어</h1>
-        <div class="sub">Binance Vision CSV(klines) 여러 파일을 올려 각 코인별 15분봉 <b>증감률( (종가-시가) / 시가 )</b>을 확인합니다. 시간은 기본적으로 <b>Asia/Seoul</b> 기준으로 표시합니다.</div>
+        <h1>15분봉 공동 방향 뷰어</h1>
+        <div class="sub">여러 CSV를 올리면 <b>같은 시간대</b>에 코인들이 <b>같이 상승/하락</b>했는지, 아니면 <b>혼조</b>였는지 빠르게 확인합니다. (값은 <b>증감률%</b>만 사용)</div>
     </header>
 
     <main class="grid">
         <section class="panel" id="controls">
             <div class="row">
                 <div class="grow">
-                    <label class="hint">CSV 파일 선택 (여러 개 가능) — 예: <span class="pill">SQDUSDT-15m-2025-10-20.csv</span>, <span class="pill">COAIUSDT-15m-2025-10-20.csv</span></label>
+                    <label class="sub">CSV 파일 선택 (여러 개 가능) — 예: <span class="pill">SQDUSDT-15m-2025-10-20.csv</span>, <span class="pill">COAIUSDT-15m-2025-10-20.csv</span></label>
                     <input id="fileInput" type="file" accept=".csv" multiple />
                 </div>
                 <button id="loadBtn" class="btn primary">분석하기</button>
@@ -94,41 +96,54 @@
             </div>
 
             <div style="height: 12px"></div>
+            <div class="controls">
+                <div class="cell">
+                    <label class="small">무시 임계값 ε (절대값 %가 ε 미만이면 '보합' 처리)</label>
+                    <input id="epsilon" type="number" step="0.01" min="0" value="0.10" />
+                </div>
+                <div class="cell">
+                    <label class="small">필터</label>
+                    <select id="statusFilter">
+                        <option value="all">전체</option>
+                        <option value="allup">같이 상승 (모두 +)</option>
+                        <option value="alldown">같이 하락 (모두 -)</option>
+                        <option value="allflat">모두 보합 (±ε)</option>
+                        <option value="mixed">혼조 (섞임)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="height: 12px"></div>
             <div>
-                <div class="hint">선택된 파일</div>
+                <div class="sub">선택된 파일</div>
                 <div id="fileList" class="list"></div>
             </div>
         </section>
 
         <section class="panel">
             <div class="tabs">
-                <button class="tab active" data-view="tableView">상세 표 (코인별 행)</button>
-                <button class="tab" data-view="pivotView">피벗 표 (시간 행 × 심볼 열)</button>
+                <button class="tab active" data-view="summaryView">공동 방향 표</button>
+                <button class="tab" data-view="pivotView">피벗 (증감률만)</button>
             </div>
 
             <div class="views">
-                <section id="tableView" class="active">
+                <section id="summaryView" class="active">
                     <div class="scroll">
                         <table>
                             <thead>
                                 <tr>
-                                    <th style="min-width:132px">시간 (KST)</th>
-                                    <th>심볼</th>
-                                    <th class="right">시가</th>
-                                    <th class="right">고가</th>
-                                    <th class="right">저가</th>
-                                    <th class="right">종가</th>
-                                    <th class="right">증감률%</th>
-                                    <th class="right">거래량</th>
-                                    <th class="right">체결수</th>
+                                    <th style="min-width:140px">시간 (KST)</th>
+                                    <th>상태</th>
+                                    <th>요약</th>
+                                    <th>상세 (심볼: 증감률%)</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody"></tbody>
+                            <tbody id="sumBody"></tbody>
                         </table>
                     </div>
                     <div class="footer">
-                        <div>행 클릭 없이 스크롤로 탐색하세요. 헤더는 고정됩니다.</div>
-                        <button id="downloadDetail" class="btn">CSV로 저장 (상세)</button>
+                        <div>ε를 조정해 미미한 변동(노이즈)을 보합으로 처리할 수 있어요.</div>
+                        <button id="downloadSummary" class="btn">CSV로 저장 (공동 방향)</button>
                     </div>
                 </section>
 
@@ -140,7 +155,7 @@
                         </table>
                     </div>
                     <div class="footer">
-                        <div>셀 배경색: 양수(녹색) / 음수(빨강). 값은 각 코인의 캔들별 변동률%</div>
+                        <div>셀 배경색: 양수(초록)/음수(빨강). 값은 각 코인의 15분봉 변동률%</div>
                         <button id="downloadPivot" class="btn">CSV로 저장 (피벗)</button>
                     </div>
                 </section>
@@ -151,27 +166,20 @@
     <script>
         // ====== 유틸 ======
         function parseSymbolFromFilename(name) {
-            // 예상 예: SQDUSDT-15m-2025-10-20.csv
-            // 첫 '-' 이전을 심볼로 간주
             const base = name.replace(/\.[^.]+$/, "");
             const dash = base.indexOf("-");
             return (dash > 0 ? base.slice(0, dash) : base).toUpperCase();
         }
-
         function parseCSV(text) {
-            // Binance klines CSV: no header, 12 columns
-            // 0 open_time(ms/us), 1 open, 2 high, 3 low, 4 close, 5 volume,
-            // 6 close_time(ms/us), 7 quote_volume, 8 trades, 9 taker_buy_base, 10 taker_buy_quote, 11 ignore
             const lines = text.trim().split(/\r?\n/);
             const rows = [];
             for (let i = 0; i < lines.length; i++) {
                 const cols = lines[i].split(",");
-                if (cols.length < 12) continue; // skip broken line
+                if (cols.length < 12) continue;
                 const toNum = (v) => (v === undefined ? null : Number(v));
                 const otimeRaw = Number(cols[0]);
                 const ctimeRaw = Number(cols[6]);
-                // ms vs us 자동 판별 (16자리 이상이면 us로 간주)
-                const otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw;
+                const otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw; // us -> ms
                 const ctimeMs = ctimeRaw > 1e15 ? Math.round(ctimeRaw / 1000) : ctimeRaw;
                 rows.push({
                     open_time: otimeMs,
@@ -182,18 +190,13 @@
                     volume: toNum(cols[5]),
                     close_time: ctimeMs,
                     quote_volume: toNum(cols[7]),
-                    trades: toNum(cols[8]),
-                    taker_buy_base: toNum(cols[9]),
-                    taker_buy_quote: toNum(cols[10])
+                    trades: toNum(cols[8])
                 });
             }
             return rows;
         }
-
         function msToKST(ms) {
-            // to KST ISO-like string without seconds: YYYY-MM-DD HH:MM
             const dt = new Date(ms);
-            // KST offset: +9h
             const kstMs = dt.getTime() + 9 * 3600 * 1000;
             const k = new Date(kstMs);
             const y = k.getUTCFullYear();
@@ -203,41 +206,44 @@
             const mm = String(k.getUTCMinutes()).padStart(2, "0");
             return `${y}-${m}-${d} ${hh}:${mm}`;
         }
-
         function fmt(n, d = 2) {
             if (n === null || n === undefined || Number.isNaN(n)) return "";
             return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
         }
-
-        function computeChangePct(open, close) {
-            if (open === 0 || open == null || close == null) return null;
-            return ((close - open) / open) * 100;
+        function computeChangePct(open, close) { if (!open) return null; return ((close - open) / open) * 100; }
+        function classifyStatus(pcts, eps) {
+            // pcts: [number|null]; eps in %
+            let up = 0, down = 0, flat = 0, total = 0;
+            for (const v of pcts) {
+                if (v == null) { continue; }
+                total++;
+                const abs = Math.abs(v);
+                if (abs < eps) flat++; else if (v > 0) up++; else if (v < 0) down++;
+            }
+            let status = 'mixed';
+            if (total === flat) status = 'allflat';
+            else if (up > 0 && down === 0 && flat === 0) status = 'allup';
+            else if (down > 0 && up === 0 && flat === 0) status = 'alldown';
+            return { up, down, flat, total, status };
         }
-
         function downloadCSV(filename, rows) {
-            // rows: array of objects -> CSV
             if (!rows.length) return;
             const headers = Object.keys(rows[0]);
             const esc = (v) => (v == null ? "" : String(v).includes(",") ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
-            const csv = [headers.join(",")]
-                .concat(rows.map(r => headers.map(h => esc(r[h])).join(",")))
-                .join("\n");
+            const csv = [headers.join(",")] .concat(rows.map(r => headers.map(h => esc(r[h])).join(","))).join("\n");
             const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = filename; a.click();
+            const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
             setTimeout(() => URL.revokeObjectURL(url), 3000);
         }
 
         // ====== 상태 ======
         const state = {
-            files: [],        // File[]
-            dataRows: [],     // 상세 행
-            pivot: {          // 피벗: time -> { symbol: pct }
-                times: [],
-                symbols: [],
-                map: new Map()
-            }
+            files: [],
+            rows: [], // {time_kst, symbol, pct}
+            times: [],
+            symbols: [],
+            map: new Map(), // time -> { symbol: pct }
         };
 
         // ====== DOM ======
@@ -246,13 +252,15 @@
         const countBadge = document.getElementById("countBadge");
         const loadBtn = document.getElementById("loadBtn");
         const clearBtn = document.getElementById("clearBtn");
-        const tbody = document.getElementById("tbody");
+        const epsilonEl = document.getElementById("epsilon");
+        const statusFilterEl = document.getElementById("statusFilter");
+        const sumBody = document.getElementById("sumBody");
         const pivotHead = document.getElementById("pivotHead");
         const pivotBody = document.getElementById("pivotBody");
+        const downloadSummary = document.getElementById("downloadSummary");
+        const downloadPivot = document.getElementById("downloadPivot");
         const tabs = document.querySelectorAll(".tab");
         const views = document.querySelectorAll(".views > section");
-        const downloadDetail = document.getElementById("downloadDetail");
-        const downloadPivot = document.getElementById("downloadPivot");
 
         // ====== 이벤트 ======
         fileInput.addEventListener("change", () => {
@@ -260,21 +268,14 @@
             fileList.innerHTML = state.files.map(f => `<div>${f.name} <span class="muted">(${(f.size/1024).toFixed(1)} KB)</span></div>`).join("");
             countBadge.textContent = `파일 ${state.files.length}개`;
         });
-
         clearBtn.addEventListener("click", () => {
-            state.files = []; state.dataRows = []; state.pivot = { times: [], symbols: [], map: new Map() };
+            state.files = []; state.rows = []; state.times = []; state.symbols = []; state.map = new Map();
             fileInput.value = ""; fileList.innerHTML = ""; countBadge.textContent = "파일 0개";
-            tbody.innerHTML = ""; pivotHead.innerHTML = ""; pivotBody.innerHTML = "";
+            sumBody.innerHTML = ""; pivotHead.innerHTML = ""; pivotBody.innerHTML = "";
         });
-
-        loadBtn.addEventListener("click", async () => {
-            if (!state.files.length) { alert("CSV 파일을 선택해 주세요."); return; }
-            const parsed = await readAllFiles(state.files);
-            renderDetail(parsed.rows);
-            buildPivot(parsed.rows);
-            renderPivot();
-        });
-
+        loadBtn.addEventListener("click", async () => { await runAnalysis(); });
+        epsilonEl.addEventListener("change", () => renderAll());
+        statusFilterEl.addEventListener("change", () => renderSummary());
         tabs.forEach(btn => {
             btn.addEventListener("click", () => {
                 tabs.forEach(b => b.classList.remove("active"));
@@ -283,114 +284,86 @@
                 document.getElementById(btn.dataset.view).classList.add("active");
             });
         });
-
-        downloadDetail.addEventListener("click", () => {
-            if (!state.dataRows.length) return;
-            downloadCSV("detail_15m_changes.csv", state.dataRows.map(r => ({
-                time_kst: r.time_kst,
-                symbol: r.symbol,
-                open: r.open,
-                high: r.high,
-                low: r.low,
-                close: r.close,
-                change_pct: Number(r.change_pct?.toFixed(6)),
-                volume: r.volume,
-                trades: r.trades
-            })));
-        });
-
-        downloadPivot.addEventListener("click", () => {
-            const { times, symbols, map } = state.pivot;
-            if (!times.length || !symbols.length) return;
-            const rows = [];
-            for (const t of times) {
-                const row = { time_kst: t };
-                const entry = map.get(t) || {};
-                for (const s of symbols) row[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : "";
-                rows.push(row);
-            }
-            downloadCSV("pivot_15m_changes.csv", rows);
-        });
+        downloadSummary.addEventListener("click", () => downloadSummaryCSV());
+        downloadPivot.addEventListener("click", () => downloadPivotCSV());
 
         // ====== 로직 ======
-        async function readAllFiles(files) {
+        async function runAnalysis() {
+            if (!state.files.length) { alert("CSV 파일을 선택해 주세요."); return; }
             const rows = [];
-            for (const file of files) {
+            for (const file of state.files) {
                 const symbol = parseSymbolFromFilename(file.name);
                 const text = await file.text();
                 const arr = parseCSV(text);
                 for (const o of arr) {
                     const pct = computeChangePct(o.open, o.close);
-                    rows.push({
-                        time_kst: msToKST(o.open_time),
-                        symbol,
-                        open: o.open,
-                        high: o.high,
-                        low: o.low,
-                        close: o.close,
-                        change_pct: pct,
-                        volume: o.volume,
-                        trades: o.trades
-                    });
+                    rows.push({ time_kst: msToKST(o.open_time), symbol, pct });
                 }
             }
-            // 시간, 심볼 정렬
             rows.sort((a,b) => (a.time_kst < b.time_kst ? -1 : a.time_kst > b.time_kst ? 1 : (a.symbol < b.symbol ? -1 : 1)));
-            state.dataRows = rows;
-            return { rows };
-        }
-
-        function renderDetail(rows) {
-            const frag = document.createDocumentFragment();
-            for (const r of rows) {
-                const tr = document.createElement("tr");
-                const cls = r.change_pct == null ? "muted" : r.change_pct >= 0 ? "pos" : "neg";
-                tr.innerHTML = `
-                    <td class="mono">${r.time_kst}</td>
-                    <td class="caps">${r.symbol}</td>
-                    <td class="right mono muted">${fmt(r.open, 8)}</td>
-                    <td class="right mono muted">${fmt(r.high, 8)}</td>
-                    <td class="right mono muted">${fmt(r.low, 8)}</td>
-                    <td class="right mono">${fmt(r.close, 8)}</td>
-                    <td class="right mono ${cls}">${r.change_pct == null ? "" : fmt(r.change_pct, 3)}</td>
-                    <td class="right mono muted">${fmt(r.volume, 4)}</td>
-                    <td class="right mono muted">${fmt(r.trades, 0)}</td>
-                `;
-                frag.appendChild(tr);
-            }
-            tbody.innerHTML = "";
-            tbody.appendChild(frag);
-        }
-
-        function buildPivot(rows) {
             const symbols = Array.from(new Set(rows.map(r => r.symbol))).sort();
             const times = Array.from(new Set(rows.map(r => r.time_kst))).sort();
             const map = new Map();
             for (const t of times) map.set(t, {});
-            for (const r of rows) {
-                const bucket = map.get(r.time_kst);
-                bucket[r.symbol] = r.change_pct;
+            for (const r of rows) map.get(r.time_kst)[r.symbol] = r.pct;
+            state.rows = rows; state.symbols = symbols; state.times = times; state.map = map;
+            renderAll();
+        }
+        function renderAll() { renderSummary(); renderPivot(); }
+
+        function renderSummary() {
+            const eps = Math.max(0, Number(epsilonEl.value) || 0);
+            const filter = statusFilterEl.value;
+            const frag = document.createDocumentFragment();
+            sumBody.innerHTML = "";
+            for (const t of state.times) {
+                const entry = state.map.get(t) || {};
+                const pcts = state.symbols.map(s => entry[s] != null ? entry[s] : null);
+                const cls = classifyStatus(pcts, eps);
+                if (filter !== 'all' && cls.status !== filter) continue;
+
+                const tr = document.createElement("tr");
+                const statusHtml = `<span class="status ${cls.status}">` +
+                    (cls.status === 'allup' ? '같이 상승' : cls.status === 'alldown' ? '같이 하락' : cls.status === 'allflat' ? '모두 보합' : '혼조') +
+                    `</span>`;
+
+                const summaryHtml = `
+                    <span class="tag up">상승 ${cls.up}</span>
+                    <span class="tag down">하락 ${cls.down}</span>
+                    <span class="tag flat">보합 ${cls.flat}</span>
+                    <span class="tag">총 ${cls.total}</span>
+                `;
+
+                const details = state.symbols.map(s => {
+                    const v = entry[s];
+                    const dcls = v == null ? 'muted' : Math.abs(v) < eps ? 'muted' : (v >= 0 ? 'pos' : 'neg');
+                    return `<span class="caps ${dcls}">${s}</span>: <span class="mono ${dcls}">${v == null ? '' : fmt(v, 3)}</span>%`;
+                }).join(" &nbsp; | &nbsp; ");
+
+                tr.innerHTML = `
+                    <td class="mono">${t}</td>
+                    <td>${statusHtml}</td>
+                    <td>${summaryHtml}</td>
+                    <td>${details}</td>
+                `;
+                frag.appendChild(tr);
             }
-            state.pivot = { times, symbols, map };
+            sumBody.appendChild(frag);
         }
 
         function renderPivot() {
-            const { times, symbols, map } = state.pivot;
-            // head
-            const ths = ["<th style=\"min-width:132px\">시간 (KST)</th>"]
-                .concat(symbols.map(s => `<th class="right caps">${s}</th>`))
-                .join("");
+            const eps = Math.max(0, Number(epsilonEl.value) || 0);
+            const ths = ["<th style=\"min-width:140px\">시간 (KST)</th>"]
+                .concat(state.symbols.map(s => `<th class="right caps">${s}</th>`)).join("");
             pivotHead.innerHTML = `<tr>${ths}</tr>`;
-            // body
             const frag = document.createDocumentFragment();
-            for (const t of times) {
+            for (const t of state.times) {
                 const tr = document.createElement("tr");
-                const entry = map.get(t) || {};
+                const entry = state.map.get(t) || {};
                 const tds = [`<td class="mono">${t}</td>`];
-                for (const s of symbols) {
+                for (const s of state.symbols) {
                     const v = entry[s];
-                    const cls = v == null ? "muted" : v >= 0 ? "pos" : "neg";
-                    // heat background via ::before using data-pct
+                    const cls = v == null ? "muted" : Math.abs(v) < eps ? "muted" : v >= 0 ? "pos" : "neg";
                     const td = document.createElement("td");
                     td.className = `right mono ${cls}`;
                     if (v != null) td.setAttribute("data-pct", v.toFixed(6));
@@ -402,24 +375,45 @@
             }
             pivotBody.innerHTML = "";
             pivotBody.appendChild(frag);
-            // colorize heat
-            applyHeatColors();
+            applyHeatColors(eps);
         }
-
-        function applyHeatColors() {
-            // map absolute pct to 0..1; clamp at 5% for color intensity
+        function applyHeatColors(eps) {
             const cells = pivotBody.querySelectorAll('td[data-pct]');
             for (const td of cells) {
-                const v = Math.abs(Number(td.getAttribute('data-pct')));
-                const ratio = Math.min(v / 5, 1); // 5% 이상은 동일 강도
-                const isPos = Number(td.getAttribute('data-pct')) >= 0;
-                const col = isPos ? '34,197,94' : '239,68,68'; // rgb for var(--pos/--neg)
-                td.style.setProperty('--heat', `rgba(${col}, ${0.15 + 0.45 * ratio})`);
-                td.style.position = 'relative';
-                td.style.overflow = 'hidden';
-                td.style.setProperty('--heat-border', 'rgba(255,255,255,0.06)');
-                td.style.background = `linear-gradient(0deg, var(--heat), var(--heat))`;
+                const raw = Number(td.getAttribute('data-pct'));
+                const isFlat = Math.abs(raw) < eps;
+                if (isFlat) { td.style.background = 'transparent'; continue; }
+                const v = Math.abs(raw);
+                const ratio = Math.min(v / 5, 1);
+                const isPos = raw >= 0;
+                const col = isPos ? '34,197,94' : '239,68,68';
+                td.style.background = `linear-gradient(0deg, rgba(${col}, ${0.15 + 0.45 * ratio}), rgba(${col}, ${0.15 + 0.45 * ratio}))`;
             }
+        }
+
+        function downloadSummaryCSV() {
+            const eps = Math.max(0, Number(epsilonEl.value) || 0);
+            const rows = [];
+            for (const t of state.times) {
+                const entry = state.map.get(t) || {};
+                const pcts = state.symbols.map(s => entry[s] != null ? entry[s] : null);
+                const cls = classifyStatus(pcts, eps);
+                const obj = { time_kst: t, status: cls.status, up: cls.up, down: cls.down, flat: cls.flat, total: cls.total };
+                for (const s of state.symbols) obj[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
+                rows.push(obj);
+            }
+            downloadCSV('comove_summary.csv', rows);
+        }
+        function downloadPivotCSV() {
+            if (!state.times.length || !state.symbols.length) return;
+            const rows = [];
+            for (const t of state.times) {
+                const entry = state.map.get(t) || {};
+                const row = { time_kst: t };
+                for (const s of state.symbols) row[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
+                rows.push(row);
+            }
+            downloadCSV('pivot_changes.csv', rows);
         }
     </script>
 </body>
