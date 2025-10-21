@@ -2,162 +2,425 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp 1D Scanner</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>15분봉 증감률 뷰어 (여러 CSV 지원)</title>
     <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; margin: 24px; }
-        h1 { margin: 0 0 16px; font-size: 20px; }
-        .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-        input, button, select { padding: 8px 10px; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: right; }
-        th:nth-child(1), td:nth-child(1),
-        th:nth-child(2), td:nth-child(2) { text-align: left; }
-        thead th { background: #f8fafc; }
-        .muted { opacity: 0.7; }
+        :root {
+            --bg: #0b0f16;
+            --panel: #121826;
+            --muted: #9aa4b2;
+            --text: #e5e7eb;
+            --accent: #60a5fa;
+            --pos: #16a34a;
+            --neg: #ef4444;
+            --grid: #1f2937;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            line-height: 1.5;
+        }
+        header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--grid);
+            position: sticky; top: 0; background: linear-gradient(180deg, rgba(11,15,22,.95), rgba(11,15,22,.85)); backdrop-filter: blur(8px);
+        }
+        h1 { margin: 0 0 4px; font-size: 20px; }
+        .sub { color: var(--muted); font-size: 13px; }
+        main { padding: 18px 24px 48px; }
+        .panel { background: var(--panel); border: 1px solid var(--grid); border-radius: 16px; padding: 16px; }
+        .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .grow { flex: 1 1 240px; }
+        input[type="file"] { width: 100%; padding: 10px; border: 1px dashed var(--grid); background: transparent; color: var(--muted); border-radius: 12px; }
+        .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--grid); background: #0f172a; color: var(--text); cursor: pointer; }
+        .btn.primary { background: var(--accent); color: #0b0f16; border-color: transparent; font-weight: 700; }
+        .btn.ghost { background: transparent; }
+        .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--grid); color: var(--muted); }
+        .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+        @media (min-width: 1100px) { .grid { grid-template-columns: 360px 1fr; } }
+        .list { max-height: 160px; overflow: auto; border: 1px solid var(--grid); border-radius: 12px; padding: 8px; font-size: 13px; background: #0d1320; }
+        .list div { padding: 6px 8px; border-radius: 8px; }
+        .list div:hover { background: rgba(96,165,250,.12); }
+        .tabs { display: flex; gap: 8px; margin-top: 16px; }
+        .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--grid); background: #0e1524; cursor: pointer; font-size: 13px; color: var(--muted); }
+        .tab.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px inset rgba(96,165,250,.35); }
+        .views > section { display: none; }
+        .views > section.active { display: block; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        thead th { position: sticky; top: 0; background: #0f172a; z-index: 1; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); font-weight: 700; }
+        tbody td { padding: 8px 10px; border-bottom: 1px solid var(--grid); }
+        tbody tr:hover { background: rgba(148,163,184,.08); }
+        .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .pos { color: var(--pos); }
+        .neg { color: var(--neg); }
+        .muted { color: var(--muted); }
+        .caps { text-transform: uppercase; letter-spacing: .02em; }
+        .hint { font-size: 12px; color: var(--muted); }
+        .right { text-align: right; }
+        .scroll { overflow: auto; max-height: 68vh; border: 1px solid var(--grid); border-radius: 12px; }
+        .pill { background: #0d1320; border: 1px solid var(--grid); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+        .heat td[data-pct] { position: relative; }
+        .heat td[data-pct]::before { content: ""; position: absolute; inset: 2px; z-index: 0; border-radius: 6px; opacity: .35; }
+        .heat td > span { position: relative; z-index: 1; }
+        .footer { margin-top: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <h1>바이낸스 선물 1일봉 스캔 (최근 N일)</h1>
+    <header>
+        <h1>15분봉 증감률 뷰어</h1>
+        <div class="sub">Binance Vision CSV(klines) 여러 파일을 올려 각 코인별 15분봉 <b>증감률( (종가-시가) / 시가 )</b>을 확인합니다. 시간은 기본적으로 <b>Asia/Seoul</b> 기준으로 표시합니다.</div>
+    </header>
 
-    <div class="row">
-        <label>USDT 페어:
-            <input id="symbol" value="SQDUSDT" placeholder="예: BTCUSDT / SQDUSDT" />
-        </label>
-        <label>최근 N일:
-            <input id="days" type="number" min="3" max="60" value="10" />
-        </label>
-        <label class="muted">
-            <input id="skipTodayHiLo" type="checkbox" checked />
-            오늘 봉은 고가/저가 스킵
-        </label>
-        <button id="run">스캔</button>
-    </div>
+    <main class="grid">
+        <section class="panel" id="controls">
+            <div class="row">
+                <div class="grow">
+                    <label class="hint">CSV 파일 선택 (여러 개 가능) — 예: <span class="pill">SQDUSDT-15m-2025-10-20.csv</span>, <span class="pill">COAIUSDT-15m-2025-10-20.csv</span></label>
+                    <input id="fileInput" type="file" accept=".csv" multiple />
+                </div>
+                <button id="loadBtn" class="btn primary">분석하기</button>
+                <button id="clearBtn" class="btn ghost">초기화</button>
+            </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>날짜</th>
-                <th>코인</th>
-                <th>직전봉 상승률</th>
-                <th>시가</th>
-                <th>고가</th>
-                <th>시가대비 고가</th>
-                <th>저가</th>
-                <th>시가대비 저가</th>
-            </tr>
-        </thead>
-        <tbody id="tbody">
-            <tr><td colspan="8" style="text-align:center;" class="muted">입력 후 [스캔]을 눌러주세요</td></tr>
-        </tbody>
-    </table>
+            <div style="height: 12px"></div>
+            <div class="row">
+                <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
+                <span class="badge">간격: 15m</span>
+                <span class="badge" id="countBadge">파일 0개</span>
+            </div>
+
+            <div style="height: 12px"></div>
+            <div>
+                <div class="hint">선택된 파일</div>
+                <div id="fileList" class="list"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="tabs">
+                <button class="tab active" data-view="tableView">상세 표 (코인별 행)</button>
+                <button class="tab" data-view="pivotView">피벗 표 (시간 행 × 심볼 열)</button>
+            </div>
+
+            <div class="views">
+                <section id="tableView" class="active">
+                    <div class="scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="min-width:132px">시간 (KST)</th>
+                                    <th>심볼</th>
+                                    <th class="right">시가</th>
+                                    <th class="right">고가</th>
+                                    <th class="right">저가</th>
+                                    <th class="right">종가</th>
+                                    <th class="right">증감률%</th>
+                                    <th class="right">거래량</th>
+                                    <th class="right">체결수</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="footer">
+                        <div>행 클릭 없이 스크롤로 탐색하세요. 헤더는 고정됩니다.</div>
+                        <button id="downloadDetail" class="btn">CSV로 저장 (상세)</button>
+                    </div>
+                </section>
+
+                <section id="pivotView">
+                    <div class="scroll">
+                        <table class="heat">
+                            <thead id="pivotHead"></thead>
+                            <tbody id="pivotBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="footer">
+                        <div>셀 배경색: 양수(녹색) / 음수(빨강). 값은 각 코인의 캔들별 변동률%</div>
+                        <button id="downloadPivot" class="btn">CSV로 저장 (피벗)</button>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
 
     <script>
-        // 바이낸스 선물 API (CORS 허용)
-        const FAPI_BASE = "https://fapi.binance.com";
+        // ====== 유틸 ======
+        function parseSymbolFromFilename(name) {
+            // 예상 예: SQDUSDT-15m-2025-10-20.csv
+            // 첫 '-' 이전을 심볼로 간주
+            const base = name.replace(/\.[^.]+$/, "");
+            const dash = base.indexOf("-");
+            return (dash > 0 ? base.slice(0, dash) : base).toUpperCase();
+        }
 
-        document.getElementById("run").addEventListener("click", async () => {
-            const symbol = document.getElementById("symbol").value.trim().toUpperCase();
-            const days = Math.max(3, Math.min(60, parseInt(document.getElementById("days").value, 10) || 10));
-            const skipTodayHiLo = document.getElementById("skipTodayHiLo").checked;
-            const $tbody = document.getElementById("tbody");
-
-            if (!symbol.endsWith("USDT")) {
-                alert("심볼은 반드시 USDT 페어여야 합니다. (예: BTCUSDT)");
-                return;
+        function parseCSV(text) {
+            // Binance klines CSV: no header, 12 columns
+            // 0 open_time(ms/us), 1 open, 2 high, 3 low, 4 close, 5 volume,
+            // 6 close_time(ms/us), 7 quote_volume, 8 trades, 9 taker_buy_base, 10 taker_buy_quote, 11 ignore
+            const lines = text.trim().split(/\r?\n/);
+            const rows = [];
+            for (let i = 0; i < lines.length; i++) {
+                const cols = lines[i].split(",");
+                if (cols.length < 12) continue; // skip broken line
+                const toNum = (v) => (v === undefined ? null : Number(v));
+                const otimeRaw = Number(cols[0]);
+                const ctimeRaw = Number(cols[6]);
+                // ms vs us 자동 판별 (16자리 이상이면 us로 간주)
+                const otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw;
+                const ctimeMs = ctimeRaw > 1e15 ? Math.round(ctimeRaw / 1000) : ctimeRaw;
+                rows.push({
+                    open_time: otimeMs,
+                    open: toNum(cols[1]),
+                    high: toNum(cols[2]),
+                    low: toNum(cols[3]),
+                    close: toNum(cols[4]),
+                    volume: toNum(cols[5]),
+                    close_time: ctimeMs,
+                    quote_volume: toNum(cols[7]),
+                    trades: toNum(cols[8]),
+                    taker_buy_base: toNum(cols[9]),
+                    taker_buy_quote: toNum(cols[10])
+                });
             }
+            return rows;
+        }
 
-            $tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;" class="muted">불러오는 중...</td></tr>`;
+        function msToKST(ms) {
+            // to KST ISO-like string without seconds: YYYY-MM-DD HH:MM
+            const dt = new Date(ms);
+            // KST offset: +9h
+            const kstMs = dt.getTime() + 9 * 3600 * 1000;
+            const k = new Date(kstMs);
+            const y = k.getUTCFullYear();
+            const m = String(k.getUTCMonth() + 1).padStart(2, "0");
+            const d = String(k.getUTCDate()).padStart(2, "0");
+            const hh = String(k.getUTCHours()).padStart(2, "0");
+            const mm = String(k.getUTCMinutes()).padStart(2, "0");
+            return `${y}-${m}-${d} ${hh}:${mm}`;
+        }
 
-            try {
-                // N일 + 이전봉(전일 상승률 계산용) 확보를 위해 넉넉히 가져오기
-                const limit = days + 2;
-                const url = `${FAPI_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}`;
-                const resp = await fetch(url, { method: "GET" });
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const klines = await resp.json();
+        function fmt(n, d = 2) {
+            if (n === null || n === undefined || Number.isNaN(n)) return "";
+            return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+        }
 
-                if (!Array.isArray(klines) || klines.length < 3) {
-                    throw new Error("데이터가 충분하지 않습니다.");
-                }
+        function computeChangePct(open, close) {
+            if (open === 0 || open == null || close == null) return null;
+            return ((close - open) / open) * 100;
+        }
 
-                // kline 구조: [openTime, open, high, low, close, volume, closeTime, ...]
-                const rows = klines.map(k => ({
-                    openTime: Number(k[0]),
-                    open: parseFloat(k[1]),
-                    high: parseFloat(k[2]),
-                    low: parseFloat(k[3]),
-                    close: parseFloat(k[4]),
-                    closeTime: Number(k[6]),
-                }));
+        function downloadCSV(filename, rows) {
+            // rows: array of objects -> CSV
+            if (!rows.length) return;
+            const headers = Object.keys(rows[0]);
+            const esc = (v) => (v == null ? "" : String(v).includes(",") ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+            const csv = [headers.join(",")]
+                .concat(rows.map(r => headers.map(h => esc(r[h])).join(",")))
+                .join("\n");
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = filename; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        }
 
-                // 최신이 맨 뒤에 오므로 그대로 사용. 최근 N개를 대상으로 출력하되,
-                // 각 행의 '직전봉 상승률'은 바로 앞 봉의 (close-open)/open 로 계산
-                const recent = rows.slice(-days - 1); // 전일 계산 위해 N+1개
-                const nowUtc = Date.now();
-
-                const base = symbol.replace(/USDT$/i, "");
-                const fmtPct = (x) => `${(x >= 0 ? "" : "")}${(x * 100).toFixed(2)}%`;
-                const fmtNum = (x) => (Number.isFinite(x) ? String(x) : "");
-                const toKSTDate = (ms) => {
-                    // 아시아/서울 기준 날짜 문자열
-                    const d = new Date(ms);
-                    // 한국 사용자를 고려해 KST로 보기 (UTC+9)
-                    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-                    return kst.toISOString().slice(0, 10);
-                };
-
-                // 테이블 렌더
-                const out = [];
-                for (let i = 1; i < recent.length; i++) {
-                    const prev = recent[i - 1];
-                    const cur = recent[i];
-
-                    const dateStr = toKSTDate(cur.openTime); // 해당 "날짜" (봉 시작일)
-                    const prevChange = (prev.close - prev.open) / prev.open; // 직전봉 상승률
-
-                    // 오늘 봉(진행중)인지 판정: 1일봉은 openTime + 24h가 봉 종료 시각(UTC)
-                    const candleEnd = cur.openTime + 24 * 60 * 60 * 1000;
-                    const isTodayOpen = nowUtc < candleEnd; // 아직 닫히지 않았으면 진행중
-
-                    let high = cur.high;
-                    let low = cur.low;
-                    let oh = (cur.high - cur.open) / cur.open;
-                    let ol = (cur.low - cur.open) / cur.open;
-
-                    if (isTodayOpen && skipTodayHiLo) {
-                        high = "";
-                        low = "";
-                        oh = NaN;
-                        ol = NaN;
-                    }
-
-                    out.push(`
-                        <tr>
-                            <td>${dateStr}</td>
-                            <td>${base}</td>
-                            <td>${fmtPct(prevChange)}</td>
-                            <td>${fmtNum(cur.open)}</td>
-                            <td>${fmtNum(high)}</td>
-                            <td>${Number.isFinite(oh) ? fmtPct(oh) : ""}</td>
-                            <td>${fmtNum(low)}</td>
-                            <td>${Number.isFinite(ol) ? fmtPct(ol) : ""}</td>
-                        </tr>
-                    `);
-                }
-
-                if (out.length === 0) {
-                    $tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;" class="muted">표시할 데이터가 없습니다.</td></tr>`;
-                } else {
-                    $tbody.innerHTML = out.join("");
-                }
-            } catch (err) {
-                console.error(err);
-                $tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#b91c1c;">
-                    오류: ${err.message || err}
-                </td></tr>`;
+        // ====== 상태 ======
+        const state = {
+            files: [],        // File[]
+            dataRows: [],     // 상세 행
+            pivot: {          // 피벗: time -> { symbol: pct }
+                times: [],
+                symbols: [],
+                map: new Map()
             }
+        };
+
+        // ====== DOM ======
+        const fileInput = document.getElementById("fileInput");
+        const fileList = document.getElementById("fileList");
+        const countBadge = document.getElementById("countBadge");
+        const loadBtn = document.getElementById("loadBtn");
+        const clearBtn = document.getElementById("clearBtn");
+        const tbody = document.getElementById("tbody");
+        const pivotHead = document.getElementById("pivotHead");
+        const pivotBody = document.getElementById("pivotBody");
+        const tabs = document.querySelectorAll(".tab");
+        const views = document.querySelectorAll(".views > section");
+        const downloadDetail = document.getElementById("downloadDetail");
+        const downloadPivot = document.getElementById("downloadPivot");
+
+        // ====== 이벤트 ======
+        fileInput.addEventListener("change", () => {
+            state.files = Array.from(fileInput.files || []);
+            fileList.innerHTML = state.files.map(f => `<div>${f.name} <span class="muted">(${(f.size/1024).toFixed(1)} KB)</span></div>`).join("");
+            countBadge.textContent = `파일 ${state.files.length}개`;
         });
+
+        clearBtn.addEventListener("click", () => {
+            state.files = []; state.dataRows = []; state.pivot = { times: [], symbols: [], map: new Map() };
+            fileInput.value = ""; fileList.innerHTML = ""; countBadge.textContent = "파일 0개";
+            tbody.innerHTML = ""; pivotHead.innerHTML = ""; pivotBody.innerHTML = "";
+        });
+
+        loadBtn.addEventListener("click", async () => {
+            if (!state.files.length) { alert("CSV 파일을 선택해 주세요."); return; }
+            const parsed = await readAllFiles(state.files);
+            renderDetail(parsed.rows);
+            buildPivot(parsed.rows);
+            renderPivot();
+        });
+
+        tabs.forEach(btn => {
+            btn.addEventListener("click", () => {
+                tabs.forEach(b => b.classList.remove("active"));
+                views.forEach(v => v.classList.remove("active"));
+                btn.classList.add("active");
+                document.getElementById(btn.dataset.view).classList.add("active");
+            });
+        });
+
+        downloadDetail.addEventListener("click", () => {
+            if (!state.dataRows.length) return;
+            downloadCSV("detail_15m_changes.csv", state.dataRows.map(r => ({
+                time_kst: r.time_kst,
+                symbol: r.symbol,
+                open: r.open,
+                high: r.high,
+                low: r.low,
+                close: r.close,
+                change_pct: Number(r.change_pct?.toFixed(6)),
+                volume: r.volume,
+                trades: r.trades
+            })));
+        });
+
+        downloadPivot.addEventListener("click", () => {
+            const { times, symbols, map } = state.pivot;
+            if (!times.length || !symbols.length) return;
+            const rows = [];
+            for (const t of times) {
+                const row = { time_kst: t };
+                const entry = map.get(t) || {};
+                for (const s of symbols) row[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : "";
+                rows.push(row);
+            }
+            downloadCSV("pivot_15m_changes.csv", rows);
+        });
+
+        // ====== 로직 ======
+        async function readAllFiles(files) {
+            const rows = [];
+            for (const file of files) {
+                const symbol = parseSymbolFromFilename(file.name);
+                const text = await file.text();
+                const arr = parseCSV(text);
+                for (const o of arr) {
+                    const pct = computeChangePct(o.open, o.close);
+                    rows.push({
+                        time_kst: msToKST(o.open_time),
+                        symbol,
+                        open: o.open,
+                        high: o.high,
+                        low: o.low,
+                        close: o.close,
+                        change_pct: pct,
+                        volume: o.volume,
+                        trades: o.trades
+                    });
+                }
+            }
+            // 시간, 심볼 정렬
+            rows.sort((a,b) => (a.time_kst < b.time_kst ? -1 : a.time_kst > b.time_kst ? 1 : (a.symbol < b.symbol ? -1 : 1)));
+            state.dataRows = rows;
+            return { rows };
+        }
+
+        function renderDetail(rows) {
+            const frag = document.createDocumentFragment();
+            for (const r of rows) {
+                const tr = document.createElement("tr");
+                const cls = r.change_pct == null ? "muted" : r.change_pct >= 0 ? "pos" : "neg";
+                tr.innerHTML = `
+                    <td class="mono">${r.time_kst}</td>
+                    <td class="caps">${r.symbol}</td>
+                    <td class="right mono muted">${fmt(r.open, 8)}</td>
+                    <td class="right mono muted">${fmt(r.high, 8)}</td>
+                    <td class="right mono muted">${fmt(r.low, 8)}</td>
+                    <td class="right mono">${fmt(r.close, 8)}</td>
+                    <td class="right mono ${cls}">${r.change_pct == null ? "" : fmt(r.change_pct, 3)}</td>
+                    <td class="right mono muted">${fmt(r.volume, 4)}</td>
+                    <td class="right mono muted">${fmt(r.trades, 0)}</td>
+                `;
+                frag.appendChild(tr);
+            }
+            tbody.innerHTML = "";
+            tbody.appendChild(frag);
+        }
+
+        function buildPivot(rows) {
+            const symbols = Array.from(new Set(rows.map(r => r.symbol))).sort();
+            const times = Array.from(new Set(rows.map(r => r.time_kst))).sort();
+            const map = new Map();
+            for (const t of times) map.set(t, {});
+            for (const r of rows) {
+                const bucket = map.get(r.time_kst);
+                bucket[r.symbol] = r.change_pct;
+            }
+            state.pivot = { times, symbols, map };
+        }
+
+        function renderPivot() {
+            const { times, symbols, map } = state.pivot;
+            // head
+            const ths = ["<th style=\"min-width:132px\">시간 (KST)</th>"]
+                .concat(symbols.map(s => `<th class="right caps">${s}</th>`))
+                .join("");
+            pivotHead.innerHTML = `<tr>${ths}</tr>`;
+            // body
+            const frag = document.createDocumentFragment();
+            for (const t of times) {
+                const tr = document.createElement("tr");
+                const entry = map.get(t) || {};
+                const tds = [`<td class="mono">${t}</td>`];
+                for (const s of symbols) {
+                    const v = entry[s];
+                    const cls = v == null ? "muted" : v >= 0 ? "pos" : "neg";
+                    // heat background via ::before using data-pct
+                    const td = document.createElement("td");
+                    td.className = `right mono ${cls}`;
+                    if (v != null) td.setAttribute("data-pct", v.toFixed(6));
+                    td.innerHTML = `<span>${v == null ? "" : fmt(v, 3)}</span>`;
+                    tds.push(td.outerHTML);
+                }
+                tr.innerHTML = tds.join("");
+                frag.appendChild(tr);
+            }
+            pivotBody.innerHTML = "";
+            pivotBody.appendChild(frag);
+            // colorize heat
+            applyHeatColors();
+        }
+
+        function applyHeatColors() {
+            // map absolute pct to 0..1; clamp at 5% for color intensity
+            const cells = pivotBody.querySelectorAll('td[data-pct]');
+            for (const td of cells) {
+                const v = Math.abs(Number(td.getAttribute('data-pct')));
+                const ratio = Math.min(v / 5, 1); // 5% 이상은 동일 강도
+                const isPos = Number(td.getAttribute('data-pct')) >= 0;
+                const col = isPos ? '34,197,94' : '239,68,68'; // rgb for var(--pos/--neg)
+                td.style.setProperty('--heat', `rgba(${col}, ${0.15 + 0.45 * ratio})`);
+                td.style.position = 'relative';
+                td.style.overflow = 'hidden';
+                td.style.setProperty('--heat-border', 'rgba(255,255,255,0.06)');
+                td.style.background = `linear-gradient(0deg, var(--heat), var(--heat))`;
+            }
+        }
     </script>
 </body>
 </html>
