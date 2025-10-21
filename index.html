@@ -244,7 +244,14 @@ function runAnalysis(){
         renderAll();
     });
 }
-function renderAll(){ renderSummary(); renderPivot(); }
+function renderAll(){
+    // 09:00(KST) 시작으로 시간 순서를 회전 정렬
+    if (Array.isArray(state.times) && state.times.length) {
+        state.times = orderTimesFrom(state.times, '09:00');
+    }
+    renderSummary();
+    renderPivot();
+}
 function renderSummary(){
     var eps=Math.max(0, Number(epsilonEl.value)||0); var filter=statusFilterEl.value; var frag=document.createDocumentFragment(); sumBody.innerHTML='';
     state.times.forEach(function(t){
@@ -281,6 +288,19 @@ function downloadPivotCSV(){
     if(!state.times.length||!state.symbols.length) return; var rows=[];
     state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var row={ time_hhmm:t }; state.symbols.forEach(function(s){ row[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(row); });
     downloadCSV('pivot_changes_by_hhmm.csv',rows);
+}
+// === KST 09:00 시작 회전 정렬 유틸 ===
+function clockToMinutes(hhmm){
+    var parts=(hhmm||'00:00').split(':'), h=parseInt(parts[0],10)||0, m=parseInt(parts[1],10)||0; return h*60+m;
+}
+function orderTimesFrom(times,start){
+    var startMin=clockToMinutes(start||'09:00');
+    var base=Array.from(new Set(times)).sort();
+    return base.sort(function(a,b){
+        var ra=(clockToMinutes(a)-startMin+1440)%1440;
+        var rb=(clockToMinutes(b)-startMin+1440)%1440;
+        return ra-rb;
+    });
 }
 </script>
 </body>
