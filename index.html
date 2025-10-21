@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>15분봉 공동 방향 뷰어 (증감률만, 여러 코인 비교)</title>
+    <title>15분봉 공동 방향 뷰어 — 날짜 무시(시각 기준)</title>
     <style>
         :root {
             --bg: #0b0f16;
@@ -74,7 +74,7 @@
 <body>
     <header>
         <h1>15분봉 공동 방향 뷰어</h1>
-        <div class="sub">여러 CSV를 올리면 <b>같은 시간대</b>에 코인들이 <b>같이 상승/하락</b>했는지, 아니면 <b>혼조</b>였는지 빠르게 확인합니다. (값은 <b>증감률%</b>만 사용)</div>
+        <div class="sub">여러 CSV를 올리면 <b>같은 시각(예: 09:30)</b>에 코인들이 <b>같이 상승/하락</b>했는지, 아니면 <b>혼조</b>였는지 빠르게 확인합니다. <b>날짜는 완전히 무시</b>하고 시각(HH:MM)만 사용합니다. (값은 <b>증감률%</b>만 사용)</div>
     </header>
 
     <main class="grid">
@@ -90,7 +90,7 @@
 
             <div style="height: 12px"></div>
             <div class="row">
-                <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
+                <span class="badge">타임존: Asia/Seoul (UTC+9)</span><span class="badge">기준: 시각(HH:MM)만, 날짜 무시</span>
                 <span class="badge">간격: 15m</span>
                 <span class="badge" id="countBadge">파일 0개</span>
             </div>
@@ -206,6 +206,15 @@
             const mm = String(k.getUTCMinutes()).padStart(2, "0");
             return `${y}-${m}-${d} ${hh}:${mm}`;
         }
+        function msToKST_HHMM(ms) {
+            const dt = new Date(ms);
+            const kstMs = dt.getTime() + 9 * 3600 * 1000;
+            const k = new Date(kstMs);
+            const hh = String(k.getUTCHours()).padStart(2, "0");
+            const mm = String(k.getUTCMinutes()).padStart(2, "0");
+            return `${hh}:${mm}`;
+        }-${m}-${d} ${hh}:${mm}`;
+        }
         function fmt(n, d = 2) {
             if (n === null || n === undefined || Number.isNaN(n)) return "";
             return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -240,10 +249,11 @@
         // ====== 상태 ======
         const state = {
             files: [],
-            rows: [], // {time_kst, symbol, pct}
-            times: [],
+            rows: [], // {time_hhmm, symbol, pct}
+            times: [], // ['00:00','00:15',...]
             symbols: [],
-            map: new Map(), // time -> { symbol: pct }
+            map: new Map(), // time_hhmm -> { symbol: avgPct }
+            counts: new Map() // time_hhmm -> { symbol: sampleCount }
         };
 
         // ====== DOM ======
@@ -297,6 +307,33 @@
                 const arr = parseCSV(text);
                 for (const o of arr) {
                     const pct = computeChangePct(o.open, o.close);
+                    rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol, pct });
+                }
+            }
+            rows.sort((a,b) => (a.time_hhmm < b.time_hhmm ? -1 : a.time_hhmm > b.time_hhmm ? 1 : (a.symbol < b.symbol ? -1 : 1)));
+            const symbols = Array.from(new Set(rows.map(r => r.symbol))).sort();
+            const times = Array.from(new Set(rows.map(r => r.time_hhmm))).sort();
+            // 집계: 시간(HH:MM) × 심볼별 평균과 샘플수
+            const map = new Map();
+            const counts = new Map();
+            for (const t of times) { map.set(t, {}); counts.set(t, {}); }
+            for (const r of rows) {
+                const agg = map.get(r.time_hhmm); const c = counts.get(r.time_hhmm);
+                const prev = agg[r.symbol]; const n = c[r.symbol] || 0;
+                if (r.pct == null) { continue; }
+                agg[r.symbol] = prev == null ? r.pct : (prev * n + r.pct) / (n + 1);
+                c[r.symbol] = n + 1;
+            }
+            state.rows = rows; state.symbols = symbols; state.times = times; state.map = map; state.counts = counts;
+            renderAll();
+        }
+            const rows = [];
+            for (const file of state.files) {
+                const symbol = parseSymbolFromFilename(file.name);
+                const text = await file.text();
+                const arr = parseCSV(text);
+                for (const o of arr) {
+                    const pct = computeChangePct(o.open, o.close);
                     rows.push({ time_kst: msToKST(o.open_time), symbol, pct });
                 }
             }
@@ -318,30 +355,30 @@
             sumBody.innerHTML = "";
             for (const t of state.times) {
                 const entry = state.map.get(t) || {};
+                const cnts = state.counts.get(t) || {};
                 const pcts = state.symbols.map(s => entry[s] != null ? entry[s] : null);
                 const cls = classifyStatus(pcts, eps);
                 if (filter !== 'all' && cls.status !== filter) continue;
 
                 const tr = document.createElement("tr");
-                const statusHtml = `<span class="status ${cls.status}">` +
+                const statusHtml = `<span class=\"status ${cls.status}\">` +
                     (cls.status === 'allup' ? '같이 상승' : cls.status === 'alldown' ? '같이 하락' : cls.status === 'allflat' ? '모두 보합' : '혼조') +
                     `</span>`;
-
                 const summaryHtml = `
-                    <span class="tag up">상승 ${cls.up}</span>
-                    <span class="tag down">하락 ${cls.down}</span>
-                    <span class="tag flat">보합 ${cls.flat}</span>
-                    <span class="tag">총 ${cls.total}</span>
+                    <span class=\"tag up\">상승 ${cls.up}</span>
+                    <span class=\"tag down\">하락 ${cls.down}</span>
+                    <span class=\"tag flat\">보합 ${cls.flat}</span>
+                    <span class=\"tag\">총 ${cls.total}</span>
                 `;
-
                 const details = state.symbols.map(s => {
                     const v = entry[s];
+                    const n = cnts[s] || 0;
                     const dcls = v == null ? 'muted' : Math.abs(v) < eps ? 'muted' : (v >= 0 ? 'pos' : 'neg');
-                    return `<span class="caps ${dcls}">${s}</span>: <span class="mono ${dcls}">${v == null ? '' : fmt(v, 3)}</span>%`;
+                    const tip = n ? ` title=\"샘플 ${n}개 평균\"` : '';
+                    return `<span class=\"caps ${dcls}\"${tip}>${s}</span>: <span class=\"mono ${dcls}\">${v == null ? '' : fmt(v, 3)}</span>%`;
                 }).join(" &nbsp; | &nbsp; ");
-
                 tr.innerHTML = `
-                    <td class="mono">${t}</td>
+                    <td class=\"mono\">${t}</td>
                     <td>${statusHtml}</td>
                     <td>${summaryHtml}</td>
                     <td>${details}</td>
@@ -353,8 +390,33 @@
 
         function renderPivot() {
             const eps = Math.max(0, Number(epsilonEl.value) || 0);
-            const ths = ["<th style=\"min-width:140px\">시간 (KST)</th>"]
-                .concat(state.symbols.map(s => `<th class="right caps">${s}</th>`)).join("");
+            const ths = ["<th style=\"min-width:120px\">시각 (HH:MM)</th>"]
+                .concat(state.symbols.map(s => `<th class=\"right caps\">${s}</th>`)).join("");
+            pivotHead.innerHTML = `<tr>${ths}</tr>`;
+            const frag = document.createDocumentFragment();
+            for (const t of state.times) {
+                const tr = document.createElement("tr");
+                const entry = state.map.get(t) || {};
+                const cnts = state.counts.get(t) || {};
+                const tds = [`<td class=\"mono\">${t}</td>`];
+                for (const s of state.symbols) {
+                    const v = entry[s];
+                    const n = cnts[s] || 0;
+                    const cls = v == null ? "muted" : Math.abs(v) < eps ? "muted" : v >= 0 ? "pos" : "neg";
+                    const td = document.createElement("td");
+                    td.className = `right mono ${cls}`;
+                    if (v != null) td.setAttribute("data-pct", v.toFixed(6));
+                    if (n) td.title = `샘플 ${n}개 평균`;
+                    td.innerHTML = `<span>${v == null ? "" : fmt(v, 3)}</span>`;
+                    tds.push(td.outerHTML);
+                }
+                tr.innerHTML = tds.join("");
+                frag.appendChild(tr);
+            }
+            pivotBody.innerHTML = "";
+            pivotBody.appendChild(frag);
+            applyHeatColors(eps);
+        }</th>`)).join("");
             pivotHead.innerHTML = `<tr>${ths}</tr>`;
             const frag = document.createDocumentFragment();
             for (const t of state.times) {
