@@ -5,478 +5,279 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>15분봉 공동 방향 뷰어 — 날짜 무시(시각 기준)</title>
     <style>
-        :root {
-            --bg: #0b0f16;
-            --panel: #121826;
-            --muted: #9aa4b2;
-            --text: #e5e7eb;
-            --accent: #60a5fa;
-            --pos: #16a34a;
-            --neg: #ef4444;
-            --grid: #1f2937;
-            --warn: #f59e0b;
-        }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, "Apple Color Emoji", "Segoe UI Emoji"; line-height: 1.5; }
-        header { padding: 20px 24px; border-bottom: 1px solid var(--grid); position: sticky; top: 0; background: linear-gradient(180deg, rgba(11,15,22,.95), rgba(11,15,22,.85)); backdrop-filter: blur(8px); }
-        h1 { margin: 0 0 4px; font-size: 20px; }
-        .sub { color: var(--muted); font-size: 13px; }
-        main { padding: 18px 24px 48px; }
-        .panel { background: var(--panel); border: 1px solid var(--grid); border-radius: 16px; padding: 16px; }
-        .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-        .grow { flex: 1 1 240px; }
-        input[type="file"] { width: 100%; padding: 10px; border: 1px dashed var(--grid); background: transparent; color: var(--muted); border-radius: 12px; }
-        .btn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--grid); background: #0f172a; color: var(--text); cursor: pointer; }
-        .btn.primary { background: var(--accent); color: #0b0f16; border-color: transparent; font-weight: 700; }
-        .btn.ghost { background: transparent; }
-        .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--grid); color: var(--muted); }
-        .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-        @media (min-width: 1100px) { .grid { grid-template-columns: 380px 1fr; } }
-        .list { max-height: 140px; overflow: auto; border: 1px solid var(--grid); border-radius: 12px; padding: 8px; font-size: 13px; background: #0d1320; }
-        .list div { padding: 6px 8px; border-radius: 8px; }
-        .list div:hover { background: rgba(96,165,250,.12); }
-        .tabs { display: flex; gap: 8px; margin-top: 16px; }
-        .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--grid); background: #0e1524; cursor: pointer; font-size: 13px; color: var(--muted); }
-        .tab.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px inset rgba(96,165,250,.35); }
-        .views > section { display: none; }
-        .views > section.active { display: block; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
-        thead th { position: sticky; top: 0; background: #0f172a; z-index: 1; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); font-weight: 700; }
-        tbody td { padding: 8px 10px; border-bottom: 1px solid var(--grid); }
-        tbody tr:hover { background: rgba(148,163,184,.08); }
-        .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .pos { color: var(--pos); }
-        .neg { color: var(--neg); }
-        .muted { color: var(--muted); }
-        .caps { text-transform: uppercase; letter-spacing: .02em; }
-        .right { text-align: right; }
-        .scroll { overflow: auto; max-height: 68vh; border: 1px solid var(--grid); border-radius: 12px; }
-        .pill { background: #0d1320; border: 1px solid var(--grid); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
-        .heat td[data-pct] { position: relative; }
-        .heat td[data-pct]::before { content: ""; position: absolute; inset: 2px; z-index: 0; border-radius: 6px; opacity: .35; }
-        .heat td > span { position: relative; z-index: 1; }
-        .footer { margin-top: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .controls .cell { background: #0d1320; border: 1px solid var(--grid); border-radius: 12px; padding: 10px; }
-        label.small { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
-        input[type="number"], select { width: 100%; padding: 8px 10px; border: 1px solid var(--grid); background: #0b0f16; color: var(--text); border-radius: 10px; }
-        .tag { display: inline-flex; gap: 6px; align-items: center; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--grid); font-size: 12px; }
-        .tag.up { color: var(--pos); border-color: rgba(34,197,94,.35); }
-        .tag.down { color: var(--neg); border-color: rgba(239,68,68,.35); }
-        .tag.flat { color: var(--muted); border-color: rgba(148,163,184,.35); }
-        .status { font-weight: 700; padding: 2px 8px; border-radius: 8px; }
-        .status.allup { background: rgba(34,197,94,.15); color: var(--pos); }
-        .status.alldown { background: rgba(239,68,68,.15); color: var(--neg); }
-        .status.mixed { background: rgba(96,165,250,.15); color: var(--text); }
-        .status.allflat { background: rgba(148,163,184,.15); color: var(--muted); }
+        :root { --bg:#0b0f16; --panel:#121826; --muted:#9aa4b2; --text:#e5e7eb; --accent:#60a5fa; --pos:#16a34a; --neg:#ef4444; --grid:#1f2937; }
+        *{box-sizing:border-box}
+        body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Arial}
+        header{padding:20px 24px;border-bottom:1px solid var(--grid);position:sticky;top:0;background:linear-gradient(180deg,rgba(11,15,22,.95),rgba(11,15,22,.85));backdrop-filter:blur(8px)}
+        h1{margin:0 0 4px;font-size:20px}
+        .sub{color:var(--muted);font-size:13px}
+        main{padding:18px 24px 48px}
+        .panel{background:var(--panel);border:1px solid var(--grid);border-radius:16px;padding:16px}
+        .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+        .grow{flex:1 1 240px}
+        input[type=file]{width:100%;padding:10px;border:1px dashed var(--grid);background:transparent;color:var(--muted);border-radius:12px}
+        .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--grid);background:#0f172a;color:var(--text);cursor:pointer}
+        .btn.primary{background:var(--accent);color:#0b0f16;border-color:transparent;font-weight:700}
+        .btn.ghost{background:transparent}
+        .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid var(--grid);color:var(--muted)}
+        .grid{display:grid;gap:12px;grid-template-columns:1fr}
+        @media(min-width:1100px){.grid{grid-template-columns:380px 1fr}}
+        .list{max-height:140px;overflow:auto;border:1px solid var(--grid);border-radius:12px;padding:8px;font-size:13px;background:#0d1320}
+        .list div{padding:6px 8px;border-radius:8px}
+        .list div:hover{background:rgba(96,165,250,.12)}
+        .tabs{display:flex;gap:8px;margin-top:16px}
+        .tab{padding:8px 12px;border-radius:10px;border:1px solid var(--grid);background:#0e1524;cursor:pointer;font-size:13px;color:var(--muted)}
+        .tab.active{border-color:var(--accent);color:var(--text);box-shadow:0 0 0 1px inset rgba(96,165,250,.35)}
+        .views>section{display:none}
+        .views>section.active{display:block}
+        table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+        thead th{position:sticky;top:0;background:#0f172a;z-index:1;text-align:left;padding:8px 10px;border-bottom:1px solid var(--grid);font-weight:700}
+        tbody td{padding:8px 10px;border-bottom:1px solid var(--grid)}
+        tbody tr:hover{background:rgba(148,163,184,.08)}
+        .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+        .pos{color:var(--pos)}
+        .neg{color:var(--neg)}
+        .muted{color:var(--muted)}
+        .caps{text-transform:uppercase;letter-spacing:.02em}
+        .right{text-align:right}
+        .scroll{overflow:auto;max-height:68vh;border:1px solid var(--grid);border-radius:12px}
+        .pill{background:#0d1320;border:1px solid var(--grid);padding:6px 10px;border-radius:999px;font-size:12px}
+        .footer{margin-top:16px;display:flex;gap:10px;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}
+        .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .cell{background:#0d1320;border:1px solid var(--grid);border-radius:12px;padding:10px}
+        label.small{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+        input[type=number],select{width:100%;padding:8px 10px;border:1px solid var(--grid);background:#0b0f16;color:var(--text);border-radius:10px}
+        .tag{display:inline-flex;gap:6px;align-items:center;padding:3px 8px;border-radius:999px;border:1px solid var(--grid);font-size:12px}
+        .tag.up{color:var(--pos);border-color:rgba(34,197,94,.35)}
+        .tag.down{color:var(--neg);border-color:rgba(239,68,68,.35)}
+        .tag.flat{color:var(--muted);border-color:rgba(148,163,184,.35)}
+        .status{font-weight:700;padding:2px 8px;border-radius:8px}
+        .status.allup{background:rgba(34,197,94,.15);color:var(--pos)}
+        .status.alldown{background:rgba(239,68,68,.15);color:var(--neg)}
+        .status.mixed{background:rgba(96,165,250,.15);color:var(--text)}
+        .status.allflat{background:rgba(148,163,184,.15);color:var(--muted)}
     </style>
 </head>
 <body>
-    <header>
-        <h1>15분봉 공동 방향 뷰어</h1>
-        <div class="sub">여러 CSV를 올리면 <b>같은 시각(예: 09:30)</b>에 코인들이 <b>같이 상승/하락</b>했는지, 아니면 <b>혼조</b>였는지 빠르게 확인합니다. <b>날짜는 완전히 무시</b>하고 시각(HH:MM)만 사용합니다. (값은 <b>증감률%</b>만 사용)</div>
-    </header>
+<header>
+    <h1>15분봉 공동 방향 뷰어</h1>
+    <div class="sub">여러 CSV를 올리면 <b>같은 시각(HH:MM)</b>에 코인들이 함께 상승/하락했는지 확인합니다. <b>날짜는 무시</b>하고 시각만 사용합니다.</div>
+</header>
 
-    <main class="grid">
-        <section class="panel" id="controls">
-            <div class="row">
-                <div class="grow">
-                    <label class="sub">CSV 파일 선택 (여러 개 가능) — 예: <span class="pill">SQDUSDT-15m-2025-10-20.csv</span>, <span class="pill">COAIUSDT-15m-2025-10-20.csv</span></label>
-                    <input id="fileInput" type="file" accept=".csv" multiple />
+<main class="grid">
+    <section class="panel" id="controls">
+        <div class="row">
+            <div class="grow">
+                <label class="sub">CSV 파일 선택 (여러 개 가능)</label>
+                <input id="fileInput" type="file" accept=".csv" multiple>
+            </div>
+            <button id="loadBtn" class="btn primary">분석하기</button>
+            <button id="clearBtn" class="btn ghost">초기화</button>
+        </div>
+        <div style="height:12px"></div>
+        <div class="row">
+            <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
+            <span class="badge">기준: 시각(HH:MM)만, 날짜 무시</span>
+            <span class="badge" id="countBadge">파일 0개</span>
+        </div>
+        <div style="height:12px"></div>
+        <div class="controls">
+            <div class="cell">
+                <label class="small">무시 임계값 ε (절대값 % &lt; ε → 보합)</label>
+                <input id="epsilon" type="number" step="0.01" min="0" value="0.10">
+            </div>
+            <div class="cell">
+                <label class="small">필터</label>
+                <select id="statusFilter">
+                    <option value="all">전체</option>
+                    <option value="allup">같이 상승 (모두 +)</option>
+                    <option value="alldown">같이 하락 (모두 -)</option>
+                    <option value="allflat">모두 보합 (±ε)</option>
+                    <option value="mixed">혼조 (섞임)</option>
+                </select>
+            </div>
+        </div>
+        <div style="height:12px"></div>
+        <div>
+            <div class="sub">선택된 파일</div>
+            <div id="fileList" class="list"></div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="tabs">
+            <button class="tab active" data-view="summaryView">공동 방향 표</button>
+            <button class="tab" data-view="pivotView">피벗 (증감률만)</button>
+        </div>
+        <div class="views">
+            <section id="summaryView" class="active">
+                <div class="scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="min-width:120px">시각 (HH:MM)</th>
+                                <th>상태</th>
+                                <th>요약</th>
+                                <th>상세 (심볼: 증감률%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sumBody"></tbody>
+                    </table>
                 </div>
-                <button id="loadBtn" class="btn primary">분석하기</button>
-                <button id="clearBtn" class="btn ghost">초기화</button>
-            </div>
-
-            <div style="height: 12px"></div>
-            <div class="row">
-                <span class="badge">타임존: Asia/Seoul (UTC+9)</span><span class="badge">기준: 시각(HH:MM)만, 날짜 무시</span>
-                <span class="badge">간격: 15m</span>
-                <span class="badge" id="countBadge">파일 0개</span>
-            </div>
-
-            <div style="height: 12px"></div>
-            <div class="controls">
-                <div class="cell">
-                    <label class="small">무시 임계값 ε (절대값 %가 ε 미만이면 '보합' 처리)</label>
-                    <input id="epsilon" type="number" step="0.01" min="0" value="0.10" />
+                <div class="footer">
+                    <div>ε를 조정해 미세한 변동을 보합으로 처리할 수 있어요.</div>
+                    <button id="downloadSummary" class="btn">CSV로 저장 (공동 방향)</button>
                 </div>
-                <div class="cell">
-                    <label class="small">필터</label>
-                    <select id="statusFilter">
-                        <option value="all">전체</option>
-                        <option value="allup">같이 상승 (모두 +)</option>
-                        <option value="alldown">같이 하락 (모두 -)</option>
-                        <option value="allflat">모두 보합 (±ε)</option>
-                        <option value="mixed">혼조 (섞임)</option>
-                    </select>
+            </section>
+            <section id="pivotView">
+                <div class="scroll">
+                    <table>
+                        <thead id="pivotHead"></thead>
+                        <tbody id="pivotBody"></tbody>
+                    </table>
                 </div>
-            </div>
+                <div class="footer">
+                    <div>행=시각(HH:MM), 열=심볼, 값=증감률%</div>
+                    <button id="downloadPivot" class="btn">CSV로 저장 (피벗)</button>
+                </div>
+            </section>
+        </div>
+    </section>
+</main>
 
-            <div style="height: 12px"></div>
-            <div>
-                <div class="sub">선택된 파일</div>
-                <div id="fileList" class="list"></div>
-            </div>
-        </section>
+<script>
+// ===== 유틸 =====
+function parseSymbolFromFilename(name){
+    var base=name.replace(/\.[^.]+$/,'');
+    var dash=base.indexOf('-');
+    return (dash>0?base.slice(0,dash):base).toUpperCase();
+}
+function parseCSV(text){
+    var lines=text.trim().split(/\r?\n/); var rows=[];
+    for(var i=0;i<lines.length;i++){
+        var cols=lines[i].split(','); if(cols.length<12) continue;
+        var otimeRaw=Number(cols[0]); var ctimeRaw=Number(cols[6]);
+        var otimeMs=otimeRaw>1e15?Math.round(otimeRaw/1000):otimeRaw;
+        var ctimeMs=ctimeRaw>1e15?Math.round(ctimeRaw/1000):ctimeRaw;
+        rows.push({open_time:otimeMs,open:Number(cols[1]),high:Number(cols[2]),low:Number(cols[3]),close:Number(cols[4]),volume:Number(cols[5]),close_time:ctimeMs,trades:Number(cols[8])});
+    }
+    return rows;
+}
+function msToKST_HHMM(ms){
+    var dt=new Date(ms); var kstMs=dt.getTime()+9*3600*1000; var k=new Date(kstMs);
+    var hh=('0'+k.getUTCHours()).slice(-2); var mm=('0'+k.getUTCMinutes()).slice(-2);
+    return hh+':'+mm;
+}
+function fmt(n,d){ if(n==null||isNaN(n)) return ''; return Number(n).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}); }
+function computeChangePct(o,c){ if(!o&&o!==0) return null; if(o===0) return null; return ( (c-o)/o )*100; }
+function classifyStatus(pcts,eps){
+    var up=0,down=0,flat=0,total=0; for(var i=0;i<pcts.length;i++){ var v=pcts[i]; if(v==null) continue; total++; var a=Math.abs(v); if(a<eps) flat++; else if(v>0) up++; else if(v<0) down++; }
+    var status='mixed'; if(total===flat) status='allflat'; else if(up>0&&down===0&&flat===0) status='allup'; else if(down>0&&up===0&&flat===0) status='alldown';
+    return {up:up,down:down,flat:flat,total:total,status:status};
+}
+function downloadCSV(filename,rows){ if(!rows.length) return; var headers=Object.keys(rows[0]); var esc=function(v){ if(v==null) return ''; var s=String(v); if(s.indexOf(',')>-1) return '"'+s.replace(/"/g,'""')+'"'; return s; };
+    var csv=[headers.join(',')].concat(rows.map(function(r){ return headers.map(function(h){return esc(r[h]);}).join(','); })).join('\n');
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(function(){URL.revokeObjectURL(url);},3000);
+}
 
-        <section class="panel">
-            <div class="tabs">
-                <button class="tab active" data-view="summaryView">공동 방향 표</button>
-                <button class="tab" data-view="pivotView">피벗 (증감률만)</button>
-            </div>
+// ===== 상태 =====
+var state={ files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
 
-            <div class="views">
-                <section id="summaryView" class="active">
-                    <div class="scroll">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="min-width:140px">시간 (KST)</th>
-                                    <th>상태</th>
-                                    <th>요약</th>
-                                    <th>상세 (심볼: 증감률%)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="sumBody"></tbody>
-                        </table>
-                    </div>
-                    <div class="footer">
-                        <div>ε를 조정해 미미한 변동(노이즈)을 보합으로 처리할 수 있어요.</div>
-                        <button id="downloadSummary" class="btn">CSV로 저장 (공동 방향)</button>
-                    </div>
-                </section>
+// ===== DOM =====
+var fileInput=document.getElementById('fileInput');
+var fileList=document.getElementById('fileList');
+var countBadge=document.getElementById('countBadge');
+var loadBtn=document.getElementById('loadBtn');
+var clearBtn=document.getElementById('clearBtn');
+var epsilonEl=document.getElementById('epsilon');
+var statusFilterEl=document.getElementById('statusFilter');
+var sumBody=document.getElementById('sumBody');
+var pivotHead=document.getElementById('pivotHead');
+var pivotBody=document.getElementById('pivotBody');
+var downloadSummary=document.getElementById('downloadSummary');
+var downloadPivot=document.getElementById('downloadPivot');
+var tabs=document.querySelectorAll('.tab');
+var views=document.querySelectorAll('.views > section');
 
-                <section id="pivotView">
-                    <div class="scroll">
-                        <table class="heat">
-                            <thead id="pivotHead"></thead>
-                            <tbody id="pivotBody"></tbody>
-                        </table>
-                    </div>
-                    <div class="footer">
-                        <div>셀 배경색: 양수(초록)/음수(빨강). 값은 각 코인의 15분봉 변동률%</div>
-                        <button id="downloadPivot" class="btn">CSV로 저장 (피벗)</button>
-                    </div>
-                </section>
-            </div>
-        </section>
-    </main>
+// ===== 이벤트 =====
+fileInput.addEventListener('change',function(){
+    state.files=Array.prototype.slice.call(fileInput.files||[]);
+    fileList.innerHTML=state.files.map(function(f){return '<div>'+f.name+' <span class="muted">('+(f.size/1024).toFixed(1)+' KB)</span></div>';}).join('');
+    countBadge.textContent='파일 '+state.files.length+'개';
+});
+clearBtn.addEventListener('click',function(){
+    state={ files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
+    fileInput.value=''; fileList.innerHTML=''; countBadge.textContent='파일 0개'; sumBody.innerHTML=''; pivotHead.innerHTML=''; pivotBody.innerHTML='';
+});
+loadBtn.addEventListener('click',function(){ runAnalysis(); });
+epsilonEl.addEventListener('change',function(){ renderAll(); });
+statusFilterEl.addEventListener('change',function(){ renderSummary(); });
+tabs.forEach(function(btn){ btn.addEventListener('click',function(){ tabs.forEach(function(b){b.classList.remove('active');}); views.forEach(function(v){v.classList.remove('active');}); btn.classList.add('active'); document.getElementById(btn.getAttribute('data-view')).classList.add('active'); }); });
+downloadSummary.addEventListener('click',function(){ downloadSummaryCSV(); });
+downloadPivot.addEventListener('click',function(){ downloadPivotCSV(); });
 
-    <script>
-        // ====== 유틸 ======
-        function parseSymbolFromFilename(name) {
-            const base = name.replace(/\.[^.]+$/, "");
-            const dash = base.indexOf("-");
-            return (dash > 0 ? base.slice(0, dash) : base).toUpperCase();
-        }
-        function parseCSV(text) {
-            const lines = text.trim().split(/\r?\n/);
-            const rows = [];
-            for (let i = 0; i < lines.length; i++) {
-                const cols = lines[i].split(",");
-                if (cols.length < 12) continue;
-                const toNum = (v) => (v === undefined ? null : Number(v));
-                const otimeRaw = Number(cols[0]);
-                const ctimeRaw = Number(cols[6]);
-                const otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw; // us -> ms
-                const ctimeMs = ctimeRaw > 1e15 ? Math.round(ctimeRaw / 1000) : ctimeRaw;
-                rows.push({
-                    open_time: otimeMs,
-                    open: toNum(cols[1]),
-                    high: toNum(cols[2]),
-                    low: toNum(cols[3]),
-                    close: toNum(cols[4]),
-                    volume: toNum(cols[5]),
-                    close_time: ctimeMs,
-                    quote_volume: toNum(cols[7]),
-                    trades: toNum(cols[8])
-                });
+// ===== 로직 =====
+function runAnalysis(){
+    if(!state.files.length){ alert('CSV 파일을 선택해 주세요.'); return; }
+    var rows=[]; var promises=[];
+    state.files.forEach(function(file){
+        promises.push(file.text().then(function(text){
+            var symbol=parseSymbolFromFilename(file.name); var arr=parseCSV(text);
+            for(var i=0;i<arr.length;i++){
+                var o=arr[i]; var pct=computeChangePct(o.open,o.close);
+                rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol: symbol, pct: pct });
             }
-            return rows;
-        }
-        function msToKST(ms) {
-            const dt = new Date(ms);
-            const kstMs = dt.getTime() + 9 * 3600 * 1000;
-            const k = new Date(kstMs);
-            const y = k.getUTCFullYear();
-            const m = String(k.getUTCMonth() + 1).padStart(2, "0");
-            const d = String(k.getUTCDate()).padStart(2, "0");
-            const hh = String(k.getUTCHours()).padStart(2, "0");
-            const mm = String(k.getUTCMinutes()).padStart(2, "0");
-            return `${y}-${m}-${d} ${hh}:${mm}`;
-        }
-        function msToKST_HHMM(ms) {
-            const dt = new Date(ms);
-            const kstMs = dt.getTime() + 9 * 3600 * 1000;
-            const k = new Date(kstMs);
-            const hh = String(k.getUTCHours()).padStart(2, "0");
-            const mm = String(k.getUTCMinutes()).padStart(2, "0");
-            return `${hh}:${mm}`;
-        }-${m}-${d} ${hh}:${mm}`;
-        }
-        function fmt(n, d = 2) {
-            if (n === null || n === undefined || Number.isNaN(n)) return "";
-            return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
-        }
-        function computeChangePct(open, close) { if (!open) return null; return ((close - open) / open) * 100; }
-        function classifyStatus(pcts, eps) {
-            // pcts: [number|null]; eps in %
-            let up = 0, down = 0, flat = 0, total = 0;
-            for (const v of pcts) {
-                if (v == null) { continue; }
-                total++;
-                const abs = Math.abs(v);
-                if (abs < eps) flat++; else if (v > 0) up++; else if (v < 0) down++;
-            }
-            let status = 'mixed';
-            if (total === flat) status = 'allflat';
-            else if (up > 0 && down === 0 && flat === 0) status = 'allup';
-            else if (down > 0 && up === 0 && flat === 0) status = 'alldown';
-            return { up, down, flat, total, status };
-        }
-        function downloadCSV(filename, rows) {
-            if (!rows.length) return;
-            const headers = Object.keys(rows[0]);
-            const esc = (v) => (v == null ? "" : String(v).includes(",") ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
-            const csv = [headers.join(",")] .concat(rows.map(r => headers.map(h => esc(r[h])).join(","))).join("\n");
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 3000);
-        }
-
-        // ====== 상태 ======
-        const state = {
-            files: [],
-            rows: [], // {time_hhmm, symbol, pct}
-            times: [], // ['00:00','00:15',...]
-            symbols: [],
-            map: new Map(), // time_hhmm -> { symbol: avgPct }
-            counts: new Map() // time_hhmm -> { symbol: sampleCount }
-        };
-
-        // ====== DOM ======
-        const fileInput = document.getElementById("fileInput");
-        const fileList = document.getElementById("fileList");
-        const countBadge = document.getElementById("countBadge");
-        const loadBtn = document.getElementById("loadBtn");
-        const clearBtn = document.getElementById("clearBtn");
-        const epsilonEl = document.getElementById("epsilon");
-        const statusFilterEl = document.getElementById("statusFilter");
-        const sumBody = document.getElementById("sumBody");
-        const pivotHead = document.getElementById("pivotHead");
-        const pivotBody = document.getElementById("pivotBody");
-        const downloadSummary = document.getElementById("downloadSummary");
-        const downloadPivot = document.getElementById("downloadPivot");
-        const tabs = document.querySelectorAll(".tab");
-        const views = document.querySelectorAll(".views > section");
-
-        // ====== 이벤트 ======
-        fileInput.addEventListener("change", () => {
-            state.files = Array.from(fileInput.files || []);
-            fileList.innerHTML = state.files.map(f => `<div>${f.name} <span class="muted">(${(f.size/1024).toFixed(1)} KB)</span></div>`).join("");
-            countBadge.textContent = `파일 ${state.files.length}개`;
-        });
-        clearBtn.addEventListener("click", () => {
-            state.files = []; state.rows = []; state.times = []; state.symbols = []; state.map = new Map();
-            fileInput.value = ""; fileList.innerHTML = ""; countBadge.textContent = "파일 0개";
-            sumBody.innerHTML = ""; pivotHead.innerHTML = ""; pivotBody.innerHTML = "";
-        });
-        loadBtn.addEventListener("click", async () => { await runAnalysis(); });
-        epsilonEl.addEventListener("change", () => renderAll());
-        statusFilterEl.addEventListener("change", () => renderSummary());
-        tabs.forEach(btn => {
-            btn.addEventListener("click", () => {
-                tabs.forEach(b => b.classList.remove("active"));
-                views.forEach(v => v.classList.remove("active"));
-                btn.classList.add("active");
-                document.getElementById(btn.dataset.view).classList.add("active");
-            });
-        });
-        downloadSummary.addEventListener("click", () => downloadSummaryCSV());
-        downloadPivot.addEventListener("click", () => downloadPivotCSV());
-
-        // ====== 로직 ======
-        async function runAnalysis() {
-            if (!state.files.length) { alert("CSV 파일을 선택해 주세요."); return; }
-            const rows = [];
-            for (const file of state.files) {
-                const symbol = parseSymbolFromFilename(file.name);
-                const text = await file.text();
-                const arr = parseCSV(text);
-                for (const o of arr) {
-                    const pct = computeChangePct(o.open, o.close);
-                    rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol, pct });
-                }
-            }
-            rows.sort((a,b) => (a.time_hhmm < b.time_hhmm ? -1 : a.time_hhmm > b.time_hhmm ? 1 : (a.symbol < b.symbol ? -1 : 1)));
-            const symbols = Array.from(new Set(rows.map(r => r.symbol))).sort();
-            const times = Array.from(new Set(rows.map(r => r.time_hhmm))).sort();
-            // 집계: 시간(HH:MM) × 심볼별 평균과 샘플수
-            const map = new Map();
-            const counts = new Map();
-            for (const t of times) { map.set(t, {}); counts.set(t, {}); }
-            for (const r of rows) {
-                const agg = map.get(r.time_hhmm); const c = counts.get(r.time_hhmm);
-                const prev = agg[r.symbol]; const n = c[r.symbol] || 0;
-                if (r.pct == null) { continue; }
-                agg[r.symbol] = prev == null ? r.pct : (prev * n + r.pct) / (n + 1);
-                c[r.symbol] = n + 1;
-            }
-            state.rows = rows; state.symbols = symbols; state.times = times; state.map = map; state.counts = counts;
-            renderAll();
-        }
-            const rows = [];
-            for (const file of state.files) {
-                const symbol = parseSymbolFromFilename(file.name);
-                const text = await file.text();
-                const arr = parseCSV(text);
-                for (const o of arr) {
-                    const pct = computeChangePct(o.open, o.close);
-                    rows.push({ time_kst: msToKST(o.open_time), symbol, pct });
-                }
-            }
-            rows.sort((a,b) => (a.time_kst < b.time_kst ? -1 : a.time_kst > b.time_kst ? 1 : (a.symbol < b.symbol ? -1 : 1)));
-            const symbols = Array.from(new Set(rows.map(r => r.symbol))).sort();
-            const times = Array.from(new Set(rows.map(r => r.time_kst))).sort();
-            const map = new Map();
-            for (const t of times) map.set(t, {});
-            for (const r of rows) map.get(r.time_kst)[r.symbol] = r.pct;
-            state.rows = rows; state.symbols = symbols; state.times = times; state.map = map;
-            renderAll();
-        }
-        function renderAll() { renderSummary(); renderPivot(); }
-
-        function renderSummary() {
-            const eps = Math.max(0, Number(epsilonEl.value) || 0);
-            const filter = statusFilterEl.value;
-            const frag = document.createDocumentFragment();
-            sumBody.innerHTML = "";
-            for (const t of state.times) {
-                const entry = state.map.get(t) || {};
-                const cnts = state.counts.get(t) || {};
-                const pcts = state.symbols.map(s => entry[s] != null ? entry[s] : null);
-                const cls = classifyStatus(pcts, eps);
-                if (filter !== 'all' && cls.status !== filter) continue;
-
-                const tr = document.createElement("tr");
-                const statusHtml = `<span class=\"status ${cls.status}\">` +
-                    (cls.status === 'allup' ? '같이 상승' : cls.status === 'alldown' ? '같이 하락' : cls.status === 'allflat' ? '모두 보합' : '혼조') +
-                    `</span>`;
-                const summaryHtml = `
-                    <span class=\"tag up\">상승 ${cls.up}</span>
-                    <span class=\"tag down\">하락 ${cls.down}</span>
-                    <span class=\"tag flat\">보합 ${cls.flat}</span>
-                    <span class=\"tag\">총 ${cls.total}</span>
-                `;
-                const details = state.symbols.map(s => {
-                    const v = entry[s];
-                    const n = cnts[s] || 0;
-                    const dcls = v == null ? 'muted' : Math.abs(v) < eps ? 'muted' : (v >= 0 ? 'pos' : 'neg');
-                    const tip = n ? ` title=\"샘플 ${n}개 평균\"` : '';
-                    return `<span class=\"caps ${dcls}\"${tip}>${s}</span>: <span class=\"mono ${dcls}\">${v == null ? '' : fmt(v, 3)}</span>%`;
-                }).join(" &nbsp; | &nbsp; ");
-                tr.innerHTML = `
-                    <td class=\"mono\">${t}</td>
-                    <td>${statusHtml}</td>
-                    <td>${summaryHtml}</td>
-                    <td>${details}</td>
-                `;
-                frag.appendChild(tr);
-            }
-            sumBody.appendChild(frag);
-        }
-
-        function renderPivot() {
-            const eps = Math.max(0, Number(epsilonEl.value) || 0);
-            const ths = ["<th style=\"min-width:120px\">시각 (HH:MM)</th>"]
-                .concat(state.symbols.map(s => `<th class=\"right caps\">${s}</th>`)).join("");
-            pivotHead.innerHTML = `<tr>${ths}</tr>`;
-            const frag = document.createDocumentFragment();
-            for (const t of state.times) {
-                const tr = document.createElement("tr");
-                const entry = state.map.get(t) || {};
-                const cnts = state.counts.get(t) || {};
-                const tds = [`<td class=\"mono\">${t}</td>`];
-                for (const s of state.symbols) {
-                    const v = entry[s];
-                    const n = cnts[s] || 0;
-                    const cls = v == null ? "muted" : Math.abs(v) < eps ? "muted" : v >= 0 ? "pos" : "neg";
-                    const td = document.createElement("td");
-                    td.className = `right mono ${cls}`;
-                    if (v != null) td.setAttribute("data-pct", v.toFixed(6));
-                    if (n) td.title = `샘플 ${n}개 평균`;
-                    td.innerHTML = `<span>${v == null ? "" : fmt(v, 3)}</span>`;
-                    tds.push(td.outerHTML);
-                }
-                tr.innerHTML = tds.join("");
-                frag.appendChild(tr);
-            }
-            pivotBody.innerHTML = "";
-            pivotBody.appendChild(frag);
-            applyHeatColors(eps);
-        }</th>`)).join("");
-            pivotHead.innerHTML = `<tr>${ths}</tr>`;
-            const frag = document.createDocumentFragment();
-            for (const t of state.times) {
-                const tr = document.createElement("tr");
-                const entry = state.map.get(t) || {};
-                const tds = [`<td class="mono">${t}</td>`];
-                for (const s of state.symbols) {
-                    const v = entry[s];
-                    const cls = v == null ? "muted" : Math.abs(v) < eps ? "muted" : v >= 0 ? "pos" : "neg";
-                    const td = document.createElement("td");
-                    td.className = `right mono ${cls}`;
-                    if (v != null) td.setAttribute("data-pct", v.toFixed(6));
-                    td.innerHTML = `<span>${v == null ? "" : fmt(v, 3)}</span>`;
-                    tds.push(td.outerHTML);
-                }
-                tr.innerHTML = tds.join("");
-                frag.appendChild(tr);
-            }
-            pivotBody.innerHTML = "";
-            pivotBody.appendChild(frag);
-            applyHeatColors(eps);
-        }
-        function applyHeatColors(eps) {
-            const cells = pivotBody.querySelectorAll('td[data-pct]');
-            for (const td of cells) {
-                const raw = Number(td.getAttribute('data-pct'));
-                const isFlat = Math.abs(raw) < eps;
-                if (isFlat) { td.style.background = 'transparent'; continue; }
-                const v = Math.abs(raw);
-                const ratio = Math.min(v / 5, 1);
-                const isPos = raw >= 0;
-                const col = isPos ? '34,197,94' : '239,68,68';
-                td.style.background = `linear-gradient(0deg, rgba(${col}, ${0.15 + 0.45 * ratio}), rgba(${col}, ${0.15 + 0.45 * ratio}))`;
-            }
-        }
-
-        function downloadSummaryCSV() {
-            const eps = Math.max(0, Number(epsilonEl.value) || 0);
-            const rows = [];
-            for (const t of state.times) {
-                const entry = state.map.get(t) || {};
-                const pcts = state.symbols.map(s => entry[s] != null ? entry[s] : null);
-                const cls = classifyStatus(pcts, eps);
-                const obj = { time_kst: t, status: cls.status, up: cls.up, down: cls.down, flat: cls.flat, total: cls.total };
-                for (const s of state.symbols) obj[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
-                rows.push(obj);
-            }
-            downloadCSV('comove_summary.csv', rows);
-        }
-        function downloadPivotCSV() {
-            if (!state.times.length || !state.symbols.length) return;
-            const rows = [];
-            for (const t of state.times) {
-                const entry = state.map.get(t) || {};
-                const row = { time_kst: t };
-                for (const s of state.symbols) row[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
-                rows.push(row);
-            }
-            downloadCSV('pivot_changes.csv', rows);
-        }
-    </script>
+        }));
+    });
+    Promise.all(promises).then(function(){
+        rows.sort(function(a,b){ if(a.time_hhmm<b.time_hhmm) return -1; if(a.time_hhmm>b.time_hhmm) return 1; return a.symbol<b.symbol?-1:1; });
+        var symbols=Array.from(new Set(rows.map(function(r){return r.symbol;}))).sort();
+        var times=Array.from(new Set(rows.map(function(r){return r.time_hhmm;}))).sort();
+        var map=new Map(); var counts=new Map();
+        times.forEach(function(t){ map.set(t,{}); counts.set(t,{}); });
+        rows.forEach(function(r){ if(r.pct==null) return; var agg=map.get(r.time_hhmm); var c=counts.get(r.time_hhmm); var prev=agg[r.symbol]; var n=c[r.symbol]||0; agg[r.symbol]=(prev==null)?r.pct:((prev*n + r.pct)/(n+1)); c[r.symbol]=n+1; });
+        state.rows=rows; state.symbols=symbols; state.times=times; state.map=map; state.counts=counts;
+        renderAll();
+    });
+}
+function renderAll(){ renderSummary(); renderPivot(); }
+function renderSummary(){
+    var eps=Math.max(0, Number(epsilonEl.value)||0); var filter=statusFilterEl.value; var frag=document.createDocumentFragment(); sumBody.innerHTML='';
+    state.times.forEach(function(t){
+        var entry=state.map.get(t)||{}; var cnts=state.counts.get(t)||{}; var pcts=state.symbols.map(function(s){ return entry[s]!=null?entry[s]:null; });
+        var cls=classifyStatus(pcts,eps); if(filter!=='all' && cls.status!==filter) return;
+        var tr=document.createElement('tr');
+        var statusText=(cls.status==='allup'?'같이 상승':cls.status==='alldown'?'같이 하락':cls.status==='allflat'?'모두 보합':'혼조');
+        var statusHtml='<span class="status '+cls.status+'">'+statusText+'</span>';
+        var summaryHtml='<span class="tag up">상승 '+cls.up+'</span> <span class="tag down">하락 '+cls.down+'</span> <span class="tag flat">보합 '+cls.flat+'</span> <span class="tag">총 '+cls.total+'</span>';
+        var details=state.symbols.map(function(s){ var v=entry[s]; var n=cnts[s]||0; var dcls=(v==null)?'muted':(Math.abs(v)<eps?'muted':(v>=0?'pos':'neg')); var tip=n?(' title="샘플 '+n+'개 평균"'):''; return '<span class="caps '+dcls+'"'+tip+'>'+s+'</span>: <span class="mono '+dcls+'">'+(v==null?'':fmt(v,3))+'</span>%'; }).join(' &nbsp; | &nbsp; ');
+        tr.innerHTML='<td class="mono">'+t+'</td><td>'+statusHtml+'</td><td>'+summaryHtml+'</td><td>'+details+'</td>';
+        frag.appendChild(tr);
+    });
+    sumBody.appendChild(frag);
+}
+function renderPivot(){
+    var eps=Math.max(0, Number(epsilonEl.value)||0);
+    var ths=['<th style="min-width:120px">시각 (HH:MM)</th>'].concat(state.symbols.map(function(s){return '<th class="right caps">'+s+'</th>'; })).join('');
+    pivotHead.innerHTML='<tr>'+ths+'</tr>';
+    var frag=document.createDocumentFragment();
+    state.times.forEach(function(t){
+        var tr=document.createElement('tr'); var entry=state.map.get(t)||{}; var cnts=state.counts.get(t)||{}; var tds=['<td class="mono">'+t+'</td>'];
+        state.symbols.forEach(function(s){ var v=entry[s]; var n=cnts[s]||0; var cls=(v==null)?'muted':(Math.abs(v)<eps?'muted':(v>=0?'pos':'neg')); var td=document.createElement('td'); td.className='right mono '+cls; if(v!=null) td.setAttribute('data-pct',v.toFixed(6)); if(n) td.title='샘플 '+n+'개 평균'; td.innerHTML='<span>'+(v==null?'':fmt(v,3))+'</span>'; tds.push(td.outerHTML); });
+        tr.innerHTML=tds.join(''); frag.appendChild(tr);
+    });
+    pivotBody.innerHTML=''; pivotBody.appendChild(frag);
+}
+function downloadSummaryCSV(){
+    var eps=Math.max(0, Number(epsilonEl.value)||0); var rows=[];
+    state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var pcts=state.symbols.map(function(s){return entry[s]!=null?entry[s]:null;}); var cls=classifyStatus(pcts,eps); var obj={ time_hhmm:t, status:cls.status, up:cls.up, down:cls.down, flat:cls.flat, total:cls.total }; state.symbols.forEach(function(s){ obj[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(obj); });
+    downloadCSV('comove_summary_by_hhmm.csv',rows);
+}
+function downloadPivotCSV(){
+    if(!state.times.length||!state.symbols.length) return; var rows=[];
+    state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var row={ time_hhmm:t }; state.symbols.forEach(function(s){ row[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(row); });
+    downloadCSV('pivot_changes_by_hhmm.csv',rows);
+}
+</script>
 </body>
 </html>
