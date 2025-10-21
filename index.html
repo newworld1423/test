@@ -152,6 +152,10 @@ function parseSymbolFromFilename(name){
     var dash=base.indexOf('-');
     return (dash>0?base.slice(0,dash):base).toUpperCase();
 }
+// 파일이 다르면 같은 심볼이어도 별개 시리즈로 취급: 파일명(확장자 제거) 전체를 라벨로 사용
+function getSeriesLabel(name){
+    return name.replace(/\.[^.]+$/,'').toUpperCase();
+}
 function parseCSV(text){
     var lines=text.trim().split(/\r?\n/); var rows=[];
     for(var i=0;i<lines.length;i++){
@@ -222,18 +226,17 @@ function runAnalysis(){
     var rows=[]; var promises=[];
     state.files.forEach(function(file){
         promises.push(file.text().then(function(text){
-            var symbol=parseSymbolFromFilename(file.name); var arr=parseCSV(text);
+            var series=getSeriesLabel(file.name); var arr=parseCSV(text);
             for(var i=0;i<arr.length;i++){
                 var o=arr[i]; var pct=computeChangePct(o.open,o.close);
-                rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol: symbol, pct: pct });
+                rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol: series, pct: pct });
             }
         }));
     });
     Promise.all(promises).then(function(){
         rows.sort(function(a,b){ if(a.time_hhmm<b.time_hhmm) return -1; if(a.time_hhmm>b.time_hhmm) return 1; return a.symbol<b.symbol?-1:1; });
         var symbols=Array.from(new Set(rows.map(function(r){return r.symbol;}))).sort();
-        var times = Array.from(new Set(rows.map(function (r) { return r.time_hhmm; }))).sort();
-        times = orderTimesFrom(times, '09:00');
+        var times=Array.from(new Set(rows.map(function(r){return r.time_hhmm;}))).sort();
         var map=new Map(); var counts=new Map();
         times.forEach(function(t){ map.set(t,{}); counts.set(t,{}); });
         rows.forEach(function(r){ if(r.pct==null) return; var agg=map.get(r.time_hhmm); var c=counts.get(r.time_hhmm); var prev=agg[r.symbol]; var n=c[r.symbol]||0; agg[r.symbol]=(prev==null)?r.pct:((prev*n + r.pct)/(n+1)); c[r.symbol]=n+1; });
@@ -278,26 +281,6 @@ function downloadPivotCSV(){
     if(!state.times.length||!state.symbols.length) return; var rows=[];
     state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var row={ time_hhmm:t }; state.symbols.forEach(function(s){ row[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(row); });
     downloadCSV('pivot_changes_by_hhmm.csv',rows);
-}
-function clockToMinutes(hhmm) {
-    const [h, m] = (hhmm || '00:00').split(':').map(Number);
-    return (h * 60) + m;
-}
-
-/**
- * times 배열(HH:MM 문자열들)을 `start`부터 시작하도록 회전 정렬합니다.
- * 예: start='09:00'이면 09:00, 09:15, ..., 23:45, 00:00, 00:15, ... 순서
- */
-function orderTimesFrom(times, start) {
-    const startMin = clockToMinutes(start || '09:00');
-    // 기본 오름차순으로 한번 정렬
-    const base = Array.from(new Set(times)).sort();
-    // 시작점을 09:00으로 회전
-    return base.sort((a, b) => {
-        const ra = (clockToMinutes(a) - startMin + 1440) % 1440;
-        const rb = (clockToMinutes(b) - startMin + 1440) % 1440;
-        return ra - rb;
-    });
 }
 </script>
 </body>
