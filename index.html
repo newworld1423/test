@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>15분봉 공동 방향 뷰어 — 날짜 무시(시각 기준)</title>
+    <title>15분봉 공동 방향 뷰어 — KST 09:00 시가 기준</title>
     <style>
         :root { --bg:#0b0f16; --panel:#121826; --muted:#9aa4b2; --text:#e5e7eb; --accent:#60a5fa; --pos:#16a34a; --neg:#ef4444; --grid:#1f2937; }
         *{box-sizing:border-box}
@@ -61,7 +61,7 @@
 <body>
 <header>
     <h1>15분봉 공동 방향 뷰어</h1>
-    <div class="sub">여러 CSV를 올리면 <b>같은 시각(HH:MM)</b>에 코인들이 함께 상승/하락했는지 확인합니다. <b>날짜는 무시</b>하고 시각만 사용합니다.</div>
+    <div class="sub">여러 CSV를 올리면 <b>같은 시각(HH:MM)</b>에 코인들이 함께 상승/하락했는지 확인합니다. 계산은 <b>KST 09:00 시가 대비%</b> 기준입니다. (날짜는 집계 시 무시)</div>
 </header>
 
 <main class="grid">
@@ -77,7 +77,7 @@
         <div style="height:12px"></div>
         <div class="row">
             <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
-            <span class="badge">기준: 시각(HH:MM)만, 날짜 무시</span>
+            <span class="badge">기준: <b>KST 09:00 시가</b></span>
             <span class="badge" id="countBadge">파일 0개</span>
         </div>
         <div style="height:12px"></div>
@@ -137,7 +137,7 @@
                     </table>
                 </div>
                 <div class="footer">
-                    <div>행=시각(HH:MM), 열=심볼, 값=09:00 시가 대비%</div>
+                    <div>행=시각(HH:MM), 열=심볼, 값=<b>09:00 시가 대비%</b></div>
                     <button id="downloadPivot" class="btn">CSV로 저장 (피벗)</button>
                 </div>
             </section>
@@ -146,161 +146,399 @@
 </main>
 
 <script>
-// ===== 유틸 =====
+/* ========================
+   유틸
+   ======================== */
 function parseSymbolFromFilename(name){
-    var base=name.replace(/\.[^.]+$/,'');
-    var dash=base.indexOf('-');
-    return (dash>0?base.slice(0,dash):base).toUpperCase();
+    var base = name.replace(/\.[^.]+$/,'');
+    var dash = base.indexOf('-');
+    return (dash > 0 ? base.slice(0, dash) : base).toUpperCase();
 }
-// 파일이 다르면 같은 심볼이어도 별개 시리즈로 취급: 파일명(확장자 제거) 전체를 라벨로 사용
+// 파일마다 라벨(열 제목) 고정
 function getSeriesLabel(name){
     return name.replace(/\.[^.]+$/,'').toUpperCase();
 }
+// CSV: [open_time, open, high, low, close, volume, close_time, ..., trades] 가정
 function parseCSV(text){
-    var lines=text.trim().split(/\r?\n/); var rows=[];
-    for(var i=0;i<lines.length;i++){
-        var cols=lines[i].split(','); if(cols.length<12) continue;
-        var otimeRaw=Number(cols[0]); var ctimeRaw=Number(cols[6]);
-        var otimeMs=otimeRaw>1e15?Math.round(otimeRaw/1000):otimeRaw;
-        var ctimeMs=ctimeRaw>1e15?Math.round(ctimeRaw/1000):ctimeRaw;
-        rows.push({open_time:otimeMs,open:Number(cols[1]),high:Number(cols[2]),low:Number(cols[3]),close:Number(cols[4]),volume:Number(cols[5]),close_time:ctimeMs,trades:Number(cols[8])});
+    var lines = text.trim().split(/\r?\n/);
+    var rows = [];
+    for (var i = 0; i < lines.length; i++) {
+        var cols = lines[i].split(',');
+        if (cols.length < 12) continue;
+        var otimeRaw = Number(cols[0]);
+        var ctimeRaw = Number(cols[6]);
+        // ms/초 자동 보정
+        var otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw;
+        var ctimeMs = ctimeRaw > 1e15 ? Math.round(ctimeRaw / 1000) : ctimeRaw;
+        rows.push({
+            open_time: otimeMs,
+            open: Number(cols[1]),
+            high: Number(cols[2]),
+            low: Number(cols[3]),
+            close: Number(cols[4]),
+            volume: Number(cols[5]),
+            close_time: ctimeMs,
+            trades: Number(cols[8])
+        });
     }
     return rows;
 }
-function msToKST_HHMM(ms){
-    var dt=new Date(ms); var kstMs=dt.getTime()+9*3600*1000; var k=new Date(kstMs);
-    var hh=('0'+k.getUTCHours()).slice(-2); var mm=('0'+k.getUTCMinutes()).slice(-2);
-    return hh+':'+mm;
-}
-function fmt(n,d){ if(n==null||isNaN(n)) return ''; return Number(n).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}); }
-function computeChangePct(o,c){ if(!o&&o!==0) return null; if(o===0) return null; return ( (c-o)/o )*100; }
-function classifyStatus(pcts,eps){
-    var up=0,down=0,flat=0,total=0; for(var i=0;i<pcts.length;i++){ var v=pcts[i]; if(v==null) continue; total++; var a=Math.abs(v); if(a<eps) flat++; else if(v>0) up++; else if(v<0) down++; }
-    var status='mixed'; if(total===flat) status='allflat'; else if(up>0&&down===0&&flat===0) status='allup'; else if(down>0&&up===0&&flat===0) status='alldown';
-    return {up:up,down:down,flat:flat,total:total,status:status};
-}
-function downloadCSV(filename,rows){ if(!rows.length) return; var headers=Object.keys(rows[0]); var esc=function(v){ if(v==null) return ''; var s=String(v); if(s.indexOf(',')>-1) return '"'+s.replace(/"/g,'""')+'"'; return s; };
-    var csv=[headers.join(',')].concat(rows.map(function(r){ return headers.map(function(h){return esc(r[h]);}).join(','); })).join('\n');
-    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(function(){URL.revokeObjectURL(url);},3000);
+
+// KST(UTC+9) 기준 날짜와 HH:MM 추출
+function kstDateAndHHMM(ms){
+    var d = new Date(ms + 9*3600*1000);
+    var yyyy = d.getUTCFullYear();
+    var mm = ('0' + (d.getUTCMonth()+1)).slice(-2);
+    var dd = ('0' + d.getUTCDate()).slice(-2);
+    var hh = ('0' + d.getUTCHours()).slice(-2);
+    var mi = ('0' + d.getUTCMinutes()).slice(-2);
+    return { date: `${yyyy}-${mm}-${dd}`, hhmm: `${hh}:${mi}` };
 }
 
-// ===== 상태 =====
-var state={ files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
+function fmt(n, d){
+    if (n == null || isNaN(n)) return '';
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits:d, minimumFractionDigits:d });
+}
+function classifyStatus(pcts, eps){
+    var up=0, down=0, flat=0, total=0;
+    for (var i=0; i<pcts.length; i++){
+        var v = pcts[i];
+        if (v == null) continue;
+        total++;
+        var a = Math.abs(v);
+        if (a < eps) flat++;
+        else if (v > 0) up++;
+        else if (v < 0) down++;
+    }
+    var status = 'mixed';
+    if (total === flat) status = 'allflat';
+    else if (up > 0 && down === 0 && flat === 0) status = 'allup';
+    else if (down > 0 && up === 0 && flat === 0) status = 'alldown';
+    return { up:up, down:down, flat:flat, total:total, status:status };
+}
+function downloadCSV(filename, rows){
+    if (!rows.length) return;
+    var headers = Object.keys(rows[0]);
+    var esc = function(v){
+        if (v == null) return '';
+        var s = String(v);
+        if (s.indexOf(',') > -1) return '"' + s.replace(/"/g,'""') + '"';
+        return s;
+    };
+    var csv = [headers.join(',')].concat(
+        rows.map(function(r){ return headers.map(function(h){ return esc(r[h]); }).join(','); })
+    ).join('\n');
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+}
 
-// ===== DOM =====
-var fileInput=document.getElementById('fileInput');
-var fileList=document.getElementById('fileList');
-var countBadge=document.getElementById('countBadge');
-var loadBtn=document.getElementById('loadBtn');
-var clearBtn=document.getElementById('clearBtn');
-var epsilonEl=document.getElementById('epsilon');
-var statusFilterEl=document.getElementById('statusFilter');
-var sumBody=document.getElementById('sumBody');
-var pivotHead=document.getElementById('pivotHead');
-var pivotBody=document.getElementById('pivotBody');
-var downloadSummary=document.getElementById('downloadSummary');
-var downloadPivot=document.getElementById('downloadPivot');
-var tabs=document.querySelectorAll('.tab');
-var views=document.querySelectorAll('.views > section');
-
-// ===== 이벤트 =====
-fileInput.addEventListener('change',function(){
-    state.files=Array.prototype.slice.call(fileInput.files||[]);
-    fileList.innerHTML=state.files.map(function(f){return '<div>'+f.name+' <span class="muted">('+(f.size/1024).toFixed(1)+' KB)</span></div>';}).join('');
-    countBadge.textContent='파일 '+state.files.length+'개';
-});
-clearBtn.addEventListener('click',function(){
-    state={ files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
-    fileInput.value=''; fileList.innerHTML=''; countBadge.textContent='파일 0개'; sumBody.innerHTML=''; pivotHead.innerHTML=''; pivotBody.innerHTML='';
-});
-loadBtn.addEventListener('click',function(){ runAnalysis(); });
-epsilonEl.addEventListener('change',function(){ renderAll(); });
-statusFilterEl.addEventListener('change',function(){ renderSummary(); });
-tabs.forEach(function(btn){ btn.addEventListener('click',function(){ tabs.forEach(function(b){b.classList.remove('active');}); views.forEach(function(v){v.classList.remove('active');}); btn.classList.add('active'); document.getElementById(btn.getAttribute('data-view')).classList.add('active'); }); });
-downloadSummary.addEventListener('click',function(){ downloadSummaryCSV(); });
-downloadPivot.addEventListener('click',function(){ downloadPivotCSV(); });
-
-// ===== 로직 =====
-function runAnalysis(){
-    if(!state.files.length){ alert('CSV 파일을 선택해 주세요.'); return; }
-    var rows=[]; var promises=[];
-    state.files.forEach(function(file){
-        promises.push(file.text().then(function(text){
-            var series=getSeriesLabel(file.name); var arr=parseCSV(text);
-            for(var i=0;i<arr.length;i++){
-                var o=arr[i]; var pct=computeChangePct(o.open,o.close);
-                rows.push({ time_hhmm: msToKST_HHMM(o.open_time), symbol: series, pct: pct });
-            }
-        }));
+// KST 09:00 기준으로 HH:MM 회전 정렬
+function clockToMinutes(hhmm){
+    var parts = (hhmm || '00:00').split(':');
+    var h = parseInt(parts[0],10) || 0;
+    var m = parseInt(parts[1],10) || 0;
+    return h*60 + m;
+}
+function orderTimesFrom(times, start){
+    var startMin = clockToMinutes(start || '09:00');
+    var base = Array.from(new Set(times)).sort();
+    return base.sort(function(a,b){
+        var ra = (clockToMinutes(a) - startMin + 1440) % 1440;
+        var rb = (clockToMinutes(b) - startMin + 1440) % 1440;
+        return ra - rb;
     });
+}
+
+/* ========================
+   상태/DOM
+   ======================== */
+var state = { files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
+
+var fileInput = document.getElementById('fileInput');
+var fileList = document.getElementById('fileList');
+var countBadge = document.getElementById('countBadge');
+var loadBtn = document.getElementById('loadBtn');
+var clearBtn = document.getElementById('clearBtn');
+var epsilonEl = document.getElementById('epsilon');
+var statusFilterEl = document.getElementById('statusFilter');
+var sumBody = document.getElementById('sumBody');
+var pivotHead = document.getElementById('pivotHead');
+var pivotBody = document.getElementById('pivotBody');
+var downloadSummary = document.getElementById('downloadSummary');
+var downloadPivot = document.getElementById('downloadPivot');
+var tabs = document.querySelectorAll('.tab');
+var views = document.querySelectorAll('.views > section');
+
+/* ========================
+   이벤트
+   ======================== */
+fileInput.addEventListener('change', function(){
+    state.files = Array.prototype.slice.call(fileInput.files || []);
+    fileList.innerHTML = state.files.map(function(f){
+        return '<div>' + f.name + ' <span class="muted">(' + (f.size/1024).toFixed(1) + ' KB)</span></div>';
+    }).join('');
+    countBadge.textContent = '파일 ' + state.files.length + '개';
+});
+clearBtn.addEventListener('click', function(){
+    state = { files:[], rows:[], times:[], symbols:[], map:new Map(), counts:new Map() };
+    fileInput.value = '';
+    fileList.innerHTML = '';
+    countBadge.textContent = '파일 0개';
+    sumBody.innerHTML = '';
+    pivotHead.innerHTML = '';
+    pivotBody.innerHTML = '';
+});
+loadBtn.addEventListener('click', function(){ runAnalysis(); });
+epsilonEl.addEventListener('change', function(){ renderAll(); });
+statusFilterEl.addEventListener('change', function(){ renderSummary(); });
+tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+        tabs.forEach(function(b){ b.classList.remove('active'); });
+        views.forEach(function(v){ v.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById(btn.getAttribute('data-view')).classList.add('active');
+    });
+});
+downloadSummary.addEventListener('click', function(){ downloadSummaryCSV(); });
+downloadPivot.addEventListener('click', function(){ downloadPivotCSV(); });
+
+/* ========================
+   핵심 로직: KST 09:00 기준 증감률
+   ======================== */
+function runAnalysis(){
+    if (!state.files.length) {
+        alert('CSV 파일을 선택해 주세요.');
+        return;
+    }
+
+    var rows = [];
+    var promises = [];
+
+    state.files.forEach(function(file){
+        promises.push(
+            file.text().then(function(text){
+                var series = getSeriesLabel(file.name);
+                var arr = parseCSV(text);
+
+                // 1) 날짜별로 봉 묶기(KST)
+                var byDate = new Map(); // date -> [{open_time, open, close, hhmm}]
+                for (var i = 0; i < arr.length; i++) {
+                    var o = arr[i];
+                    var k = kstDateAndHHMM(o.open_time);
+                    if (!byDate.has(k.date)) byDate.set(k.date, []);
+                    byDate.get(k.date).push({
+                        open_time: o.open_time,
+                        open: o.open,
+                        close: o.close,
+                        hhmm: k.hhmm
+                    });
+                }
+
+                // 2) 날짜별 기준가(09:00 시가) 결정
+                //    - 09:00 봉이 있으면 그 시가
+                //    - 없으면 09:00 이후 첫 봉의 시가
+                var baseMap = new Map(); // date -> baseOpen
+                byDate.forEach(function(list, date){
+                    list.sort(function(a, b){
+                        if (a.hhmm < b.hhmm) return -1;
+                        if (a.hhmm > b.hhmm) return 1;
+                        return a.open_time - b.open_time;
+                    });
+
+                    var baseOpen = null;
+                    for (var j = 0; j < list.length; j++) {
+                        if (list[j].hhmm === '09:00') {
+                            baseOpen = list[j].open;
+                            break;
+                        }
+                    }
+                    if (baseOpen == null) {
+                        for (var j2 = 0; j2 < list.length; j2++) {
+                            var mins = clockToMinutes(list[j2].hhmm);
+                            if (mins >= 9*60) {
+                                baseOpen = list[j2].open;
+                                break;
+                            }
+                        }
+                    }
+                    if (baseOpen != null) baseMap.set(date, baseOpen);
+                });
+
+                // 3) 각 봉의 close를 해당 날짜 baseOpen으로 환산하여 % 계산
+                byDate.forEach(function(list, date){
+                    var baseOpen = baseMap.get(date);
+                    for (var k = 0; k < list.length; k++) {
+                        var it = list[k];
+                        var pct = null;
+                        if (baseOpen != null && baseOpen !== 0) {
+                            pct = ((it.close - baseOpen) / baseOpen) * 100;
+                        }
+                        rows.push({
+                            time_hhmm: it.hhmm,   // 표시는 시각만
+                            symbol: series,
+                            pct: pct
+                        });
+                    }
+                });
+            })
+        );
+    });
+
     Promise.all(promises).then(function(){
-        rows.sort(function(a,b){ if(a.time_hhmm<b.time_hhmm) return -1; if(a.time_hhmm>b.time_hhmm) return 1; return a.symbol<b.symbol?-1:1; });
-        var symbols=Array.from(new Set(rows.map(function(r){return r.symbol;}))).sort();
-        var times=Array.from(new Set(rows.map(function(r){return r.time_hhmm;}))).sort();
-        var map=new Map(); var counts=new Map();
-        times.forEach(function(t){ map.set(t,{}); counts.set(t,{}); });
-        rows.forEach(function(r){ if(r.pct==null) return; var agg=map.get(r.time_hhmm); var c=counts.get(r.time_hhmm); var prev=agg[r.symbol]; var n=c[r.symbol]||0; agg[r.symbol]=(prev==null)?r.pct:((prev*n + r.pct)/(n+1)); c[r.symbol]=n+1; });
-        state.rows=rows; state.symbols=symbols; state.times=times; state.map=map; state.counts=counts;
+        // 이후 집계/렌더는 동일
+        rows.sort(function(a,b){
+            if (a.time_hhmm < b.time_hhmm) return -1;
+            if (a.time_hhmm > b.time_hhmm) return 1;
+            return a.symbol < b.symbol ? -1 : 1;
+        });
+
+        var symbols = Array.from(new Set(rows.map(function(r){ return r.symbol; }))).sort();
+        var times = Array.from(new Set(rows.map(function(r){ return r.time_hhmm; }))).sort();
+
+        var map = new Map();
+        var counts = new Map();
+        times.forEach(function(t){
+            map.set(t, {});
+            counts.set(t, {});
+        });
+
+        // 같은 HH:MM끼리(날짜 무시) 평균
+        rows.forEach(function(r){
+            if (r.pct == null) return;
+            var agg = map.get(r.time_hhmm);
+            var c = counts.get(r.time_hhmm);
+            var prev = agg[r.symbol];
+            var n = c[r.symbol] || 0;
+            agg[r.symbol] = (prev == null) ? r.pct : ((prev * n + r.pct) / (n + 1));
+            c[r.symbol] = n + 1;
+        });
+
+        state.rows = rows;
+        state.symbols = symbols;
+        state.times = times;
+        state.map = map;
+        state.counts = counts;
+
         renderAll();
     });
 }
+
 function renderAll(){
-    // 09:00(KST) 시작으로 시간 순서를 회전 정렬
+    // 09:00(KST)부터 시계 방향 정렬
     if (Array.isArray(state.times) && state.times.length) {
         state.times = orderTimesFrom(state.times, '09:00');
     }
     renderSummary();
     renderPivot();
 }
+
 function renderSummary(){
-    var eps=Math.max(0, Number(epsilonEl.value)||0); var filter=statusFilterEl.value; var frag=document.createDocumentFragment(); sumBody.innerHTML='';
+    var eps = Math.max(0, Number(epsilonEl.value) || 0);
+    var filter = statusFilterEl.value;
+    var frag = document.createDocumentFragment();
+    sumBody.innerHTML = '';
+
     state.times.forEach(function(t){
-        var entry=state.map.get(t)||{}; var cnts=state.counts.get(t)||{}; var pcts=state.symbols.map(function(s){ return entry[s]!=null?entry[s]:null; });
-        var cls=classifyStatus(pcts,eps); if(filter!=='all' && cls.status!==filter) return;
-        var tr=document.createElement('tr');
-        var statusText=(cls.status==='allup'?'같이 상승':cls.status==='alldown'?'같이 하락':cls.status==='allflat'?'모두 보합':'혼조');
-        var statusHtml='<span class="status '+cls.status+'">'+statusText+'</span>';
-        var summaryHtml='<span class="tag up">상승 '+cls.up+'</span> <span class="tag down">하락 '+cls.down+'</span> <span class="tag flat">보합 '+cls.flat+'</span> <span class="tag">총 '+cls.total+'</span>';
-        var details=state.symbols.map(function(s){ var v=entry[s]; var n=cnts[s]||0; var dcls=(v==null)?'muted':(Math.abs(v)<eps?'muted':(v>=0?'pos':'neg')); var tip=n?(' title="샘플 '+n+'개 평균"'):''; return '<span class="caps '+dcls+'"'+tip+'>'+s+'</span>: <span class="mono '+dcls+'">'+(v==null?'':fmt(v,3))+'</span>%'; }).join(' &nbsp; | &nbsp; ');
-        tr.innerHTML='<td class="mono">'+t+'</td><td>'+statusHtml+'</td><td>'+summaryHtml+'</td><td>'+details+'</td>';
+        var entry = state.map.get(t) || {};
+        var cnts = state.counts.get(t) || {};
+        var pcts = state.symbols.map(function(s){ return entry[s] != null ? entry[s] : null; });
+        var cls = classifyStatus(pcts, eps);
+        if (filter !== 'all' && cls.status !== filter) return;
+
+        var tr = document.createElement('tr');
+        var statusText = (cls.status === 'allup' ? '같이 상승' :
+                          cls.status === 'alldown' ? '같이 하락' :
+                          cls.status === 'allflat' ? '모두 보합' : '혼조');
+        var statusHtml = '<span class="status ' + cls.status + '">' + statusText + '</span>';
+        var summaryHtml = '<span class="tag up">상승 ' + cls.up + '</span> ' +
+                          '<span class="tag down">하락 ' + cls.down + '</span> ' +
+                          '<span class="tag flat">보합 ' + cls.flat + '</span> ' +
+                          '<span class="tag">총 ' + cls.total + '</span>';
+
+        var details = state.symbols.map(function(s){
+            var v = entry[s];
+            var n = cnts[s] || 0;
+            var dcls = (v == null) ? 'muted' : (Math.abs(v) < eps ? 'muted' : (v >= 0 ? 'pos' : 'neg'));
+            var tip = n ? (' title="샘플 ' + n + '개 평균"') : '';
+            return '<span class="caps ' + dcls + '"' + tip + '>' + s + '</span>: ' +
+                   '<span class="mono ' + dcls + '">' + (v == null ? '' : fmt(v, 3)) + '</span>%';
+        }).join(' &nbsp; | &nbsp; ');
+
+        tr.innerHTML = '<td class="mono">' + t + '</td>' +
+                       '<td>' + statusHtml + '</td>' +
+                       '<td>' + summaryHtml + '</td>' +
+                       '<td>' + details + '</td>';
         frag.appendChild(tr);
     });
     sumBody.appendChild(frag);
 }
+
 function renderPivot(){
-    var eps=Math.max(0, Number(epsilonEl.value)||0);
-    var ths=['<th style="min-width:120px">시각 (HH:MM)</th>'].concat(state.symbols.map(function(s){return '<th class="right caps">'+s+'</th>'; })).join('');
-    pivotHead.innerHTML='<tr>'+ths+'</tr>';
-    var frag=document.createDocumentFragment();
+    var eps = Math.max(0, Number(epsilonEl.value) || 0);
+    var ths = ['<th style="min-width:120px">시각 (HH:MM)</th>']
+        .concat(state.symbols.map(function(s){ return '<th class="right caps">' + s + '</th>'; }))
+        .join('');
+    pivotHead.innerHTML = '<tr>' + ths + '</tr>';
+
+    var frag = document.createDocumentFragment();
     state.times.forEach(function(t){
-        var tr=document.createElement('tr'); var entry=state.map.get(t)||{}; var cnts=state.counts.get(t)||{}; var tds=['<td class="mono">'+t+'</td>'];
-        state.symbols.forEach(function(s){ var v=entry[s]; var n=cnts[s]||0; var cls=(v==null)?'muted':(Math.abs(v)<eps?'muted':(v>=0?'pos':'neg')); var td=document.createElement('td'); td.className='right mono '+cls; if(v!=null) td.setAttribute('data-pct',v.toFixed(6)); if(n) td.title='샘플 '+n+'개 평균'; td.innerHTML='<span>'+(v==null?'':fmt(v,3))+'</span>'; tds.push(td.outerHTML); });
-        tr.innerHTML=tds.join(''); frag.appendChild(tr);
+        var tr = document.createElement('tr');
+        var entry = state.map.get(t) || {};
+        var cnts = state.counts.get(t) || {};
+        var tds = ['<td class="mono">' + t + '</td>'];
+
+        state.symbols.forEach(function(s){
+            var v = entry[s];
+            var n = cnts[s] || 0;
+            var cls = (v == null) ? 'muted' : (Math.abs(v) < eps ? 'muted' : (v >= 0 ? 'pos' : 'neg'));
+            var td = document.createElement('td');
+            td.className = 'right mono ' + cls;
+            if (v != null) td.setAttribute('data-pct', v.toFixed(6));
+            if (n) td.title = '샘플 ' + n + '개 평균';
+            td.innerHTML = '<span>' + (v == null ? '' : fmt(v, 3)) + '</span>';
+            tds.push(td.outerHTML);
+        });
+
+        tr.innerHTML = tds.join('');
+        frag.appendChild(tr);
     });
-    pivotBody.innerHTML=''; pivotBody.appendChild(frag);
+    pivotBody.innerHTML = '';
+    pivotBody.appendChild(frag);
 }
+
 function downloadSummaryCSV(){
-    var eps=Math.max(0, Number(epsilonEl.value)||0); var rows=[];
-    state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var pcts=state.symbols.map(function(s){return entry[s]!=null?entry[s]:null;}); var cls=classifyStatus(pcts,eps); var obj={ time_hhmm:t, status:cls.status, up:cls.up, down:cls.down, flat:cls.flat, total:cls.total }; state.symbols.forEach(function(s){ obj[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(obj); });
-    downloadCSV('comove_summary_by_hhmm.csv',rows);
-}
-function downloadPivotCSV(){
-    if(!state.times.length||!state.symbols.length) return; var rows=[];
-    state.times.forEach(function(t){ var entry=state.map.get(t)||{}; var row={ time_hhmm:t }; state.symbols.forEach(function(s){ row[s]=entry[s]!=null?Number(entry[s].toFixed(6)):''; }); rows.push(row); });
-    downloadCSV('pivot_changes_by_hhmm.csv',rows);
-}
-// === KST 09:00 시작 회전 정렬 유틸 ===
-function clockToMinutes(hhmm){
-    var parts=(hhmm||'00:00').split(':'), h=parseInt(parts[0],10)||0, m=parseInt(parts[1],10)||0; return h*60+m;
-}
-function orderTimesFrom(times,start){
-    var startMin=clockToMinutes(start||'09:00');
-    var base=Array.from(new Set(times)).sort();
-    return base.sort(function(a,b){
-        var ra=(clockToMinutes(a)-startMin+1440)%1440;
-        var rb=(clockToMinutes(b)-startMin+1440)%1440;
-        return ra-rb;
+    var eps = Math.max(0, Number(epsilonEl.value) || 0);
+    var rows = [];
+    state.times.forEach(function(t){
+        var entry = state.map.get(t) || {};
+        var pcts = state.symbols.map(function(s){ return entry[s] != null ? entry[s] : null; });
+        var cls = classifyStatus(pcts, eps);
+        var obj = { time_hhmm: t, status: cls.status, up: cls.up, down: cls.down, flat: cls.flat, total: cls.total };
+        state.symbols.forEach(function(s){
+            obj[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
+        });
+        rows.push(obj);
     });
+    downloadCSV('comove_summary_by_hhmm.csv', rows);
+}
+
+function downloadPivotCSV(){
+    if (!state.times.length || !state.symbols.length) return;
+    var rows = [];
+    state.times.forEach(function(t){
+        var entry = state.map.get(t) || {};
+        var row = { time_hhmm: t };
+        state.symbols.forEach(function(s){
+            row[s] = entry[s] != null ? Number(entry[s].toFixed(6)) : '';
+        });
+        rows.push(row);
+    });
+    downloadCSV('pivot_changes_by_hhmm.csv', rows);
 }
 </script>
 </body>
