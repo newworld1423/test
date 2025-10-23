@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>선행 신호 스캐너 (Binance USDT Perp · 브라우저)</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --panel: #111821;
+            --card: #0f151d;
+            --muted: #9fb0c0;
+            --text: #e6eef7;
+            --accent: #31c48d;
+            --warn: #f59e0b;
+            --bad: #ef4444;
+            --good: #22c55e;
+            --grid: #1b2430;
+        }
+        html, body { height: 100%; }
+        body {
+            margin: 0; padding: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+            background: linear-gradient(180deg, #0b0f14, #0e131a 60%, #0b0f14);
+            color: var(--text);
+        }
+        header {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            padding: 16px 20px; background: var(--panel); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #1e293b;
+        }
+        header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+        header .sub { color: var(--muted); font-size: 12px; }
+        .controls {
+            display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; padding: 16px 20px; background: var(--card);
+            border-bottom: 1px solid #1e293b;
+        }
+        .ctrl { background: #0b1118; border: 1px solid #1f2a37; border-radius: 14px; padding: 12px; }
+        .ctrl h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+        .ctrl input[type="number"], .ctrl input[type="text"], .ctrl select {
+            width: 100%; box-sizing: border-box; height: 36px; border-radius: 10px; border: 1px solid #2b394b;
+            background: #0a1016; color: var(--text); padding: 0 10px; font-size: 14px;
+        }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+        .toggle input { transform: scale(1.2); }
+        .slider { display: grid; grid-template-columns: 1fr 60px; align-items: center; gap: 8px; }
+        .slider input[type="range"] { width: 100%; }
+        .btns { display: flex; gap: 10px; align-items: center; }
+        button {
+            height: 38px; padding: 0 14px; border-radius: 12px; border: 1px solid #243445; cursor: pointer;
+            background: #0c151f; color: var(--text); font-weight: 600; letter-spacing: 0.15px;
+        }
+        button.primary { background: linear-gradient(180deg, #1e293b, #0d1a26); border-color: #2b3a4a; }
+        button.accent { background: linear-gradient(180deg, #17b97d, #0f7b59); border-color: #18a36f; color: #05261b; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+            position: sticky; top: 112px; z-index: 5; background: var(--panel);
+            font-size: 12px; color: var(--muted); text-align: right; padding: 8px 6px; border-bottom: 1px solid #203044; white-space: nowrap;
+        }
+        thead th:first-child { text-align: left; padding-left: 16px; }
+        tbody td { font-size: 13px; padding: 10px 6px; text-align: right; border-bottom: 1px dashed #1f2a38; }
+        tbody td:first-child { text-align: left; padding-left: 16px; }
+        tbody tr:hover { background: #0f1720; }
+        .chip { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; display: inline-block; }
+        .green { background: rgba(34,197,94,.12); color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+        .red { background: rgba(239,68,68,.12); color: #f87171; border: 1px solid rgba(239,68,68,.25); }
+        .yellow { background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.25); }
+        .muted { color: var(--muted); }
+        .foot { padding: 10px 16px; font-size: 12px; color: var(--muted); }
+        .grid { display: grid; grid-template-columns: 1fr; }
+        .note { font-size: 12px; color: var(--muted); line-height: 1.4; }
+        .scorebar { height: 8px; background: #162131; border-radius: 8px; overflow: hidden; }
+        .scorebar > i { display: block; height: 100%; background: linear-gradient(90deg, #22c55e, #60a5fa); }
+        .link { color: #8ab5ff; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+        .wrap { padding-bottom: 40px; }
+        @media (max-width: 980px) {
+            .controls { grid-template-columns: 1fr; }
+            thead th { top: 160px; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>선행 신호 스캐너 · USDT Perp</h1>
+        <div class="sub">RS·RVOL·ΔOI·Funding·EMA·Squeeze 동시성 기반 — 15분봉</div>
+    </div>
+    <div class="btns">
+        <button id="startBtn" class="accent">스캔 시작</button>
+        <button id="stopBtn" disabled>일시정지</button>
+        <button id="exportBtn" class="primary">CSV 내보내기</button>
+    </div>
+</header>
+<section class="controls">
+    <div class="ctrl" style="grid-column: span 3;">
+        <h3>유니버스</h3>
+        <div class="row">
+            <label class="toggle"><input type="checkbox" id="onlyPerp" checked> Perpetual 전용</label>
+            <label class="toggle"><input type="checkbox" id="usdtQuote" checked> USDT 마진</label>
+        </div>
+        <div class="row">
+            <div>
+                <label class="note">상위 N(24h 거래대금) </label>
+                <input id="topN" type="number" min="10" max="300" step="10" value="80">
+            </div>
+            <div>
+                <label class="note">주기(초)</label>
+                <input id="intervalSec" type="number" min="15" max="300" step="5" value="60">
+            </div>
+        </div>
+    </div>
+    <div class="ctrl" style="grid-column: span 6;">
+        <h3>가중치 (합=1.00)</h3>
+        <div class="slider"><label class="note">RS(1h z)</label><input id="w_r1" type="range" min="0" max="1" step="0.01" value="0.25"><span id="w_r1_v">0.25</span></div>
+        <div class="slider"><label class="note">RS(4h z)</label><input id="w_r4" type="range" min="0" max="1" step="0.01" value="0.20"><span id="w_r4_v">0.20</span></div>
+        <div class="slider"><label class="note">RVOL(15m z)</label><input id="w_rv" type="range" min="0" max="1" step="0.01" value="0.20"><span id="w_rv_v">0.20</span></div>
+        <div class="slider"><label class="note">ΔOI(1h z)</label><input id="w_oi" type="range" min="0" max="1" step="0.01" value="0.15"><span id="w_oi_v">0.15</span></div>
+        <div class="slider"><label class="note">Funding(역가중 z)</label><input id="w_fd" type="range" min="0" max="1" step="0.01" value="0.10"><span id="w_fd_v">0.10</span></div>
+        <div class="slider"><label class="note">Trend(EMA 정렬)</label><input id="w_tr" type="range" min="0" max="1" step="0.01" value="0.05"><span id="w_tr_v">0.05</span></div>
+        <div class="slider"><label class="note">Squeeze Breakout</label><input id="w_sq" type="range" min="0" max="1" step="0.01" value="0.05"><span id="w_sq_v">0.05</span></div>
+        <div class="note">※ 합계는 자동 정규화됩니다.</div>
+    </div>
+    <div class="ctrl" style="grid-column: span 3;">
+        <h3>옵션</h3>
+        <label class="toggle"><input type="checkbox" id="enableOI" checked> OI 사용(히스토리 API)</label>
+        <label class="toggle"><input type="checkbox" id="enableFunding" checked> Funding 사용</label>
+        <label class="toggle"><input type="checkbox" id="showOnlySignals"> 신호 On 종목만 보기</label>
+        <div class="note" style="margin-top:8px;">API 제한 회피를 위해 내부적으로 <b>요청 큐(동시 4)</b>로 순차 요청합니다.</div>
+    </div>
+</section>
+<section class="wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>심볼</th>
+                <th>점수</th>
+                <th>가격</th>
+                <th>RS 1h</th>
+                <th>RS 4h</th>
+                <th>RVOL 15m</th>
+                <th>ΔOI 1h</th>
+                <th>Funding</th>
+                <th>EMA</th>
+                <th>SQ</th>
+                <th>업데이트</th>
+            </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+    </table>
+    <div class="foot" id="foot"></div>
+</section>
+<script>
+"use strict";
+// 4-space indentation preference
+
+const API = {
+    base: "https://fapi.binance.com",
+    exInfo: "/fapi/v1/exchangeInfo",
+    ticker24h: "/fapi/v1/ticker/24hr",
+    klines: "/fapi/v1/klines",
+    premiumIndex: "/fapi/v1/premiumIndex", // funding
+    openInterest: "/fapi/v1/openInterest",
+    openInterestHist: "/futures/data/openInterestHist" // may be subject to CORS/weight
+};
+
+const dom = {
+    start: document.getElementById('startBtn'),
+    stop: document.getElementById('stopBtn'),
+    exportBtn: document.getElementById('exportBtn'),
+    rows: document.getElementById('rows'),
+    foot: document.getElementById('foot'),
+    topN: document.getElementById('topN'),
+    intervalSec: document.getElementById('intervalSec'),
+    onlyPerp: document.getElementById('onlyPerp'),
+    usdtQuote: document.getElementById('usdtQuote'),
+    enableOI: document.getElementById('enableOI'),
+    enableFunding: document.getElementById('enableFunding'),
+    showOnlySignals: document.getElementById('showOnlySignals'),
+    w: {
+        r1: document.getElementById('w_r1'),
+        r4: document.getElementById('w_r4'),
+        rv: document.getElementById('w_rv'),
+        oi: document.getElementById('w_oi'),
+        fd: document.getElementById('w_fd'),
+        tr: document.getElementById('w_tr'),
+        sq: document.getElementById('w_sq'),
+    },
+    wv: {
+        r1: document.getElementById('w_r1_v'),
+        r4: document.getElementById('w_r4_v'),
+        rv: document.getElementById('w_rv_v'),
+        oi: document.getElementById('w_oi_v'),
+        fd: document.getElementById('w_fd_v'),
+        tr: document.getElementById('w_tr_v'),
+        sq: document.getElementById('w_sq_v'),
+    }
+};
+
+const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
+
+// Simple request queue (concurrency limit)
+class FetchQueue {
+    constructor(concurrency=4, delayMs=50){
+        this.concurrency = concurrency;
+        this.delayMs = delayMs;
+        this.active = 0;
+        this.q = [];
+    }
+    push(task){
+        return new Promise((resolve,reject)=>{
+            this.q.push({task, resolve, reject});
+            this.dequeue();
+        });
+    }
+    async dequeue(){
+        if(this.active >= this.concurrency) return;
+        const item = this.q.shift();
+        if(!item) return;
+        this.active++;
+        try{
+            const res = await item.task();
+            item.resolve(res);
+        }catch(e){ item.reject(e); }
+        this.active--;
+        if(this.delayMs>0) await sleep(this.delayMs);
+        this.dequeue();
+    }
+}
+
+const Q = new FetchQueue(4, 35);
+
+async function getJSON(url){
+    const r = await fetch(url, { cache: 'no-store' });
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+function ema(arr, span){
+    const k = 2/(span+1);
+    let prev = arr[0] ?? 0;
+    const out = [];
+    for(let i=0;i<arr.length;i++){
+        const v = arr[i] ?? prev;
+        prev = (v * k) + (prev * (1-k));
+        out.push(prev);
+    }
+    return out;
+}
+
+function zscore(values){
+    const clean = values.filter(v => Number.isFinite(v));
+    const mean = clean.reduce((a,b)=>a+b,0) / (clean.length||1);
+    const std = Math.sqrt(clean.reduce((s,v)=> s + Math.pow(v-mean,2),0) / (clean.length||1)) || 1e-9;
+    return values.map(v => Number.isFinite(v) ? (v-mean)/std : 0);
+}
+
+function minmax(v, lo, hi){
+    return (v - lo) / Math.max(1e-9, (hi - lo));
+}
+
+function fmtPct(x){
+    if(!Number.isFinite(x)) return "-";
+    const s = (x*100).toFixed(2);
+    return (x>=0?`<span class='chip green'>+${s}%</span>`:`<span class='chip red'>${s}%</span>`);
+}
+function fmtPctPlain(x){ return Number.isFinite(x)? (x*100).toFixed(2) : ""; }
+function fmtNum(x){ return Number.isFinite(x)? x.toLocaleString() : ""; }
+function kstNow(){ return new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }); }
+
+// Global state
+const state = {
+    symbols: [],     // futures symbols metadata
+    universe: [],    // selected symbols
+    bench: { BTCUSDT: null, ETHUSDT: null },
+    rows: new Map(), // symbol -> last computed row
+    timer: null,
+};
+
+async function loadUniverse(){
+    // 1) exchange info for futures symbols
+    const ex = await getJSON(API.base + API.exInfo);
+    const perpSet = new Set();
+    ex.symbols.forEach(s => {
+        if(s.contractType === 'PERPETUAL') perpSet.add(s.symbol);
+    });
+
+    // 2) 24h ticker (all) to rank by quote volume
+    const tickers = await getJSON(API.base + API.ticker24h);
+    let arr = tickers.filter(t => t.symbol.endsWith('USDT'));
+    if(dom.onlyPerp.checked){
+        arr = arr.filter(t => perpSet.has(t.symbol));
+    }
+    // sort by quoteVolume desc
+    arr.sort((a,b)=> Number(b.quoteVolume) - Number(a.quoteVolume));
+
+    const topN = Math.max(10, Math.min(300, Number(dom.topN.value)||80));
+    state.universe = arr.slice(0, topN).map(t => t.symbol);
+
+    // Keep symbol meta
+    state.symbols = ex.symbols.filter(s => state.universe.includes(s.symbol));
+}
+
+async function fetchKlines(symbol, interval='15m', limit=130){
+    const url = `${API.base}${API.klines}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    return Q.push(()=> getJSON(url));
+}
+
+async function fetchFunding(symbol){
+    const url = `${API.base}${API.premiumIndex}?symbol=${symbol}`;
+    try{ return await Q.push(()=> getJSON(url)); }catch(e){ return null; }
+}
+
+async function fetchOIHist(symbol, period='5m', limit=13){ // ~1h
+    // NOTE: This endpoint may be rate-limited or CORS protected. Fallback gracefully.
+    const url = `${API.base}${API.openInterestHist}?symbol=${symbol}&period=${period}&limit=${limit}`;
+    try{ return await Q.push(()=> getJSON(url)); }catch(e){ return null; }
+}
+
+function computeSignalsFromKlines(kl){
+    // kl: [[openTime, open, high, low, close, volume, closeTime, quoteVol, trades, takerBuyBase, takerBuyQuote, ignore], ...]
+    const close = kl.map(r => Number(r[4]));
+    const vol = kl.map(r => Number(r[5]));
+    const L = close.length;
+    if(L < 30) return null;
+
+    const last = L - 1; // last closed bar
+    const ret1h = (L>=5 && close[last-4] > 0) ? (close[last]/close[last-4] - 1) : 0;
+    const ret4h = (L>=17 && close[last-16] > 0) ? (close[last]/close[last-16] - 1) : 0;
+
+    // step return (last bar vs prev bar)
+    const step = (close[last-1] > 0) ? (close[last]/close[last-1] - 1) : 0;
+
+    // RVOL: last 15m vol / avg of previous 96 (or all-20)
+    const baseLen = Math.min(96, Math.max(20, L-1));
+    const avgVol = vol.slice(L-1-baseLen, L-1).reduce((a,b)=>a+b,0) / baseLen;
+    const rvol = avgVol>0 ? (vol[last]/avgVol) : 0;
+
+    // EMA trend
+    const ema20 = ema(close, 20);
+    const ema50 = ema(close, 50);
+    const trend = (ema20[last] > ema50[last] && close[last] > ema20[last] && close[last] > ema50[last]) ? 1 : 0;
+
+    // Squeeze + breakout (use rolling std of step returns and 20-bar high)
+    const stepArr = [];
+    for(let i=1;i<close.length;i++) stepArr.push(close[i]/close[i-1]-1);
+    const stdWin = 20;
+    let rollingStd = [];
+    for(let i=0;i<stepArr.length;i++){
+        const from = Math.max(0, i-stdWin+1);
+        const slice = stepArr.slice(from, i+1);
+        const mean = slice.reduce((a,b)=>a+b,0)/slice.length;
+        const sd = Math.sqrt(slice.reduce((s,v)=> s + Math.pow(v-mean,2), 0)/slice.length) || 0;
+        rollingStd.push(sd);
+    }
+    const stdNow = rollingStd[rollingStd.length-1] || 0;
+    const stdSorted = rollingStd.slice(-50).filter(Number.isFinite).sort((a,b)=>a-b);
+    const std30p = stdSorted.length ? stdSorted[Math.floor(stdSorted.length*0.30)] : stdNow;
+
+    let rollingMax = [];
+    for(let i=0;i<close.length;i++){
+        const from = Math.max(0, i-19);
+        const slice = close.slice(from, i);
+        const m = slice.length? Math.max(...slice) : close[i];
+        rollingMax.push(m);
+    }
+    const breakout = (close[last] > (rollingMax[last] || 0)) ? 1 : 0;
+    const squeeze = (stdNow <= std30p && breakout===1) ? 1 : 0;
+
+    return { ret1h, ret4h, step, rvol, trend, squeeze, lastClose: close[last] };
+}
+
+function composeScore(rows){
+    // Cross-sectional z-scores across current universe snapshot
+    const r1 = zscore(rows.map(r=> r.signals.ret1h));
+    const r4 = zscore(rows.map(r=> r.signals.ret4h));
+    const rv = zscore(rows.map(r=> r.signals.rvol));
+    const oi = zscore(rows.map(r=> (Number.isFinite(r.oi1h)? r.oi1h : 0)));
+    const fd = zscore(rows.map(r=> (Number.isFinite(r.funding)? -r.funding : 0))); // negative funding => positive score
+
+    const w = getWeights();
+    for(let i=0;i<rows.length;i++){
+        const trend = rows[i].signals.trend ? 1 : 0;
+        const sq = rows[i].signals.squeeze ? 1 : 0;
+        const s = w.r1*r1[i] + w.r4*r4[i] + w.rv*rv[i] + w.oi*oi[i] + w.fd*fd[i] + w.tr*trend + w.sq*sq;
+        rows[i].score = s;
+        rows[i].cs = { r1: r1[i], r4: r4[i], rv: rv[i], oi: oi[i], fd: fd[i] };
+    }
+    // normalize to 0~100 for UI
+    const scores = rows.map(r=>r.score);
+    const lo = Math.min(...scores), hi = Math.max(...scores);
+    rows.forEach(r => r.scoreN = 100 * minmax(r.score, lo, hi));
+}
+
+function getWeights(){
+    const w = {
+        r1: Number(dom.w.r1.value),
+        r4: Number(dom.w.r4.value),
+        rv: Number(dom.w.rv.value),
+        oi: Number(dom.w.oi.value),
+        fd: Number(dom.w.fd.value),
+        tr: Number(dom.w.tr.value),
+        sq: Number(dom.w.sq.value),
+    };
+    // normalize to sum=1
+    const s = Object.values(w).reduce((a,b)=>a+b,0) || 1;
+    Object.keys(w).forEach(k => w[k] = w[k]/s);
+    return w;
+}
+
+function bindWeightLabels(){
+    const pairs = [['r1','w_r1_v'],['r4','w_r4_v'],['rv','w_rv_v'],['oi','w_oi_v'],['fd','w_fd_v'],['tr','w_tr_v'],['sq','w_sq_v']];
+    pairs.forEach(([k,id])=>{
+        const input = dom.w[k]; const span = dom.wv[k];
+        const fn = ()=>{ span.textContent = Number(input.value).toFixed(2); };
+        input.addEventListener('input', fn); fn();
+    });
+}
+
+async function scanOnce(){
+    const t0 = performance.now();
+
+    if(state.universe.length === 0){
+        await loadUniverse();
+    }
+
+    // Benchmark BTC/ETH 15m klines for RS reference (we actually z-score cross-sectionally, but keep for future ext)
+    // const bk = await fetchKlines('BTCUSDT');
+    // const bk2 = await fetchKlines('ETHUSDT');
+
+    // Build rows in parallel with queue
+    const rows = [];
+    for(const symbol of state.universe){
+        rows.push((async ()=>{
+            const kl = await fetchKlines(symbol);
+            const sig = computeSignalsFromKlines(kl);
+            if(!sig) return null;
+            let funding = null;
+            if(dom.enableFunding.checked){
+                const fd = await fetchFunding(symbol);
+                funding = fd && fd.lastFundingRate ? Number(fd.lastFundingRate) : null;
+            }
+            let oi1h = null;
+            if(dom.enableOI.checked){
+                const oi = await fetchOIHist(symbol, '5m', 13);
+                if(Array.isArray(oi) && oi.length){
+                    const last = Number(oi[oi.length-1]?.sumOpenInterestValue ?? oi[oi.length-1]?.sumOpenInterest ?? oi[oi.length-1]?.openInterest);
+                    const prev = Number(oi[0]?.sumOpenInterestValue ?? oi[0]?.sumOpenInterest ?? oi[0]?.openInterest);
+                    if(Number.isFinite(last) && Number.isFinite(prev) && prev>0){
+                        oi1h = (last/prev - 1);
+                    }
+                }
+            }
+            return {
+                symbol,
+                price: sig.lastClose,
+                signals: sig,
+                funding,
+                oi1h,
+                updatedAt: new Date()
+            };
+        })());
+    }
+
+    const resolved = (await Promise.all(rows)).filter(Boolean);
+    // Optionally filter only signals
+    let filtered = resolved;
+    if(dom.showOnlySignals.checked){
+        filtered = resolved.filter(r => r.signals.trend || r.signals.squeeze || (r.signals.rvol>1.5) || (r.signals.ret1h>0) );
+    }
+
+    // Compose cross-sectional score
+    if(filtered.length){
+        composeScore(filtered);
+    }
+
+    // Sort by scoreN desc
+    filtered.sort((a,b)=> (b.scoreN||0) - (a.scoreN||0));
+
+    // Render
+    renderRows(filtered);
+
+    const t1 = performance.now();
+    dom.foot.innerHTML = `심볼 ${state.universe.length.toLocaleString()}개 중 ${filtered.length.toLocaleString()}개 표시 · `+
+        `요청 큐 동시 ${Q.concurrency} · 스캔 소요 ${(t1-t0).toFixed(0)} ms · ${new Date().toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul'})}`;
+}
+
+function renderRows(rows){
+    const fr = document.createDocumentFragment();
+    for(const r of rows){
+        const tr = document.createElement('tr');
+        const trendIcon = r.signals.trend ? '✓' : '';
+        const sqIcon = r.signals.squeeze ? '✓' : '';
+        const fundingStr = Number.isFinite(r.funding) ? `${(r.funding*100).toFixed(3)}%` : '-';
+        const oiStr = Number.isFinite(r.oi1h) ? fmtPctPlain(r.oi1h)+"%" : '';
+        tr.innerHTML = `
+            <td><a class="link" href="https://www.binance.com/ko/futures/${r.symbol}" target="_blank" rel="noreferrer">${r.symbol}</a></td>
+            <td>
+                <div class="scorebar"><i style="width:${(r.scoreN||0).toFixed(1)}%"></i></div>
+                <div class="muted">${(r.scoreN||0).toFixed(1)}</div>
+            </td>
+            <td>${fmtNum(r.price)}</td>
+            <td>${fmtPct(r.signals.ret1h)}</td>
+            <td>${fmtPct(r.signals.ret4h)}</td>
+            <td>${(r.signals.rvol||0).toFixed(2)}×</td>
+            <td>${oiStr}</td>
+            <td>${fundingStr}</td>
+            <td style="text-align:center">${trendIcon}</td>
+            <td style="text-align:center">${sqIcon}</td>
+            <td class="muted">${new Date(r.updatedAt).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul'})}</td>
+        `;
+        fr.appendChild(tr);
+    }
+    dom.rows.innerHTML = "";
+    dom.rows.appendChild(fr);
+}
+
+function start(){
+    savePrefs();
+    dom.start.disabled = true;
+    dom.stop.disabled = false;
+    scanOnce();
+    const sec = Math.max(15, Math.min(300, Number(dom.intervalSec.value)||60));
+    state.timer = setInterval(scanOnce, sec*1000);
+}
+function stop(){
+    dom.start.disabled = false;
+    dom.stop.disabled = true;
+    if(state.timer){ clearInterval(state.timer); state.timer = null; }
+}
+
+function exportCSV(){
+    // Build from current table state
+    const rows = Array.from(dom.rows.querySelectorAll('tr')).map(tr => {
+        const tds = tr.querySelectorAll('td');
+        return {
+            symbol: tds[0]?.innerText?.trim() || '',
+            score: tds[1]?.querySelector('.muted')?.innerText?.trim() || '',
+            price: tds[2]?.innerText?.trim() || '',
+            rs1h: tds[3]?.innerText?.trim() || '',
+            rs4h: tds[4]?.innerText?.trim() || '',
+            rvol15m: tds[5]?.innerText?.trim() || '',
+            deltaOI1h: tds[6]?.innerText?.trim() || '',
+            funding: tds[7]?.innerText?.trim() || '',
+            trend: tds[8]?.innerText?.trim() || '',
+            squeeze: tds[9]?.innerText?.trim() || '',
+            updatedKST: tds[10]?.innerText?.trim() || ''
+        };
+    });
+    const header = Object.keys(rows[0]||{symbol:"symbol"});
+    const lines = [header.join(',')].concat(rows.map(r => header.map(k => r[k]).join(',')));
+    const blob = new Blob(["\ufeff"+lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `lead_scanner_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function savePrefs(){
+    const prefs = {
+        topN: dom.topN.value,
+        intervalSec: dom.intervalSec.value,
+        onlyPerp: dom.onlyPerp.checked,
+        usdtQuote: dom.usdtQuote.checked,
+        enableOI: dom.enableOI.checked,
+        enableFunding: dom.enableFunding.checked,
+        showOnlySignals: dom.showOnlySignals.checked,
+        w: {
+            r1: dom.w.r1.value, r4: dom.w.r4.value, rv: dom.w.rv.value, oi: dom.w.oi.value,
+            fd: dom.w.fd.value, tr: dom.w.tr.value, sq: dom.w.sq.value
+        }
+    };
+    localStorage.setItem('lead_scanner_prefs', JSON.stringify(prefs));
+}
+function loadPrefs(){
+    const txt = localStorage.getItem('lead_scanner_prefs');
+    if(!txt) return;
+    try{
+        const p = JSON.parse(txt);
+        dom.topN.value = p.topN ?? dom.topN.value;
+        dom.intervalSec.value = p.intervalSec ?? dom.intervalSec.value;
+        dom.onlyPerp.checked = p.onlyPerp ?? dom.onlyPerp.checked;
+        dom.usdtQuote.checked = p.usdtQuote ?? dom.usdtQuote.checked;
+        dom.enableOI.checked = p.enableOI ?? dom.enableOI.checked;
+        dom.enableFunding.checked = p.enableFunding ?? dom.enableFunding.checked;
+        dom.showOnlySignals.checked = p.showOnlySignals ?? dom.showOnlySignals.checked;
+        if(p.w){ Object.keys(dom.w).forEach(k => dom.w[k].value = p.w[k] ?? dom.w[k].value); }
+    }catch(e){}
+}
+
+// Bindings
+bindWeightLabels();
+loadPrefs();
+
+dom.start.addEventListener('click', start);
+
+dom.stop.addEventListener('click', stop);
+
+dom.exportBtn.addEventListener('click', exportCSV);
+
+// Live-update labels on weight change + autosave
+Object.values(dom.w).forEach(inp => inp.addEventListener('input', ()=>{ bindWeightLabels(); savePrefs(); }));
+[dom.topN, dom.intervalSec, dom.onlyPerp, dom.usdtQuote, dom.enableOI, dom.enableFunding, dom.showOnlySignals].forEach(el => {
+    el.addEventListener('change', savePrefs);
+});
+
+// Helpful tip
+console.log('%cTip','background:#0ea5e9;color:white;padding:2px 6px;border-radius:6px', 'CORS 이슈가 있을 경우, 브라우저 확장 CORS 허용을 잠시 켜시거나, 프록시를 사용하세요. 기본적으로 Binance FAPI는 공개 엔드포인트에 CORS가 열려있는 편입니다.');
+
+</script>
+</body>
+</html>
