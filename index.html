@@ -77,7 +77,7 @@
         <div style="height:12px"></div>
         <div class="row">
             <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
-            <span class="badge">기준: <b>KST 09:00 시가</b></span>
+            <span class="badge">기준: <b>KST 09:00 시가(B2)</b></span>
             <span class="badge" id="countBadge">파일 0개</span>
         </div>
         <div style="height:12px"></div>
@@ -149,27 +149,35 @@
 /* ========================
    유틸
    ======================== */
+// 파일명 → 심볼(옵션)
 function parseSymbolFromFilename(name){
     var base = name.replace(/\.[^.]+$/,'');
     var dash = base.indexOf('-');
     return (dash > 0 ? base.slice(0, dash) : base).toUpperCase();
 }
-// 파일마다 라벨(열 제목) 고정
+// 파일 라벨(열 제목)
 function getSeriesLabel(name){
     return name.replace(/\.[^.]+$/,'').toUpperCase();
 }
-// CSV: [open_time, open, high, low, close, volume, close_time, ..., trades] 가정
+
+// 초/밀리초 타임스탬프 자동 인식 → ms
+function toEpochMs(x){
+    var n = Number(x);
+    if (!isFinite(n)) return NaN;
+    return n < 1e11 ? n * 1000 : n;  // 1e11 미만이면 초 → ms
+}
+
+// CSV 파서: [open_time, open, high, low, close, volume, close_time, ..., trades] 가정
 function parseCSV(text){
     var lines = text.trim().split(/\r?\n/);
     var rows = [];
     for (var i = 0; i < lines.length; i++) {
         var cols = lines[i].split(',');
         if (cols.length < 12) continue;
-        var otimeRaw = Number(cols[0]);
-        var ctimeRaw = Number(cols[6]);
-        // ms/초 자동 보정
-        var otimeMs = otimeRaw > 1e15 ? Math.round(otimeRaw / 1000) : otimeRaw;
-        var ctimeMs = ctimeRaw > 1e15 ? Math.round(ctimeRaw / 1000) : ctimeRaw;
+
+        var otimeMs = toEpochMs(cols[0]);
+        var ctimeMs = toEpochMs(cols[6]);
+
         rows.push({
             open_time: otimeMs,
             open: Number(cols[1]),
@@ -308,7 +316,7 @@ downloadSummary.addEventListener('click', function(){ downloadSummaryCSV(); });
 downloadPivot.addEventListener('click', function(){ downloadPivotCSV(); });
 
 /* ========================
-   핵심 로직: KST 09:00 기준 증감률
+   핵심 로직: (Dn - B2) / B2, B2 = KST 09:00 시가
    ======================== */
 function runAnalysis(){
     if (!state.files.length) {
@@ -325,7 +333,7 @@ function runAnalysis(){
                 var series = getSeriesLabel(file.name);
                 var arr = parseCSV(text);
 
-                // 1) 날짜별로 봉 묶기(KST)
+                // 1) 날짜별로 묶기(KST)
                 var byDate = new Map(); // date -> [{open_time, open, close, hhmm}]
                 for (var i = 0; i < arr.length; i++) {
                     var o = arr[i];
@@ -339,10 +347,7 @@ function runAnalysis(){
                     });
                 }
 
-                // 2) 날짜별 기준가(09:00 시가) 결정
-                //    - 09:00 봉이 있으면 그 시가
-                //    - 없으면 09:00 이후 첫 봉의 시가
-                var baseMap = new Map(); // date -> baseOpen
+                // 2) 날짜별 기준가(B2) 선택: 09:00 시가, 없으면 09:00 이후 첫 봉 시가
                 byDate.forEach(function(list, date){
                     list.sort(function(a, b){
                         if (a.hhmm < b.hhmm) return -1;
@@ -351,38 +356,37 @@ function runAnalysis(){
                     });
 
                     var baseOpen = null;
+                    // 정확히 09:00
                     for (var j = 0; j < list.length; j++) {
                         if (list[j].hhmm === '09:00') {
-                            baseOpen = list[j].open;
+                            baseOpen = list[j].open; // B2
                             break;
                         }
                     }
+                    // 09:00이 없으면 09:00 이후 첫 봉
                     if (baseOpen == null) {
                         for (var j2 = 0; j2 < list.length; j2++) {
-                            var mins = clockToMinutes(list[j2].hhmm);
-                            if (mins >= 9*60) {
-                                baseOpen = list[j2].open;
+                            if (clockToMinutes(list[j2].hhmm) >= 9*60) {
+                                baseOpen = list[j2].open; // B2 대체
                                 break;
                             }
                         }
                     }
-                    if (baseOpen != null) baseMap.set(date, baseOpen);
-                });
 
-                // 3) 각 봉의 close를 해당 날짜 baseOpen으로 환산하여 % 계산
-                byDate.forEach(function(list, date){
-                    var baseOpen = baseMap.get(date);
-                    for (var k = 0; k < list.length; k++) {
-                        var it = list[k];
-                        var pct = null;
-                        if (baseOpen != null && baseOpen !== 0) {
-                            pct = ((it.close - baseOpen) / baseOpen) * 100;
+                    // 3) baseOpen(B2)이 있으면 그날 09:00 이후 모든 봉(Dn) 대해 (Dn - B2)/B2 계산
+                    if (baseOpen != null && baseOpen !== 0) {
+                        for (var k = 0; k < list.length; k++) {
+                            var it = list[k];
+                            if (clockToMinutes(it.hhmm) < 9*60) continue; // 09:00 이전 제외
+
+                            var pct = ((it.close - baseOpen) / baseOpen) * 100;
+
+                            rows.push({
+                                time_hhmm: it.hhmm,   // 날짜는 버리고 HH:MM만 사용
+                                symbol: series,
+                                pct: pct
+                            });
                         }
-                        rows.push({
-                            time_hhmm: it.hhmm,   // 표시는 시각만
-                            symbol: series,
-                            pct: pct
-                        });
                     }
                 });
             })
@@ -390,7 +394,7 @@ function runAnalysis(){
     });
 
     Promise.all(promises).then(function(){
-        // 이후 집계/렌더는 동일
+        // 이후 집계/렌더 동일
         rows.sort(function(a,b){
             if (a.time_hhmm < b.time_hhmm) return -1;
             if (a.time_hhmm > b.time_hhmm) return 1;
@@ -409,7 +413,6 @@ function runAnalysis(){
 
         // 같은 HH:MM끼리(날짜 무시) 평균
         rows.forEach(function(r){
-            if (r.pct == null) return;
             var agg = map.get(r.time_hhmm);
             var c = counts.get(r.time_hhmm);
             var prev = agg[r.symbol];
@@ -420,7 +423,7 @@ function runAnalysis(){
 
         state.rows = rows;
         state.symbols = symbols;
-        state.times = times;
+        state.times = orderTimesFrom(times, '09:00'); // 09:00부터 정렬
         state.map = map;
         state.counts = counts;
 
@@ -428,8 +431,10 @@ function runAnalysis(){
     });
 }
 
+/* ========================
+   렌더링
+   ======================== */
 function renderAll(){
-    // 09:00(KST)부터 시계 방향 정렬
     if (Array.isArray(state.times) && state.times.length) {
         state.times = orderTimesFrom(state.times, '09:00');
     }
@@ -511,6 +516,9 @@ function renderPivot(){
     pivotBody.appendChild(frag);
 }
 
+/* ========================
+   CSV 다운로드
+   ======================== */
 function downloadSummaryCSV(){
     var eps = Math.max(0, Number(epsilonEl.value) || 0);
     var rows = [];
