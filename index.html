@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>15분봉 전행 계산 — B2/Bn 기준 동시 계산</title>
+    <title>15분봉 전행 계산 — B2/Bn 동시 계산</title>
     <style>
         :root { --bg:#0b0f16; --panel:#121826; --muted:#9aa4b2; --text:#e5e7eb; --accent:#60a5fa; --pos:#16a34a; --neg:#ef4444; --grid:#1f2937; }
         *{ box-sizing:border-box }
@@ -39,16 +39,16 @@
         .pill{ background:#0d1320; border:1px solid var(--grid); padding:6px 10px; border-radius:999px; font-size:12px }
         label.small{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px }
         input[type=number], select{ width:100%; padding:8px 10px; border:1px solid var(--grid); background:#0b0f16; color:var(--text); border-radius:10px }
-        .controls{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+        .controls{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px }
     </style>
 </head>
 <body>
 <header>
-    <h1>B2/Bn 동시 계산 (모든 행)</h1>
+    <h1>15분봉 전행 계산 — B2/Bn 동시 계산</h1>
     <div class="sub">
-        각 CSV의 <b>모든 행</b>에 대해 두 값을 계산합니다.<br/>
-        (1) <b>(Dn − B2)/B2</b> : 그날 <b>KST 09:00 시가(B2)</b> 기준 (없으면 09:00 이후 첫 봉 시가)<br/>
-        (2) <b>(Dn − Bn)/Bn</b> : 해당 행의 <b>시가(Bn)</b> 기준
+        CSV의 <b>모든 행</b>에 대해 두 값을 계산합니다:<br>
+        1) <b>(Dn − B2)/B2</b> — 해당 날짜의 <b>KST 09:00 시가(B2)</b> 기준 (없으면 그날 09:00 이후 첫 봉 시가)<br>
+        2) <b>(Dn − Bn)/Bn</b> — <b>그 행의 시가(Bn)</b> 기준
     </div>
 </header>
 
@@ -65,8 +65,7 @@
         <div style="height:12px"></div>
         <div class="row">
             <span class="badge">타임존: Asia/Seoul (UTC+9)</span>
-            <span class="badge">기준 (1): 09:00 시가(B2)</span>
-            <span class="badge">기준 (2): 각 행 시가(Bn)</span>
+            <span class="badge">기준가: B2=09:00 시가</span>
             <span class="badge" id="countBadge">파일 0개</span>
         </div>
         <div style="height:12px"></div>
@@ -76,10 +75,19 @@
                 <input id="decimals" type="number" min="0" max="6" step="1" value="3" />
             </div>
             <div>
-                <label class="small">행 필터</label>
+                <label class="small">빈 값 행</label>
                 <select id="emptyFilter">
-                    <option value="show">모두 보이기</option>
-                    <option value="hide">두 값 모두 없는 행 숨기기</option>
+                    <option value="show">보이기</option>
+                    <option value="hide">숨기기(두 값 모두 비었을 때)</option>
+                </select>
+            </div>
+            <div>
+                <label class="small">정렬</label>
+                <select id="sortBy">
+                    <option value="file_time">파일-시간</option>
+                    <option value="date_time">날짜-시간</option>
+                    <option value="pct_b2_desc">% (B2기준) 내림차순</option>
+                    <option value="pct_bn_desc">% (Bn기준) 내림차순</option>
                 </select>
             </div>
         </div>
@@ -101,8 +109,8 @@
                         <th class="right">B2 (09:00 시가)</th>
                         <th class="right">Bn (행 시가)</th>
                         <th class="right">Dn (행 종가)</th>
-                        <th class="right">(Dn−B2)/B2 %</th>
-                        <th class="right">(Dn−Bn)/Bn %</th>
+                        <th class="right">% (Dn−B2)/B2</th>
+                        <th class="right">% (Dn−Bn)/Bn</th>
                     </tr>
                 </thead>
                 <tbody id="rowsBody"></tbody>
@@ -111,7 +119,7 @@
         <div class="footer">
             <div class="pill" id="stats">총 0행</div>
             <div>
-                <button id="downloadRows" class="btn">CSV로 저장 (전행 결과)</button>
+                <button id="downloadRows" class="btn">CSV로 저장</button>
             </div>
         </div>
     </section>
@@ -129,7 +137,7 @@ function toEpochMs(x){
 }
 // CSV 포맷: [open_time, open, high, low, close, volume, close_time, ..., trades] 가정
 function parseCSV(text){
-    var lines = text.trim().split(/\r?\\n/);
+    var lines = text.trim().split(/\r?\n/);
     var rows = [];
     for (var i = 0; i < lines.length; i++) {
         var cols = lines[i].split(',');
@@ -179,7 +187,7 @@ function downloadCSV(filename, rows){
 /* ========== 상태/DOM ========== */
 var state = {
     files: [],
-    rowsAll: [] // { series, date, hhmm, open(Bn), close(Dn), baseOpen(B2), pct_b2, pct_bn }
+    rowsAll: [] // { series, date, hhmm, baseOpen(B2), open(Bn), close(Dn), pctB2, pctBn, _ts }
 };
 var fileInput = document.getElementById('fileInput');
 var fileList = document.getElementById('fileList');
@@ -188,6 +196,7 @@ var loadBtn = document.getElementById('loadBtn');
 var clearBtn = document.getElementById('clearBtn');
 var decimalsEl = document.getElementById('decimals');
 var emptyFilterEl = document.getElementById('emptyFilter');
+var sortByEl = document.getElementById('sortBy');
 var rowsBody = document.getElementById('rowsBody');
 var statsEl = document.getElementById('stats');
 var downloadRowsBtn = document.getElementById('downloadRows');
@@ -209,30 +218,23 @@ clearBtn.addEventListener('click', function(){
 loadBtn.addEventListener('click', runAnalysis);
 decimalsEl.addEventListener('change', renderRows);
 emptyFilterEl.addEventListener('change', renderRows);
+sortByEl.addEventListener('change', renderRows);
 downloadRowsBtn.addEventListener('click', function(){
     if (!state.rowsAll.length) return;
     var out = state.rowsAll.map(r => ({
         series: r.series,
         date_kst: r.date,
         time_hhmm: r.hhmm,
-        base_open_B2_0900: r.baseOpen != null ? Number(r.baseOpen.toFixed(8)) : '',
+        base_open_B2: r.baseOpen != null ? Number(r.baseOpen.toFixed(8)) : '',
         open_Bn: r.open != null ? Number(r.open.toFixed(8)) : '',
         close_Dn: r.close != null ? Number(r.close.toFixed(8)) : '',
-        pct_vs_B2: r.pct_b2 != null ? Number(r.pct_b2.toFixed(6)) : '',
-        pct_vs_Bn: r.pct_bn != null ? Number(r.pct_bn.toFixed(6)) : ''
+        pct_vs_B2: r.pctB2 != null ? Number(r.pctB2.toFixed(6)) : '',
+        pct_vs_Bn: r.pctBn != null ? Number(r.pctBn.toFixed(6)) : ''
     }));
     downloadCSV('rows_changes_B2_and_Bn.csv', out);
 });
 
 /* ========== 핵심: 모든 행에 대해 B2/Bn 동시 계산 ========== */
-/**
- * 규칙:
- * - 날짜(KST)별로 기준가(B2)를 잡음: 정확히 09:00 봉 시가가 있으면 그 값, 없으면 09:00 이후 첫 봉 시가.
- * - CSV의 모든 행에 대해:
- *      pct_b2 = (Dn - B2) / B2 * 100    (B2가 없거나 0이면 null)
- *      pct_bn = (Dn - Bn) / Bn * 100    (Bn이 없거나 0이면 null)
- * - 출력 정렬: series, open_time 순
- */
 function runAnalysis(){
     if (!state.files.length) {
         alert('CSV 파일을 선택해 주세요.');
@@ -247,8 +249,8 @@ function runAnalysis(){
         // 원본 시간순 정렬(안전)
         arr.sort((a,b) => a.open_time - b.open_time);
 
-        // 날짜별로 묶고 B2 선정
-        var byDate = new Map(); // date -> [{ open_time, open(Bn), close(Dn), hhmm }]
+        // 날짜별로 묶고 B2(09:00 시가, 없으면 09:00 이후 첫 봉 시가) 선정
+        var byDate = new Map(); // date -> [{ open_time, open, close, hhmm }]
         for (var i = 0; i < arr.length; i++) {
             var o = arr[i];
             var k = kstDateAndHHMM(o.open_time);
@@ -256,9 +258,8 @@ function runAnalysis(){
             byDate.get(k.date).push({ open_time: o.open_time, open: o.open, close: o.close, hhmm: k.hhmm });
         }
 
-        var baseByDate = new Map(); // date -> baseOpen (B2)
+        var baseByDate = new Map(); // date -> baseOpen(B2)
         byDate.forEach((list, date) => {
-            // 시각 문자열 + 타임스탬프 보조 정렬
             list.sort((a,b) => (a.hhmm < b.hhmm ? -1 : a.hhmm > b.hhmm ? 1 : a.open_time - b.open_time));
             var baseOpen = null;
 
@@ -275,39 +276,36 @@ function runAnalysis(){
             if (baseOpen != null) baseByDate.set(date, baseOpen);
         });
 
-        // 모든 행에 대해 B2/Bn 동시 계산
+        // 모든 행에 대해 두 퍼센트 계산
         byDate.forEach((list, date) => {
             var baseOpen = baseByDate.get(date); // B2
             for (var k = 0; k < list.length; k++) {
                 var it = list[k];
-                var pct_b2 = null, pct_bn = null;
-
+                var pctB2 = null, pctBn = null;
                 if (baseOpen != null && baseOpen !== 0) {
-                    pct_b2 = ((it.close - baseOpen) / baseOpen) * 100;
+                    pctB2 = ((it.close - baseOpen) / baseOpen) * 100;
                 }
                 if (it.open != null && it.open !== 0) {
-                    pct_bn = ((it.close - it.open) / it.open) * 100;
+                    pctBn = ((it.close - it.open) / it.open) * 100;
                 }
-
                 all.push({
                     series: series,
                     date: date,
                     hhmm: it.hhmm,
-                    open: it.open,           // Bn
-                    close: it.close,         // Dn
-                    baseOpen: baseOpen!=null ? baseOpen : null, // B2
-                    pct_b2: pct_b2,
-                    pct_bn: pct_bn,
-                    _ts: it.open_time        // 정렬용 내부 필드
+                    baseOpen: baseOpen != null ? baseOpen : null, // B2
+                    open: it.open,  // Bn
+                    close: it.close, // Dn
+                    pctB2: pctB2,
+                    pctBn: pctBn,
+                    _ts: it.open_time
                 });
             }
         });
     }));
 
     Promise.all(tasks).then(() => {
-        // 파일별로 시간순 유지: series, _ts 기준 정렬
+        // 기본 정렬: 파일-시간
         all.sort((a,b) => a.series < b.series ? -1 : a.series > b.series ? 1 : (a._ts - b._ts));
-
         state.rowsAll = all;
         renderRows();
     });
@@ -316,21 +314,32 @@ function runAnalysis(){
 /* ========== 렌더링 ========== */
 function renderRows(){
     var d = Math.max(0, Math.min(6, Number(decimalsEl.value) || 3));
-    var hideBothEmpty = (emptyFilterEl.value === 'hide');
-    rowsBody.innerHTML = '';
+    var hideEmpty = (emptyFilterEl.value === 'hide');
+    var sort = sortByEl.value;
 
+    // 정렬 옵션
+    var a = state.rowsAll.slice();
+    if (sort === 'date_time') {
+        a.sort((x,y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : (x._ts - y._ts)));
+    } else if (sort === 'pct_b2_desc') {
+        a.sort((x,y) => (Number(y.pctB2 ?? -Infinity) - Number(x.pctB2 ?? -Infinity)));
+    } else if (sort === 'pct_bn_desc') {
+        a.sort((x,y) => (Number(y.pctBn ?? -Infinity) - Number(x.pctBn ?? -Infinity)));
+    } else { // file_time
+        a.sort((x,y) => x.series < y.series ? -1 : x.series > y.series ? 1 : (x._ts - y._ts));
+    }
+
+    rowsBody.innerHTML = '';
     var frag = document.createDocumentFragment();
     var count = 0;
 
-    for (var i = 0; i < state.rowsAll.length; i++) {
-        var r = state.rowsAll[i];
+    for (var i = 0; i < a.length; i++) {
+        var r = a[i];
+        var bothEmpty = (r.pctB2 == null || isNaN(r.pctB2)) && (r.pctBn == null || isNaN(r.pctBn));
+        if (hideEmpty && bothEmpty) continue;
 
-        var noB2 = (r.pct_b2 == null || isNaN(r.pct_b2));
-        var noBn = (r.pct_bn == null || isNaN(r.pct_bn));
-        if (hideBothEmpty && noB2 && noBn) continue;
-
-        var clsB2 = noB2 ? 'muted' : (r.pct_b2 >= 0 ? 'pos' : 'neg');
-        var clsBn = noBn ? 'muted' : (r.pct_bn >= 0 ? 'pos' : 'neg');
+        var clsB2 = (r.pctB2 == null) ? 'muted' : (r.pctB2 >= 0 ? 'pos' : 'neg');
+        var clsBn = (r.pctBn == null) ? 'muted' : (r.pctBn >= 0 ? 'pos' : 'neg');
 
         var tr = document.createElement('tr');
         tr.innerHTML =
@@ -340,8 +349,8 @@ function renderRows(){
             `<td class="right mono">${r.baseOpen == null ? '' : r.baseOpen.toFixed(8)}</td>` +
             `<td class="right mono">${r.open == null ? '' : r.open.toFixed(8)}</td>` +
             `<td class="right mono">${r.close == null ? '' : r.close.toFixed(8)}</td>` +
-            `<td class="right mono ${clsB2}">${noB2 ? '' : r.pct_b2.toFixed(d)}</td>` +
-            `<td class="right mono ${clsBn}">${noBn ? '' : r.pct_bn.toFixed(d)}</td>`;
+            `<td class="right mono ${clsB2}">${r.pctB2 == null ? '' : r.pctB2.toFixed(d)}</td>` +
+            `<td class="right mono ${clsBn}">${r.pctBn == null ? '' : r.pctBn.toFixed(d)}</td>`;
         frag.appendChild(tr);
         count++;
     }
