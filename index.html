@@ -35,11 +35,11 @@
             <button id="downloadBtn" class="ghost" disabled>CSV 다운로드</button>
         </div>
         <div class="row" style="margin-top:8px">
-            <span class="muted">값 열 선택( D가 low, E가 close )</span>
-            <label><input type="radio" name="valcol" value="E" checked /> E: close(권장)</label>
-            <label><input type="radio" name="valcol" value="D" /> D: low</label>
+            <span class="muted">값 열 선택 (B=open, C=high, E=close)</span>
+            <label><input type="radio" name="valcol" value="E" checked /> E: close(기본)</label>
+            <label><input type="radio" name="valcol" value="C" /> C: high</label>
         </div>
-        <p class="muted">• KST 기준 하루를 <b>09:00</b>에 시작하여 15분 간격 <b>96행</b>으로 고정 정렬합니다. • (1) (Vₙ−B₂)/B₂, (2) (Vₙ−Bₙ)/Bₙ 를 동시에 표시 (V=선택한 값열).</p>
+        <p class="muted">• KST 기준 하루를 <b>09:00</b>에 시작(15분 × 96행). • (1) (Vₙ−B₂)/B₂, (2) (Vₙ−Bₙ)/Bₙ 표시 (V=선택한 값열).</p>
     </div>
 
     <div class="panel" style="margin-top:12px">
@@ -52,15 +52,15 @@
 <script>
     // ====== 상수 ======
     const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-    const SLOT_MIN = 15;                // 15분
-    const SLOT_COUNT = 96;              // 24시간 / 15분
-    const DAY_START_MIN = 9 * 60;       // 09:00 = 540분
+    const SLOT_MIN = 15;                 // 15분
+    const SLOT_COUNT = 96;               // 24h / 15m
+    const DAY_START_MIN = 9 * 60;        // 09:00
 
-    // 09:00부터 96칸 라벨 생성
+    // 09:00부터 96칸 라벨
     function buildSlotLabels() {
         const labels = [];
         for (let i = 0; i < SLOT_COUNT; i++) {
-            const total = DAY_START_MIN + i * SLOT_MIN; // 분
+            const total = DAY_START_MIN + i * SLOT_MIN;
             const hh = Math.floor((total % (24*60)) / 60);
             const mm = total % 60;
             labels.push(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
@@ -69,7 +69,7 @@
     }
     const SLOT_LABELS = buildSlotLabels();
 
-    // 간단 CSV 파서
+    // CSV 파서
     function parseCSV(text) {
         const rows = [];
         let i=0, cur='', row=[], inQuotes=false;
@@ -98,9 +98,8 @@
         return Number.isFinite(v) ? v : NaN;
     };
     const toMsAuto = (n)=> {
-        // 10자리≈초, 13자리≈밀리초 (과학표기도 안전)
         const abs = Math.floor(Math.abs(n));
-        return String(abs).length <= 10 ? n*1000 : n;
+        return String(abs).length <= 10 ? n*1000 : n; // 10자리≈초, 13자리≈ms
     };
 
     // UTC epoch(ms) → KST Date
@@ -108,9 +107,10 @@
 
     // KST Date → 09:00 기준 15분 슬롯 index (0~95)
     function slotIndexKST(dateKST) {
-        const mins = dateKST.getUTCHours()*60 + dateKST.getUTCMinutes(); // 우리는 오프셋 더했으므로 UTC필드 = KST
+        // 오프셋을 더해 만들어서 UTC 필드 = KST
+        const mins = dateKST.getUTCHours()*60 + dateKST.getUTCMinutes();
         let after9 = mins - DAY_START_MIN;
-        if (after9 < 0) after9 += 24*60;                // 09:00 이전 → 다음날 구간으로 밀기
+        if (after9 < 0) after9 += 24*60;
         return Math.floor(after9 / SLOT_MIN) % SLOT_COUNT;
     }
 
@@ -128,12 +128,12 @@
 
         for (const r of rows) {
             if (!r || r.length < 5) continue;
-            // Binance 형식 가정: A=open_time, B=open, C=high, D=low, E=close
+            // Binance: A=open_time, B=open, C=high, D=low, E=close
             const a = toNum(r[0]);              // epoch(초/밀리초)
-            const b = toNum(r[1]);              // open (B)
-            const v = toNum(valueCol === 'D' ? r[3] : r[4]); // 선택한 값열: D(low) 또는 E(close)
+            const b = toNum(r[1]);              // B=open
+            const v = toNum(valueCol === 'C' ? r[2] : r[4]); // C=high 또는 E=close
 
-            if (!Number.isFinite(a)) continue;  // 헤더/공백 스킵
+            if (!Number.isFinite(a)) continue;  // 헤더 스킵
             const ms = toMsAuto(a);
             const dKST = toKSTDate(ms);
             const sidx = slotIndexKST(dKST);
@@ -141,7 +141,7 @@
             recs.push({ ms, b, v, sidx });
         }
 
-        // 슬롯별 첫 레코드 채택(동일 슬롯 중복 들어오면 가장 이른 ms 우선)
+        // 슬롯별 첫 레코드 채택
         const slots = new Array(SLOT_COUNT).fill(null);
         recs.sort((x,y)=>x.ms-y.ms);
         for (const r of recs) {
@@ -237,7 +237,7 @@
 
         runBtn.disabled = true; runBtn.textContent = '분석 중...';
         try {
-            const valcol = (document.querySelector('input[name="valcol"]:checked')?.value || 'E');
+            const valcol = (document.querySelector('input[name="valcol"]:checked')?.value || 'E'); // 'E' or 'C'
             const out = [];
             for (const f of files) out.push(await processFile(f, valcol));
             renderTable(tableWrap, out);
