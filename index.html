@@ -2,311 +2,196 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>다중 CSV 비교(시간대 정렬 + 두 지표 계산)</title>
+    <title>CSV 96슬롯 비교 (KST 09:00 시작)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
-            --bg: #0b1020;
-            --panel: #111831;
-            --text: #e7ecff;
-            --muted: #a6b0d4;
-            --accent: #5b8cff;
-            --pos: #12c48b;
-            --neg: #ff6a6a;
-            --border: #223057;
-            --chip: #1a2445;
-            --chip-hl: #23325e;
-            --warn: #ffc14d;
+            --bg:#0b1020; --panel:#111831; --text:#e7ecff; --muted:#a6b0d4;
+            --accent:#5b8cff; --pos:#12c48b; --neg:#ff6a6a; --border:#223057; --chip:#1a2445;
         }
-        html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,Apple Color Emoji,Segoe UI Emoji; }
-        .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-        h1 { font-size: 20px; margin: 0 0 16px; }
-        .panel { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-        .grid { display:grid; gap:12px; grid-template-columns: 1fr; }
-        @media (min-width: 860px) {
-            .grid { grid-template-columns: 2fr 1fr; }
-        }
-        .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-        input[type="file"] { color:var(--muted); }
-        .hint { color:var(--muted); font-size: 12px; }
-        button { background:var(--accent); color:white; border:0; border-radius: 10px; padding:10px 14px; cursor:pointer; font-weight:600; }
-        button.ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
-        table { width:100%; border-collapse:collapse; }
-        th, td { border-bottom:1px solid var(--border); padding:10px 8px; text-align:right; font-variant-numeric: tabular-nums; }
-        th { position: sticky; top:0; background: var(--panel); z-index: 1; }
-        th.left, td.left { text-align:left; }
-        .scroll { max-height: 70vh; overflow:auto; border:1px solid var(--border); border-radius: 12px; }
-        .file-tag { display:inline-flex; gap:8px; align-items:center; padding:6px 10px; background:var(--chip); border:1px solid var(--border); border-radius:999px; }
-        .file-tag small { color:var(--muted); }
-        .pill { display:inline-block; padding:.15rem .5rem; border-radius:999px; background:var(--chip); }
-        .pos { color: var(--pos); }
-        .neg { color: var(--neg); }
-        .zero { color: var(--muted); }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .subtle { color: var(--muted); font-size: 12px; }
-        details { background:#0d1530; border:1px dashed var(--border); border-radius:12px; padding:10px 12px; }
-        summary { cursor:pointer; }
-        .warn { color: var(--warn); }
+        html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR;}
+        .wrap{max-width:1200px;margin:24px auto;padding:0 16px;}
+        .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;}
+        .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+        .muted{color:var(--muted);font-size:12px}
+        button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600}
+        button.ghost{background:transparent;border:1px solid var(--border)}
+        table{width:100%;border-collapse:collapse}
+        th,td{border-bottom:1px solid var(--border);padding:10px 8px;text-align:right;font-variant-numeric:tabular-nums}
+        th.left,td.left{text-align:left}
+        .scroll{max-height:70vh;overflow:auto;border:1px solid var(--border);border-radius:12px}
+        .pill{display:inline-block;padding:.15rem .5rem;border-radius:999px;background:var(--chip)}
+        .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+        .pos{color:var(--pos)} .neg{color:var(--neg)} .zero{color:var(--muted)}
+        label{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#0e1632}
     </style>
 </head>
 <body>
 <div class="wrap">
-    <h1>CSV 다중 비교 · KST 시간대 정렬 · 두 지표 계산</h1>
-    <div class="grid">
-        <div class="panel">
-            <div class="row">
-                <input id="fileInput" type="file" accept=".csv,text/csv" multiple />
-                <button id="parseBtn">분석 시작</button>
-                <button id="downloadBtn" class="ghost" disabled>결과 CSV 다운로드</button>
-            </div>
-            <p class="hint">
-                • A열은 타임스탬프(Unix 초/밀리초 모두 자동 감지). B열 값(가격 등)과 D열 값이 숫자여야 합니다.<br/>
-                • 각 파일의 <b>B2</b>는 “시간 오름차순 정렬 후 첫 데이터 행의 B값”으로 간주합니다(헤더는 자동 무시).<br/>
-                • 계산: <b>(1) (Dₙ − B₂)/B₂</b>, <b>(2) (Dₙ − Bₙ)/Bₙ</b> · KST(UTC+9)로 변환 후 <b>HH:MM</b> 같은 시각끼리 비교합니다.
-            </p>
-            <details>
-                <summary>CSV 형식 안내 / 주의사항</summary>
-                <ul class="subtle">
-                    <li>A: 타임스탬프(예: <span class="mono">1760958000000</span> ms 또는 <span class="mono">1760958000</span> s)</li>
-                    <li>B: 숫자(예: 시가/기준가 등), D: 숫자(예: 현재가/종가 등)</li>
-                    <li>헤더 행이 있으면 자동으로 건너뜁니다(숫자로 파싱 실패 시).</li>
-                </ul>
-                <p class="subtle">※ B2 정의를 “실제 2행”이 아니라 “정렬 후 첫 데이터 행”으로 잡은 이유: 파일마다 헤더 유무/정렬이 달라도 안정적으로 기준을 잡기 위함입니다.</p>
-            </details>
+    <div class="panel">
+        <div class="row">
+            <input id="fileInput" type="file" accept=".csv,text/csv" multiple />
+            <button id="runBtn">분석</button>
+            <button id="downloadBtn" class="ghost" disabled>CSV 다운로드</button>
         </div>
-
-        <div class="panel">
-            <div id="fileChips" class="row"></div>
-            <p id="summary" class="subtle">파일을 선택한 뒤 “분석 시작”을 눌러주세요.</p>
+        <div class="row" style="margin-top:8px">
+            <span class="muted">값 열 선택( D가 low, E가 close )</span>
+            <label><input type="radio" name="valcol" value="E" checked /> E: close(권장)</label>
+            <label><input type="radio" name="valcol" value="D" /> D: low</label>
         </div>
+        <p class="muted">• KST 기준 하루를 <b>09:00</b>에 시작하여 15분 간격 <b>96행</b>으로 고정 정렬합니다. • (1) (Vₙ−B₂)/B₂, (2) (Vₙ−Bₙ)/Bₙ 를 동시에 표시 (V=선택한 값열).</p>
     </div>
 
-    <div class="panel" style="margin-top:12px;">
-        <h2 style="margin:0 0 12px;">시간대별 비교 테이블</h2>
+    <div class="panel" style="margin-top:12px">
+        <h3 style="margin:0 0 8px">비교 테이블 (KST 09:00~다음날 08:45)</h3>
         <div id="tableWrap" class="scroll"></div>
-        <p class="subtle" style="margin-top:8px;">각 셀: <span class="pill mono">(Dₙ−B₂)/B₂</span> · <span class="pill mono">(Dₙ−Bₙ)/Bₙ</span> (퍼센트). 색상: <span class="pos">양수</span> / <span class="neg">음수</span> / <span class="zero">0</span></p>
-    </div>
-
-    <div class="panel" style="margin-top:12px;">
-        <h2 style="margin:0 0 12px;">원본 정렬 & 지표(파일별 상세)</h2>
-        <div id="perFileWrap" class="grid"></div>
+        <p id="meta" class="muted" style="margin-top:6px"></p>
     </div>
 </div>
 
 <script>
-    // 간단 CSV 파서 (따옴표 포함 기본 케이스 지원)
+    // ====== 상수 ======
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    const SLOT_MIN = 15;                // 15분
+    const SLOT_COUNT = 96;              // 24시간 / 15분
+    const DAY_START_MIN = 9 * 60;       // 09:00 = 540분
+
+    // 09:00부터 96칸 라벨 생성
+    function buildSlotLabels() {
+        const labels = [];
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            const total = DAY_START_MIN + i * SLOT_MIN; // 분
+            const hh = Math.floor((total % (24*60)) / 60);
+            const mm = total % 60;
+            labels.push(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+        }
+        return labels;
+    }
+    const SLOT_LABELS = buildSlotLabels();
+
+    // 간단 CSV 파서
     function parseCSV(text) {
         const rows = [];
-        let i = 0, cur = '', row = [], inQuotes = false;
-        while (i < text.length) {
-            const ch = text[i];
+        let i=0, cur='', row=[], inQuotes=false;
+        while (i<text.length) {
+            const ch=text[i];
             if (inQuotes) {
                 if (ch === '"') {
-                    if (text[i + 1] === '"') { // 이스케이프된 따옴표
-                        cur += '"';
-                        i += 2;
-                        continue;
-                    } else {
-                        inQuotes = false;
-                        i++;
-                        continue;
-                    }
-                } else {
-                    cur += ch;
-                    i++;
-                    continue;
+                    if (text[i+1] === '"') { cur += '"'; i+=2; continue; }
+                    inQuotes = false; i++; continue;
                 }
-            } else {
-                if (ch === '"') {
-                    inQuotes = true; i++; continue;
-                }
-                if (ch === ',') {
-                    row.push(cur); cur = ''; i++; continue;
-                }
-                if (ch === '\n') {
-                    row.push(cur); rows.push(row); cur=''; row=[]; i++; continue;
-                }
-                if (ch === '\r') { // \r\n 대응
-                    i++;
-                    continue;
-                }
-                cur += ch; i++;
+                cur += ch; i++; continue;
             }
+            if (ch === '"') { inQuotes = true; i++; continue; }
+            if (ch === ',') { row.push(cur); cur=''; i++; continue; }
+            if (ch === '\n') { row.push(cur); rows.push(row); cur=''; row=[]; i++; continue; }
+            if (ch === '\r') { i++; continue; }
+            cur += ch; i++;
         }
-        // 마지막 셀/행
-        if (cur.length > 0 || row.length > 0) {
-            row.push(cur);
-            rows.push(row);
-        }
+        if (cur.length || row.length) { row.push(cur); rows.push(row); }
         return rows;
     }
-
-    // 숫자 파싱 유틸(공백/콤마 제거)
-    function num(x) {
-        if (x == null) return NaN;
-        const s = String(x).trim().replace(/,/g, '');
+    const toNum = (x)=> {
+        if (x==null) return NaN;
+        const s = String(x).trim().replace(/,/g,'');
         const v = Number(s);
         return Number.isFinite(v) ? v : NaN;
+    };
+    const toMsAuto = (n)=> {
+        // 10자리≈초, 13자리≈밀리초 (과학표기도 안전)
+        const abs = Math.floor(Math.abs(n));
+        return String(abs).length <= 10 ? n*1000 : n;
+    };
+
+    // UTC epoch(ms) → KST Date
+    const toKSTDate = (ms)=> new Date(ms + KST_OFFSET_MS);
+
+    // KST Date → 09:00 기준 15분 슬롯 index (0~95)
+    function slotIndexKST(dateKST) {
+        const mins = dateKST.getUTCHours()*60 + dateKST.getUTCMinutes(); // 우리는 오프셋 더했으므로 UTC필드 = KST
+        let after9 = mins - DAY_START_MIN;
+        if (after9 < 0) after9 += 24*60;                // 09:00 이전 → 다음날 구간으로 밀기
+        return Math.floor(after9 / SLOT_MIN) % SLOT_COUNT;
     }
 
-    // Unix 초/밀리초 자동 판별 → ms 반환
-    function toMsAuto(n) {
-        // 10자리면 초(예: 1760958000), 13자리면 밀리초(예: 1760958000000)
-        const s = String(Math.floor(Math.abs(n)));
-        if (s.length <= 10) return n * 1000;
-        return n;
+    function pctHtml(x){
+        if (!Number.isFinite(x)) return '<span class="mono muted">–</span>';
+        const p = (x*100).toFixed(2);
+        const cls = x>0 ? 'pos' : x<0 ? 'neg' : 'zero';
+        return `<span class="mono ${cls}">${p}%</span>`;
     }
 
-    // KST HH:MM, YYYY-MM-DD 등 포맷터
-    const fmtTime = new Intl.DateTimeFormat('ko-KR', {
-        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul'
-    });
-    const fmtDate = new Intl.DateTimeFormat('ko-KR', {
-        year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul'
-    });
-    function toKSTParts(ms) {
-        const d = new Date(ms);
-        const t = fmtTime.format(d);
-        const date = fmtDate.format(d);
-        // HH:MM 보장
-        const hhmm = t.replace(/\./g, '').trim(); // 일부 로케일의 구두점 제거 대비
-        return { hhmm, date };
-    }
-
-    // 퍼센트 문자열 + 클래스
-    function pctStr(x) {
-        if (!Number.isFinite(x)) return '<span class="subtle">NaN</span>';
-        const p = (x * 100).toFixed(2);
-        const cls = x > 0 ? 'pos' : (x < 0 ? 'neg' : 'zero');
-        return `<span class="${cls} mono">${p}%</span>`;
-    }
-
-    // 파일 하나 처리
-    async function processFile(file) {
+    async function processFile(file, valueCol) {
         const text = await file.text();
         const rows = parseCSV(text);
-        // 행 정제: [A(timestamp), B, C, D, ...]만 관심
-        const records = [];
+        const recs = [];
+
         for (const r of rows) {
-            if (!r || r.length < 4) continue;
-            const aRaw = r[0];
-            const bRaw = r[1];
-            const dRaw = r[3];
-            const aNum = num(aRaw);
-            const bNum = num(bRaw);
-            const dNum = num(dRaw);
+            if (!r || r.length < 5) continue;
+            // Binance 형식 가정: A=open_time, B=open, C=high, D=low, E=close
+            const a = toNum(r[0]);              // epoch(초/밀리초)
+            const b = toNum(r[1]);              // open (B)
+            const v = toNum(valueCol === 'D' ? r[3] : r[4]); // 선택한 값열: D(low) 또는 E(close)
 
-            // A/B/D 모두 숫자가 아니면 헤더일 가능성 → 스킵
-            const passA = Number.isFinite(aNum);
-            const passB = Number.isFinite(bNum);
-            const passD = Number.isFinite(dNum);
-            if (!(passA && (passB || passD))) continue;
+            if (!Number.isFinite(a)) continue;  // 헤더/공백 스킵
+            const ms = toMsAuto(a);
+            const dKST = toKSTDate(ms);
+            const sidx = slotIndexKST(dKST);
 
-            const ms = toMsAuto(aNum);
-            const { hhmm, date } = toKSTParts(ms);
-
-            records.push({
-                idx: records.length + 1,
-                ms,
-                hhmm,
-                date,
-                B: passB ? bNum : NaN,
-                D: passD ? dNum : NaN,
-                raw: r
-            });
+            recs.push({ ms, b, v, sidx });
         }
 
-        // 시간 오름차순 정렬
-        records.sort((x, y) => x.ms - y.ms);
-
-        // B2: 정렬 후 첫 데이터 행의 B
-        const firstWithB = records.find(r => Number.isFinite(r.B));
-        const B2 = firstWithB ? firstWithB.B : NaN;
-
-        // 시각별 맵(HH:MM → 행)
-        const timeMap = new Map();
-        for (const r of records) {
-            const m1 = (Number.isFinite(r.D) && Number.isFinite(B2)) ? (r.D - B2) / B2 : NaN;
-            const m2 = (Number.isFinite(r.D) && Number.isFinite(r.B)) ? (r.D - r.B) / r.B : NaN;
-            timeMap.set(r.hhmm, {
-                hhmm: r.hhmm,
-                date: r.date,
-                B: r.B,
-                D: r.D,
-                m1,
-                m2,
-                ms: r.ms
-            });
+        // 슬롯별 첫 레코드 채택(동일 슬롯 중복 들어오면 가장 이른 ms 우선)
+        const slots = new Array(SLOT_COUNT).fill(null);
+        recs.sort((x,y)=>x.ms-y.ms);
+        for (const r of recs) {
+            if (!slots[r.sidx]) slots[r.sidx] = r;
         }
 
-        return {
-            name: file.name,
-            size: file.size,
-            B2,
-            records,
-            timeMap
-        };
-    }
-
-    // 모든 파일 처리 -> 유니온 시간축 생성
-    async function handleFiles(fileList) {
-        const files = [...fileList];
-        if (!files.length) return { data: [], allTimes: [] };
-
-        const results = [];
-        for (const f of files) {
-            const r = await processFile(f);
-            results.push(r);
+        // B2 = 슬롯0(09:00)의 B (없으면 파일 내 첫 B)
+        let B2 = slots[0]?.b;
+        if (!Number.isFinite(B2)) {
+            const firstB = recs.find(z=>Number.isFinite(z.b));
+            B2 = firstB ? firstB.b : NaN;
         }
 
-        // 전체 시간(HH:MM) 유니온
-        const allSet = new Set();
-        for (const r of results) {
-            for (const t of r.timeMap.keys()) allSet.add(t);
-        }
-        // HH:MM 정렬(00:00 → 23:59)
-        const allTimes = [...allSet].sort((a, b) => {
-            const [ah, am] = a.split(':').map(Number);
-            const [bh, bm] = b.split(':').map(Number);
-            return (ah * 60 + am) - (bh * 60 + bm);
+        // 각 슬롯별 계산
+        const calc = slots.map(item => {
+            if (!item) return { m1: NaN, m2: NaN, b: NaN, v: NaN };
+            const { b, v } = item;
+            const m1 = (Number.isFinite(v) && Number.isFinite(B2)) ? (v - B2) / B2 : NaN;
+            const m2 = (Number.isFinite(v) && Number.isFinite(b))  ? (v - b)  / b  : NaN;
+            return { m1, m2, b, v };
         });
 
-        return { data: results, allTimes };
+        return { name:file.name, calc, B2 };
     }
 
-    // 비교 테이블 렌더링
-    function renderComparison(container, results, allTimes) {
-        if (!results.length) {
-            container.innerHTML = '<p class="subtle">표시할 데이터가 없습니다.</p>';
+    function renderTable(container, results){
+        if (!results.length){
+            container.innerHTML = '<p class="muted">표시할 데이터가 없습니다.</p>';
             return;
         }
-        // 테이블 헤더 구성 (파일마다 (1)(2) 두 칸)
-        let thead = '<thead><tr><th class="left">KST 시각</th>';
+
+        let thead = '<thead><tr><th class="left">KST</th>';
         for (const r of results) {
-            thead += `<th colspan="2" title="${r.name}">` +
-                     `<div class="left" style="display:flex;gap:8px;align-items:center;justify-content:flex-start;">` +
-                     `<span class="mono">${r.name}</span>` +
-                     `<span class="pill mono subtle">B2=${Number.isFinite(r.B2) ? r.B2 : 'NaN'}</span>` +
-                     `</div></th>`;
+            thead += `<th colspan="2"><div class="left" style="display:flex;gap:8px;align-items:center">
+                        <span class="mono">${r.name}</span>
+                        <span class="pill mono">B2=${Number.isFinite(r.B2)?r.B2:'NaN'}</span>
+                      </div></th>`;
         }
-        thead += '</tr><tr><th class="left subtle">HH:MM</th>';
-        for (let i=0;i<results.length;i++) {
-            thead += `<th class="subtle mono">(Dₙ−B₂)/B₂</th><th class="subtle mono">(Dₙ−Bₙ)/Bₙ</th>`;
+        thead += '</tr><tr><th class="left muted">HH:MM</th>';
+        for (let i=0;i<results.length;i++){
+            thead += `<th class="mono muted">(Vₙ−B₂)/B₂</th><th class="mono muted">(Vₙ−Bₙ)/Bₙ</th>`;
         }
         thead += '</tr></thead>';
 
-        // 바디
         let tbody = '<tbody>';
-        for (const t of allTimes) {
-            tbody += `<tr><td class="left mono">${t}</td>`;
-            for (const r of results) {
-                const hit = r.timeMap.get(t);
-                if (!hit) {
-                    tbody += `<td colspan="2" class="subtle">—</td>`;
-                } else {
-                    const tip = `날짜: ${hit.date}\nB: ${hit.B}\nD: ${hit.D}\nB2: ${r.B2}`;
-                    tbody += `<td title="${tip}">${pctStr(hit.m1)}</td><td title="${tip}">${pctStr(hit.m2)}</td>`;
-                }
+        for (let s=0; s<SLOT_COUNT; s++){
+            tbody += `<tr><td class="left mono">${SLOT_LABELS[s]}</td>`;
+            for (const r of results){
+                const cell = r.calc[s] || {m1:NaN,m2:NaN};
+                tbody += `<td>${pctHtml(cell.m1)}</td><td>${pctHtml(cell.m2)}</td>`;
             }
             tbody += '</tr>';
         }
@@ -315,148 +200,67 @@
         container.innerHTML = `<table>${thead}${tbody}</table>`;
     }
 
-    // 파일별 상세(원본 정렬 + 지표)
-    function renderPerFile(container, results) {
-        if (!results.length) { container.innerHTML = ''; return; }
-        const cols = results.map(r => {
-            const lines = [];
-            lines.push(`<div class="panel">`);
-            lines.push(`<div class="row" style="justify-content:space-between;align-items:baseline;">`);
-            lines.push(`<div class="file-tag"><strong>${r.name}</strong><small>${(r.size/1024).toFixed(1)} KB</small></div>`);
-            lines.push(`<div class="pill mono subtle">B2=${Number.isFinite(r.B2) ? r.B2 : 'NaN'}</div>`);
-            lines.push(`</div>`);
-            lines.push(`<div class="scroll" style="margin-top:8px;">`);
-            lines.push(`<table>`);
-            lines.push(`<thead><tr><th class="left">KST 날짜</th><th>HH:MM</th><th>B</th><th>D</th><th class="mono">(Dₙ−B₂)/B₂</th><th class="mono">(Dₙ−Bₙ)/Bₙ</th></tr></thead>`);
-            lines.push(`<tbody>`);
-            for (const it of r.records) {
-                const m1 = (Number.isFinite(it.D) && Number.isFinite(r.B2)) ? (it.D - r.B2) / r.B2 : NaN;
-                const m2 = (Number.isFinite(it.D) && Number.isFinite(it.B)) ? (it.D - it.B) / it.B : NaN;
-                lines.push(
-                    `<tr>` +
-                    `<td class="left mono">${it.date}</td>` +
-                    `<td class="mono">${it.hhmm}</td>` +
-                    `<td class="mono">${Number.isFinite(it.B) ? it.B : ''}</td>` +
-                    `<td class="mono">${Number.isFinite(it.D) ? it.D : ''}</td>` +
-                    `<td>${pctStr(m1)}</td>` +
-                    `<td>${pctStr(m2)}</td>` +
-                    `</tr>`
-                );
-            }
-            lines.push(`</tbody></table></div></div>`);
-            return lines.join('');
-        });
-        container.innerHTML = cols.join('');
-    }
-
-    // 결과 CSV 생성(비교 테이블 버전)
-    function buildComparisonCSV(results, allTimes) {
-        // 헤더
+    function buildCSV(results){
         const head = ['KST(HH:MM)'];
-        for (const r of results) {
-            head.push(`${r.name} (D-B2)/B2`, `${r.name} (D-B)/B`);
-        }
+        for (const r of results) head.push(`${r.name} (V-B2)/B2`, `${r.name} (V-B)/B`);
         const rows = [head];
 
-        for (const t of allTimes) {
-            const line = [t];
-            for (const r of results) {
-                const hit = r.timeMap.get(t);
-                if (!hit) {
-                    line.push('', '');
-                } else {
-                    line.push(
-                        Number.isFinite(hit.m1) ? (hit.m1*100).toFixed(4)+'%' : '',
-                        Number.isFinite(hit.m2) ? (hit.m2*100).toFixed(4)+'%' : ''
-                    );
-                }
+        for (let s=0; s<SLOT_COUNT; s++){
+            const line = [SLOT_LABELS[s]];
+            for (const r of results){
+                const c = r.calc[s] || {};
+                const m1 = Number.isFinite(c.m1) ? (c.m1*100).toFixed(4)+'%' : '';
+                const m2 = Number.isFinite(c.m2) ? (c.m2*100).toFixed(4)+'%' : '';
+                line.push(m1, m2);
             }
             rows.push(line);
         }
-
-        // CSV 직렬화(간단 버전)
         const esc = v => {
             const s = String(v ?? '');
-            if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-            return s;
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
         };
-        const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
-        return csv;
+        return rows.map(r => r.map(esc).join(',')).join('\r\n');
     }
 
-    // UI 바인딩
+    // ====== UI ======
     const fileInput = document.getElementById('fileInput');
-    const parseBtn = document.getElementById('parseBtn');
+    const runBtn = document.getElementById('runBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const fileChips = document.getElementById('fileChips');
-    const summary = document.getElementById('summary');
     const tableWrap = document.getElementById('tableWrap');
-    const perFileWrap = document.getElementById('perFileWrap');
-
-    fileInput.addEventListener('change', () => {
-        fileChips.innerHTML = '';
-        [...fileInput.files].forEach(f => {
-            const el = document.createElement('span');
-            el.className = 'file-tag';
-            el.innerHTML = `<strong>${f.name}</strong><small>${(f.size/1024).toFixed(1)} KB</small>`;
-            fileChips.appendChild(el);
-        });
-        summary.textContent = fileInput.files.length
-            ? `${fileInput.files.length}개 파일 선택됨. "분석 시작"을 눌러주세요.`
-            : '파일을 선택해 주세요.';
-    });
+    const meta = document.getElementById('meta');
 
     let lastResults = null;
 
-    parseBtn.addEventListener('click', async () => {
-        if (!fileInput.files.length) {
-            alert('CSV 파일을 선택해 주세요.');
-            return;
-        }
-        parseBtn.disabled = true;
-        parseBtn.textContent = '분석 중...';
+    runBtn.addEventListener('click', async () => {
+        const files = [...fileInput.files];
+        if (!files.length) return alert('CSV 파일을 선택하세요.');
 
+        runBtn.disabled = true; runBtn.textContent = '분석 중...';
         try {
-            const { data, allTimes } = await handleFiles(fileInput.files);
-            lastResults = { data, allTimes };
-
-            // 렌더
-            renderComparison(tableWrap, data, allTimes);
-            renderPerFile(perFileWrap, data);
-
-            // 요약
-            const totalRows = data.reduce((acc, r) => acc + r.records.length, 0);
-            summary.innerHTML = `
-                <span class="pill">파일: ${data.length}개</span>
-                <span class="pill">총 행: ${totalRows.toLocaleString()}</span>
-                <span class="pill">시각 슬롯: ${allTimes.length}</span>
-                <span class="pill warn">KST 기준 비교</span>
-            `;
-
-            downloadBtn.disabled = !data.length;
-        } catch (e) {
+            const valcol = (document.querySelector('input[name="valcol"]:checked')?.value || 'E');
+            const out = [];
+            for (const f of files) out.push(await processFile(f, valcol));
+            renderTable(tableWrap, out);
+            lastResults = out;
+            downloadBtn.disabled = false;
+            meta.textContent = `파일 ${out.length}개 · 값 열: ${valcol} · 기준(B2)=09:00 슬롯의 B(없으면 파일 첫 B) · KST 기준 09:00 시작 96행 고정`;
+        } catch (e){
             console.error(e);
-            alert('파싱 중 오류가 발생했습니다. CSV 형식을 확인해 주세요.');
+            alert('처리 중 오류가 발생했습니다. CSV 형식을 확인해주세요.');
         } finally {
-            parseBtn.disabled = false;
-            parseBtn.textContent = '분석 시작';
+            runBtn.disabled = false; runBtn.textContent = '분석';
         }
     });
 
     downloadBtn.addEventListener('click', () => {
         if (!lastResults) return;
-        const csv = buildComparisonCSV(lastResults.data, lastResults.allTimes);
+        const csv = buildCSV(lastResults);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        const ts = new Date();
-        const name = `comparison_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}.csv`;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        URL.revokeObjectURL(url);
-        a.remove();
+        a.href = url; a.download = `comparison_kst_0900_${Date.now()}.csv`;
+        document.body.appendChild(a); a.click();
+        URL.revokeObjectURL(url); a.remove();
     });
 </script>
 </body>
