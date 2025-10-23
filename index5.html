@@ -128,6 +128,24 @@
         <label class="toggle"><input type="checkbox" id="showOnlySignals"> 신호 On 종목만 보기</label>
         <div class="note" style="margin-top:8px;">API 제한 회피를 위해 내부적으로 <b>요청 큐(동시 4)</b>로 순차 요청합니다.</div>
     </div>
+    <div class="ctrl" style="grid-column: span 3;">
+        <h3>엔트리 알림</h3>
+        <div class="row">
+            <div>
+                <label class="note">Score ≥</label>
+                <input id="entryScore" type="number" min="0" max="100" step="1" value="80">
+            </div>
+            <div>
+                <label class="note">RVOL ≥</label>
+                <input id="entryRVOL" type="number" min="0" max="10" step="0.1" value="2.0">
+            </div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="entryRequireTrend" checked> Trend=1</label>
+        <label class="toggle"><input type="checkbox" id="entryRequireSqueeze" checked> Squeeze=1</label>
+        <label class="toggle"><input type="checkbox" id="entryRequireOI" checked> ΔOI ≥ 0</label>
+        <label class="toggle"><input type="checkbox" id="entryNotify" checked> 데스크톱 알림</label>
+        <div class="note" style="margin-top:6px;">같은 심볼 알림은 <b>5분 쿨다운</b>으로 제한합니다.</div>
+    </div>
 </section>
 <section class="wrap">
     <table>
@@ -135,6 +153,7 @@
             <tr>
                 <th>심볼</th>
                 <th>점수</th>
+                <th>Entry</th>
                 <th>가격</th>
                 <th>RS 1h</th>
                 <th>RS 4h</th>
@@ -177,6 +196,12 @@ const dom = {
     enableOI: document.getElementById('enableOI'),
     enableFunding: document.getElementById('enableFunding'),
     showOnlySignals: document.getElementById('showOnlySignals'),
+    entryScore: document.getElementById('entryScore'),
+    entryRVOL: document.getElementById('entryRVOL'),
+    entryRequireTrend: document.getElementById('entryRequireTrend'),
+    entryRequireSqueeze: document.getElementById('entryRequireSqueeze'),
+    entryRequireOI: document.getElementById('entryRequireOI'),
+    entryNotify: document.getElementById('entryNotify'),
     w: {
         r1: document.getElementById('w_r1'),
         r4: document.getElementById('w_r4'),
@@ -273,7 +298,9 @@ const state = {
     symbols: [],     // futures symbols metadata
     universe: [],    // selected symbols
     bench: { BTCUSDT: null, ETHUSDT: null },
-    rows: new Map(), // symbol -> last computed row
+    rows: new Map(),
+    lastAlertTs: new Map(),
+    entryCount: 0, // symbol -> last computed row
     timer: null,
 };
 
@@ -417,6 +444,57 @@ function bindWeightLabels(){
     });
 }
 
+// ===== Entry helpers =====
+function entryConditions(row){
+    const scoreN = row.scoreN || 0;
+    const scoreMin = Number(dom.entryScore.value) || 80;
+    const rvolMin = Number(dom.entryRVOL.value) || 2.0;
+    const requireTrend = dom.entryRequireTrend.checked;
+    const requireSqueeze = dom.entryRequireSqueeze.checked;
+    const requireOI = dom.entryRequireOI.checked;
+    const okScore = scoreN >= scoreMin;
+    const okRVOL = (row.signals.rvol || 0) >= rvolMin;
+    const okTrend = !requireTrend || !!row.signals.trend;
+    const okSqueeze = !requireSqueeze || !!row.signals.squeeze;
+    const okOI = !requireOI || (Number.isFinite(row.oi1h) && row.oi1h >= 0);
+    return okScore && okRVOL && okTrend && okSqueeze && okOI;
+}
+async function ensureNotifyPermission(){
+    try{
+        if(!('Notification' in window)) return false;
+        if(Notification.permission === 'granted') return true;
+        if(Notification.permission !== 'denied'){
+            const perm = await Notification.requestPermission();
+            return perm === 'granted';
+        }
+    }catch(e){}
+    return false;
+}
+function notifyEntry(row){
+    if(!dom.entryNotify.checked) return;
+    if(!('Notification' in window)) return;
+    const now = Date.now();
+    const last = state.lastAlertTs.get(row.symbol) || 0;
+    const cooldown = 5 * 60 * 1000; // 5분
+    if(now - last < cooldown) return;
+    const title = `ENTRY: ${row.symbol}`;
+    const body = [
+        `Score: ${(row.scoreN||0).toFixed(1)}`,
+        `RS1h: ${(row.signals.ret1h*100).toFixed(2)}%`,
+        `RVOL: ${(row.signals.rvol||0).toFixed(2)}×`,
+        `ΔOI1h: ${Number.isFinite(row.oi1h) ? (row.oi1h*100).toFixed(2)+'%' : '-'}`,
+        `Trend: ${row.signals.trend? 'ON':'OFF'}  SQ: ${row.signals.squeeze? 'ON':'OFF'}`
+    ].join('
+');
+    try{
+        const n = new Notification(title, { body, icon: 'https://www.binance.com/resources/static/favicon.ico' });
+        n.onclick = ()=> window.open(`https://www.binance.com/ko/futures/${row.symbol}`, '_blank');
+        state.lastAlertTs.set(row.symbol, now);
+        state.entryCount++;
+    }catch(e){}
+}
+// =========================
+
 async function scanOnce(){
     const t0 = performance.now();
 
@@ -472,6 +550,12 @@ async function scanOnce(){
     // Compose cross-sectional score
     if(filtered.length){
         composeScore(filtered);
+
+    // Evaluate entry & notify
+    for(const r of filtered){
+        r.entry = entryConditions(r);
+        if(r.entry){ notifyEntry(r); }
+    }
     }
 
     // Sort by scoreN desc
@@ -499,6 +583,7 @@ function renderRows(rows){
                 <div class="scorebar"><i style="width:${(r.scoreN||0).toFixed(1)}%"></i></div>
                 <div class="muted">${(r.scoreN||0).toFixed(1)}</div>
             </td>
+            <td style=\"text-align:center\">${r.entry ? '<span class=\'chip green\'>ENTRY</span>' : ''}</td>
             <td>${fmtNum(r.price)}</td>
             <td>${fmtPct(r.signals.ret1h)}</td>
             <td>${fmtPct(r.signals.ret4h)}</td>
@@ -515,10 +600,7 @@ function renderRows(rows){
     dom.rows.appendChild(fr);
 }
 
-function start(){
-    savePrefs();
-    dom.start.disabled = true;
-    dom.stop.disabled = false;
+function start(){$1if (dom.entryNotify.checked) { ensureNotifyPermission(); }
     scanOnce();
     const sec = Math.max(15, Math.min(300, Number(dom.intervalSec.value)||60));
     state.timer = setInterval(scanOnce, sec*1000);
@@ -566,6 +648,14 @@ function savePrefs(){
         enableOI: dom.enableOI.checked,
         enableFunding: dom.enableFunding.checked,
         showOnlySignals: dom.showOnlySignals.checked,
+        entry: {
+            score: dom.entryScore.value,
+            rvol: dom.entryRVOL.value,
+            requireTrend: dom.entryRequireTrend.checked,
+            requireSqueeze: dom.entryRequireSqueeze.checked,
+            requireOI: dom.entryRequireOI.checked,
+            notify: dom.entryNotify.checked
+        },
         w: {
             r1: dom.w.r1.value, r4: dom.w.r4.value, rv: dom.w.rv.value, oi: dom.w.oi.value,
             fd: dom.w.fd.value, tr: dom.w.tr.value, sq: dom.w.sq.value
@@ -585,6 +675,14 @@ function loadPrefs(){
         dom.enableOI.checked = p.enableOI ?? dom.enableOI.checked;
         dom.enableFunding.checked = p.enableFunding ?? dom.enableFunding.checked;
         dom.showOnlySignals.checked = p.showOnlySignals ?? dom.showOnlySignals.checked;
+        if(p.entry){
+            dom.entryScore.value = p.entry.score ?? dom.entryScore.value;
+            dom.entryRVOL.value = p.entry.rvol ?? dom.entryRVOL.value;
+            dom.entryRequireTrend.checked = p.entry.requireTrend ?? dom.entryRequireTrend.checked;
+            dom.entryRequireSqueeze.checked = p.entry.requireSqueeze ?? dom.entryRequireSqueeze.checked;
+            dom.entryRequireOI.checked = p.entry.requireOI ?? dom.entryRequireOI.checked;
+            dom.entryNotify.checked = p.entry.notify ?? dom.entryNotify.checked;
+        }
         if(p.w){ Object.keys(dom.w).forEach(k => dom.w[k].value = p.w[k] ?? dom.w[k].value); }
     }catch(e){}
 }
@@ -597,11 +695,14 @@ dom.start.addEventListener('click', start);
 
 dom.stop.addEventListener('click', stop);
 
+dom.entryScore.addEventListener('change', savePrefs);
+[dom.entryRVOL, dom.entryRequireTrend, dom.entryRequireSqueeze, dom.entryRequireOI, dom.entryNotify].forEach(el=> el.addEventListener('change', savePrefs));
+
 dom.exportBtn.addEventListener('click', exportCSV);
 
 // Live-update labels on weight change + autosave
 Object.values(dom.w).forEach(inp => inp.addEventListener('input', ()=>{ bindWeightLabels(); savePrefs(); }));
-[dom.topN, dom.intervalSec, dom.onlyPerp, dom.usdtQuote, dom.enableOI, dom.enableFunding, dom.showOnlySignals].forEach(el => {
+[dom.topN, dom.intervalSec, dom.onlyPerp, dom.usdtQuote, dom.enableOI, dom.enableFunding, dom.showOnlySignals, dom.entryScore, dom.entryRVOL, dom.entryRequireTrend, dom.entryRequireSqueeze, dom.entryRequireOI, dom.entryNotify].forEach(el => {
     el.addEventListener('change', savePrefs);
 });
 
