@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>주식 저평가 계산기 – 풀스택 지표</title>
+    <style>
+        :root { --bg:#0b1220; --card:#121a2b; --ink:#e7ecf8; --muted:#a8b0c6; --accent:#7aa2ff; --accent-2:#34d399; --danger:#ef4444; --warn:#f59e0b; --ok:#22c55e; --border:#22314f; }
+        *{ box-sizing:border-box; }
+        html,body{ height:100%; background:linear-gradient(180deg,#0b1220 0%,#0e1628 100%); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Apple SD Gothic Neo,"맑은 고딕",Arial,sans-serif; letter-spacing:.1px; }
+        h1,h2,h3{ margin:0 0 .5rem }
+        a{ color:var(--accent); text-decoration:none }
+        .container{ max-width:1200px; margin:24px auto 96px; padding:0 16px }
+        .grid{ display:grid; grid-template-columns:repeat(12,1fr); gap:16px }
+        .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(0,0,0,.25) }
+        .card h2{ font-size:18px; margin-bottom:8px }
+        .sub{ color:var(--muted); font-size:13px }
+        .field{ display:grid; grid-template-columns:1fr 180px; gap:8px; align-items:center; margin:10px 0 }
+        .field > label{ color:var(--muted); font-size:13px }
+        .field .unit{ display:inline-block; min-width:28px; text-align:right; color:var(--muted) }
+        input[type="number"],input[type="text"],select{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1729; color:var(--ink); font-size:14px }
+        .two-col{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center }
+        .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px }
+        button{ padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:#101b32; color:var(--ink); cursor:pointer; font-weight:600 }
+        button.primary{ background:linear-gradient(135deg,#3b82f6,#2563eb); border-color:#1d4ed8 }
+        button.ghost{ background:transparent }
+        button:disabled{ opacity:.6; cursor:not-allowed }
+        .kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:10px }
+        .tile{ background:#0f182a; border:1px solid var(--border); padding:12px; border-radius:12px }
+        .big{ font-size:22px; font-weight:800; margin-top:4px }
+        .badge{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border) }
+        .ok{ background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.35) }
+        .warn{ background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.35) }
+        .danger{ background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.35) }
+        .col-4{ grid-column:span 12 }
+        .col-8{ grid-column:span 12 }
+        @media (min-width:1024px){ .col-4{ grid-column:span 5 } .col-8{ grid-column:span 7 } }
+        .table{ width:100%; border-collapse:collapse; font-size:14px; margin-top:8px }
+        .table th,.table td{ text-align:right; padding:8px; border-bottom:1px solid var(--border) }
+        .table th:first-child,.table td:first-child{ text-align:left }
+        .pill{ padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); font-size:12px }
+        .divider{ height:1px; background:var(--border); margin:12px 0 }
+        .gauge{ --v:0; width:140px; height:140px; border-radius:50%; background:conic-gradient(var(--accent-2) calc(var(--v)*1%), #334169 0); display:grid; place-items:center; position:relative }
+        .gauge::after{ content:""; width:100px; height:100px; border-radius:50%; background:var(--card); border:1px solid var(--border) }
+        .gauge .val{ position:absolute; font-weight:800; font-size:20px }
+        .hint{ color:var(--muted); font-size:12px; margin-top:6px }
+        details summary{ cursor:pointer }
+        .footer{ color:var(--muted); font-size:12px; margin-top:16px }
+        .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+        .weights{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
+        .weights input[type="range"]{ width:100% }
+        .preset-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="row" style="justify-content: space-between; margin-bottom: 12px;">
+        <div>
+            <h1>주식 저평가 계산기 <small class="pill">풀스택 지표</small></h1>
+            <div class="sub">가격·멀티플·현금흐름·수익성·성장·배당·레버리지 지표를 한 번에 계산해 종합 저평가 점수를 제공합니다.</div>
+        </div>
+        <div class="row">
+            <div class="preset-row">
+                <span class="sub">업종 프리셋</span>
+                <select id="preset">
+                    <option value="manufacturing">제조(일반)</option>
+                    <option value="it">IT/소프트웨어</option>
+                    <option value="semis">반도체/장비</option>
+                    <option value="internet">인터넷/플랫폼</option>
+                    <option value="bank">금융(은행)</option>
+                    <option value="utility">유틸리티</option>
+                    <option value="reit">리츠/부동산</option>
+                    <option value="bio">바이오/제약</option>
+                    <option value="energy">에너지/원자재</option>
+                    <option value="consumer">소비재/리테일</option>
+                </select>
+                <span class="pill" id="presetNote">기본 기준치</span>
+            </div>
+            <button class="ghost" id="btnExample">예시 데이터</button>
+            <button id="btnSave" class="ghost">입력 저장</button>
+            <button id="btnLoad" class="ghost">불러오기</button>
+            <button id="btnReset" class="ghost">초기화</button>
+            <button class="primary" id="btnCalc">계산</button>
+        </div>
+    </header>
+
+    <div class="grid">
+        <!-- 입력 패널 -->
+        <section class="card col-4">
+            <h2>기본·시가총액</h2>
+            <div class="field"><label for="price">현재 주가</label><div class="two-col"><input id="price" type="number" step="0.01" placeholder="65000"><span class="unit">원</span></div></div>
+            <div class="field"><label for="shares">발행주식수(희석 포함)</label><div class="two-col"><input id="shares" type="number" step="1" placeholder="700000000"><span class="unit">주</span></div></div>
+            <div class="field"><label for="eps">EPS(주당순이익)</label><div class="two-col"><input id="eps" type="number" step="0.01" placeholder="4200"><span class="unit">원</span></div></div>
+            <div class="field"><label for="growth">EPS 성장률(5Y 예상)</label><div class="two-col"><input id="growth" type="number" step="0.1" placeholder="12"><span class="unit">%</span></div></div>
+            <div class="field"><label for="dps">배당금(DPS)</label><div class="two-col"><input id="dps" type="number" step="0.01" placeholder="1200"><span class="unit">원</span></div></div>
+            <div class="divider"></div>
+
+            <h2>재무제표(최근 연간/TTM)</h2>
+            <details open>
+                <summary class="sub">매출·이익·현금흐름</summary>
+                <div class="field"><label for="revenue">매출(Revenue)</label><div class="two-col"><input id="revenue" type="number" step="1" placeholder="28000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="ebitda">EBITDA</label><div class="two-col"><input id="ebitda" type="number" step="1" placeholder="6000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="ebit">EBIT(영업이익)</label><div class="two-col"><input id="ebit" type="number" step="1" placeholder="4800000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="ni">당기순이익</label><div class="two-col"><input id="ni" type="number" step="1" placeholder="3000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="ocf">영업현금흐름(OCF)</label><div class="two-col"><input id="ocf" type="number" step="1" placeholder="5200000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="fcf">잉여현금흐름(FCF)</label><div class="two-col"><input id="fcf" type="number" step="1" placeholder="3500000000000"><span class="unit">원</span></div></div>
+            </details>
+            <details open>
+                <summary class="sub">재무상태</summary>
+                <div class="field"><label for="assets">총자산</label><div class="two-col"><input id="assets" type="number" step="1" placeholder="90000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="equity">자본총계</label><div class="two-col"><input id="equity" type="number" step="1" placeholder="50000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="debt">총부채(총차입금)</label><div class="two-col"><input id="debt" type="number" step="1" placeholder="12000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="cash">현금및현금성자산</label><div class="two-col"><input id="cash" type="number" step="1" placeholder="8000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="ca">유동자산(CA)</label><div class="two-col"><input id="ca" type="number" step="1" placeholder="30000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="cl">유동부채(CL)</label><div class="two-col"><input id="cl" type="number" step="1" placeholder="15000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="inv">재고</label><div class="two-col"><input id="inv" type="number" step="1" placeholder="4000000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="interest">이자비용</label><div class="two-col"><input id="interest" type="number" step="1" placeholder="300000000000"><span class="unit">원</span></div></div>
+                <div class="field"><label for="tax">유효세율(추정)</label><div class="two-col"><input id="tax" type="number" step="0.1" value="25"><span class="unit">%</span></div></div>
+            </details>
+            <details>
+                <summary class="sub">비교 멀티플(섹터/시장 평균)</summary>
+                <div class="field"><label for="peSector">P/E (섹터)</label><div class="two-col"><input id="peSector" type="number" step="0.1" placeholder="22"><span class="unit">배</span></div></div>
+                <div class="field"><label for="psSector">P/S (섹터)</label><div class="two-col"><input id="psSector" type="number" step="0.1" placeholder="2.5"><span class="unit">배</span></div></div>
+                <div class="field"><label for="pbSector">P/B (섹터)</label><div class="two-col"><input id="pbSector" type="number" step="0.1" placeholder="2.1"><span class="unit">배</span></div></div>
+                <div class="field"><label for="evEbitdaSector">EV/EBITDA (섹터)</label><div class="two-col"><input id="evEbitdaSector" type="number" step="0.1" placeholder="10"><span class="unit">배</span></div></div>
+            </details>
+            <div class="divider"></div>
+            <h2>모형 파라미터</h2>
+            <div class="field"><label for="bond">그레이엄: 채권수익률(Y)</label><div class="two-col"><input id="bond" type="number" step="0.01" placeholder="4.0"><span class="unit">%</span></div></div>
+            <div class="field"><label for="fcfGrowth">DCF: FCF 성장률</label><div class="two-col"><input id="fcfGrowth" type="number" step="0.1" placeholder="8"><span class="unit">%</span></div></div>
+            <div class="field"><label for="years">DCF: 예측연수(N)</label><div class="two-col"><input id="years" type="number" step="1" placeholder="5"><span class="unit">년</span></div></div>
+            <div class="field"><label for="discount">DCF: 할인율(r)</label><div class="two-col"><input id="discount" type="number" step="0.1" placeholder="12"><span class="unit">%</span></div></div>
+            <div class="field"><label for="gt">DCF: 말기성장률(gₜ)</label><div class="two-col"><input id="gt" type="number" step="0.1" placeholder="2"><span class="unit">%</span></div></div>
+        </section>
+
+        <!-- 결과 패널 -->
+        <section class="card col-8">
+            <div class="row" style="justify-content: space-between; align-items:center;">
+                <h2>종합 결과</h2>
+                <div class="row">
+                    <span class="sub">가중치</span>
+                    <div class="weights">
+                        <label class="sub">PER 동종<input id="wPEER" type="range" min="0" max="100" value="15"/></label>
+                        <label class="sub">PEG/PEGY<input id="wPEG" type="range" min="0" max="100" value="15"/></label>
+                        <label class="sub">그레이엄<input id="wGRA" type="range" min="0" max="100" value="15"/></label>
+                        <label class="sub">DCF<input id="wDCF" type="range" min="0" max="100" value="25"/></label>
+                        <label class="sub">EV 멀티플<input id="wEV" type="range" min="0" max="100" value="15"/></label>
+                        <label class="sub">P/B·P/S<input id="wPBPS" type="range" min="0" max="100" value="15"/></label>
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="row" style="align-items:center;">
+                <div class="gauge" id="gauge"><span class="val" id="score">0</span></div>
+                <div style="flex:1; min-width: 260px;">
+                    <div class="kpi">
+                        <div class="tile"><div class="sub">현재 주가</div><div class="big" id="kPrice">-</div></div>
+                        <div class="tile"><div class="sub">가중 적정가</div><div class="big" id="kFair">-</div></div>
+                        <div class="tile"><div class="sub">안전마진</div><div class="big" id="kMOS">-</div></div>
+                        <div class="tile"><div class="sub">시그널</div><div class="big" id="kSignal">-</div></div>
+                    </div>
+                    <div class="hint">저평가 점수는 멀티플/현금흐름/가치모형을 종합한 0~100 스케일입니다. 업종 프리셋에 따라 기준치가 자동 조정됩니다.</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top:12px;">① 멀티플 & 가치모형</h3>
+            <table class="table" id="tblVal">
+                <thead><tr><th>방법</th><th>지표</th><th>적정가(원)</th><th>현재 대비</th><th>메모</th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <h3 style="margin-top:16px;">② 수익성·성장·배당</h3>
+            <table class="table" id="tblQual">
+                <thead><tr><th>지표</th><th>값</th><th>기준(프리셋)</th><th>판정</th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <h3 style="margin-top:16px;">③ 레버리지·유동성</h3>
+            <table class="table" id="tblRisk">
+                <thead><tr><th>지표</th><th>값</th><th>기준(프리셋)</th><th>판정</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <div>ⓘ 고지: 학습/연구용 도구입니다. 가정과 입력 데이터에 따라 결과가 크게 달라질 수 있으며 투자 권유가 아닙니다.</div>
+    </footer>
+</div>
+
+<script>
+"use strict";
+// ---------- 유틸 ----------
+const $ = (id)=>document.getElementById(id);
+const num = (v,d=2)=> (v==null||isNaN(v))?"-":Number(v).toLocaleString(undefined,{maximumFractionDigits:d});
+const pct = (x)=> isFinite(x)? (x*100): NaN;
+const clamp=(v,a,b)=> Math.min(b,Math.max(a,v));
+const read = (id)=> parseFloat($(id).value);
+const setGauge=(el,v)=> el.style.setProperty('--v', clamp(v,0,100));
+
+// ---------- 업종 프리셋 ----------
+const PRESETS = {
+  manufacturing: {
+    label:'제조(일반)', note:'밸런스형 기준',
+    sector:{ pe:16, pb:1.7, ps:1.5, evEbitda:8 },
+    thresh:{ roe:0.10, roic:0.08, op:0.10, net:0.08, fcf:0.05, divY:0.02, payout:0.60, g:0.10,
+             de:1.0, ndE:2.5, ic:3.0, cr:1.5, qr:1.0 },
+    dcf:{ discount:0.12, gt:0.02 }
+  },
+  it: {
+    label:'IT/소프트웨어', note:'성장프리미엄',
+    sector:{ pe:25, pb:4.0, ps:4.0, evEbitda:16 },
+    thresh:{ roe:0.12, roic:0.10, op:0.15, net:0.12, fcf:0.08, divY:0.00, payout:0.50, g:0.15,
+             de:0.6, ndE:1.5, ic:6.0, cr:1.8, qr:1.2 },
+    dcf:{ discount:0.13, gt:0.03 }
+  },
+  semis: {
+    label:'반도체/장비', note:'사이클 민감',
+    sector:{ pe:20, pb:2.5, ps:2.5, evEbitda:10 },
+    thresh:{ roe:0.12, roic:0.10, op:0.18, net:0.12, fcf:0.06, divY:0.01, payout:0.50, g:0.12,
+             de:0.8, ndE:2.0, ic:5.0, cr:1.7, qr:1.1 },
+    dcf:{ discount:0.13, gt:0.025 }
+  },
+  internet: {
+    label:'인터넷/플랫폼', note:'규모의 경제',
+    sector:{ pe:28, pb:5.0, ps:6.0, evEbitda:18 },
+    thresh:{ roe:0.10, roic:0.10, op:0.12, net:0.10, fcf:0.10, divY:0.00, payout:0.40, g:0.15,
+             de:0.5, ndE:1.5, ic:8.0, cr:1.8, qr:1.3 },
+    dcf:{ discount:0.13, gt:0.03 }
+  },
+  bank: {
+    label:'금융(은행)', note:'자본효율 중시',
+    sector:{ pe:8, pb:0.8, ps:2.0, evEbitda:NaN },
+    thresh:{ roe:0.09, roic:0.00, op:NaN, net:0.20, fcf:NaN, divY:0.04, payout:0.40, g:0.05,
+             de:NaN, ndE:NaN, ic:NaN, cr:NaN, qr:NaN },
+    dcf:{ discount:0.11, gt:0.02 }
+  },
+  utility: {
+    label:'유틸리티', note:'규제·안정',
+    sector:{ pe:14, pb:1.2, ps:1.8, evEbitda:9 },
+    thresh:{ roe:0.08, roic:0.06, op:0.12, net:0.08, fcf:0.06, divY:0.04, payout:0.70, g:0.04,
+             de:1.5, ndE:3.0, ic:2.5, cr:1.2, qr:0.8 },
+    dcf:{ discount:0.10, gt:0.02 }
+  },
+  reit: {
+    label:'리츠/부동산', note:'배당 중심',
+    sector:{ pe:NaN, pb:1.0, ps:NaN, evEbitda:NaN },
+    thresh:{ roe:NaN, roic:NaN, op:NaN, net:NaN, fcf:NaN, divY:0.05, payout:0.90, g:0.02,
+             de:1.0, ndE:6.0, ic:2.0, cr:1.0, qr:0.6 },
+    dcf:{ discount:0.09, gt:0.02 }
+  },
+  bio: {
+    label:'바이오/제약', note:'연구개발',
+    sector:{ pe:35, pb:4.5, ps:7.0, evEbitda:20 },
+    thresh:{ roe:0.08, roic:0.08, op:0.10, net:0.08, fcf:0.02, divY:0.00, payout:0.30, g:0.18,
+             de:0.8, ndE:3.0, ic:4.0, cr:1.8, qr:1.2 },
+    dcf:{ discount:0.15, gt:0.03 }
+  },
+  energy: {
+    label:'에너지/원자재', note:'커머더티 사이클',
+    sector:{ pe:10, pb:1.3, ps:1.2, evEbitda:5 },
+    thresh:{ roe:0.12, roic:0.10, op:0.15, net:0.10, fcf:0.08, divY:0.03, payout:0.50, g:0.05,
+             de:1.0, ndE:1.5, ic:4.0, cr:1.4, qr:1.0 },
+    dcf:{ discount:0.13, gt:0.02 }
+  },
+  consumer: {
+    label:'소비재/리테일', note:'브랜드·회전율',
+    sector:{ pe:18, pb:2.5, ps:1.4, evEbitda:9 },
+    thresh:{ roe:0.12, roic:0.10, op:0.12, net:0.08, fcf:0.06, divY:0.02, payout:0.60, g:0.08,
+             de:0.8, ndE:2.0, ic:4.0, cr:1.5, qr:1.0 },
+    dcf:{ discount:0.11, gt:0.02 }
+  }
+};
+
+function applyPreset(key){
+  const p = PRESETS[key] || PRESETS.manufacturing;
+  // 섹터 평균 입력을 프리셋 값으로 세팅 (사용자 입력치 덮어씀)
+  if (isFinite(p.sector.pe)) $('peSector').value = p.sector.pe; else $('peSector').value='';
+  if (isFinite(p.sector.pb)) $('pbSector').value = p.sector.pb; else $('pbSector').value='';
+  if (isFinite(p.sector.ps)) $('psSector').value = p.sector.ps; else $('psSector').value='';
+  if (isFinite(p.sector.evEbitda)) $('evEbitdaSector').value = p.sector.evEbitda; else $('evEbitdaSector').value='';
+  // DCF 기본 가정(원하면 수정 가능)
+  $('discount').placeholder = Math.round(p.dcf.discount*100);
+  $('gt').placeholder = Math.round(p.dcf.gt*100);
+  // 메모 표시
+  $('presetNote').textContent = `${p.label} · ${p.note}`;
+  // 임계치 전역 저장
+  window._THRESH = p.thresh;
+}
+
+// ---------- 계산 ----------
+function calc(){
+  const price= read('price');
+  const shares= read('shares');
+  const eps= read('eps');
+  const g= read('growth')/100; // EPS 성장률
+  const dps= read('dps');
+
+  const revenue= read('revenue');
+  const ebitda= read('ebitda');
+  const ebit= read('ebit');
+  const ni= read('ni');
+  const ocf= read('ocf');
+  const fcf= read('fcf');
+
+  const assets= read('assets');
+  const equity= read('equity');
+  const debt= read('debt');
+  const cash= read('cash');
+  const ca= read('ca');
+  const cl= read('cl');
+  const inv= read('inv');
+  const interest= read('interest');
+  const taxRate= (isFinite(read('tax'))? read('tax'):25)/100;
+
+  const peSector= read('peSector');
+  const psSector= read('psSector');
+  const pbSector= read('pbSector');
+  const evEbitdaSector= read('evEbitdaSector');
+
+  const bond= read('bond');
+  const gFcf= read('fcfGrowth')/100;
+  const years= read('years');
+  const r= read('discount')/100 || (PRESETS[$('preset').value]?.dcf.discount||0.12);
+  const gt= read('gt')/100 || (PRESETS[$('preset').value]?.dcf.gt||0.02);
+
+  // 파생 값
+  const mktCap = (isFinite(price)&&isFinite(shares))? price*shares: NaN;
+  const netDebt = (isFinite(debt)&&isFinite(cash))? (debt - cash): NaN;
+  const EV = (isFinite(mktCap)&&isFinite(netDebt))? (mktCap + netDebt): NaN;
+  const bvps = (isFinite(equity)&&isFinite(shares)&&shares>0)? equity/shares: NaN;
+  const sps = (isFinite(revenue)&&isFinite(shares)&&shares>0)? revenue/shares: NaN;
+  const fcfps = (isFinite(fcf)&&isFinite(shares)&&shares>0)? fcf/shares: NaN;
+
+  // 멀티플
+  const pe = (isFinite(price)&&isFinite(eps)&&eps!==0)? price/eps: NaN;
+  const peg = (isFinite(pe)&&isFinite(g)&&g>0)? pe/(g*100): NaN; // 성장률 % 기준
+  const divYield = (isFinite(dps)&&isFinite(price)&&price>0)? dps/price: NaN;
+  const pegy = (isFinite(pe)&&isFinite(g)&&g>0)? pe/((g*100)+(isFinite(divYield)? pct(divYield):0)): NaN;
+  const pb = (isFinite(price)&&isFinite(bvps)&&bvps>0)? price/bvps: NaN;
+  const ps = (isFinite(price)&&isFinite(sps)&&sps>0)? price/sps: NaN;
+  const evEbitda = (isFinite(EV)&&isFinite(ebitda)&&ebitda>0)? EV/ebitda: NaN;
+  const evFcf = (isFinite(EV)&&isFinite(fcf)&&fcf>0)? EV/fcf: NaN;
+
+  // 가치모형 적정가
+  const fairPeer = (isFinite(eps)&&isFinite(peSector))? eps*peSector: NaN;
+  const fairPEG = (isFinite(eps)&&isFinite(g))? eps*(g*100): NaN; // PEG=1 가정
+  const fairGraham = (isFinite(eps)&&isFinite(g)&&isFinite(bond)&&bond>0)? eps*(8.5 + 2*(g*100))*(4.4/bond): NaN;
+
+  let fairDCF=NaN; if (isFinite(fcfps)&&isFinite(gFcf)&&isFinite(r)&&isFinite(gt)&&isFinite(years)&&years>0&&(r>gt)){
+    let pv=0; for(let t=1;t<=years;t++){ const cf= fcfps*Math.pow(1+gFcf,t); pv += cf/Math.pow(1+r,t);} const terminal = (fcfps*Math.pow(1+gFcf,years+1))*(1+gt)/(r-gt); const pvT= terminal/Math.pow(1+r,years+1); fairDCF= pv+pvT; }
+
+  // EV 기준 적정가 역산 (EV 멀티플을 섹터 평균으로)
+  const fairFromEV = (isFinite(evEbitdaSector)&&isFinite(ebitda)&&isFinite(debt)&&isFinite(cash)&&isFinite(shares)&&shares>0)?
+      ((evEbitdaSector*ebitda - (debt - cash))/shares): NaN;
+
+  // P/B, P/S 기준 적정가
+  const fairFromPB = (isFinite(pbSector)&&isFinite(bvps))? pbSector*bvps: NaN;
+  const fairFromPS = (isFinite(psSector)&&isFinite(sps))? psSector*sps: NaN;
+
+  // 가중 평균 적정가
+  const w={ peer:parseInt(read('wPEER'))||0, peg:parseInt(read('wPEG'))||0, gra:parseInt(read('wGRA'))||0, dcf:parseInt(read('wDCF'))||0, ev:parseInt(read('wEV'))||0, pbps:parseInt(read('wPBPS'))||0 };
+  const sumW = Math.max(1, w.peer+w.peg+w.gra+w.dcf+w.ev+w.pbps);
+  const candidates=[fairPeer,fairPEG,fairGraham,fairDCF,fairFromEV, avgClean([fairFromPB,fairFromPS])];
+  const weights=[w.peer,w.peg,w.gra,w.dcf,w.ev,w.pbps];
+  let fairWeighted=0; candidates.forEach((v,i)=>{ if(isFinite(v)) fairWeighted += (weights[i]/sumW)*v; });
+
+  // 표 ① 멀티플 & 모형
+  const valRows=[
+    {name:'PER 동종비교', metric: isFinite(pe)? `${num(pe,1)}배`:'-', fair: fairPeer, note:'EPS×섹터 P/E'},
+    {name:'PEG=1', metric: isFinite(peg)? `PEG ${num(peg,2)}`:'-', fair: fairPEG, note:'EPS×성장률(%)'},
+    {name:'그레이엄', metric:'-', fair: fairGraham, note:'V = EPS×(8.5+2g)×(4.4/Y)'},
+    {name:'DCF(간이, FCF/주)', metric:'-', fair: fairDCF, note:'FCF 성장·고든 성장'},
+    {name:'EV/EBITDA 동종', metric: isFinite(evEbitda)? `${num(evEbitda,1)}배`:'-', fair: fairFromEV, note:'섹터 EV/EBITDA 적용'},
+    {name:'P/B·P/S', metric: combineTxt(['P/B',pb],['P/S',ps]), fair: avgClean([fairFromPB,fairFromPS]), note:'섹터 P/B,P/S 평균'}
+  ];
+  const tbodyVal = document.querySelector('#tblVal tbody');
+  tbodyVal.innerHTML = valRows.map(r=> renderValRow(r, price)).join('');
+
+  // ---- 기준치: 프리셋 반영 ----
+  const T = window._THRESH || PRESETS[$('preset').value]?.thresh || PRESETS.manufacturing.thresh;
+
+  // 수익성·성장·배당 ②
+  const roe = (isFinite(ni)&&isFinite(equity)&&equity>0)? ni/equity: NaN;
+  const nopat = isFinite(ebit)? ebit*(1 - (isFinite(taxRate)? taxRate:0.25)) : NaN;
+  const investedCap = (isFinite(debt)&&isFinite(equity)&&isFinite(cash))? (debt+equity-cash): NaN;
+  const roic = (isFinite(nopat)&&isFinite(investedCap)&&investedCap>0)? nopat/investedCap: NaN;
+  const opMargin = (isFinite(ebit)&&isFinite(revenue)&&revenue>0)? ebit/revenue: NaN;
+  const netMargin = (isFinite(ni)&&isFinite(revenue)&&revenue>0)? ni/revenue: NaN;
+  const fcfMargin = (isFinite(fcf)&&isFinite(revenue)&&revenue>0)? fcf/revenue: NaN;
+  const payout = (isFinite(dps)&&isFinite(eps)&&eps>0)? dps/eps: NaN;
+
+  const tbodyQual = document.querySelector('#tblQual tbody');
+  tbodyQual.innerHTML = [
+    qualityRow('ROE', pct(roe), `≥ ${(pct(T.roe)).toFixed(0)}%`, roe, T.roe, 'up'),
+    qualityRow('ROIC', pct(roic), `≥ ${(pct(T.roic)).toFixed(0)}%`, roic, T.roic, 'up'),
+    qualityRow('영업이익률', pct(opMargin), `≥ ${(pct(T.op)).toFixed(0)}%`, opMargin, T.op, 'up'),
+    qualityRow('순이익률', pct(netMargin), `≥ ${(pct(T.net)).toFixed(0)}%`, netMargin, T.net, 'up'),
+    qualityRow('FCF 마진', pct(fcfMargin), `≥ ${(pct(T.fcf)).toFixed(0)}%`, fcfMargin, T.fcf, 'up'),
+    qualityRow('배당수익률', pct(divYield), `≥ ${(pct(T.divY)).toFixed(0)}%`, divYield, T.divY, 'up'),
+    qualityRow('배당성향', pct(payout), `≤ ${(pct(T.payout)).toFixed(0)}%`, payout, T.payout, 'down'),
+    qualityRow('EPS 성장률(가정)', pct(g), `≥ ${(pct(T.g)).toFixed(0)}%`, g, T.g, 'up')
+  ].join('');
+
+  // 레버리지·유동성 ③
+  const debtEquity = (isFinite(debt)&&isFinite(equity)&&equity>0)? debt/equity: NaN;
+  const netDebtEbitda = (isFinite(debt-cash)&&isFinite(ebitda)&&ebitda>0)? (debt-cash)/ebitda: NaN;
+  const interestCover = (isFinite(ebit)&&isFinite(interest)&&interest>0)? ebit/interest: NaN;
+  const currentRatio = (isFinite(ca)&&isFinite(cl)&&cl>0)? ca/cl: NaN;
+  const quickRatio = (isFinite(ca)&&isFinite(inv)&&isFinite(cl)&&cl>0)? (ca-inv)/cl: NaN;
+
+  const tbodyRisk = document.querySelector('#tblRisk tbody');
+  tbodyRisk.innerHTML = [
+    riskRow('부채비율(D/E)', debtEquity, `≤ ${T.de.toFixed(1)}배`, T.de, 'down'),
+    riskRow('순차입금/EBITDA', netDebtEbitda, `≤ ${T.ndE.toFixed(1)}배`, T.ndE, 'down'),
+    riskRow('이자보상배율', interestCover, `≥ ${T.ic.toFixed(1)}배`, T.ic, 'up'),
+    riskRow('유동비율', currentRatio, `≥ ${T.cr.toFixed(1)}배`, T.cr, 'up'),
+    riskRow('당좌비율', quickRatio, `≥ ${T.qr.toFixed(1)}배`, T.qr, 'up')
+  ].join('');
+
+  // KPI, 점수, 게이지
+  const mos = (isFinite(price)&&isFinite(fairWeighted)&&fairWeighted>0)? (fairWeighted-price)/fairWeighted: NaN;
+  const score = compositeScore({
+    price, fairWeighted, mos,
+    pe, pb, ps, evEbitda, evFcf, peg, peSector, pbSector, psSector, evEbitdaSector,
+    roe, roic, opMargin, netMargin, fcfMargin,
+    debtEquity, netDebtEbitda, interestCover, currentRatio, quickRatio
+  });
+  $('kPrice').textContent = isFinite(price)? num(price,0):'-';
+  $('kFair').textContent = isFinite(fairWeighted)? num(fairWeighted,0):'-';
+  $('kMOS').textContent = isFinite(mos)? `${pct(mos).toFixed(0)}%`:'-';
+  $('kSignal').innerHTML = signalBadge(score);
+  $('score').textContent = Math.round(score);
+  setGauge($('gauge'), score);
+}
+
+function renderValRow(r, price){
+  const fairTxt = isFinite(r.fair)? num(r.fair,0):'-';
+  const diff = (isFinite(price)&&isFinite(r.fair)&&price>0)? ((r.fair-price)/price): NaN;
+  const diffTxt = isFinite(diff)? `${(pct(diff)).toFixed(0)}%`:'-';
+  const cls = isFinite(diff) ? (diff>0? 'ok': (diff>-0.05? 'warn': 'danger')) : 'warn';
+  return `<tr><td>${r.name}</td><td>${r.metric||'-'}</td><td>${fairTxt}</td><td><span class="badge ${cls}">${diffTxt}</span></td><td class="sub">${r.note||''}</td></tr>`;
+}
+function combineTxt(a,b){ const [n1,v1]=a,[n2,v2]=b; const t1=isFinite(v1)?`${n1} ${num(v1,2)}배`:''; const t2=isFinite(v2)?`${n2} ${num(v2,2)}배`:''; return [t1,t2].filter(Boolean).join(' · '); }
+function avgClean(arr){ const xs=arr.filter(x=>isFinite(x)); if(xs.length===0) return NaN; return xs.reduce((a,b)=>a+b,0)/xs.length; }
+
+function qualityRow(name, valPct, critTxt, raw, crit, dir){
+  const good = isFinite(raw)&&isFinite(crit) ? (dir==='up'? raw>=crit : raw<=crit) : null;
+  const cls = good==null? 'warn' : (good? 'ok' : 'danger');
+  return `<tr><td>${name}</td><td>${isFinite(valPct)? valPct.toFixed(1)+'%':'-'}</td><td class="sub">${critTxt}</td><td><span class="badge ${cls}">${good==null?'-':(good?'양호':'주의')}</span></td></tr>`;
+}
+function riskRow(name, raw, critTxt, crit, dir){
+  const good = isFinite(raw)&&isFinite(crit) ? (dir==='up'? raw>=crit : raw<=crit) : null;
+  const cls = good==null? 'warn' : (good? 'ok' : 'danger');
+  return `<tr><td>${name}</td><td>${isFinite(raw)? num(raw,2):'-'}</td><td class="sub">${critTxt}</td><td><span class="badge ${cls}">${good==null?'-':(good?'양호':'주의')}</span></td></tr>`;
+}
+
+function signalBadge(score){
+  const s = Math.round(score);
+  if (s>=75) return `<span class="badge ok">저평가 강함</span>`;
+  if (s>=55) return `<span class="badge warn">저평가 가능</span>`;
+  if (s>=40) return `<span class="badge warn">중립</span>`;
+  return `<span class="badge danger">고평가/리스크</span>`;
+}
+
+function compositeScore(ctx){
+  // 0~100 스코어: 가치(40) + 품질(30) + 리스크(30)
+  let val=0, qual=0, risk=0;
+  const mult = [ ratioScore(ctx.pe, ctx.peSector, true), ratioScore(ctx.pb, ctx.pbSector, true), ratioScore(ctx.ps, ctx.psSector, true), ratioScore(ctx.evEbitda, ctx.evEbitdaSector, true) ];
+  const multScore = avgClean(mult.map(x=>isFinite(x)?x:NaN));
+  const mosScore = isFinite(ctx.mos)? clamp(pct(ctx.mos)/50, 0, 1): 0; // MOS 50% 이상이면 만점
+  val = 40 * avgClean([multScore, mosScore].filter(x=>isFinite(x)));
+  const qParts = [ threshScore(ctx.roe,0.10,true), threshScore(ctx.roic,0.08,true), threshScore(ctx.opMargin,0.10,true), threshScore(ctx.netMargin,0.08,true), threshScore(ctx.fcfMargin,0.05,true) ];
+  qual = 30 * avgClean(qParts);
+  const rParts = [ threshScore(ctx.debtEquity,1.0,false), threshScore(ctx.netDebtEbitda,2.5,false), threshScore(ctx.interestCover,3.0,true), threshScore(ctx.currentRatio,1.5,true), threshScore(ctx.quickRatio,1.0,true) ];
+  risk = 30 * avgClean(rParts);
+  const total = clamp((val||0)+(qual||0)+(risk||0), 0, 100);
+  return isFinite(total)? total: 0;
+}
+function ratioScore(val, ref, lowerBetter){ if(!isFinite(val) || !isFinite(ref) || ref<=0) return NaN; const rel = val/ref; let s = lowerBetter ? (1/rel) : rel; s = clamp((s-0.5)/(1.5-0.5), 0, 1); return s; }
+function threshScore(val, thr, upGood){ if(!isFinite(val)||!isFinite(thr)) return 0.5; const diff = upGood ? (val-thr) : (thr-val); return clamp(0.5 + diff/(Math.abs(thr)*1.5 || 1), 0, 1); }
+
+// 이벤트
+$('btnCalc').addEventListener('click', e=>{ e.preventDefault(); calc(); saveInputs(); });
+$('btnSave').addEventListener('click', e=>{ e.preventDefault(); saveInputs(); });
+$('btnLoad').addEventListener('click', e=>{ e.preventDefault(); if(!loadInputs()) alert('저장된 입력이 없습니다.'); calc(); });
+$('btnExample').addEventListener('click', e=>{ e.preventDefault(); fillExample(); calc(); });
+$('btnReset').addEventListener('click', e=>{ e.preventDefault(); document.querySelectorAll('input').forEach(i=> i.value=''); calc(); });
+['wPEER','wPEG','wGRA','wDCF','wEV','wPBPS'].forEach(id=> $(id).addEventListener('input', ()=> calc()));
+$('preset').addEventListener('change', ()=>{ applyPreset($('preset').value); calc(); });
+window.addEventListener('DOMContentLoaded', ()=>{ applyPreset($('preset').value); loadInputs(); calc(); });
+
+function saveInputs(key='stockCalcInputsFull'){
+  const ids=['price','shares','eps','growth','dps','revenue','ebitda','ebit','ni','ocf','fcf','assets','equity','debt','cash','ca','cl','inv','interest','tax','peSector','psSector','pbSector','evEbitdaSector','bond','fcfGrowth','years','discount','gt','wPEER','wPEG','wGRA','wDCF','wEV','wPBPS','preset'];
+  const data={}; ids.forEach(id=> data[id]= $(id)?.value ?? '');
+  localStorage.setItem(key, JSON.stringify(data));
+}
+function loadInputs(key='stockCalcInputsFull'){
+  const raw= localStorage.getItem(key); if(!raw) return false; try{ const data=JSON.parse(raw); Object.entries(data).forEach(([k,v])=>{ const el=$(k); if(el) el.value=v; }); if(data.preset) applyPreset(data.preset); return true;}catch(e){console.warn(e)}; return false;
+}
+
+function fillExample(){
+  $('preset').value='manufacturing'; applyPreset('manufacturing');
+  $('price').value=65000; $('shares').value=700000000; $('eps').value=4200; $('growth').value=12; $('dps').value=1200;
+  $('revenue').value=28000000000000; $('ebitda').value=6000000000000; $('ebit').value=4800000000000; $('ni').value=3000000000000;
+  $('ocf').value=5200000000000; $('fcf').value=3500000000000;
+  $('assets').value=90000000000000; $('equity').value=50000000000000; $('debt').value=12000000000000; $('cash').value=8000000000000;
+  $('ca').value=30000000000000; $('cl').value=15000000000000; $('inv').value=4000000000000; $('interest').value=300000000000; $('tax').value=25;
+  $('bond').value=4.0; $('fcfGrowth').value=8; $('years').value=5; $('discount').value=''; $('gt').value='';
+  $('wPEER').value=15; $('wPEG').value=15; $('wGRA').value=15; $('wDCF').value=25; $('wEV').value=15; $('wPBPS').value=15;
+}
+</script>
+</body>
+</html>
