@@ -109,6 +109,13 @@
                 <input id="intervalSec" type="number" min="15" max="300" step="5" value="60">
             </div>
         </div>
+        <div class="row">
+            <label class="toggle"><input type="checkbox" id="autoScan"> 자동 스캔(분 단위, 0초 정각)</label>
+            <div>
+                <label class="note">분 간격</label>
+                <input id="autoMinutes" type="number" min="1" max="60" step="1" value="1">
+            </div>
+        </div>
     </div>
     <div class="ctrl" style="grid-column: span 6;">
         <h3>가중치 (합=1.00)</h3>
@@ -196,6 +203,8 @@ const dom = {
     enableOI: document.getElementById('enableOI'),
     enableFunding: document.getElementById('enableFunding'),
     showOnlySignals: document.getElementById('showOnlySignals'),
+    autoScan: document.getElementById('autoScan'),
+    autoMinutes: document.getElementById('autoMinutes'),
     entryScore: document.getElementById('entryScore'),
     entryRVOL: document.getElementById('entryRVOL'),
     entryRequireTrend: document.getElementById('entryRequireTrend'),
@@ -298,9 +307,7 @@ const state = {
     symbols: [],     // futures symbols metadata
     universe: [],    // selected symbols
     bench: { BTCUSDT: null, ETHUSDT: null },
-    rows: new Map(),
-    lastAlertTs: new Map(),
-    entryCount: 0, // symbol -> last computed row
+    rows: new Map(), lastAlertTs: new Map(), entryCount: 0, autoTimer: null, nextAuto: null, // symbol -> last computed row
     timer: null,
 };
 
@@ -484,7 +491,7 @@ function notifyEntry(row){
         `RVOL: ${(row.signals.rvol||0).toFixed(2)}×`,
         `ΔOI1h: ${Number.isFinite(row.oi1h) ? (row.oi1h*100).toFixed(2)+'%' : '-'}`,
         `Trend: ${row.signals.trend? 'ON':'OFF'}  SQ: ${row.signals.squeeze? 'ON':'OFF'}`
-    ].join('\\n');
+    ].join('\n');
     try{
         const n = new Notification(title, { body, icon: 'https://www.binance.com/resources/static/favicon.ico' });
         n.onclick = ()=> window.open(`https://www.binance.com/ko/futures/${row.symbol}`, '_blank');
@@ -493,6 +500,28 @@ function notifyEntry(row){
     }catch(e){}
 }
 // =========================
+
+// ===== Auto-scan scheduler (aligned to :00) =====
+function scheduleAutoAligned(){
+    const mins = Math.max(1, Math.min(60, Number(dom.autoMinutes.value)||1));
+    const intervalMs = mins * 60 * 1000;
+    const now = Date.now();
+    const next = Math.ceil(now / intervalMs) * intervalMs; // align to next boundary at :00
+    const delay = Math.max(0, next - now);
+    if(state.autoTimer){ clearTimeout(state.autoTimer); state.autoTimer = null; }
+    state.nextAuto = new Date(next).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' });
+    const tick = async () => {
+        await scanOnce();
+        const now2 = Date.now();
+        const next2 = Math.floor(now2 / intervalMs) * intervalMs + intervalMs; // always next boundary
+        state.nextAuto = new Date(next2).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' });
+        const wait = Math.max(0, next2 - now2);
+        state.autoTimer = setTimeout(tick, wait);
+    };
+    state.autoTimer = setTimeout(tick, delay);
+}
+function cancelAuto(){ if(state.autoTimer){ clearTimeout(state.autoTimer); state.autoTimer = null; } }
+// ================================================
 
 async function scanOnce(){
     const t0 = performance.now();
@@ -564,8 +593,7 @@ async function scanOnce(){
     renderRows(filtered);
 
     const t1 = performance.now();
-    dom.foot.innerHTML = `심볼 ${state.universe.length.toLocaleString()}개 중 ${filtered.length.toLocaleString()}개 표시 · `+
-        `요청 큐 동시 ${Q.concurrency} · 스캔 소요 ${(t1-t0).toFixed(0)} ms · ${new Date().toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul'})}`;
+    dom.foot.innerHTML = `심볼 ${state.universe.length.toLocaleString()}개 중 ${filtered.length.toLocaleString()}개 표시 · 요청 큐 동시 ${Q.concurrency} · 스캔 소요 ${(t1-t0).toFixed(0)} ms · 현재 ${new Date().toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul'})}${dom.autoScan.checked && state.nextAuto ? ` · 다음 자동 스캔 ${state.nextAuto}` : ''}`;
 }
 
 function renderRows(rows){
@@ -599,7 +627,24 @@ function renderRows(rows){
     dom.rows.appendChild(fr);
 }
 
-function start(){ if (dom.entryNotify.checked) { ensureNotifyPermission(); }
+function start(){
+    savePrefs();
+    if (dom.entryNotify.checked) { ensureNotifyPermission(); }
+    // 1) 즉시 1회 스캔
+    scanOnce();
+    // 2) 기존 타이머 정리
+    if(state.timer){ clearInterval(state.timer); state.timer = null; }
+    cancelAuto();
+    // 3) 자동 스캔 옵션
+    if(dom.autoScan.checked){
+        dom.start.disabled = true;
+        dom.stop.disabled = false;
+        scheduleAutoAligned();
+    } else {
+        dom.start.disabled = false;
+        dom.stop.disabled = true;
+    }
+}
     scanOnce();
     const sec = Math.max(15, Math.min(300, Number(dom.intervalSec.value)||60));
     state.timer = setInterval(scanOnce, sec*1000);
@@ -608,6 +653,8 @@ function stop(){
     dom.start.disabled = false;
     dom.stop.disabled = true;
     if(state.timer){ clearInterval(state.timer); state.timer = null; }
+    cancelAuto();
+}
 }
 
 function exportCSV(){
@@ -655,6 +702,10 @@ function savePrefs(){
             requireOI: dom.entryRequireOI.checked,
             notify: dom.entryNotify.checked
         },
+        auto: {
+            scan: dom.autoScan.checked,
+            minutes: dom.autoMinutes.value
+        },
         w: {
             r1: dom.w.r1.value, r4: dom.w.r4.value, rv: dom.w.rv.value, oi: dom.w.oi.value,
             fd: dom.w.fd.value, tr: dom.w.tr.value, sq: dom.w.sq.value
@@ -682,6 +733,10 @@ function loadPrefs(){
             dom.entryRequireOI.checked = p.entry.requireOI ?? dom.entryRequireOI.checked;
             dom.entryNotify.checked = p.entry.notify ?? dom.entryNotify.checked;
         }
+        if(p.auto){
+            dom.autoScan.checked = p.auto.scan ?? dom.autoScan.checked;
+            dom.autoMinutes.value = p.auto.minutes ?? dom.autoMinutes.value;
+        }
         if(p.w){ Object.keys(dom.w).forEach(k => dom.w[k].value = p.w[k] ?? dom.w[k].value); }
     }catch(e){}
 }
@@ -701,7 +756,7 @@ dom.exportBtn.addEventListener('click', exportCSV);
 
 // Live-update labels on weight change + autosave
 Object.values(dom.w).forEach(inp => inp.addEventListener('input', ()=>{ bindWeightLabels(); savePrefs(); }));
-[dom.topN, dom.intervalSec, dom.onlyPerp, dom.usdtQuote, dom.enableOI, dom.enableFunding, dom.showOnlySignals, dom.entryScore, dom.entryRVOL, dom.entryRequireTrend, dom.entryRequireSqueeze, dom.entryRequireOI, dom.entryNotify].forEach(el => {
+[dom.topN, dom.intervalSec, dom.onlyPerp, dom.usdtQuote, dom.enableOI, dom.enableFunding, dom.showOnlySignals, dom.entryScore, dom.entryRVOL, dom.entryRequireTrend, dom.entryRequireSqueeze, dom.entryRequireOI, dom.entryNotify, dom.autoScan, dom.autoMinutes].forEach(el => {
     el.addEventListener('change', savePrefs);
 });
 
