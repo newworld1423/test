@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>바이낸스 선물 USDT 페어 15분봉 스캐너 (MA7/25/99 조건)</title>
+    <title>바이낸스 선물 USDT 15분봉 스캐너 · 종가<MA(7/25/99) + MA상승</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { --fg:#111; --bg:#fff; --muted:#666; --ok:#087f5b; --bad:#c92a2a; --chip:#f1f3f5; }
@@ -22,16 +22,14 @@
         td.symbol, th.symbol { text-align:left; }
         .muted { color:var(--muted); }
         .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        .row-ok { background: #f8fff9; }
+        .row-ok { background:#f8fff9; }
         .small { font-size:12px; }
         .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f1f3f5; }
-        .right { margin-left:auto; }
-        .footer { padding:10px 20px; font-size:12px; color:#666; border-top:1px solid #e9ecef; }
     </style>
 </head>
 <body>
 <header>
-    <h1>USDT-M PERP 15분봉 스캐너 · MA7/25/99 조건</h1>
+    <h1>USDT-M PERP 15분봉 스캐너 · 종가&lt;MA(7/25/99) + MA상승</h1>
     <div class="controls">
         <button id="scanNowBtn">지금 스캔</button>
         <button id="toggleAutoBtn">자동 스캔: 켜짐</button>
@@ -56,34 +54,36 @@
                     <th>MA7↑</th>
                     <th>MA25↑</th>
                     <th>MA99↑</th>
+                    <th>C&lt;7</th>
+                    <th>C&lt;25</th>
+                    <th>C&lt;99</th>
                     <th>직전봉 거래량</th>
                 </tr>
             </thead>
             <tbody id="tbody">
-                <tr><td colspan="9" class="muted">스캔 대기 중…</td></tr>
+                <tr><td colspan="12" class="muted">스캔 대기 중…</td></tr>
             </tbody>
         </table>
     </div>
 </main>
 
-<div class="footer">
-    * 조건: 직전봉 종가 &gt; MA7/25/99 (모두), 그리고 각 MA가 2봉전 대비 상승(MA[t-2] &lt; MA[t-1]).<br/>
-    * 봉 마감 직후 API 반영이 1-3초 지연될 수 있어, 실행 시점은 마감 후 약간의 딜레이(기본 3초)를 둡니다. <br/>
-    * 투자 책임은 본인에게 있으며, 본 도구는 보조 지표용 참고 자료입니다.
-</div>
+<footer class="small muted" style="padding:10px 20px; border-top:1px solid #e9ecef;">
+    조건: (1) 2봉전 MA &lt; 직전봉 MA (7/25/99 모두 상승) (2) 직전봉 종가 &lt; MA7 또는 MA25 또는 MA99 중 하나.<br/>
+    봉 마감 직후 1~3초 API 지연이 있을 수 있어 마감 +3초에 실행합니다(변경은 AUTO_DELAY_MS).
+</footer>
 
 <script>
 (() => {
     "use strict";
 
-    // ======== 설정값 ========
+    // ===== 설정 =====
     const INTERVAL = "15m";
     const INTERVAL_MS = 15 * 60 * 1000;
-    const KLINE_LIMIT = 150; // MA99 계산 + 여유
-    const CONCURRENCY = 8;   // 동시 요청 개수 (레이트 리밋 고려)
-    const AUTO_DELAY_MS = 3000; // 봉 마감 후 지연 실행(ms)
+    const KLINE_LIMIT = 150;    // MA99 계산 + 여유
+    const CONCURRENCY = 8;      // 동시 요청 개수
+    const AUTO_DELAY_MS = 3000; // 봉 마감 후 지연(ms)
 
-    // ======== DOM ========
+    // ===== DOM =====
     const scanNowBtn = document.getElementById("scanNowBtn");
     const toggleAutoBtn = document.getElementById("toggleAutoBtn");
     const nextScanChip = document.getElementById("nextScanChip");
@@ -93,19 +93,18 @@
     const sortByVol = document.getElementById("sortByVol");
     const tbody = document.getElementById("tbody");
 
-    // ======== 상태 ========
+    // ===== 상태 =====
     let symbols = [];
     let autoScan = true;
     let intervalTimer = null;
     let countdownTimer = null;
 
-    // ======== 유틸 ========
+    // ===== 유틸 =====
     function fmtNum(n, d = 8) {
         if (Number.isNaN(n) || n === null || n === undefined) return "-";
-        const s = Number(n);
-        // 자리수 과도 방지: 큰 값은 2~4자리, 작은 값은 유효숫자 표시
-        if (Math.abs(s) >= 100) return s.toLocaleString();
-        return s.toLocaleString(undefined, { maximumFractionDigits: d });
+        const v = Number(n);
+        if (Math.abs(v) >= 100) return v.toLocaleString();
+        return v.toLocaleString(undefined, { maximumFractionDigits: d });
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -132,9 +131,7 @@
     }
 
     function nextCandleCloseMs(now = Date.now()) {
-        // 다음 15분 경계(봉 마감 시점) + 딜레이
-        const next = Math.ceil(now / INTERVAL_MS) * INTERVAL_MS + AUTO_DELAY_MS;
-        return next;
+        return Math.ceil(now / INTERVAL_MS) * INTERVAL_MS + AUTO_DELAY_MS;
     }
 
     function startCountdown() {
@@ -157,19 +154,14 @@
 
     function setStatus(txt) { statusChip.textContent = `상태: ${txt}`; }
 
-    // 심볼 목록(USDT-M 무기한, 거래중) 로드
+    // USDT-M 무기한(TRADING) 심볼 로드
     async function loadSymbols() {
         setStatus("심볼 로딩");
         const info = await fetchJSON("https://fapi.binance.com/fapi/v1/exchangeInfo");
-        const list = (info.symbols || [])
-            .filter(s =>
-                s.quoteAsset === "USDT" &&
-                s.contractType === "PERPETUAL" &&
-                s.status === "TRADING"
-            )
+        symbols = (info.symbols || [])
+            .filter(s => s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING")
             .map(s => s.symbol)
             .sort();
-        symbols = list;
         setStatus(`심볼 ${symbols.length}개`);
     }
 
@@ -177,14 +169,14 @@
     async function scanSymbol(symbol) {
         const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
         const data = await fetchJSON(url);
-        if (!Array.isArray(data) || data.length < 120) return null; // 데이터 부족 심볼 스킵
+        if (!Array.isArray(data) || data.length < 120) return null;
 
-        // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume,[6]closeTime,... 
+        // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume,[6]closeTime,...
         const closes = data.map(k => parseFloat(k[4]));
         const vols = data.map(k => parseFloat(k[5]));
         const n = closes.length;
 
-        // 마지막 원소는 진행중인 현재봉일 수 있으므로 직전봉은 n-2, 2봉전은 n-3
+        // 진행 중 봉 제외: prev = n-2, twoAgo = n-3
         const prev = n - 2;
         const twoAgo = n - 3;
         if (twoAgo < 0) return null;
@@ -199,43 +191,48 @@
         const ma25_two = sma(closes, twoAgo, 25);
         const ma99_two = sma(closes, twoAgo, 99);
 
-        if ([ma7_prev, ma25_prev, ma99_prev, ma7_two, ma25_two, ma99_two].some(v => v === null)) {
-            return null; // 충분한 히스토리 없음
-        }
+        if ([ma7_prev, ma25_prev, ma99_prev, ma7_two, ma25_two, ma99_two].some(v => v === null)) return null;
 
-        const condCloseOver = (prevClose > ma7_prev) && (prevClose > ma25_prev) && (prevClose > ma99_prev);
+        // (A) MA 기울기 상승
         const condSlopeUp = (ma7_two < ma7_prev) && (ma25_two < ma25_prev) && (ma99_two < ma99_prev);
 
-        if (condCloseOver && condSlopeUp) {
+        // (B) "추가 조건": 직전봉 종가가 MA7/25/99 중 하나라도 아래
+        const c_lt7 = prevClose < ma7_prev;
+        const c_lt25 = prevClose < ma25_prev;
+        const c_lt99 = prevClose < ma99_prev;
+        const condCloseBelowAny = c_lt7 || c_lt25 || c_lt99;
+
+        if (condSlopeUp && condCloseBelowAny) {
             const prevVol = vols[prev];
             return {
                 symbol,
                 prevClose,
                 ma7_prev, ma25_prev, ma99_prev,
                 up7: true, up25: true, up99: true,
+                c_lt7, c_lt25, c_lt99,
                 prevVol
             };
         }
         return null;
     }
 
-    // 풀(동시성) 스캔
+    // 전체 스캔(동시성)
     async function scanAll() {
         if (!symbols.length) await loadSymbols();
 
         setStatus("스캔 중");
-        tbody.innerHTML = `<tr><td colspan="9" class="muted">스캔 중… (총 ${symbols.length}개)</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="muted">스캔 중… (총 ${symbols.length}개)</td></tr>`;
 
         const results = [];
         let processed = 0;
 
-        async function worker(idxStart) {
-            for (let i = idxStart; i < symbols.length; i += CONCURRENCY) {
+        async function worker(startIdx) {
+            for (let i = startIdx; i < symbols.length; i += CONCURRENCY) {
                 try {
                     const r = await scanSymbol(symbols[i]);
                     if (r) results.push(r);
-                } catch (e) {
-                    // 개별 심볼 오류는 무시하고 진행
+                } catch (_) {
+                    // 심볼별 오류 무시
                 } finally {
                     processed++;
                     statusChip.textContent = `상태: 스캔 ${processed}/${symbols.length}`;
@@ -243,13 +240,11 @@
             }
         }
 
-        // 워커 시작
-        const workers = [];
         const workerCount = Math.min(CONCURRENCY, symbols.length);
+        const workers = [];
         for (let w = 0; w < workerCount; w++) workers.push(worker(w));
         await Promise.all(workers);
 
-        // 정렬(선택): 거래량 내림차순
         if (sortByVol.checked) {
             results.sort((a, b) => (b.prevVol ?? 0) - (a.prevVol ?? 0));
         } else {
@@ -265,11 +260,10 @@
 
     function render(rows) {
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="9" class="muted">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="muted">조건을 만족하는 심볼이 없습니다.</td></tr>`;
             return;
         }
-        const html = rows.map(r => {
-            return `
+        tbody.innerHTML = rows.map(r => `
             <tr class="row-ok">
                 <td class="symbol"><span class="pill">${r.symbol}</span></td>
                 <td class="mono">${fmtNum(r.prevClose, 6)}</td>
@@ -279,14 +273,15 @@
                 <td class="ok">↑</td>
                 <td class="ok">↑</td>
                 <td class="ok">↑</td>
+                <td class="mono">${r.c_lt7 ? "●" : "—"}</td>
+                <td class="mono">${r.c_lt25 ? "●" : "—"}</td>
+                <td class="mono">${r.c_lt99 ? "●" : "—"}</td>
                 <td class="mono">${fmtNum(r.prevVol, 2)}</td>
-            </tr>`;
-        }).join("");
-        tbody.innerHTML = html;
+            </tr>
+        `).join("");
     }
 
     function scheduleAuto() {
-        // 1) 다음 봉 마감까지 대기 후 스캔 2) 이후 15분마다 반복
         if (intervalTimer) { clearInterval(intervalTimer); intervalTimer = null; }
         const now = Date.now();
         const firstAt = nextCandleCloseMs(now);
@@ -304,11 +299,10 @@
                 if (!autoScan) return;
                 await scanAll();
             }, INTERVAL_MS);
-
         }, wait);
     }
 
-    // ======== 이벤트 ========
+    // 이벤트
     scanNowBtn.addEventListener("click", async () => {
         stopCountdown();
         await scanAll();
@@ -329,19 +323,17 @@
         }
     });
 
-    // ======== 시작 ========
+    // 시작
     (async function init() {
         try {
             await loadSymbols();
-            // 첫 실행 한 번 즉시 스캔
-            await scanAll();
+            await scanAll();     // 최초 1회 즉시 실행
         } catch (e) {
             setStatus("에러");
-            tbody.innerHTML = `<tr><td colspan="9" class="bad">초기화 실패: ${String(e && e.message || e)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="bad">초기화 실패: ${String(e && e.message || e)}</td></tr>`;
             return;
         }
-        // 자동 스케줄 시작
-        scheduleAuto();
+        scheduleAuto();          // 이후 봉 마감마다 자동
     })();
 })();
 </script>
