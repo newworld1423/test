@@ -1,341 +1,349 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance USDT Perp 1D Hammer Scanner (최근 7개봉, 오늘봉 제외)</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>바이낸스 선물 USDT 페어 15분봉 스캐너 (MA7/25/99 조건)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-        :root { --bg:#0b0d10; --card:#12161c; --muted:#8592a3; --text:#e9eef5; --ok:#28c76f; --bad:#ea5455; --chip:#1e2630; --brand:#78a6ff; }
-        html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, sans-serif; }
-        .container { max-width:1200px; margin:32px auto; padding:0 16px; }
-        .card { background:var(--card); border-radius:16px; padding:20px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
-        h1 { margin:0 0 12px; font-size:24px; }
-        .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
-        .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:12px 0 20px; }
-        button { background:var(--brand); color:#0b1220; border:0; padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer; }
-        button:disabled { opacity:.6; cursor:not-allowed; }
-        input[type="text"] { background:var(--chip); color:var(--text); border:1px solid #2a3441; padding:10px 12px; border-radius:12px; min-width:220px; }
-        .pill { display:inline-flex; align-items:center; gap:6px; background:var(--chip); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted); }
-        .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-        .progress { height:8px; background:#1a1f27; border-radius:999px; overflow:hidden; margin-top:8px; }
-        .bar { height:100%; width:0%; background:linear-gradient(90deg,#4aa3ff,#78ffcf); }
-        table { width:100%; border-collapse:collapse; margin-top:12px; }
-        th, td { text-align:left; padding:12px; border-bottom:1px solid #1c232d; vertical-align:top; }
-        th { color:#b7c4d6; font-weight:700; font-size:13px; }
-        td { font-size:14px; }
-        .badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; margin:3px 6px 3px 0; white-space:nowrap; }
-        .bull { background:rgba(40,199,111,.15); color:var(--ok); border:1px solid rgba(40,199,111,.35); }
-        .bear { background:rgba(234,84,85,.15); color:var(--bad); border:1px solid rgba(234,84,85,.35); }
+        :root { --fg:#111; --bg:#fff; --muted:#666; --ok:#087f5b; --bad:#c92a2a; --chip:#f1f3f5; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, "Noto Sans KR", sans-serif; color:var(--fg); background:var(--bg); margin:0; }
+        header { padding:16px 20px; border-bottom:1px solid #e9ecef; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+        h1 { font-size:18px; margin:0; }
+        .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        button, .chip { border:1px solid #dee2e6; background:#fff; padding:8px 12px; border-radius:10px; cursor:pointer; }
+        button:hover { background:#f8f9fa; }
+        .chip { background:var(--chip); cursor:default; }
+        .ok { color:var(--ok); font-weight:600; }
+        .bad { color:var(--bad); font-weight:600; }
+        main { padding:14px 20px 40px; }
+        table { width:100%; border-collapse:collapse; font-size:14px; }
+        th, td { padding:10px 8px; border-bottom:1px solid #f1f3f5; text-align:right; }
+        th { position:sticky; top:0; background:#fff; z-index:1; }
+        td.symbol, th.symbol { text-align:left; }
         .muted { color:var(--muted); }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-        .right { text-align:right; }
-        .nowrap { white-space:nowrap; }
-        .footer { color:var(--muted); font-size:12px; margin-top:10px; }
-        .hint { color:#a8b6c8; font-size:12px; }
+        .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .row-ok { background: #f8fff9; }
         .small { font-size:12px; }
-        .sticky { position:sticky; top:0; background:var(--card); z-index:5; }
+        .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f1f3f5; }
+        .right { margin-left:auto; }
+        .footer { padding:10px 20px; font-size:12px; color:#666; border-top:1px solid #e9ecef; }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="card">
-        <h1>USDT 무기한 선물 1일봉 해머 스캐너</h1>
-        <div class="sub">대상: Binance USDⓂ-M Futures / USDT <span class="mono">(PERPETUAL)</span> · 기준: 최근 7개 1일봉(진행 중인 현재봉 제외) · 패턴: 강세/약세 해머</div>
-
-        <div class="controls">
-            <button id="scanBtn">스캔 시작</button>
-            <button id="exportBtn" disabled>CSV 내보내기</button>
-            <div class="row">
-                <span class="pill" title="바이낸스 심볼 목록을 받아온 뒤, 10개씩 동시 요청합니다.">동시 요청: 10</span>
-                <span class="pill" id="symbolCount">심볼: -</span>
-                <span class="pill" id="foundCount">해머 발견: -</span>
-            </div>
-            <div class="row" style="margin-left:auto">
-                <input id="search" type="text" placeholder="심볼 검색 (예: BTC)"/>
-                <span class="hint">정렬:
-                    <select id="sortSelect">
-                        <option value="hits">해머 개수↓, 최신 날짜↓</option>
-                        <option value="symbol">심볼↑</option>
-                        <option value="latest">최신 해머 날짜↓</option>
-                    </select>
-                </span>
-            </div>
-            <div style="flex-basis:100%">
-                <div class="progress"><div class="bar" id="bar"></div></div>
-                <div class="small muted" id="status">대기 중…</div>
-            </div>
-        </div>
-
-        <div class="sticky">
-            <table>
-                <thead>
-                <tr>
-                    <th class="nowrap">심볼</th>
-                    <th class="nowrap right">발견 개수</th>
-                    <th>해머 날짜 (최신 → 과거)</th>
-                </tr>
-                </thead>
-                <tbody id="tbody">
-                <tr><td colspan="3" class="muted">아직 결과가 없습니다. “스캔 시작”을 눌러주세요.</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="footer">
-            · “오늘봉 제외”는 **진행 중인 미종가 봉**을 의미합니다(UTC 기준).<br/>
-            · 해머 판정(휴리스틱): 하단 심선이 **실체의 2배 이상**, 상단 심선이 **실체의 0.3배 이하**, 전체 범위 대비 실체 비율이 **≤ 30%**일 때. (양봉=강세, 음봉=약세)
-        </div>
+<header>
+    <h1>USDT-M PERP 15분봉 스캐너 · MA7/25/99 조건</h1>
+    <div class="controls">
+        <button id="scanNowBtn">지금 스캔</button>
+        <button id="toggleAutoBtn">자동 스캔: 켜짐</button>
+        <span class="chip" id="nextScanChip">다음 스캔까지 —</span>
+        <span class="chip" id="statusChip">상태: 준비</span>
+        <span class="chip" id="countChip">결과 0개</span>
+        <label class="chip"><input id="sortByVol" type="checkbox" checked /> 거래량순 정렬</label>
     </div>
+</header>
+
+<main>
+    <div class="small muted" id="lastRunInfo">마지막 스캔: —</div>
+    <div style="overflow:auto; margin-top:8px;">
+        <table id="resultTable">
+            <thead>
+                <tr>
+                    <th class="symbol">심볼</th>
+                    <th>직전봉 종가</th>
+                    <th>MA7 (t-1)</th>
+                    <th>MA25 (t-1)</th>
+                    <th>MA99 (t-1)</th>
+                    <th>MA7↑</th>
+                    <th>MA25↑</th>
+                    <th>MA99↑</th>
+                    <th>직전봉 거래량</th>
+                </tr>
+            </thead>
+            <tbody id="tbody">
+                <tr><td colspan="9" class="muted">스캔 대기 중…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<div class="footer">
+    * 조건: 직전봉 종가 &gt; MA7/25/99 (모두), 그리고 각 MA가 2봉전 대비 상승(MA[t-2] &lt; MA[t-1]).<br/>
+    * 봉 마감 직후 API 반영이 1-3초 지연될 수 있어, 실행 시점은 마감 후 약간의 딜레이(기본 3초)를 둡니다. <br/>
+    * 투자 책임은 본인에게 있으며, 본 도구는 보조 지표용 참고 자료입니다.
 </div>
 
 <script>
-    // ----------- 설정 -----------
-    const MAX_CONCURRENCY = 10; // 동시 요청 수
-    const KLINE_LIMIT = 8;      // 최근 8개 (마지막 1개는 현재봉 -> 제외하면 7개 검사)
-    const INTERVAL = '1d';      // 1일봉
-    const FUTURES_KLINES = 'https://fapi.binance.com/fapi/v1/klines';
-    const FUTURES_EXCHANGE_INFO = 'https://fapi.binance.com/fapi/v1/exchangeInfo';
+(() => {
+    "use strict";
 
-    // ----------- 유틸 -----------
-    const $ = (sel) => document.querySelector(sel);
-    const tbody = $('#tbody');
-    const scanBtn = $('#scanBtn');
-    const exportBtn = $('#exportBtn');
-    const statusEl = $('#status');
-    const barEl = $('#bar');
-    const symbolCountEl = $('#symbolCount');
-    const foundCountEl = $('#foundCount');
-    const searchEl = $('#search');
-    const sortSelect = $('#sortSelect');
+    // ======== 설정값 ========
+    const INTERVAL = "15m";
+    const INTERVAL_MS = 15 * 60 * 1000;
+    const KLINE_LIMIT = 150; // MA99 계산 + 여유
+    const CONCURRENCY = 8;   // 동시 요청 개수 (레이트 리밋 고려)
+    const AUTO_DELAY_MS = 3000; // 봉 마감 후 지연 실행(ms)
+
+    // ======== DOM ========
+    const scanNowBtn = document.getElementById("scanNowBtn");
+    const toggleAutoBtn = document.getElementById("toggleAutoBtn");
+    const nextScanChip = document.getElementById("nextScanChip");
+    const statusChip = document.getElementById("statusChip");
+    const countChip = document.getElementById("countChip");
+    const lastRunInfo = document.getElementById("lastRunInfo");
+    const sortByVol = document.getElementById("sortByVol");
+    const tbody = document.getElementById("tbody");
+
+    // ======== 상태 ========
+    let symbols = [];
+    let autoScan = true;
+    let intervalTimer = null;
+    let countdownTimer = null;
+
+    // ======== 유틸 ========
+    function fmtNum(n, d = 8) {
+        if (Number.isNaN(n) || n === null || n === undefined) return "-";
+        const s = Number(n);
+        // 자리수 과도 방지: 큰 값은 2~4자리, 작은 값은 유효숫자 표시
+        if (Math.abs(s) >= 100) return s.toLocaleString();
+        return s.toLocaleString(undefined, { maximumFractionDigits: d });
+    }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    function toKRDate(ms) {
-        // Binance ms -> KST “몇월 며칠”
-        return new Date(ms).toLocaleDateString('ko-KR', {
-            timeZone: 'Asia/Seoul',
-            month: 'long',
-            day: 'numeric'
-        });
-    }
-
-    function isHammer(o, h, l, c) {
-        o = Number(o); h = Number(h); l = Number(l); c = Number(c);
-        const body = Math.abs(c - o);
-        const upper = h - Math.max(o, c);
-        const lower = Math.min(o, c) - l;
-        const range = h - l;
-
-        if (range <= 0) return false; // 비정상 캔들 보호
-        // 기준: 작은 실체, 하단 긴 심선(≥ 2배), 상단 짧은 심선(≤ 0.3배)
-        const bodyPct = body / range;                // 실체가 전체 대비 얼마나 작은지
-        const longLower = lower >= (body * 2);       // 아래 심선이 실체의 2배 이상
-        const smallUpper = upper <= (body * 0.3);    // 위 심선이 실체의 0.3배 이하
-        const smallBody = bodyPct <= 0.30;           // 실체가 상대적으로 작음
-
-        return smallBody && longLower && smallUpper;
-    }
-
-    function hammerType(o, c) {
-        return Number(c) >= Number(o) ? 'bull' : 'bear'; // 양봉=강세, 음봉=약세
-    }
-
-    function formatHammerLabel(openTime, type) {
-        const label = type === 'bull' ? '강세 해머' : '약세 해머';
-        return { date: toKRDate(openTime), label, type };
-    }
-
-    function updateProgress(done, total) {
-        const pct = total ? Math.round((done / total) * 100) : 0;
-        barEl.style.width = pct + '%';
-        statusEl.textContent = `요청 ${done}/${total} · ${pct}%`;
-    }
-
-    function render(results, q = '', sortKey = 'hits') {
-        const query = (q || '').trim().toUpperCase();
-        let rows = results.slice();
-
-        // 정렬
-        rows.sort((a, b) => {
-            if (sortKey === 'symbol') {
-                return a.symbol.localeCompare(b.symbol);
-            } else if (sortKey === 'latest') {
-                // 가장 최신 해머 날짜(숫자) 기준 desc
-                return (b.latest || 0) - (a.latest || 0);
-            } else {
-                // 기본: 해머 개수 desc, 최신 날짜 desc, 심볼 asc
-                if (b.hits !== a.hits) return b.hits - a.hits;
-                if ((b.latest || 0) !== (a.latest || 0)) return (b.latest || 0) - (a.latest || 0);
-                return a.symbol.localeCompare(b.symbol);
+    async function fetchJSON(url, tries = 3) {
+        for (let i = 0; i < tries; i++) {
+            try {
+                const res = await fetch(url, { cache: "no-store" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.json();
+            } catch (err) {
+                if (i === tries - 1) throw err;
+                await sleep(250 * (i + 1));
             }
-        });
+        }
+    }
 
-        // 필터
-        if (query) rows = rows.filter(r => r.symbol.includes(query));
+    function sma(values, endIndex, length) {
+        const start = endIndex - length + 1;
+        if (start < 0) return null;
+        let sum = 0;
+        for (let i = start; i <= endIndex; i++) sum += values[i];
+        return sum / length;
+    }
 
-        // 렌더
-        if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="3" class="muted">조건에 맞는 결과가 없습니다.</td></tr>`;
-            return;
+    function nextCandleCloseMs(now = Date.now()) {
+        // 다음 15분 경계(봉 마감 시점) + 딜레이
+        const next = Math.ceil(now / INTERVAL_MS) * INTERVAL_MS + AUTO_DELAY_MS;
+        return next;
+    }
+
+    function startCountdown() {
+        stopCountdown();
+        countdownTimer = setInterval(() => {
+            const now = Date.now();
+            const next = nextCandleCloseMs(now);
+            const remain = next - now;
+            const s = Math.max(0, Math.floor(remain / 1000));
+            const mm = String(Math.floor(s / 60)).padStart(2, "0");
+            const ss = String(s % 60).padStart(2, "0");
+            nextScanChip.textContent = `다음 스캔까지 ${mm}:${ss}`;
+        }, 250);
+    }
+
+    function stopCountdown() {
+        if (countdownTimer) clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+
+    function setStatus(txt) { statusChip.textContent = `상태: ${txt}`; }
+
+    // 심볼 목록(USDT-M 무기한, 거래중) 로드
+    async function loadSymbols() {
+        setStatus("심볼 로딩");
+        const info = await fetchJSON("https://fapi.binance.com/fapi/v1/exchangeInfo");
+        const list = (info.symbols || [])
+            .filter(s =>
+                s.quoteAsset === "USDT" &&
+                s.contractType === "PERPETUAL" &&
+                s.status === "TRADING"
+            )
+            .map(s => s.symbol)
+            .sort();
+        symbols = list;
+        setStatus(`심볼 ${symbols.length}개`);
+    }
+
+    // 개별 심볼 스캔
+    async function scanSymbol(symbol) {
+        const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
+        const data = await fetchJSON(url);
+        if (!Array.isArray(data) || data.length < 120) return null; // 데이터 부족 심볼 스킵
+
+        // kline: [0]openTime,[1]open,[2]high,[3]low,[4]close,[5]volume,[6]closeTime,... 
+        const closes = data.map(k => parseFloat(k[4]));
+        const vols = data.map(k => parseFloat(k[5]));
+        const n = closes.length;
+
+        // 마지막 원소는 진행중인 현재봉일 수 있으므로 직전봉은 n-2, 2봉전은 n-3
+        const prev = n - 2;
+        const twoAgo = n - 3;
+        if (twoAgo < 0) return null;
+
+        const prevClose = closes[prev];
+
+        const ma7_prev = sma(closes, prev, 7);
+        const ma25_prev = sma(closes, prev, 25);
+        const ma99_prev = sma(closes, prev, 99);
+
+        const ma7_two = sma(closes, twoAgo, 7);
+        const ma25_two = sma(closes, twoAgo, 25);
+        const ma99_two = sma(closes, twoAgo, 99);
+
+        if ([ma7_prev, ma25_prev, ma99_prev, ma7_two, ma25_two, ma99_two].some(v => v === null)) {
+            return null; // 충분한 히스토리 없음
         }
 
+        const condCloseOver = (prevClose > ma7_prev) && (prevClose > ma25_prev) && (prevClose > ma99_prev);
+        const condSlopeUp = (ma7_two < ma7_prev) && (ma25_two < ma25_prev) && (ma99_two < ma99_prev);
+
+        if (condCloseOver && condSlopeUp) {
+            const prevVol = vols[prev];
+            return {
+                symbol,
+                prevClose,
+                ma7_prev, ma25_prev, ma99_prev,
+                up7: true, up25: true, up99: true,
+                prevVol
+            };
+        }
+        return null;
+    }
+
+    // 풀(동시성) 스캔
+    async function scanAll() {
+        if (!symbols.length) await loadSymbols();
+
+        setStatus("스캔 중");
+        tbody.innerHTML = `<tr><td colspan="9" class="muted">스캔 중… (총 ${symbols.length}개)</td></tr>`;
+
+        const results = [];
+        let processed = 0;
+
+        async function worker(idxStart) {
+            for (let i = idxStart; i < symbols.length; i += CONCURRENCY) {
+                try {
+                    const r = await scanSymbol(symbols[i]);
+                    if (r) results.push(r);
+                } catch (e) {
+                    // 개별 심볼 오류는 무시하고 진행
+                } finally {
+                    processed++;
+                    statusChip.textContent = `상태: 스캔 ${processed}/${symbols.length}`;
+                }
+            }
+        }
+
+        // 워커 시작
+        const workers = [];
+        const workerCount = Math.min(CONCURRENCY, symbols.length);
+        for (let w = 0; w < workerCount; w++) workers.push(worker(w));
+        await Promise.all(workers);
+
+        // 정렬(선택): 거래량 내림차순
+        if (sortByVol.checked) {
+            results.sort((a, b) => (b.prevVol ?? 0) - (a.prevVol ?? 0));
+        } else {
+            results.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        }
+
+        render(results);
+        setStatus("완료");
+        const now = new Date();
+        lastRunInfo.textContent = `마지막 스캔: ${now.toLocaleString()} (로컬시간)`;
+        countChip.textContent = `결과 ${results.length}개`;
+    }
+
+    function render(rows) {
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="9" class="muted">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            return;
+        }
         const html = rows.map(r => {
-            const badges = r.matches.map(m => {
-                const cls = m.type === 'bull' ? 'bull' : 'bear';
-                return `<span class="badge ${cls}">${m.date} · ${m.label}</span>`;
-            }).join('');
-
-            return `<tr>
-                <td class="mono nowrap">${r.symbol}</td>
-                <td class="right nowrap">${r.hits.toLocaleString('ko-KR')}</td>
-                <td>${badges || '<span class="muted">최근 7개봉에 해머 없음</span>'}</td>
+            return `
+            <tr class="row-ok">
+                <td class="symbol"><span class="pill">${r.symbol}</span></td>
+                <td class="mono">${fmtNum(r.prevClose, 6)}</td>
+                <td class="mono">${fmtNum(r.ma7_prev, 6)}</td>
+                <td class="mono">${fmtNum(r.ma25_prev, 6)}</td>
+                <td class="mono">${fmtNum(r.ma99_prev, 6)}</td>
+                <td class="ok">↑</td>
+                <td class="ok">↑</td>
+                <td class="ok">↑</td>
+                <td class="mono">${fmtNum(r.prevVol, 2)}</td>
             </tr>`;
-        }).join('');
-
+        }).join("");
         tbody.innerHTML = html;
     }
 
-    function makeCSV(results) {
-        const header = ['symbol','count','dates_labels'].join(',');
-        const lines = results.map(r => {
-            const list = r.matches.map(m => `${m.date}(${m.type==='bull'?'강세':'약세'})`).join(' | ');
-            // CSV 안전 처리 (큰따옴표로 감싸기)
-            const safe = `"${list.replace(/"/g,'""')}"`;
-            return [r.symbol, r.hits, safe].join(',');
-        });
-        return [header, ...lines].join('\n');
+    function scheduleAuto() {
+        // 1) 다음 봉 마감까지 대기 후 스캔 2) 이후 15분마다 반복
+        if (intervalTimer) { clearInterval(intervalTimer); intervalTimer = null; }
+        const now = Date.now();
+        const firstAt = nextCandleCloseMs(now);
+        const wait = Math.max(0, firstAt - now);
+
+        setStatus("자동 대기");
+        startCountdown();
+
+        setTimeout(async () => {
+            if (!autoScan) return;
+            await scanAll();
+            if (!autoScan) return;
+
+            intervalTimer = setInterval(async () => {
+                if (!autoScan) return;
+                await scanAll();
+            }, INTERVAL_MS);
+
+        }, wait);
     }
 
-    function download(filename, text) {
-        const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-    }
+    // ======== 이벤트 ========
+    scanNowBtn.addEventListener("click", async () => {
+        stopCountdown();
+        await scanAll();
+        if (autoScan) startCountdown();
+    });
 
-    // ----------- 데이터 수집 -----------
-    async function fetchSymbols() {
-        const res = await fetch(FUTURES_EXCHANGE_INFO);
-        if (!res.ok) throw new Error('exchangeInfo 요청 실패');
-        const data = await res.json();
-        const list = (data.symbols || []).filter(s =>
-            s.contractType === 'PERPETUAL' &&
-            s.quoteAsset === 'USDT' &&
-            s.status === 'TRADING'
-        ).map(s => s.symbol);
-        return Array.from(new Set(list)).sort();
-    }
+    toggleAutoBtn.addEventListener("click", () => {
+        autoScan = !autoScan;
+        toggleAutoBtn.textContent = `자동 스캔: ${autoScan ? "켜짐" : "꺼짐"}`;
+        if (autoScan) {
+            scheduleAuto();
+        } else {
+            if (intervalTimer) clearInterval(intervalTimer);
+            intervalTimer = null;
+            stopCountdown();
+            nextScanChip.textContent = "자동 스캔 꺼짐";
+            setStatus("수동 모드");
+        }
+    });
 
-    async function fetchKlines(symbol) {
-        const url = `${FUTURES_KLINES}?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${symbol} klines 실패`);
-        const arr = await res.json();
-        // 최신(진행 중) 1개 제외 → 최근 7개만 검사
-        if (arr.length > 0) arr.pop();
-        return arr;
-    }
-
-    async function scanAll() {
-        scanBtn.disabled = true;
-        exportBtn.disabled = true;
-        tbody.innerHTML = `<tr><td colspan="3" class="muted">스캔 중…</td></tr>`;
-        statusEl.textContent = '심볼 목록 불러오는 중…';
-        barEl.style.width = '0%';
-        foundCountEl.textContent = '해머 발견: -';
-
-        let symbols = [];
+    // ======== 시작 ========
+    (async function init() {
         try {
-            symbols = await fetchSymbols();
+            await loadSymbols();
+            // 첫 실행 한 번 즉시 스캔
+            await scanAll();
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="3" class="muted">심볼 목록 로드 실패: ${String(e.message || e)}</td></tr>`;
-            scanBtn.disabled = false;
+            setStatus("에러");
+            tbody.innerHTML = `<tr><td colspan="9" class="bad">초기화 실패: ${String(e && e.message || e)}</td></tr>`;
             return;
         }
-
-        symbolCountEl.textContent = `심볼: ${symbols.length.toLocaleString('ko-KR')}`;
-
-        // 결과 누적
-        const results = [];
-        let done = 0;
-        let found = 0;
-
-        // 작업 큐 (동시성 제한)
-        const queue = symbols.slice();
-        const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, queue.length) }, () => (async function worker(){
-            while (queue.length) {
-                const sym = queue.shift();
-                try {
-                    const klines = await fetchKlines(sym);
-                    // 최근 7개(이미 현재봉 제외했으므로 klines 최대 7개)
-                    const matches = [];
-                    for (let i = klines.length - 1; i >= 0; i--) {
-                        const k = klines[i];
-                        const openTime = k[0];      // ms
-                        const o = parseFloat(k[1]);
-                        const h = parseFloat(k[2]);
-                        const l = parseFloat(k[3]);
-                        const c = parseFloat(k[4]);
-
-                        if (isHammer(o, h, l, c)) {
-                            const type = hammerType(o, c); // bull/bear
-                            matches.push( formatHammerLabel(openTime, type) );
-                        }
-                    }
-
-                    if (matches.length) {
-                        found++;
-                        const latestMs = klines.length ? klines[klines.length - 1][0] : 0;
-                        results.push({
-                            symbol: sym,
-                            hits: matches.length,
-                            latest: latestMs || 0,
-                            matches: matches.sort((a,b) => 0) // 이미 최신→과거 순으로 push했음
-                        });
-                    }
-                } catch (e) {
-                    // 심볼별 오류는 스킵
-                    // 콘솔에만 기록
-                    console.warn('심볼 실패:', sym, e);
-                } finally {
-                    done++;
-                    updateProgress(done, symbols.length);
-                    foundCountEl.textContent = `해머 발견: ${found.toLocaleString('ko-KR')}`;
-                }
-            }
-        })());
-
-        await Promise.all(workers);
-
-        // 렌더
-        if (!results.length) {
-            tbody.innerHTML = `<tr><td colspan="3" class="muted">최근 7개 1일봉에서 해머를 찾지 못했습니다.</td></tr>`;
-        } else {
-            render(results, searchEl.value, sortSelect.value);
-        }
-
-        // 상태/버튼
-        statusEl.textContent = `완료: ${done}/${symbols.length}`;
-        exportBtn.disabled = results.length === 0;
-        scanBtn.disabled = false;
-
-        // 핸들러 저장(내보내기/검색/정렬)
-        exportBtn.onclick = () => {
-            const csv = makeCSV(results);
-            const now = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-            download(`hammer-scan-${now}.csv`, csv);
-        };
-        const reRender = () => render(results, searchEl.value, sortSelect.value);
-        searchEl.oninput = reRender;
-        sortSelect.onchange = reRender;
-    }
-
-    // ----------- 이벤트 바인딩 -----------
-    scanBtn.addEventListener('click', scanAll);
+        // 자동 스케줄 시작
+        scheduleAuto();
+    })();
+})();
 </script>
 </body>
 </html>
