@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT Perp 롱 스캐너 (자동 15m/1h)</title>
+    <title>Binance USDT Perp 롱 스캐너 (자동 15m/1h, 적합도 정렬)</title>
     <style>
         :root {
             --bg: #0f1115; --panel:#161a23; --panel2:#1a2030; --text:#e6eaf2; --muted:#9aa3b2;
@@ -29,14 +29,12 @@
         .btn.warn { background:linear-gradient(135deg,rgba(255,184,107,.2),rgba(255,107,107,.2)); }
         .help { color:var(--muted); font-size:12px; }
         table { width:100%; border-collapse:collapse; font-size:13px; border-radius:10px; overflow:hidden; }
-        thead th { text-align:left; padding:10px 8px; position:sticky; top:0; background:rgba(0,0,0,.35); border-bottom:1px solid rgba(255,255,255,.1); }
+        thead th { text-align:left; padding:10px 8px; position:sticky; top:0; background:rgba(0,0,0,.35); border-bottom:1px solid rgba(255,255,255,.1); white-space:nowrap; }
         tbody td { padding:8px; border-top:1px solid rgba(255,255,255,.06); vertical-align:top; }
         tbody tr:hover { background:rgba(255,255,255,.04); }
         .mono { font-family: var(--mono); }
         .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.16); }
         .tag.ok { color:var(--ok); border-color:rgba(113,209,178,.45); background:rgba(113,209,178,.10); }
-        .tag.warn { color:var(--warn); border-color:rgba(255,184,107,.45); background:rgba(255,184,107,.10); }
-        .tag.bad { color:var(--bad); border-color:rgba(255,107,107,.45); background:rgba(255,107,107,.10); }
         .toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
         .muted { color: var(--muted); }
         .pill { padding:2px 8px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); font-size:12px; }
@@ -49,7 +47,7 @@
     <header>
         <div class="flex">
             <h1>Binance USDT Perp 롱 스캐너</h1>
-            <span class="badge">Candles-Only · 15m/1h Auto</span>
+            <span class="badge">Candles-Only · 15m/1h Auto · Ranked</span>
         </div>
         <div class="flex muted">
             <span id="chosenInterval" class="pill">interval: -</span>
@@ -100,7 +98,7 @@
             <details style="margin-top:8px;">
                 <summary class="muted">감지할 패턴 선택 (클릭하여 펼치기)</summary>
                 <div class="row" style="margin-top:8px;">
-                    <label><input type="checkbox" class="pat" value="kicker" checked /> 강세 키커(A)</label>
+                    <label><input type="checkbox" class="pat" value="kicker" /> 강세 키커(A)</label>
                     <label><input type="checkbox" class="pat" value="engulf" checked /> 강세 장악(A)</label>
                     <label><input type="checkbox" class="pat" value="morning" checked /> 샛별형(A)</label>
                     <label><input type="checkbox" class="pat" value="hammer" checked /> 망치형(A)</label>
@@ -111,7 +109,7 @@
                     <label><input type="checkbox" class="pat" value="tweezer" checked /> 트위저 바닥(B)</label>
                     <label><input type="checkbox" class="pat" value="belt" checked /> 상승 벨트홀드(B)</label>
                 </div>
-                <div class="help" style="margin-top:6px;">암호화폐 특성상 갭 조건은 무시(24/7). 전부 “캔들만”으로 판별합니다.</div>
+                <div class="help" style="margin-top:6px;">암호화폐 특성상 갭 조건은 대부분 무시(24/7). 전부 “캔들만” 판별.</div>
             </details>
             <div class="flex" style="margin-top:12px;">
                 <button id="btnScanNow" class="btn primary">지금 스캔</button>
@@ -122,7 +120,7 @@
 
         <section class="panel">
             <div class="toolbar">
-                <h2 style="margin:0;">즉시 진입 가능 신호(USDT Perp)</h2>
+                <h2 style="margin:0;">즉시 진입 가능 신호(USDT Perp) — 적합도 순</h2>
                 <div class="right">
                     <span id="summary" class="help">-</span>
                 </div>
@@ -131,9 +129,11 @@
                 <table id="tbl">
                     <thead>
                         <tr>
+                            <th>순위</th>
                             <th>심볼</th>
                             <th>패턴</th>
                             <th>상태</th>
+                            <th class="mono">점수</th>
                             <th class="mono">현재가</th>
                             <th class="mono">엔트리</th>
                             <th class="mono">스톱</th>
@@ -191,6 +191,18 @@ async function getAllPricesMap() {
     return map;
 }
 
+async function get24hrMap() {
+    const arr = await fetchJSON(`${API}/fapi/v1/ticker/24hr`);
+    const map = new Map();
+    for (const x of arr) {
+        map.set(x.symbol, {
+            quoteVolume: Number(x.quoteVolume || 0),
+            priceChangePercent: Number(x.priceChangePercent || 0)
+        });
+    }
+    return map;
+}
+
 async function getKlines(symbol, interval, limit=60) {
     const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
     const arr = await fetchJSON(url);
@@ -229,8 +241,8 @@ const PAT_META = {
 };
 const TIER_ORDER = { "A":3, "B":2, "ALL":0 };
 
+/* 마지막 확정봉 기준 세팅 하나만 추출 */
 function detectLatestLongSetup(c) {
-    // c: sorted ascending; focus last closed bar index i = n-1
     const n = c.length;
     if (n < 5) return null;
     const i = n - 1;
@@ -239,13 +251,13 @@ function detectLatestLongSetup(c) {
 
     const out = [];
 
-    // 1) Bullish Engulfing
+    // Engulfing
     if (isBear(a) && isBull(b) && b.c > a.o && b.o < a.c && body(b) >= body(a)*0.7) {
         out.push({ key:"engulf", entry:b.h, stop:Math.min(a.l,b.l), note:"몸통 장악" });
     }
-    // 2) Morning Star
+    // Morning Star
     if (c0 && d0) {
-        const c1 = d0, c2 = c0, c3 = a, c4 = b; // shift by one (마지막이 b)
+        const c1 = d0, c2 = c0, c3 = a, c4 = b;
         const longBear = isBear(c1) && body(c1) >= range(c1)*0.5;
         const small2   = body(c2) <= range(c1)*0.5 && body(c2) <= range(c2)*0.4;
         const strong4  = isBull(c4) && c4.c >= midpoint(c1);
@@ -253,7 +265,7 @@ function detectLatestLongSetup(c) {
             out.push({ key:"morning", entry:c4.h, stop:Math.min(c1.l,c2.l,c3.l,c4.l), note:"3캔들 반전" });
         }
     }
-    // 3) Hammer
+    // Hammer
     {
         const wL = lowerWick(b), wU = upperWick(b), bod = body(b);
         let downCtx = false;
@@ -266,7 +278,7 @@ function detectLatestLongSetup(c) {
             out.push({ key:"hammer", entry:b.h, stop:b.l, note:"아랫꼬리 강조" });
         }
     }
-    // 4) Rising Three Methods (5 bars)
+    // Rising Three Methods
     if (a && c0 && d0 && e0) {
         const c1=e0,c2=d0,c3=c0,c4=a,c5=b;
         const long1 = isBull(c1) && body(c1) >= range(c1)*0.5;
@@ -277,7 +289,7 @@ function detectLatestLongSetup(c) {
             out.push({ key:"r3m", entry:c5.h, stop:Math.min(c2.l,c3.l,c4.l), note:"지속형" });
         }
     }
-    // 5) Three White Soldiers
+    // Three White Soldiers
     if (c0) {
         const c1=c0,c2=a,c3=b;
         const cond = isBull(c1)&&isBull(c2)&&isBull(c3)
@@ -290,11 +302,11 @@ function detectLatestLongSetup(c) {
             out.push({ key:"soldiers", entry:c3.h, stop:Math.min(c1.l,c2.l,c3.l), note:"연속 강세" });
         }
     }
-    // 6) Piercing
+    // Piercing
     if (isBear(a) && isBull(b) && b.c >= midpoint(a)) {
         out.push({ key:"piercing", entry:b.h, stop:Math.min(a.l,b.l), note:"몸통 50% 관통" });
     }
-    // 7) Harami
+    // Harami
     {
         const aTop = Math.max(a.o, a.c), aBot = Math.min(a.o, a.c);
         const cond = isBear(a) && body(a) >= range(a)*0.3 &&
@@ -302,7 +314,7 @@ function detectLatestLongSetup(c) {
                      (Math.max(b.o,b.c) <= aTop) && (Math.min(b.o,b.c) >= aBot);
         if (cond) out.push({ key:"harami", entry:b.h, stop:Math.min(a.l,b.l), note:"작은 몸통 내부" });
     }
-    // 8) Tweezer Bottom
+    // Tweezer
     {
         const tol = (a.l + b.l)/2 * 0.002;
         const lowsNear = nearlyEq(a.l, b.l, tol);
@@ -310,7 +322,7 @@ function detectLatestLongSetup(c) {
             out.push({ key:"tweezer", entry:b.h, stop:Math.min(a.l,b.l), note:"저가 동일·반등" });
         }
     }
-    // 9) Belt Hold
+    // Belt Hold
     {
         const isLong = isBull(b) && body(b) >= range(b)*0.7;
         const lowerIsSmall = (b.o - b.l) <= range(b)*0.1;
@@ -318,14 +330,14 @@ function detectLatestLongSetup(c) {
     }
 
     if (!out.length) return null;
-    // 가장 보수적: entry>stop만 남기고, 우선순위 A > B, 그 다음 폭이 좁은 것 우선
-    const pri = k => (PAT_META[k].tier==="A"?2:1);
     const filtered = out.filter(x => x.entry > x.stop);
     if (!filtered.length) return null;
+
+    // 우선순위: A> B, 그 다음 폭이 좁은 것
+    const pri = k => (PAT_META[k].tier==="A"?2:1);
     filtered.sort((x,y) => {
         const p = pri(y.key) - pri(x.key);
         if (p !== 0) return p;
-        // 폭이 더 좁은게 우선(리스크 대비 수익 좋아지기 쉬움)
         return (x.entry - x.stop) - (y.entry - y.stop);
     });
     return filtered[0];
@@ -358,6 +370,51 @@ function positionSuggestion({ equity, riskPct, marginPct, maxLev, entry, stop })
     return { N, notional, L, effRiskPct, marginUsed, marginPctUsed, width };
 }
 
+/* ========= 적합도 점수 =========
+   총점 = 기본가중치 + 리스크효율 + 엔트리근접 + 유동성 + 컨텍스트
+*/
+const BASE_W = {
+    kicker: 10.0,      // (실전상 거의 미사용)
+    engulf: 9.5,
+    morning: 9.0,
+    hammer: 8.5,
+    r3m: 8.5,
+    soldiers: 8.0,
+    piercing: 7.0,
+    harami: 6.0,
+    tweezer: 6.0,
+    belt: 6.5
+};
+
+function scoreLongQuality({ key, entry, stop, cur, klines, quoteVolume }) {
+    const width = entry - stop;
+    const widthPct = width / entry;                               // 좁을수록 ↑
+    const riskScore = clamp((0.015 / Math.max(1e-12, widthPct)) * 8, 0, 10); // ~1.5% 폭 기준 8점, 1%면 12→10캡
+    const proxRatio = clamp(1 - (cur - entry) / Math.max(1e-12, width), 0, 1); // 엔트리 근접(막 돌파) ↑
+    const proxScore = proxRatio * 5;
+
+    const qv = Math.max(0, Number(quoteVolume) || 0);
+    const volScore = clamp((Math.log10(qv + 1) - 6) / 3, 0, 1) * 5; // 1M~1B USDT 스케일링
+
+    // 패턴 컨텍스트 보너스: 지속형(r3m/soldiers)은 직전 5변화 중 상승≥3, 반전형은 하락≥3일 때 +2
+    let ctxBonus = 0;
+    if (klines && klines.length >= 8) {
+        let up=0, down=0;
+        for (let i = klines.length - 6; i < klines.length - 1; i++) {
+            if (i <= 0) continue;
+            if (klines[i].c > klines[i-1].c) up++; else if (klines[i].c < klines[i-1].c) down++;
+        }
+        const cont = (key === "r3m" || key === "soldiers");
+        if (cont && up >= 3) ctxBonus += 2;
+        const rev = (key !== "r3m" && key !== "soldiers");
+        if (rev && down >= 3) ctxBonus += 2;
+    }
+
+    const base = BASE_W[key] ?? 6.0;
+    const total = base + riskScore + proxScore + volScore + ctxBonus;
+    return Number(total.toFixed(2));
+}
+
 /* ========= 노이즈 측정 & 타임프레임 결정 =========
    15m 상에서 상위 30개(24h 거래규모 기준) 샘플의 중앙값 wick/body 비율이 2.2 이상이면 1h 선택
 */
@@ -381,7 +438,7 @@ async function decideIntervalAuto(symbolsAll) {
                 const r = (upperWick(c)+lowerWick(c)) / bod;
                 ratios.push(r);
             }
-            if (i % 6 === 5) await sleep(120); // 약한 간격
+            if (i % 6 === 5) await sleep(120);
         }
         if (!ratios.length) return { interval:"15m", noise: NaN };
         ratios.sort((a,b)=>a-b);
@@ -404,6 +461,7 @@ function nextBoundaryTs(interval){
 async function scanOnce(state){
     const tbody = document.querySelector("#tbl tbody");
     tbody.innerHTML = "";
+
     const enabled = new Set(Array.from(document.querySelectorAll(".pat:checked")).map(x=>x.value));
     const minTier = document.getElementById("minTier").value;
     const tierOK = (key) => {
@@ -413,10 +471,12 @@ async function scanOnce(state){
         return t >= need;
     };
 
-    const symInfo = state.symbols; // {symbol, pricePrecision, quantityPrecision}
-    const priceMap = await getAllPricesMap();
+    const symInfo = state.symbols;
+    const [priceMap, statsMap] = await Promise.all([
+        getAllPricesMap(),
+        get24hrMap()
+    ]);
 
-    // 동시성 제어
     const concurrency = 6;
     let idx = 0;
     const results = [];
@@ -435,7 +495,7 @@ async function scanOnce(state){
                 const cur   = priceMap.get(me.symbol);
                 if (!isFinite(cur)) continue;
 
-                // "바로 진입 가능": 현재가 >= 엔트리
+                // 바로 진입 가능: 현재가 ≥ 엔트리
                 if (cur >= entry) {
                     const ps = positionSuggestion({
                         equity: Number(document.getElementById("equity").value),
@@ -447,38 +507,46 @@ async function scanOnce(state){
                     const oneR = entry + (entry - stop);
                     const twoR = entry + 2*(entry - stop);
                     const threeR = entry + 3*(entry - stop);
+
+                    const qv = statsMap.get(me.symbol)?.quoteVolume || 0;
+                    const score = scoreLongQuality({
+                        key: setup.key, entry, stop, cur, klines: kl, quoteVolume: qv
+                    });
+
                     results.push({
                         symbol: me.symbol,
                         key: setup.key,
                         status: "TRIGGERED",
                         cur, entry, stop, width: entry-stop,
-                        pos: ps, oneR, twoR, threeR, note: setup.note
+                        pos: ps, oneR, twoR, threeR, note: setup.note,
+                        score
                     });
                 }
             } catch(e){
-                // 개별 심볼 에러는 스킵
-                // console.warn(me.symbol, e);
+                // 개별 심볼 에러 스킵
             }
-            await sleep(60); // 아주 약한 페이싱
+            await sleep(60);
         }
     }
     const workers = Array.from({length:concurrency}, ()=>worker());
     await Promise.all(workers);
 
-    // 정렬: 우선 A등급 > B등급, 그 다음 폭이 좁은 순
-    results.sort((x,y)=>{
-        const t = (PAT_META[y.key].tier==="A") - (PAT_META[x.key].tier==="A");
-        if (t !== 0) return t;
-        return x.width - y.width;
+    // 정렬: 점수 내림차순 → 폭이 좁은 순
+    results.sort((a,b)=>{
+        const s = b.score - a.score;
+        if (s !== 0) return s;
+        return a.width - b.width;
     });
 
     // 렌더
-    for (const r of results){
+    results.forEach((r, idx)=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
+            <td class="mono">${idx+1}</td>
             <td class="mono">${r.symbol}</td>
             <td>${PAT_META[r.key].name}</td>
             <td><span class="tag ok">트리거</span></td>
+            <td class="mono">${fmt(r.score, 2)}</td>
             <td class="mono">${fmt(r.cur)}</td>
             <td class="mono">${fmt(r.entry)}</td>
             <td class="mono">${fmt(r.stop)}</td>
@@ -493,9 +561,10 @@ async function scanOnce(state){
             <td class="help">${r.note || ""}</td>
         `;
         tbody.appendChild(tr);
-    }
+    });
+
     document.getElementById("summary").textContent =
-        `${results.length}종목 · interval=${state.interval}`;
+        `${results.length}종목 · interval=${state.interval} · 정렬: 적합도 점수`;
     return results.length;
 }
 
@@ -522,8 +591,7 @@ function scheduleNext(state){
     clearTimeout(state.timer);
     state.timer = setTimeout(async ()=>{
         if (!state.auto) return;
-        // 새 봉 시작 직후 약간 대기(캔들 클로즈 데이터 보장)
-        await sleep(1500);
+        await sleep(1500);               // 새 봉 시작 직후 안정화 대기
         await scanOnce(state);
         scheduleNext(state);
     }, left);
