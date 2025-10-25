@@ -2,561 +2,340 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT Perp 롱 스캐너 (진입조건 점수만)</title>
+    <title>Binance USDT Perp 1D Hammer Scanner (최근 7개봉, 오늘봉 제외)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
-        :root {
-            --bg:#0f1115; --panel:#161a23; --panel2:#1a2030; --text:#e6eaf2; --muted:#9aa3b2;
-            --ok:#71d1b2; --warn:#ffb86b; --bad:#ff6b6b; --accent:#5aa9ff; --radius:12px;
-            --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-        }
-        *{ box-sizing:border-box; }
-        html,body{ height:100%; }
-        body{ margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial; }
-        header{ padding:16px 18px; display:flex; gap:14px; align-items:center; justify-content:space-between;
-            background:linear-gradient(180deg,rgba(90,169,255,.08),transparent); }
-        h1{ margin:0; font-size:18px; letter-spacing:-0.02em; }
-        .badge{ font-size:12px; color:var(--muted); border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:2px 8px; }
-        main{ padding:16px 18px 28px; display:grid; grid-template-columns:360px 1fr; gap:16px; }
-        @media (max-width:1080px){ main{ grid-template-columns:1fr; } }
-        .panel{ background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:14px; }
-        .panel h2{ margin:0 0 10px; font-size:16px; }
-        label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-        select{ width:100%; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.04); color:var(--text); border:1px solid rgba(255,255,255,.10); }
-        .row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .btn{ border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:var(--text); border-radius:10px; padding:10px 12px; cursor:pointer; }
-        .btn.primary{ background:linear-gradient(135deg,rgba(90,169,255,.2),rgba(125,227,154,.2)); }
-        .help{ color:var(--muted); font-size:12px; }
-        table{ width:100%; border-collapse:collapse; font-size:13px; border-radius:10px; overflow:hidden; }
-        thead th{ text-align:left; padding:10px 8px; position:sticky; top:0; background:rgba(0,0,0,.35); border-bottom:1px solid rgba(255,255,255,.1); white-space:nowrap; }
-        tbody td{ padding:8px; border-top:1px solid rgba(255,255,255,.06); vertical-align:top; }
-        tbody tr:hover{ background:rgba(255,255,255,.04); }
-        .mono{ font-family:var(--mono); }
-        .tag{ display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.16); }
-        .tag.ok{ color:var(--ok); border-color:rgba(113,209,178,.45); background:rgba(113,209,178,.10); }
-        .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
-        .muted{ color:var(--muted); }
-        .pill{ padding:2px 8px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); font-size:12px; }
-        .flex{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-        .footer-note{ margin-top:10px; font-size:12px; color:var(--muted); }
-        details summary{ cursor:pointer; }
+        :root { --bg:#0b0d10; --card:#12161c; --muted:#8592a3; --text:#e9eef5; --ok:#28c76f; --bad:#ea5455; --chip:#1e2630; --brand:#78a6ff; }
+        html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, sans-serif; }
+        .container { max-width:1200px; margin:32px auto; padding:0 16px; }
+        .card { background:var(--card); border-radius:16px; padding:20px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+        h1 { margin:0 0 12px; font-size:24px; }
+        .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+        .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:12px 0 20px; }
+        button { background:var(--brand); color:#0b1220; border:0; padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer; }
+        button:disabled { opacity:.6; cursor:not-allowed; }
+        input[type="text"] { background:var(--chip); color:var(--text); border:1px solid #2a3441; padding:10px 12px; border-radius:12px; min-width:220px; }
+        .pill { display:inline-flex; align-items:center; gap:6px; background:var(--chip); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted); }
+        .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+        .progress { height:8px; background:#1a1f27; border-radius:999px; overflow:hidden; margin-top:8px; }
+        .bar { height:100%; width:0%; background:linear-gradient(90deg,#4aa3ff,#78ffcf); }
+        table { width:100%; border-collapse:collapse; margin-top:12px; }
+        th, td { text-align:left; padding:12px; border-bottom:1px solid #1c232d; vertical-align:top; }
+        th { color:#b7c4d6; font-weight:700; font-size:13px; }
+        td { font-size:14px; }
+        .badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; margin:3px 6px 3px 0; white-space:nowrap; }
+        .bull { background:rgba(40,199,111,.15); color:var(--ok); border:1px solid rgba(40,199,111,.35); }
+        .bear { background:rgba(234,84,85,.15); color:var(--bad); border:1px solid rgba(234,84,85,.35); }
+        .muted { color:var(--muted); }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+        .right { text-align:right; }
+        .nowrap { white-space:nowrap; }
+        .footer { color:var(--muted); font-size:12px; margin-top:10px; }
+        .hint { color:#a8b6c8; font-size:12px; }
+        .small { font-size:12px; }
+        .sticky { position:sticky; top:0; background:var(--card); z-index:5; }
     </style>
 </head>
 <body>
-    <header>
-        <div class="flex">
-            <h1>Binance USDT Perp 롱 스캐너</h1>
-            <span class="badge">Candles-Only · 15m/1h Auto · Score Only</span>
-        </div>
-        <div class="flex muted">
-            <span id="chosenInterval" class="pill">interval: -</span>
-            <span id="noiseInfo" class="pill">noise: -</span>
-            <span id="nextRun" class="pill">next: -</span>
-        </div>
-    </header>
+<div class="container">
+    <div class="card">
+        <h1>USDT 무기한 선물 1일봉 해머 스캐너</h1>
+        <div class="sub">대상: Binance USDⓂ-M Futures / USDT <span class="mono">(PERPETUAL)</span> · 기준: 최근 7개 1일봉(진행 중인 현재봉 제외) · 패턴: 강세/약세 해머</div>
 
-    <main>
-        <section class="panel">
-            <h2>설정</h2>
-            <div class="row" style="margin-bottom:8px;">
-                <div>
-                    <label>패턴 최소 등급</label>
-                    <select id="minTier">
-                        <option value="A" selected>A (강한)</option>
-                        <option value="B">B (중간)</option>
-                        <option value="ALL">모두</option>
+        <div class="controls">
+            <button id="scanBtn">스캔 시작</button>
+            <button id="exportBtn" disabled>CSV 내보내기</button>
+            <div class="row">
+                <span class="pill" title="바이낸스 심볼 목록을 받아온 뒤, 10개씩 동시 요청합니다.">동시 요청: 10</span>
+                <span class="pill" id="symbolCount">심볼: -</span>
+                <span class="pill" id="foundCount">해머 발견: -</span>
+            </div>
+            <div class="row" style="margin-left:auto">
+                <input id="search" type="text" placeholder="심볼 검색 (예: BTC)"/>
+                <span class="hint">정렬:
+                    <select id="sortSelect">
+                        <option value="hits">해머 개수↓, 최신 날짜↓</option>
+                        <option value="symbol">심볼↑</option>
+                        <option value="latest">최신 해머 날짜↓</option>
                     </select>
-                </div>
-                <div>
-                    <label>타임프레임 모드</label>
-                    <select id="tfMode">
-                        <option value="auto" selected>자동(15m/1h)</option>
-                        <option value="15m">강제 15m</option>
-                        <option value="1h">강제 1h</option>
-                    </select>
-                </div>
+                </span>
             </div>
+            <div style="flex-basis:100%">
+                <div class="progress"><div class="bar" id="bar"></div></div>
+                <div class="small muted" id="status">대기 중…</div>
+            </div>
+        </div>
 
-            <details>
-                <summary class="muted">감지할 패턴 선택 (클릭하여 펼치기)</summary>
-                <div class="row" style="margin-top:8px;">
-                    <label><input type="checkbox" class="pat" value="kicker" /> 강세 키커(A)</label>
-                    <label><input type="checkbox" class="pat" value="engulf" checked /> 강세 장악(A)</label>
-                    <label><input type="checkbox" class="pat" value="morning" checked /> 샛별형(A)</label>
-                    <label><input type="checkbox" class="pat" value="hammer" checked /> 망치형(A)</label>
-                    <label><input type="checkbox" class="pat" value="r3m" checked /> 상승 삼법(A)</label>
-                    <label><input type="checkbox" class="pat" value="soldiers" checked /> 백삼병(A)</label>
-                    <label><input type="checkbox" class="pat" value="piercing" checked /> 관통형(B)</label>
-                    <label><input type="checkbox" class="pat" value="harami" checked /> 불리시 하라미(B)</label>
-                    <label><input type="checkbox" class="pat" value="tweezer" checked /> 트위저 바닥(B)</label>
-                    <label><input type="checkbox" class="pat" value="belt" checked /> 상승 벨트홀드(B)</label>
-                </div>
-                <div class="help" style="margin-top:6px;">암호화폐 특성상 갭 조건은 대부분 무시(24/7). 전부 “캔들만” 판별.</div>
-            </details>
+        <div class="sticky">
+            <table>
+                <thead>
+                <tr>
+                    <th class="nowrap">심볼</th>
+                    <th class="nowrap right">발견 개수</th>
+                    <th>해머 날짜 (최신 → 과거)</th>
+                </tr>
+                </thead>
+                <tbody id="tbody">
+                <tr><td colspan="3" class="muted">아직 결과가 없습니다. “스캔 시작”을 눌러주세요.</td></tr>
+                </tbody>
+            </table>
+        </div>
 
-            <div class="flex" style="margin-top:12px;">
-                <button id="btnScanNow" class="btn primary">지금 스캔</button>
-                <button id="btnToggleAuto" class="btn">자동스캔: ON</button>
-            </div>
-            <div class="footer-note">⛑ 교육용 데모. 실계좌 적용 전 테스트 필수.</div>
-        </section>
-
-        <section class="panel">
-            <div class="toolbar">
-                <h2 style="margin:0;">즉시 진입 가능 신호(USDT Perp) — 점수 순</h2>
-                <div class="flex">
-                    <span id="summary" class="help">-</span>
-                </div>
-            </div>
-            <div style="overflow:auto; max-height:70vh;">
-                <table id="tbl">
-                    <thead>
-                        <tr>
-                            <th>순위</th>
-                            <th>심볼</th>
-                            <th>패턴</th>
-                            <th>상태</th>
-                            <th class="mono">점수</th>
-                            <th class="mono">현재가</th>
-                            <th class="mono">엔트리</th>
-                            <th class="mono">스톱</th>
-                            <th class="mono">폭</th>
-                            <th class="mono">1R</th>
-                            <th class="mono">2R</th>
-                            <th class="mono">3R</th>
-                            <th>메모</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+        <div class="footer">
+            · “오늘봉 제외”는 **진행 중인 미종가 봉**을 의미합니다(UTC 기준).<br/>
+            · 해머 판정(휴리스틱): 하단 심선이 **실체의 2배 이상**, 상단 심선이 **실체의 0.3배 이하**, 전체 범위 대비 실체 비율이 **≤ 30%**일 때. (양봉=강세, 음봉=약세)
+        </div>
+    </div>
+</div>
 
 <script>
-    "use strict";
+    // ----------- 설정 -----------
+    const MAX_CONCURRENCY = 10; // 동시 요청 수
+    const KLINE_LIMIT = 8;      // 최근 8개 (마지막 1개는 현재봉 -> 제외하면 7개 검사)
+    const INTERVAL = '1d';      // 1일봉
+    const FUTURES_KLINES = 'https://fapi.binance.com/fapi/v1/klines';
+    const FUTURES_EXCHANGE_INFO = 'https://fapi.binance.com/fapi/v1/exchangeInfo';
 
-    /* ========= 유틸 ========= */
-    const API = "https://fapi.binance.com";
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-    const fmt = (n, d = 6) => (typeof n === "number" && isFinite(n)) ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : "-";
-    const nowMs = () => Date.now();
+    // ----------- 유틸 -----------
+    const $ = (sel) => document.querySelector(sel);
+    const tbody = $('#tbody');
+    const scanBtn = $('#scanBtn');
+    const exportBtn = $('#exportBtn');
+    const statusEl = $('#status');
+    const barEl = $('#bar');
+    const symbolCountEl = $('#symbolCount');
+    const foundCountEl = $('#foundCount');
+    const searchEl = $('#search');
+    const sortSelect = $('#sortSelect');
 
-    /* ========= Binance 데이터 ========= */
-    async function fetchJSON(url, { retries = 2, backoff = 500 } = {}) {
-        for (let i = 0; i <= retries; i++) {
-            try {
-                const r = await fetch(url);
-                if (!r.ok) throw new Error("HTTP " + r.status);
-                return await r.json();
-            } catch (e) {
-                if (i === retries) throw e;
-                await sleep(backoff * (i + 1));
-            }
-        }
-    }
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    async function getUSDTPerpSymbols() {
-        const info = await fetchJSON(`${API}/fapi/v1/exchangeInfo`);
-        return info.symbols
-            .filter(s => s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING")
-            .map(s => ({ symbol: s.symbol }));
-    }
-
-    async function getAllPricesMap() {
-        const arr = await fetchJSON(`${API}/fapi/v1/ticker/price`);
-        const map = new Map();
-        for (const x of arr) map.set(x.symbol, Number(x.price));
-        return map;
-    }
-
-    async function get24hrMap() {
-        const arr = await fetchJSON(`${API}/fapi/v1/ticker/24hr`);
-        const map = new Map();
-        for (const x of arr) {
-            map.set(x.symbol, {
-                quoteVolume: Number(x.quoteVolume || 0),
-                priceChangePercent: Number(x.priceChangePercent || 0)
-            });
-        }
-        return map;
-    }
-
-    async function getKlines(symbol, interval, limit = 60) {
-        const url = `${API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-        const arr = await fetchJSON(url);
-        return arr.map(k => ({
-            t: new Date(k[0]),
-            o: Number(k[1]),
-            h: Number(k[2]),
-            l: Number(k[3]),
-            c: Number(k[4])
-        }));
-    }
-
-    /* ========= 캔들 연산 ========= */
-    const isBull = c => c.c > c.o;
-    const isBear = c => c.c < c.o;
-    const body = c => Math.abs(c.c - c.o);
-    const range = c => c.h - c.l;
-    const upperWick = c => c.h - Math.max(c.o, c.c);
-    const lowerWick = c => Math.min(c.o, c.c) - c.l;
-    const midpoint = c => (c.o + c.c) / 2;
-    const nearlyEq = (a, b, tol) => Math.abs(a - b) <= tol;
-
-    /* ========= 패턴 ========= */
-    const PAT_META = {
-        kicker:   { name: "강세 키커", tier: "A" },
-        engulf:   { name: "강세 장악", tier: "A" },
-        morning:  { name: "샛별형", tier: "A" },
-        hammer:   { name: "망치형", tier: "A" },
-        r3m:      { name: "상승 삼법", tier: "A" },
-        soldiers: { name: "백삼병", tier: "A" },
-        piercing: { name: "관통형", tier: "B" },
-        harami:   { name: "불리시 하라미", tier: "B" },
-        tweezer:  { name: "트위저 바닥", tier: "B" },
-        belt:     { name: "상승 벨트홀드", tier: "B" }
-    };
-    const TIER_ORDER = { "A": 3, "B": 2, "ALL": 0 };
-
-    function detectLatestLongSetup(c) {
-        const n = c.length;
-        if (n < 5) return null;
-        const i = n - 1;
-        const a = c[i - 1], b = c[i], c0 = c[i - 2], d0 = c[i - 3], e0 = c[i - 4];
-        if (!b || !a) return null;
-
-        const out = [];
-
-        if (isBear(a) && isBull(b) && b.c > a.o && b.o < a.c && body(b) >= body(a) * 0.7) {
-            out.push({ key: "engulf", entry: b.h, stop: Math.min(a.l, b.l), note: "몸통 장악" });
-        }
-        if (c0 && d0) {
-            const c1 = d0, c2 = c0, c3 = a, c4 = b;
-            const longBear = isBear(c1) && body(c1) >= range(c1) * 0.5;
-            const small2 = body(c2) <= range(c1) * 0.5 && body(c2) <= range(c2) * 0.4;
-            const strong4 = isBull(c4) && c4.c >= midpoint(c1);
-            if (longBear && small2 && strong4) {
-                out.push({ key: "morning", entry: c4.h, stop: Math.min(c1.l, c2.l, c3.l, c4.l), note: "3캔들 반전" });
-            }
-        }
-        {
-            const wL = lowerWick(b), wU = upperWick(b), bod = body(b);
-            let downCtx = false;
-            if (a && c0 && d0) {
-                const arrC = [d0, c0, a];
-                const downCnt = arrC.filter(x => x.c < x.o).length;
-                downCtx = downCnt >= 2 || (a.c < d0.c);
-            }
-            if (wL >= bod * 2 && wU <= bod * 0.6 && downCtx) {
-                out.push({ key: "hammer", entry: b.h, stop: b.l, note: "아랫꼬리 강조" });
-            }
-        }
-        if (a && c0 && d0 && e0) {
-            const c1 = e0, c2 = d0, c3 = c0, c4 = a, c5 = b;
-            const long1 = isBull(c1) && body(c1) >= range(c1) * 0.5;
-            const midIn1 = [c2, c3, c4].every(x => body(x) <= body(c1) * 0.6 && x.h <= c1.h && x.l >= c1.l);
-            const smallDowns = [c2, c3, c4].filter(x => isBear(x)).length >= 2;
-            const lastBreak = isBull(c5) && c5.c > c1.h;
-            if (long1 && midIn1 && smallDowns && lastBreak) {
-                out.push({ key: "r3m", entry: c5.h, stop: Math.min(c2.l, c3.l, c4.l), note: "지속형" });
-            }
-        }
-        if (c0) {
-            const c1 = c0, c2 = a, c3 = b;
-            const cond = isBull(c1) && isBull(c2) && isBull(c3)
-                && c2.c > c1.c && c3.c > c2.c
-                && upperWick(c1) <= range(c1) * 0.3
-                && upperWick(c2) <= range(c2) * 0.3
-                && upperWick(c3) <= range(c3) * 0.3
-                && c2.o >= midpoint(c1) && c3.o >= midpoint(c2);
-            if (cond) {
-                out.push({ key: "soldiers", entry: c3.h, stop: Math.min(c1.l, c2.l, c3.l), note: "연속 강세" });
-            }
-        }
-        if (isBear(a) && isBull(b) && b.c >= midpoint(a)) {
-            out.push({ key: "piercing", entry: b.h, stop: Math.min(a.l, b.l), note: "몸통 50% 관통" });
-        }
-        {
-            const aTop = Math.max(a.o, a.c), aBot = Math.min(a.o, a.c);
-            const cond = isBear(a) && body(a) >= range(a) * 0.3
-                && body(b) <= body(a) * 0.6
-                && (Math.max(b.o, b.c) <= aTop) && (Math.min(b.o, b.c) >= aBot);
-            if (cond) out.push({ key: "harami", entry: b.h, stop: Math.min(a.l, b.l), note: "작은 몸통 내부" });
-        }
-        {
-            const tol = (a.l + b.l) / 2 * 0.002;
-            const lowsNear = nearlyEq(a.l, b.l, tol);
-            if (lowsNear && isBull(b)) {
-                out.push({ key: "tweezer", entry: b.h, stop: Math.min(a.l, b.l), note: "저가 동일·반등" });
-            }
-        }
-        {
-            const isLong = isBull(b) && body(b) >= range(b) * 0.7;
-            const lowerIsSmall = (b.o - b.l) <= range(b) * 0.1;
-            if (isLong && lowerIsSmall) out.push({ key: "belt", entry: b.h, stop: b.l, note: "장대양봉·하단꼬리 짧음" });
-        }
-
-        if (!out.length) return null;
-        const filtered = out.filter(x => x.entry > x.stop);
-        if (!filtered.length) return null;
-
-        const pri = k => (PAT_META[k].tier === "A" ? 2 : 1);
-        filtered.sort((x, y) => {
-            const p = pri(y.key) - pri(x.key);
-            if (p !== 0) return p;
-            return (x.entry - x.stop) - (y.entry - y.stop);
+    function toKRDate(ms) {
+        // Binance ms -> KST “몇월 며칠”
+        return new Date(ms).toLocaleDateString('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            month: 'long',
+            day: 'numeric'
         });
-        return filtered[0];
     }
 
-    /* ========= 점수(진입조건 퀄리티) =========
-       총점 = 패턴기본가중치 + 리스크효율(폭/엔트리) + 엔트리근접 + 유동성 + 컨텍스트
-    */
-    const BASE_W = {
-        kicker: 10.0,
-        engulf: 9.5,
-        morning: 9.0,
-        hammer: 8.5,
-        r3m: 8.5,
-        soldiers: 8.0,
-        piercing: 7.0,
-        harami: 6.0,
-        tweezer: 6.0,
-        belt: 6.5
-    };
+    function isHammer(o, h, l, c) {
+        o = Number(o); h = Number(h); l = Number(l); c = Number(c);
+        const body = Math.abs(c - o);
+        const upper = h - Math.max(o, c);
+        const lower = Math.min(o, c) - l;
+        const range = h - l;
 
-    function scoreLongQuality({ key, entry, stop, cur, klines, quoteVolume }) {
-        const width = entry - stop;
-        const widthPct = width / entry;                                    // 좁을수록 ↑
-        const riskScore = clamp((0.015 / Math.max(1e-12, widthPct)) * 8, 0, 10); // ~1.5% 폭 기준 8점, 상한 10
-        const proxRatio = clamp(1 - (cur - entry) / Math.max(1e-12, width), 0, 1); // 막 돌파에 가까울수록 ↑
-        const proxScore = proxRatio * 5;
+        if (range <= 0) return false; // 비정상 캔들 보호
+        // 기준: 작은 실체, 하단 긴 심선(≥ 2배), 상단 짧은 심선(≤ 0.3배)
+        const bodyPct = body / range;                // 실체가 전체 대비 얼마나 작은지
+        const longLower = lower >= (body * 2);       // 아래 심선이 실체의 2배 이상
+        const smallUpper = upper <= (body * 0.3);    // 위 심선이 실체의 0.3배 이하
+        const smallBody = bodyPct <= 0.30;           // 실체가 상대적으로 작음
 
-        const qv = Math.max(0, Number(quoteVolume) || 0);
-        const volScore = clamp((Math.log10(qv + 1) - 6) / 3, 0, 1) * 5;    // 1M~1B USDT 스케일
+        return smallBody && longLower && smallUpper;
+    }
 
-        let ctxBonus = 0;                                                  // 컨텍스트 보너스
-        if (klines && klines.length >= 8) {
-            let up = 0, down = 0;
-            for (let i = klines.length - 6; i < klines.length - 1; i++) {
-                if (i <= 0) continue;
-                if (klines[i].c > klines[i - 1].c) up++; else if (klines[i].c < klines[i - 1].c) down++;
+    function hammerType(o, c) {
+        return Number(c) >= Number(o) ? 'bull' : 'bear'; // 양봉=강세, 음봉=약세
+    }
+
+    function formatHammerLabel(openTime, type) {
+        const label = type === 'bull' ? '강세 해머' : '약세 해머';
+        return { date: toKRDate(openTime), label, type };
+    }
+
+    function updateProgress(done, total) {
+        const pct = total ? Math.round((done / total) * 100) : 0;
+        barEl.style.width = pct + '%';
+        statusEl.textContent = `요청 ${done}/${total} · ${pct}%`;
+    }
+
+    function render(results, q = '', sortKey = 'hits') {
+        const query = (q || '').trim().toUpperCase();
+        let rows = results.slice();
+
+        // 정렬
+        rows.sort((a, b) => {
+            if (sortKey === 'symbol') {
+                return a.symbol.localeCompare(b.symbol);
+            } else if (sortKey === 'latest') {
+                // 가장 최신 해머 날짜(숫자) 기준 desc
+                return (b.latest || 0) - (a.latest || 0);
+            } else {
+                // 기본: 해머 개수 desc, 최신 날짜 desc, 심볼 asc
+                if (b.hits !== a.hits) return b.hits - a.hits;
+                if ((b.latest || 0) !== (a.latest || 0)) return (b.latest || 0) - (a.latest || 0);
+                return a.symbol.localeCompare(b.symbol);
             }
-            const cont = (key === "r3m" || key === "soldiers");
-            if (cont && up >= 3) ctxBonus += 2;
-            const rev = (key !== "r3m" && key !== "soldiers");
-            if (rev && down >= 3) ctxBonus += 2;
+        });
+
+        // 필터
+        if (query) rows = rows.filter(r => r.symbol.includes(query));
+
+        // 렌더
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="3" class="muted">조건에 맞는 결과가 없습니다.</td></tr>`;
+            return;
         }
 
-        const base = BASE_W[key] ?? 6.0;
-        const total = base + riskScore + proxScore + volScore + ctxBonus;
-        return Number(total.toFixed(2));
+        const html = rows.map(r => {
+            const badges = r.matches.map(m => {
+                const cls = m.type === 'bull' ? 'bull' : 'bear';
+                return `<span class="badge ${cls}">${m.date} · ${m.label}</span>`;
+            }).join('');
+
+            return `<tr>
+                <td class="mono nowrap">${r.symbol}</td>
+                <td class="right nowrap">${r.hits.toLocaleString('ko-KR')}</td>
+                <td>${badges || '<span class="muted">최근 7개봉에 해머 없음</span>'}</td>
+            </tr>`;
+        }).join('');
+
+        tbody.innerHTML = html;
     }
 
-    /* ========= 노이즈 측정 & 타임프레임 결정 =========
-       15m에서 상위 30개(24h 거래규모) 샘플의 중앙값 wick/body 비율이 2.2 이상이면 1h 선택
-    */
-    async function decideIntervalAuto(symbolsAll) {
+    function makeCSV(results) {
+        const header = ['symbol','count','dates_labels'].join(',');
+        const lines = results.map(r => {
+            const list = r.matches.map(m => `${m.date}(${m.type==='bull'?'강세':'약세'})`).join(' | ');
+            // CSV 안전 처리 (큰따옴표로 감싸기)
+            const safe = `"${list.replace(/"/g,'""')}"`;
+            return [r.symbol, r.hits, safe].join(',');
+        });
+        return [header, ...lines].join('\n');
+    }
+
+    function download(filename, text) {
+        const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    // ----------- 데이터 수집 -----------
+    async function fetchSymbols() {
+        const res = await fetch(FUTURES_EXCHANGE_INFO);
+        if (!res.ok) throw new Error('exchangeInfo 요청 실패');
+        const data = await res.json();
+        const list = (data.symbols || []).filter(s =>
+            s.contractType === 'PERPETUAL' &&
+            s.quoteAsset === 'USDT' &&
+            s.status === 'TRADING'
+        ).map(s => s.symbol);
+        return Array.from(new Set(list)).sort();
+    }
+
+    async function fetchKlines(symbol) {
+        const url = `${FUTURES_KLINES}?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${symbol} klines 실패`);
+        const arr = await res.json();
+        // 최신(진행 중) 1개 제외 → 최근 7개만 검사
+        if (arr.length > 0) arr.pop();
+        return arr;
+    }
+
+    async function scanAll() {
+        scanBtn.disabled = true;
+        exportBtn.disabled = true;
+        tbody.innerHTML = `<tr><td colspan="3" class="muted">스캔 중…</td></tr>`;
+        statusEl.textContent = '심볼 목록 불러오는 중…';
+        barEl.style.width = '0%';
+        foundCountEl.textContent = '해머 발견: -';
+
+        let symbols = [];
         try {
-            const stats = await fetchJSON(`${API}/fapi/v1/ticker/24hr`);
-            const setUSDT = new Set(symbolsAll.map(s => s.symbol));
-            const usdtStats = stats.filter(x => setUSDT.has(x.symbol));
-            usdtStats.sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume));
-            const sample = usdtStats.slice(0, 30).map(x => x.symbol);
-
-            const ratios = [];
-            for (let i = 0; i < sample.length; i++) {
-                const s = sample[i];
-                const kl = await getKlines(s, "15m", 50);
-                if (kl.length < 20) continue;
-                const recent = kl.slice(-20);
-                for (const c of recent) {
-                    const bod = body(c);
-                    if (bod <= 0) continue;
-                    const r = (upperWick(c) + lowerWick(c)) / bod;
-                    ratios.push(r);
-                }
-                if (i % 6 === 5) await sleep(120);
-            }
-            if (!ratios.length) return { interval: "15m", noise: NaN };
-            ratios.sort((a, b) => a - b);
-            const med = ratios[Math.floor(ratios.length / 2)];
-            const interval = (med >= 2.2) ? "1h" : "15m";
-            return { interval, noise: med };
+            symbols = await fetchSymbols();
         } catch (e) {
-            console.warn("auto decide failed, fallback 15m:", e);
-            return { interval: "15m", noise: NaN };
+            tbody.innerHTML = `<tr><td colspan="3" class="muted">심볼 목록 로드 실패: ${String(e.message || e)}</td></tr>`;
+            scanBtn.disabled = false;
+            return;
         }
-    }
 
-    /* ========= 스캔 루프 ========= */
-    function nextBoundaryTs(interval) {
-        const ms = interval === "1h" ? 3600000 : 900000;
-        const now = nowMs();
-        return Math.floor(now / ms) * ms + ms;
-    }
+        symbolCountEl.textContent = `심볼: ${symbols.length.toLocaleString('ko-KR')}`;
 
-    async function scanOnce(state) {
-        const tbody = document.querySelector("#tbl tbody");
-        tbody.innerHTML = "";
-
-        const enabled = new Set(Array.from(document.querySelectorAll(".pat:checked")).map(x => x.value));
-        const minTier = document.getElementById("minTier").value;
-        const tierOK = (key) => {
-            if (minTier === "ALL") return true;
-            const need = TIER_ORDER[minTier];
-            const t = TIER_ORDER[PAT_META[key].tier] || 0;
-            return t >= need;
-        };
-
-        const symInfo = state.symbols;
-        const [priceMap, statsMap] = await Promise.all([
-            getAllPricesMap(),
-            get24hrMap()
-        ]);
-
-        const concurrency = 6;
-        let idx = 0;
+        // 결과 누적
         const results = [];
+        let done = 0;
+        let found = 0;
 
-        async function worker() {
-            while (idx < symInfo.length) {
-                const me = symInfo[idx++];
+        // 작업 큐 (동시성 제한)
+        const queue = symbols.slice();
+        const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, queue.length) }, () => (async function worker(){
+            while (queue.length) {
+                const sym = queue.shift();
                 try {
-                    const kl = await getKlines(me.symbol, state.interval, 60);
-                    if (kl.length < 5) continue;
+                    const klines = await fetchKlines(sym);
+                    // 최근 7개(이미 현재봉 제외했으므로 klines 최대 7개)
+                    const matches = [];
+                    for (let i = klines.length - 1; i >= 0; i--) {
+                        const k = klines[i];
+                        const openTime = k[0];      // ms
+                        const o = parseFloat(k[1]);
+                        const h = parseFloat(k[2]);
+                        const l = parseFloat(k[3]);
+                        const c = parseFloat(k[4]);
 
-                    const setup = detectLatestLongSetup(kl);
-                    if (!setup || !enabled.has(setup.key) || !tierOK(setup.key)) continue;
+                        if (isHammer(o, h, l, c)) {
+                            const type = hammerType(o, c); // bull/bear
+                            matches.push( formatHammerLabel(openTime, type) );
+                        }
+                    }
 
-                    const entry = setup.entry;
-                    const stop  = setup.stop;
-                    const cur   = priceMap.get(me.symbol);
-                    if (!isFinite(cur)) continue;
-
-                    // 즉시 진입 가능(현재가 ≥ 엔트리)만 채택
-                    if (cur >= entry) {
-                        const oneR   = entry + (entry - stop);
-                        const twoR   = entry + 2 * (entry - stop);
-                        const threeR = entry + 3 * (entry - stop);
-
-                        const qv = statsMap.get(me.symbol)?.quoteVolume || 0;
-                        const score = scoreLongQuality({
-                            key: setup.key, entry, stop, cur, klines: kl, quoteVolume: qv
-                        });
-
+                    if (matches.length) {
+                        found++;
+                        const latestMs = klines.length ? klines[klines.length - 1][0] : 0;
                         results.push({
-                            symbol: me.symbol,
-                            key: setup.key,
-                            status: "TRIGGERED",
-                            cur, entry, stop, width: entry - stop,
-                            oneR, twoR, threeR, note: setup.note,
-                            score
+                            symbol: sym,
+                            hits: matches.length,
+                            latest: latestMs || 0,
+                            matches: matches.sort((a,b) => 0) // 이미 최신→과거 순으로 push했음
                         });
                     }
                 } catch (e) {
-                    // 개별 심볼 실패는 무시
+                    // 심볼별 오류는 스킵
+                    // 콘솔에만 기록
+                    console.warn('심볼 실패:', sym, e);
+                } finally {
+                    done++;
+                    updateProgress(done, symbols.length);
+                    foundCountEl.textContent = `해머 발견: ${found.toLocaleString('ko-KR')}`;
                 }
-                await sleep(60);
             }
-        }
+        })());
 
-        const workers = Array.from({ length: concurrency }, () => worker());
         await Promise.all(workers);
 
-        // 정렬: 점수 내림차순 → 폭이 좁은 순
-        results.sort((a, b) => {
-            const s = b.score - a.score;
-            if (s !== 0) return s;
-            return a.width - b.width;
-        });
-
-        // 렌더링
-        results.forEach((r, i) => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td class="mono">${i + 1}</td>
-                <td class="mono">${r.symbol}</td>
-                <td>${PAT_META[r.key].name}</td>
-                <td><span class="tag ok">트리거</span></td>
-                <td class="mono">${fmt(r.score, 2)}</td>
-                <td class="mono">${fmt(r.cur)}</td>
-                <td class="mono">${fmt(r.entry)}</td>
-                <td class="mono">${fmt(r.stop)}</td>
-                <td class="mono">${fmt(r.width)}</td>
-                <td class="mono">${fmt(r.oneR)}</td>
-                <td class="mono">${fmt(r.twoR)}</td>
-                <td class="mono">${fmt(r.threeR)}</td>
-                <td class="help">${r.note || ""}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        document.getElementById("summary").textContent =
-            `${results.length}종목 · interval=${state.interval} · 정렬: 진입조건 점수`;
-        return results.length;
-    }
-
-    async function initAndMaybeDecideInterval(state) {
-        if (!state.symbols) {
-            state.symbols = await getUSDTPerpSymbols();
+        // 렌더
+        if (!results.length) {
+            tbody.innerHTML = `<tr><td colspan="3" class="muted">최근 7개 1일봉에서 해머를 찾지 못했습니다.</td></tr>`;
+        } else {
+            render(results, searchEl.value, sortSelect.value);
         }
-        const tfMode = document.getElementById("tfMode").value;
-        if (tfMode === "15m" || tfMode === "1h") {
-            state.interval = tfMode;
-            document.getElementById("chosenInterval").textContent = `interval: ${state.interval}`;
-            document.getElementById("noiseInfo").textContent = `noise: manual`;
-            return;
-        }
-        const { interval, noise } = await decideIntervalAuto(state.symbols);
-        state.interval = interval;
-        document.getElementById("chosenInterval").textContent = `interval: ${interval}`;
-        document.getElementById("noiseInfo").textContent = `noise: ${isFinite(noise) ? noise.toFixed(2) : "-"}`;
+
+        // 상태/버튼
+        statusEl.textContent = `완료: ${done}/${symbols.length}`;
+        exportBtn.disabled = results.length === 0;
+        scanBtn.disabled = false;
+
+        // 핸들러 저장(내보내기/검색/정렬)
+        exportBtn.onclick = () => {
+            const csv = makeCSV(results);
+            const now = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+            download(`hammer-scan-${now}.csv`, csv);
+        };
+        const reRender = () => render(results, searchEl.value, sortSelect.value);
+        searchEl.oninput = reRender;
+        sortSelect.onchange = reRender;
     }
 
-    function scheduleNext(state) {
-        const nextTs = nextBoundaryTs(state.interval);
-        const left = Math.max(0, nextTs - nowMs());
-        clearTimeout(state.timer);
-        state.timer = setTimeout(async () => {
-            if (!state.auto) return;
-            await sleep(1500);              // 새 봉 시작 직후 약간 대기(데이터 확정)
-            await scanOnce(state);
-            scheduleNext(state);
-        }, left);
-        const d = new Date(nextTs);
-        document.getElementById("nextRun").textContent = `next: ${d.toISOString().replace('T',' ').slice(0,16)} (loc)`;
-    }
-
-    /* ========= 앱 시작 ========= */
-    const appState = { auto: true, interval: "15m", symbols: null, timer: null };
-
-    document.getElementById("btnToggleAuto").addEventListener("click", (e) => {
-        appState.auto = !appState.auto;
-        e.target.textContent = `자동스캔: ${appState.auto ? "ON" : "OFF"}`;
-        if (appState.auto) scheduleNext(appState);
-        else clearTimeout(appState.timer);
-    });
-
-    document.getElementById("btnScanNow").addEventListener("click", async () => {
-        await initAndMaybeDecideInterval(appState);
-        await scanOnce(appState);
-        if (appState.auto) scheduleNext(appState);
-    });
-
-    document.getElementById("tfMode").addEventListener("change", async () => {
-        await initAndMaybeDecideInterval(appState);
-        await scanOnce(appState);
-        if (appState.auto) scheduleNext(appState);
-    });
-
-    (async function start() {
-        await initAndMaybeDecideInterval(appState);
-        await scanOnce(appState);
-        scheduleNext(appState);
-    })();
+    // ----------- 이벤트 바인딩 -----------
+    scanBtn.addEventListener('click', scanAll);
 </script>
 </body>
 </html>
