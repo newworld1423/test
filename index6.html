@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>바이낸스 선물 USDT 15분봉 스캐너 · 종가<MA(7/25/99) + MA상승</title>
+    <title>USDT-M 15분봉 스캐너 · C[-1]&gt;MA7/25/99 & MA상승 & C[-2]&lt;MA(임의)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root { --fg:#111; --bg:#fff; --muted:#666; --ok:#087f5b; --bad:#c92a2a; --chip:#f1f3f5; }
@@ -29,7 +29,7 @@
 </head>
 <body>
 <header>
-    <h1>USDT-M PERP 15분봉 스캐너 · 종가&lt;MA(7/25/99) + MA상승</h1>
+    <h1>USDT-M PERP 15분봉 스캐너 · C[-1]&gt;MA7/25/99 & MA상승 & C[-2]&lt;MA(임의)</h1>
     <div class="controls">
         <button id="scanNowBtn">지금 스캔</button>
         <button id="toggleAutoBtn">자동 스캔: 켜짐</button>
@@ -54,9 +54,9 @@
                     <th>MA7↑</th>
                     <th>MA25↑</th>
                     <th>MA99↑</th>
-                    <th>C&lt;7</th>
-                    <th>C&lt;25</th>
-                    <th>C&lt;99</th>
+                    <th>C[-2]&lt;7</th>
+                    <th>C[-2]&lt;25</th>
+                    <th>C[-2]&lt;99</th>
                     <th>직전봉 거래량</th>
                 </tr>
             </thead>
@@ -68,8 +68,8 @@
 </main>
 
 <footer class="small muted" style="padding:10px 20px; border-top:1px solid #e9ecef;">
-    조건: (1) 2봉전 MA &lt; 직전봉 MA (7/25/99 모두 상승) (2) 직전봉 종가 &lt; MA7 또는 MA25 또는 MA99 중 하나.<br/>
-    봉 마감 직후 1~3초 API 지연이 있을 수 있어 마감 +3초에 실행합니다(변경은 AUTO_DELAY_MS).
+    조건: (1) C[-1] &gt; MA7/25/99 (모두) (2) MA7/25/99 각각 2봉전 대비 상승 (3) C[-2] &lt; MA7 또는 MA25 또는 MA99.<br/>
+    봉 마감 직후 1~3초 API 지연이 있을 수 있어 마감 +3초에 실행합니다(AUTO_DELAY_MS로 변경 가능).
 </footer>
 
 <script>
@@ -182,34 +182,39 @@
         if (twoAgo < 0) return null;
 
         const prevClose = closes[prev];
+        const twoAgoClose = closes[twoAgo];
 
-        const ma7_prev = sma(closes, prev, 7);
+        // MA 계산 (t-1, t-2 각각)
+        const ma7_prev  = sma(closes, prev, 7);
         const ma25_prev = sma(closes, prev, 25);
         const ma99_prev = sma(closes, prev, 99);
 
-        const ma7_two = sma(closes, twoAgo, 7);
-        const ma25_two = sma(closes, twoAgo, 25);
-        const ma99_two = sma(closes, twoAgo, 99);
+        const ma7_two   = sma(closes, twoAgo, 7);
+        const ma25_two  = sma(closes, twoAgo, 25);
+        const ma99_two  = sma(closes, twoAgo, 99);
 
         if ([ma7_prev, ma25_prev, ma99_prev, ma7_two, ma25_two, ma99_two].some(v => v === null)) return null;
 
-        // (A) MA 기울기 상승
+        // (1) 직전봉 종가 > MA7/25/99 모두
+        const condCloseOverAll = (prevClose > ma7_prev) && (prevClose > ma25_prev) && (prevClose > ma99_prev);
+
+        // (2)(3)(4) 기울기 상승
         const condSlopeUp = (ma7_two < ma7_prev) && (ma25_two < ma25_prev) && (ma99_two < ma99_prev);
 
-        // (B) "추가 조건": 직전봉 종가가 MA7/25/99 중 하나라도 아래
-        const c_lt7 = prevClose < ma7_prev;
-        const c_lt25 = prevClose < ma25_prev;
-        const c_lt99 = prevClose < ma99_prev;
-        const condCloseBelowAny = c_lt7 || c_lt25 || c_lt99;
+        // (5) 2봉전 종가가 2봉전 MA 중 하나보다 아래
+        const c2_lt7  = twoAgoClose < ma7_two;
+        const c2_lt25 = twoAgoClose < ma25_two;
+        const c2_lt99 = twoAgoClose < ma99_two;
+        const condTwoAgoBelowAny = c2_lt7 || c2_lt25 || c2_lt99;
 
-        if (condSlopeUp && condCloseBelowAny) {
+        if (condCloseOverAll && condSlopeUp && condTwoAgoBelowAny) {
             const prevVol = vols[prev];
             return {
                 symbol,
                 prevClose,
                 ma7_prev, ma25_prev, ma99_prev,
                 up7: true, up25: true, up99: true,
-                c_lt7, c_lt25, c_lt99,
+                c2_lt7, c2_lt25, c2_lt99,
                 prevVol
             };
         }
@@ -273,9 +278,9 @@
                 <td class="ok">↑</td>
                 <td class="ok">↑</td>
                 <td class="ok">↑</td>
-                <td class="mono">${r.c_lt7 ? "●" : "—"}</td>
-                <td class="mono">${r.c_lt25 ? "●" : "—"}</td>
-                <td class="mono">${r.c_lt99 ? "●" : "—"}</td>
+                <td class="mono">${r.c2_lt7 ? "●" : "—"}</td>
+                <td class="mono">${r.c2_lt25 ? "●" : "—"}</td>
+                <td class="mono">${r.c2_lt99 ? "●" : "—"}</td>
                 <td class="mono">${fmtNum(r.prevVol, 2)}</td>
             </tr>
         `).join("");
