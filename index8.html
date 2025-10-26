@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>1분봉 직전봉 99MA 크로스 스캐너 (USDT Perp)</title>
+    <style>
+        :root{
+            --bg:#0b0f14;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;
+            --ok:#22c55e;--no:#ef4444;--border:#1f2937;--warn:#f59e0b;
+        }
+        html,body{height:100%}
+        body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+        .wrap{max-width:900px;margin:32px auto;padding:0 16px}
+        .panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+        .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        .row + .row{margin-top:10px}
+        input[type=text]{flex:1;min-width:220px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:#0d1220;color:var(--text);font-weight:600}
+        .btn{padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:#182033;color:var(--text);font-weight:700;cursor:pointer}
+        .btn[disabled]{opacity:.6;cursor:not-allowed}
+        .hint{color:var(--muted);font-size:12px}
+        .kv{display:grid;grid-template-columns:160px 1fr;gap:8px;margin-top:12px}
+        .k{color:var(--muted)}
+        .v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+        .tag{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #14532d;background:#0b2f1f;color:#86efac;font-size:12px;vertical-align:middle}
+        .result{margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--border);background:#0e1525}
+        .pass{border-color:#14532d;background:#0b2f1f}
+        .fail{border-color:#3f1d20;background:#1a0e10}
+        .ok{color:var(--ok);font-weight:800}
+        .no{color:var(--no);font-weight:800}
+        .warn{color:var(--warn)}
+        .small{font-size:12px;color:var(--muted)}
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1 style="margin:0 0 10px 0;">USDT Perp — 1분봉 직전봉 99MA 크로스 체크</h1>
+    <div class="hint">조건: <b>직전 1분봉 저가 &lt; 99MA</b> AND <b>직전 1분봉 고가 &gt; 99MA</b> (SMA99은 직전봉까지의 종가로 계산)</div>
+
+    <div class="panel" style="margin-top:12px;">
+        <div class="row">
+            <input id="symbol" type="text" placeholder="예: BTCUSDT" value="BTCUSDT" />
+            <button id="scanBtn" class="btn">스캔</button>
+        </div>
+        <div class="row">
+            <span id="syncInfo" class="hint">분 경계 동기화 대기 중…</span>
+        </div>
+
+        <div id="status" class="hint" style="margin-top:8px;">대기 중</div>
+
+        <div id="result" class="result" style="display:none;"></div>
+
+        <div class="kv">
+            <div class="k">직전봉 시간</div><div class="v" id="tPrev">-</div>
+            <div class="k">직전봉 고가(H)</div><div class="v" id="vHigh">-</div>
+            <div class="k">직전봉 저가(L)</div><div class="v" id="vLow">-</div>
+            <div class="k">직전봉 종가(C)</div><div class="v" id="vClose">-</div>
+            <div class="k">SMA(99) @직전봉</div><div class="v" id="vMa">-</div>
+        </div>
+
+        <div class="small" style="margin-top:10px;">
+            • 데이터: Binance Futures(USDT-M). 1회 실행 시 /fapi/v1/klines 1번 호출.<br/>
+            • 1분봉 시작(서버 시간 기준)과 동시에 자동 재스캔합니다.
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- 기본 설정 ----------
+    const API_BASE = 'https://fapi.binance.com';
+    const endpoint = {
+        time: '/fapi/v1/time',
+        klines: '/fapi/v1/klines', // symbol, interval=1m, limit=200
+    };
+
+    const fmt6 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
+    const fmt8 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 });
+
+    let serverOffsetMs = 0;     // serverTime - Date.now()
+    let tickTimeout = null;
+    let tickInterval = null;
+    let scanning = false;
+
+    // ---------- 유틸 ----------
+    async function fetchJSON(url) {
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) {
+            const text = await res.text().catch(()=> '');
+            throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? '- ' + text : ''}`);
+        }
+        return res.json();
+    }
+
+    async function syncServerTime() {
+        const t0 = Date.now();
+        const { serverTime } = await fetchJSON(`${API_BASE}${endpoint.time}`);
+        const t1 = Date.now();
+        // 왕복시간 보정(대략 절반 반영)
+        const rtt2 = Math.floor((t1 - t0) / 2);
+        serverOffsetMs = Number(serverTime) + rtt2 - t1;
+        return Number(serverTime);
+    }
+
+    function serverNow() {
+        return Date.now() + serverOffsetMs;
+    }
+
+    function msUntilNextMinute() {
+        const now = serverNow(); // 서버시간 기준
+        const next = Math.ceil(now / 60000) * 60000;
+        const diff = Math.max(0, next - now) + 200; // 여유 200ms
+        return diff;
+    }
+
+    function normSymbol(input) {
+        let s = String(input || '').trim().toUpperCase();
+        if (!s.endsWith('USDT')) s = s + 'USDT';
+        return s.replace(/\s+/g, '');
+    }
+
+    function toLocal(ts) {
+        const d = new Date(ts);
+        // 한국 시간 표시가 기본일 수 있으나, 사용 환경에 맞게 로컬 표기
+        return d.toLocaleString();
+    }
+
+    function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+
+    // ---------- 스캔 로직 ----------
+    async function scanOnce(symbolRaw) {
+        if (scanning) return;
+        scanning = true;
+
+        const symbol = normSymbol(symbolRaw);
+        const status = document.getElementById('status');
+        const resultBox = document.getElementById('result');
+
+        try {
+            status.textContent = `${symbol} • 1분봉 데이터 불러오는 중…`;
+
+            // 충분한 캔들 확보(직전봉 포함 99개 이상 필요)
+            const url = `${API_BASE}${endpoint.klines}?symbol=${encodeURIComponent(symbol)}&interval=1m&limit=200`;
+            const data = await fetchJSON(url);
+            if (!Array.isArray(data) || data.length < 100) {
+                throw new Error('캔들 데이터가 충분하지 않습니다 (>=100 필요).');
+            }
+
+            // 배열: [openTime, open, high, low, close, volume, closeTime, ...]
+            const lastIdx = data.length - 1;     // 현재 진행중 봉
+            const prevIdx = data.length - 2;     // "직전 봉" (완료된 봉)
+
+            const prev = data[prevIdx];
+            const prevHigh = Number(prev[2]);
+            const prevLow  = Number(prev[3]);
+            const prevClose= Number(prev[4]);
+            const prevOpenTime = Number(prev[0]);
+
+            // SMA(99) @직전봉: 직전봉을 포함해 종가 99개
+            const closes = [];
+            for (let i = prevIdx - 98; i <= prevIdx; i++) {
+                if (i < 0) continue;
+                closes.push(Number(data[i][4]));
+            }
+            if (closes.length < 99) {
+                throw new Error('SMA(99) 계산에 필요한 데이터가 부족합니다.');
+            }
+            const ma99 = sum(closes) / closes.length;
+
+            // 조건 체크
+            const cond1 = prevLow < ma99;   // 저가 < 99MA
+            const cond2 = prevHigh > ma99;  // 고가 > 99MA
+            const pass = (cond1 && cond2);
+
+            // 표 채우기
+            document.getElementById('tPrev').textContent  = `${toLocal(prevOpenTime)} (open)`;
+            document.getElementById('vHigh').textContent  = fmt6.format(prevHigh);
+            document.getElementById('vLow').textContent   = fmt6.format(prevLow);
+            document.getElementById('vClose').textContent = fmt6.format(prevClose);
+            document.getElementById('vMa').textContent    = fmt8.format(ma99);
+
+            // 결과 박스
+            resultBox.style.display = 'block';
+            resultBox.className = 'result ' + (pass ? 'pass' : 'fail');
+            resultBox.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span class="tag">PERP</span>
+                    <strong style="font-size:18px;">${symbol}</strong>
+                </div>
+                <div style="margin-top:8px;">
+                    조건1(저가 &lt; 99MA): <span class="${cond1 ? 'ok' : 'no'}">${cond1 ? '충족' : '불충족'}</span><br/>
+                    조건2(고가 &gt; 99MA): <span class="${cond2 ? 'ok' : 'no'}">${cond2 ? '충족' : '불충족'}</span>
+                </div>
+                <div class="small" style="margin-top:8px;">마지막 스캔: ${new Date().toLocaleString()}</div>
+            `;
+
+            status.textContent = `${symbol} • 스캔 완료 → ${pass ? '두 조건 모두 충족' : '조건 불충족'}`;
+        } catch (e) {
+            resultBox.style.display = 'block';
+            resultBox.className = 'result fail';
+            resultBox.innerHTML = `<div class="no" style="font-weight:700;">오류</div>
+                                    <div class="small">${e instanceof Error ? e.message : String(e)}</div>`;
+            status.textContent = '실패';
+        } finally {
+            scanning = false;
+        }
+    }
+
+    // ---------- 자동 재스캔 스케줄 ----------
+    async function scheduleAuto(symbol) {
+        // 기존 예약 제거
+        if (tickTimeout) { clearTimeout(tickTimeout); tickTimeout = null; }
+        if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
+
+        const syncEl = document.getElementById('syncInfo');
+        syncEl.textContent = '서버 시간 동기화 중…';
+
+        try {
+            await syncServerTime();
+            const wait = msUntilNextMinute();
+            syncEl.textContent = `분 경계 동기화 완료 • ${Math.floor(wait/1000)}초 후 자동 스캔 시작`;
+
+            // 다음 분 시작에 1회 실행 후, 매 60초 반복
+            tickTimeout = setTimeout(async () => {
+                await scanOnce(symbol);
+                syncEl.textContent = '자동 스캔: 매 1분(서버 기준) 실행 중';
+                tickInterval = setInterval(() => scanOnce(symbol), 60000);
+            }, wait);
+        } catch (e) {
+            syncEl.textContent = `동기화 실패: ${e instanceof Error ? e.message : String(e)} • 로컬 분 기준으로 실행합니다.`;
+            // 서버 동기화 실패 시 로컬 시계 기준
+            const wait = (60000 - (Date.now() % 60000)) + 200;
+            tickTimeout = setTimeout(async () => {
+                await scanOnce(symbol);
+                tickInterval = setInterval(() => scanOnce(symbol), 60000);
+            }, wait);
+        }
+    }
+
+    // ---------- 이벤트 ----------
+    document.getElementById('scanBtn').addEventListener('click', async () => {
+        const symbol = document.getElementById('symbol').value;
+        document.getElementById('status').textContent = '수동 스캔 실행 중…';
+        await scanOnce(symbol);           // 즉시 1회
+        scheduleAuto(symbol);             // 그리고 분 경계 자동 스캔 예약
+    });
+</script>
+</body>
+</html>
