@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <title>Binance Futures Scanner — Pullback & MA Stack Rebreak</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #171922;
+            --text: #e8ecf1;
+            --muted: #9aa4b2;
+            --accent: #3b82f6;
+            --good: #22c55e;
+            --bad: #ef4444;
+            --warn: #f59e0b;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Arial;
+        }
+        h1 { margin: 0 0 8px; font-size: 20px; }
+        .desc { color: var(--muted); margin-bottom: 16px; line-height: 1.4; }
+        .panel {
+            background: var(--panel); border: 1px solid #222533; border-radius: 12px; padding: 16px; margin-bottom: 16px;
+        }
+        .controls { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+        .controls .field { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; color: var(--muted); }
+        select, input[type="number"], input[type="text"] {
+            background: #0b0d13; border: 1px solid #2a2f45; color: var(--text); padding: 10px 12px; border-radius: 8px;
+            outline: none;
+        }
+        button {
+            background: var(--accent); color: white; border: none; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer;
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .inline { display: flex; gap: 12px; align-items: center; }
+        .checkbox { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+
+        .progress { margin-top: 8px; font-size: 12px; color: var(--muted); }
+        .table-wrap { overflow: auto; border-radius: 12px; border: 1px solid #222533; }
+        table { width: 100%; border-collapse: collapse; min-width: 980px; }
+        thead th {
+            text-align: left; font-size: 12px; color: var(--muted); background: #121520; position: sticky; top: 0;
+            padding: 10px; border-bottom: 1px solid #222533;
+        }
+        tbody td { padding: 10px; border-bottom: 1px solid #1b1f2d; font-size: 13px; vertical-align: top; }
+        .mono { font-family: var(--mono); }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid #2a2f45; color: var(--muted); }
+        .ok { color: var(--good); }
+        .ng { color: var(--bad); }
+        .note { color: #a6b4ff; }
+        .pill { padding: 2px 8px; background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: #a7f3d0; border-radius: 999px; font-size: 11px; }
+        .warnpill { padding: 2px 8px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #fde68a; border-radius: 999px; font-size: 11px; }
+        .mutepill { padding: 2px 8px; background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.35); color: #cbd5e1; border-radius: 999px; font-size: 11px; }
+        .foot { margin-top: 10px; font-size: 12px; color: var(--muted); }
+        .flex { display: flex; gap: 8px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <h1>상승추세 풀백 + MA 스택(7&gt;25&gt;99) 재돌파 스캐너</h1>
+    <div class="desc">바이낸스 USDⓂ 무기한 선물(USDT) · 직전 봉(완성봉) 기준으로 신호를 판정해 점수 높은 순으로 정렬합니다.</div>
+
+    <div class="panel">
+        <div class="controls">
+            <div class="field">
+                <label>타임프레임</label>
+                <select id="tf">
+                    <option value="15m" selected>15m</option>
+                    <option value="1h">1h</option>
+                    <option value="4h">4h</option>
+                    <option value="1d">1d</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>스캔 심볼 수 (상위 거래대금)</label>
+                <input id="maxSymbols" type="number" value="80" min="10" max="500" />
+            </div>
+            <div class="field">
+                <label>동시 요청 수(스로틀)</label>
+                <input id="concurrency" type="number" value="8" min="1" max="24" />
+            </div>
+            <div class="field">
+                <label>최근 N봉(풀백 탐색 범위)</label>
+                <input id="lookback" type="number" value="6" min="3" max="20" />
+            </div>
+            <div class="field">
+                <label>K라인 개수(지표계산용)</label>
+                <input id="klimit" type="number" value="220" min="120" max="1500" />
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <div class="inline">
+                    <button id="scanBtn">스캔</button>
+                    <label class="checkbox">
+                        <input id="autoToggle" type="checkbox" />
+                        <span>Auto (다음 봉 시작 시 자동 스캔)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="progress" id="progress">준비됨.</div>
+    </div>
+
+    <div class="panel table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>순위</th>
+                    <th>심볼</th>
+                    <th>점수</th>
+                    <th>가격</th>
+                    <th>RSI(14)</th>
+                    <th>7/25/99</th>
+                    <th>신호</th>
+                    <th>메모</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+        <div class="foot">※ 점수 구성: 정배열/기울기↑, 7·25·99 상방 종가, 최근 N봉 내 7MA 하회(풀백) 후 재돌파, 미니고점 돌파, RSI 조건 등.</div>
+    </div>
+
+    <script>
+        // ======== 유틸 ========
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const by = (k) => (a, b) => (a[k] > b[k] ? -1 : a[k] < b[k] ? 1 : 0);
+
+        function ema(values, period) {
+            if (!values || values.length < period + 2) return Array(values.length).fill(null);
+            const k = 2 / (period + 1);
+            const out = Array(values.length).fill(null);
+            // SMA로 시작
+            let sum = 0;
+            for (let i = 0; i < period; i++) sum += values[i];
+            let prev = sum / period;
+            out[period - 1] = prev;
+            for (let i = period; i < values.length; i++) {
+                const cur = values[i] * k + prev * (1 - k);
+                out[i] = cur;
+                prev = cur;
+            }
+            return out;
+        }
+
+        function rsi(values, period = 14) {
+            const out = Array(values.length).fill(null);
+            if (values.length < period + 2) return out;
+            let gains = 0, losses = 0;
+            for (let i = 1; i <= period; i++) {
+                const ch = values[i] - values[i - 1];
+                gains += Math.max(ch, 0);
+                losses += Math.max(-ch, 0);
+            }
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+            out[period] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+            for (let i = period + 1; i < values.length; i++) {
+                const ch = values[i] - values[i - 1];
+                const gain = Math.max(ch, 0);
+                const loss = Math.max(-ch, 0);
+                avgGain = (avgGain * (period - 1) + gain) / period;
+                avgLoss = (avgLoss * (period - 1) + loss) / period;
+                out[i] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));
+            }
+            return out;
+        }
+
+        function intervalMs(tf) {
+            const map = { "1m": 60e3, "5m": 5*60e3, "15m": 15*60e3, "1h": 60*60e3, "4h": 4*60*60e3, "1d": 24*60*60e3 };
+            return map[tf] ?? 15*60e3;
+        }
+
+        // ======== 신호 로직 ========
+        function evaluateSignal(klines, lookback = 6) {
+            // klines: [openTime, open, high, low, close, volume, closeTime, ...]
+            if (!klines || klines.length < 120) return { passed: false, score: 0, flags: ["데이터 부족"] };
+
+            // 종가/고가/저가/거래량
+            const close = klines.map(k => Number(k[4]));
+            const high  = klines.map(k => Number(k[2]));
+            const low   = klines.map(k => Number(k[3]));
+            const vol   = klines.map(k => Number(k[5]));
+
+            // 지표
+            const e7 = ema(close, 7);
+            const e25 = ema(close, 25);
+            const e99 = ema(close, 99);
+            const r14 = rsi(close, 14);
+
+            // 마지막 완성봉(직전봉) index
+            const last = klines.length - 2;
+            const prev = last - 1;
+
+            if ([e7[last], e25[last], e99[last]].some(v => v == null)) {
+                return { passed: false, score: 0, flags: ["지표 계산 구간 부족"] };
+            }
+
+            let score = 0;
+            const flags = [];
+
+            // 1) MA 스택(정배열) + 기울기
+            const stack = e7[last] > e25[last] && e25[last] > e99[last];
+            const slopeUp = e7[last] > e7[prev] && e25[last] > e25[prev];
+            if (stack) { score += 15; flags.push("정배열(7>25>99)"); }
+            if (slopeUp) { score += 8; flags.push("7/25 기울기↑"); }
+            if (!(stack && slopeUp)) { /* keep evaluating; but note */ }
+
+            // 2) 직전봉 종가가 7/25/99 위
+            const aboveAll = close[last] > e7[last] && close[last] > e25[last] && close[last] > e99[last];
+            if (aboveAll) { score += 10; flags.push("종가>7/25/99"); }
+
+            // 3) 최근 N봉 내 풀백(7MA 하회) 존재 + 현재 재돌파
+            const from = Math.max(99 + 5, last - lookback); // e99 안정화 이후로만 탐색
+            const to = last - 1;
+            let hadPullback = false;
+            for (let i = from; i <= to; i++) {
+                if (close[i] < e7[i]) { hadPullback = true; break; }
+            }
+            const rebreak = close[last] > e7[last];
+            if (hadPullback && rebreak) {
+                score += 8;
+                flags.push("풀백 후 7MA 재돌파");
+            }
+
+            // 4) 미니 스윙하이(최근 N봉 고점) 돌파
+            const recentHigh = Math.max(...high.slice(from, last));
+            if (close[last] > recentHigh) {
+                score += 10;
+                flags.push("미니고점 돌파");
+            }
+
+            // 5) RSI 조건
+            const rsiLast = r14[last] ?? 0;
+            const rsiMinRecent = Math.min(...r14.slice(from, last).filter(v => v != null));
+            if (rsiLast > 50 && rsiMinRecent >= 40) {
+                score += 6;
+                flags.push("RSI Bull Range");
+            }
+
+            // 6) 거래량: 재돌파봉에서 증가(간단 룰)
+            const volUp = vol[last] > (vol[prev] || 0);
+            if (volUp) {
+                score += 4;
+                flags.push("거래량 증가");
+            }
+
+            const passed = (stack && rebreak && aboveAll && hadPullback);
+            return {
+                passed,
+                score,
+                flags,
+                metrics: {
+                    close: close[last],
+                    e7: e7[last], e25: e25[last], e99: e99[last],
+                    rsi: rsiLast
+                }
+            };
+        }
+
+        // ======== API ========
+        const FAPI = "https://fapi.binance.com";
+
+        async function fetchExchangeInfoUSDTPerp() {
+            const url = `${FAPI}/fapi/v1/exchangeInfo`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("exchangeInfo 실패");
+            const json = await res.json();
+            // USDT, PERPETUAL, TRADING
+            const syms = json.symbols.filter(s =>
+                s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING"
+            ).map(s => s.symbol);
+            return syms;
+        }
+
+        async function fetch24hTickers() {
+            const url = `${FAPI}/fapi/v1/ticker/24hr`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("24hr ticker 실패");
+            return await res.json();
+        }
+
+        async function fetchKlines(symbol, interval, limit) {
+            const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`klines 실패: ${symbol}`);
+            return await res.json();
+        }
+
+        // ======== 스캐너 ========
+        const tbody = document.getElementById("tbody");
+        const progressEl = document.getElementById("progress");
+        const scanBtn = document.getElementById("scanBtn");
+        const autoToggle = document.getElementById("autoToggle");
+        let autoTimer = null;
+
+        async function scanOnce() {
+            try {
+                scanBtn.disabled = true;
+                tbody.innerHTML = "";
+                progressEl.textContent = "심볼 목록 불러오는 중…";
+
+                const tf = document.getElementById("tf").value;
+                const maxSymbols = Number(document.getElementById("maxSymbols").value || 80);
+                const concurrency = Number(document.getElementById("concurrency").value || 8);
+                const lookback = Number(document.getElementById("lookback").value || 6);
+                const klimit = Number(document.getElementById("klimit").value || 220);
+
+                // 1) 심볼 필터 (USDT PERP / TRADING)
+                const [allPerp, tickers] = await Promise.all([
+                    fetchExchangeInfoUSDTPerp(),
+                    fetch24hTickers()
+                ]);
+                // 2) 거래대금 상위 N 심볼 선별
+                const tickerMap = new Map();
+                for (const t of tickers) tickerMap.set(t.symbol, t);
+
+                const candidates = allPerp
+                    .map(sym => {
+                        const t = tickerMap.get(sym);
+                        const quoteVol = t ? Number(t.quoteVolume || 0) : 0;
+                        const lastPrice = t ? Number(t.lastPrice || 0) : 0;
+                        return { symbol: sym, quoteVol, lastPrice };
+                    })
+                    .sort((a, b) => b.quoteVol - a.quoteVol)
+                    .slice(0, maxSymbols);
+
+                progressEl.textContent = `스캔 대상: ${candidates.length} 종목 · 타임프레임 ${tf} · 요청 준비`;
+
+                // 3) 동시성 제어하며 K라인 수집 + 신호 판정
+                const results = [];
+                let done = 0;
+
+                async function worker(job) {
+                    const { symbol, lastPrice } = job;
+                    try {
+                        const kl = await fetchKlines(symbol, tf, klimit);
+                        const ev = evaluateSignal(kl, lookback);
+                        if (ev.passed) {
+                            results.push({
+                                symbol,
+                                score: ev.score,
+                                price: lastPrice || (kl.length ? Number(kl[kl.length - 2][4]) : null),
+                                rsi: ev.metrics?.rsi ?? null,
+                                e7: ev.metrics?.e7 ?? null,
+                                e25: ev.metrics?.e25 ?? null,
+                                e99: ev.metrics?.e99 ?? null,
+                                flags: ev.flags
+                            });
+                        }
+                    } catch (e) {
+                        // 무시하고 진행
+                    } finally {
+                        done += 1;
+                        if (done % 5 === 0 || done === candidates.length) {
+                            progressEl.textContent = `요청 진행: ${done}/${candidates.length}`;
+                        }
+                    }
+                }
+
+                // 작업 풀
+                const queue = candidates.slice();
+                const runners = Array.from({ length: concurrency }, async () => {
+                    while (queue.length) {
+                        const job = queue.shift();
+                        await worker(job);
+                        // 살짝 쉼: API 부담 완화
+                        await sleep(35);
+                    }
+                });
+                await Promise.all(runners);
+
+                // 4) 정렬 후 렌더
+                results.sort(by("score"));
+                tbody.innerHTML = "";
+                results.forEach((r, idx) => {
+                    const tr = document.createElement("tr");
+                    const tags = r.flags.map(f => `<span class="pill">${f}</span>`).join(" ");
+                    tr.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td class="mono">${r.symbol}</td>
+                        <td><strong>${r.score}</strong></td>
+                        <td class="mono">${r.price?.toFixed ? r.price.toFixed(6).replace(/\.?0+$/,"") : "-"}</td>
+                        <td>${r.rsi != null ? r.rsi.toFixed(1) : "-"}</td>
+                        <td class="mono">
+                            7:${r.e7?.toFixed ? r.e7.toFixed(6).replace(/\.?0+$/,"") : "-"} /
+                            25:${r.e25?.toFixed ? r.e25.toFixed(6).replace(/\.?0+$/,"") : "-"} /
+                            99:${r.e99?.toFixed ? r.e99.toFixed(6).replace(/\.?0+$/,"") : "-"}
+                        </td>
+                        <td><div class="flex">${tags}</div></td>
+                        <td class="note">직전 봉 기준 (완성봉) · 미니고점은 최근 ${document.getElementById("lookback").value}봉 범위 사용</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                progressEl.textContent = `완료: 신호 ${results.length}건 / 대상 ${candidates.length}건`;
+            } catch (err) {
+                progressEl.textContent = `에러: ${err?.message || err}`;
+            } finally {
+                scanBtn.disabled = false;
+            }
+        }
+
+        function scheduleNextAutoScan() {
+            if (!autoToggle.checked) return;
+            const tf = document.getElementById("tf").value;
+            const ms = intervalMs(tf);
+            const now = Date.now();
+            const next = Math.ceil(now / ms) * ms; // 다음 봉 시작(서버와 약간의 오차 가능)
+            const delay = Math.max(1000, next - now + 1500); // 1.5s 여유
+            clearTimeout(autoTimer);
+            autoTimer = setTimeout(async () => {
+                await scanOnce();
+                scheduleNextAutoScan();
+            }, delay);
+            const remain = Math.round(delay / 1000);
+            progressEl.textContent = `Auto 대기: 다음 봉 시작까지 ~${remain}s`;
+        }
+
+        // 이벤트 바인딩
+        document.getElementById("scanBtn").addEventListener("click", scanOnce);
+        document.getElementById("autoToggle").addEventListener("change", () => {
+            if (autoToggle.checked) {
+                scheduleNextAutoScan();
+            } else {
+                clearTimeout(autoTimer);
+                autoTimer = null;
+                progressEl.textContent = "Auto 해제됨.";
+            }
+        });
+        document.getElementById("tf").addEventListener("change", () => {
+            if (autoToggle.checked) scheduleNextAutoScan();
+        });
+
+        // 첫 로드 상태 텍스트
+        progressEl.textContent = "준비됨. 스캔 버튼을 눌러 시작하세요.";
+    </script>
+</body>
+</html>
