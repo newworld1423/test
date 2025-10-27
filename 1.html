@@ -18,12 +18,13 @@
         .hint { color:var(--muted); font-size:12px; }
         table { width:100%; border-collapse:collapse; }
         th, td { padding:10px 8px; border-bottom:1px solid #1e293b; font-size:14px; }
-        th { position:sticky; top:82px; background:#0b1220; text-align:left; z-index:5; }
+        th { position:sticky; top:110px; background:#0b1220; text-align:left; z-index:5; }
         .badge { padding:2px 8px; border-radius:999px; background:#13263b; color:#a7e1ff; font-size:12px; }
         .ok { color:#5cf1a6; }
         .err { color:#ff6b6b; }
         .right { text-align:right; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        #metaSummary { margin-top:6px; font-size:12px; color:#cbe4ff; }
         @media (max-width: 860px) {
             th:nth-child(4), td:nth-child(4) { display:none; } /* 하단/몸통 비율 컬럼 모바일에서 숨김 */
         }
@@ -45,10 +46,10 @@
         <button id="scanBtn">스캔</button>
         <span id="status" class="hint"></span>
     </div>
-    <div class="hint" style="margin-top:8px">
-        * 1일봉은 UTC 00:00 기준(한국 09:00 전환). 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> ·
-        volume/txn은 <b>직전봉</b> 값으로 표시합니다.
+    <div class="hint" style="margin-top:6px">
+        * 1일봉 UTC 00:00(한국 09:00 전환) · 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값
     </div>
+    <div id="metaSummary"></div>
 </header>
 
 <div class="wrap">
@@ -94,14 +95,8 @@
         return Math.round(n).toLocaleString("ko-KR");
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // 간단 디바운스
     function debounce(fn, wait = 200) {
-        let t;
-        return (...args) => {
-            clearTimeout(t);
-            t = setTimeout(() => fn(...args), wait);
-        };
+        let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };
     }
 
     // ---------- Binance API ----------
@@ -118,8 +113,7 @@
     }
 
     async function getDailyTwoCandles(symbol, targetUTCStartMs) {
-        // targetUTCStartMs(체크일)과 그 전일의 두 개 캔들
-        const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000;
+        const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000; // 전일 00:00Z
         const url = `${API_K}?symbol=${symbol}&interval=1d&startTime=${startTime}&limit=2`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`klines 오류: ${symbol}`);
@@ -147,8 +141,12 @@
     // ---------- 스캔 ----------
     async function scan({ targetDateUTCStartMs, symbols, concurrency = 10, signal }) {
         const results = [];
-        let done = 0;
 
+        // 전체 코인 직전봉 등락률 집계용
+        let prevSumPct = 0;
+        let prevCount = 0;
+
+        let done = 0;
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
@@ -156,10 +154,18 @@
                 if (candles.length < 2) return;
                 const [prev, target] = candles;
 
+                // 전체코인 직전봉 등락률 집계
+                const prevChg = pct(prev.close, prev.open);
+                if (Number.isFinite(prevChg)) {
+                    prevSumPct += prevChg;
+                    prevCount += 1;
+                }
+
+                // 직전봉 해머인 경우 결과 수집
                 if (isHammer(prev)) {
                     const body = Math.abs(prev.close - prev.open);
                     const lower = Math.min(prev.open, prev.close) - prev.low;
-                    const ratio = lower / body; // 하단/몸통
+                    const ratio = lower / body;
 
                     results.push({
                         symbol: sym,
@@ -190,7 +196,12 @@
             }
         });
         await Promise.all(runners);
-        return results;
+
+        const meta = {
+            avgPrevAll: prevCount ? (prevSumPct / prevCount) : NaN,
+            nPrevAll: prevCount
+        };
+        return { results, meta };
     }
 
     // ---------- UI 상태 ----------
@@ -200,23 +211,25 @@
     const sortByEl = document.getElementById("sortBy");
     const filterEl = document.getElementById("symbolFilter");
     const tbody = document.querySelector("#resultTable tbody");
+    const metaSummaryEl = document.getElementById("metaSummary");
 
-    let lastScan = [];            // 마지막 스캔 원본
+    let lastScan = [];            // 마지막 스캔 원본(해머 대상들)
+    let lastMeta = null;          // 마지막 메타(전체코인 직전봉 평균 등)
     let lastTotalSymbols = 0;     // 상태표시용
     let aborter = null;
 
     backtestEl.addEventListener("change", () => {
         dateEl.disabled = !backtestEl.checked;
+        updateMetaSummary(); // 표시/숨김 갱신
     });
 
     sortByEl.addEventListener("change", updateView);
     filterEl.addEventListener("input", debounce(updateView, 150));
-
     scanBtn.addEventListener("click", startScan);
 
     function getTargetUTCStartMs() {
         if (backtestEl.checked && dateEl.value) {
-            return dateToUTCStartMs(dateEl.value); // 선택 날짜 00:00 UTC
+            return dateToUTCStartMs(dateEl.value);
         } else {
             const now = new Date();
             return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -263,17 +276,28 @@
         return out;
     }
 
+    function updateMetaSummary() {
+        if (backtestEl.checked && lastMeta && Number.isFinite(lastMeta.avgPrevAll)) {
+            metaSummaryEl.textContent =
+                `백테스트 요약 · 전체코인 직전봉 평균 변화: ${fmt(lastMeta.avgPrevAll, 2)}% (N=${lastMeta.nPrevAll})`;
+        } else {
+            metaSummaryEl.textContent = "";
+        }
+    }
+
     function updateView() {
         if (!lastScan.length) return;
         const rows = applySortAndFilter(lastScan);
         renderRows(rows);
-        const s = document.getElementById("status");
-        s.textContent = `완료: ${rows.length}개 해머 발견 (총 ${lastTotalSymbols || rows.length})`;
+        document.getElementById("status").textContent =
+            `완료: ${rows.length}개 해머 발견 (총 ${lastTotalSymbols || rows.length})`;
+        updateMetaSummary();
     }
 
     async function startScan() {
         scanBtn.disabled = true;
         tbody.innerHTML = "";
+        metaSummaryEl.textContent = "";
         document.getElementById("status").textContent = "심볼 불러오는 중…";
 
         try {
@@ -283,10 +307,17 @@
 
             document.getElementById("status").textContent = `총 ${symbols.length}개 심볼 스캔 중…`;
 
-            const raw = await scan({ targetDateUTCStartMs: targetUTC, symbols, concurrency: 10, signal: aborter.signal });
-            lastScan = raw;
+            const { results, meta } = await scan({
+                targetDateUTCStartMs: targetUTC,
+                symbols,
+                concurrency: 10,
+                signal: aborter.signal
+            });
+
+            lastScan = results;
+            lastMeta = meta;
             lastTotalSymbols = symbols.length;
-            updateView(); // 정렬/필터 규칙 적용해서 표시
+            updateView(); // 정렬/필터 적용 + 요약 표시
         } catch (e) {
             document.getElementById("status").innerHTML = `<span class="err">오류: ${e.message}</span>`;
         } finally {
