@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8" />
-    <title>Binance Futures Scanner — Pullback & MA Stack Rebreak</title>
+    <title>Binance Futures Scanner — Pullback & MA Stack Rebreak (Server Time + Backtest)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -19,17 +19,17 @@
         * { box-sizing: border-box; }
         body {
             margin: 0; padding: 24px; background: var(--bg); color: var(--text);
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Arial;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial;
         }
         h1 { margin: 0 0 8px; font-size: 20px; }
         .desc { color: var(--muted); margin-bottom: 16px; line-height: 1.4; }
         .panel {
             background: var(--panel); border: 1px solid #222533; border-radius: 12px; padding: 16px; margin-bottom: 16px;
         }
-        .controls { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
-        .controls .field { display: flex; flex-direction: column; gap: 6px; }
+        .controls { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 12px; }
+        .field { display: flex; flex-direction: column; gap: 6px; }
         label { font-size: 12px; color: var(--muted); }
-        select, input[type="number"], input[type="text"] {
+        select, input[type="number"], input[type="date"] {
             background: #0b0d13; border: 1px solid #2a2f45; color: var(--text); padding: 10px 12px; border-radius: 8px;
             outline: none;
         }
@@ -42,27 +42,28 @@
 
         .progress { margin-top: 8px; font-size: 12px; color: var(--muted); }
         .table-wrap { overflow: auto; border-radius: 12px; border: 1px solid #222533; }
-        table { width: 100%; border-collapse: collapse; min-width: 980px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         thead th {
             text-align: left; font-size: 12px; color: var(--muted); background: #121520; position: sticky; top: 0;
             padding: 10px; border-bottom: 1px solid #222533;
         }
         tbody td { padding: 10px; border-bottom: 1px solid #1b1f2d; font-size: 13px; vertical-align: top; }
         .mono { font-family: var(--mono); }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid #2a2f45; color: var(--muted); }
-        .ok { color: var(--good); }
-        .ng { color: var(--bad); }
-        .note { color: #a6b4ff; }
         .pill { padding: 2px 8px; background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); color: #a7f3d0; border-radius: 999px; font-size: 11px; }
-        .warnpill { padding: 2px 8px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); color: #fde68a; border-radius: 999px; font-size: 11px; }
-        .mutepill { padding: 2px 8px; background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.35); color: #cbd5e1; border-radius: 999px; font-size: 11px; }
         .foot { margin-top: 10px; font-size: 12px; color: var(--muted); }
         .flex { display: flex; gap: 8px; flex-wrap: wrap; }
+        .bull { color: var(--good); font-weight: 700; }
+        .bear { color: var(--bad); font-weight: 700; }
+        .doji { color: var(--warn); font-weight: 700; }
+        .muted { color: var(--muted); }
     </style>
 </head>
 <body>
     <h1>상승추세 풀백 + MA 스택(7&gt;25&gt;99) 재돌파 스캐너</h1>
-    <div class="desc">바이낸스 USDⓂ 무기한 선물(USDT) · 직전 봉(완성봉) 기준으로 신호를 판정해 점수 높은 순으로 정렬합니다.</div>
+    <div class="desc">
+        바이낸스 USDⓂ 무기한 선물(USDT) · <b>직전 봉(완성봉)</b> 기준 판정. Auto는 <b>바이낸스 서버 시각</b> 기준으로 <b>봉 마감 직후(+버퍼)</b> 자동 스캔합니다.<br/>
+        <b>과거 리테스트</b>를 켜면, 선택한 <b>UTC 날짜(=바이낸스 1D 경계)</b> 구간에서 조건을 만족했던 봉을 찾고 <b>바로 다음 봉의 방향(양/음/도지)</b>을 함께 표시합니다.
+    </div>
 
     <div class="panel">
         <div class="controls">
@@ -70,6 +71,8 @@
                 <label>타임프레임</label>
                 <select id="tf">
                     <option value="15m" selected>15m</option>
+                    <option value="1m">1m</option>
+                    <option value="5m">5m</option>
                     <option value="1h">1h</option>
                     <option value="4h">4h</option>
                     <option value="1d">1d</option>
@@ -88,8 +91,23 @@
                 <input id="lookback" type="number" value="6" min="3" max="20" />
             </div>
             <div class="field">
-                <label>K라인 개수(지표계산용)</label>
+                <label>K라인 개수(지표 계산용)</label>
                 <input id="klimit" type="number" value="220" min="120" max="1500" />
+            </div>
+            <div class="field">
+                <label>권장 점수만</label>
+                <label class="checkbox">
+                    <input id="recommendedOnly" type="checkbox" checked />
+                    <span>점수 ≥ 51 (권장)</span>
+                </label>
+            </div>
+            <div class="field">
+                <label>최소 점수(수동)</label>
+                <input id="minScore" type="number" value="51" min="0" max="100" disabled />
+            </div>
+            <div class="field">
+                <label>마감 후 대기(버퍼, 초)</label>
+                <input id="bufferSec" type="number" value="2" min="0" max="10" />
             </div>
             <div class="field">
                 <label>&nbsp;</label>
@@ -97,12 +115,23 @@
                     <button id="scanBtn">스캔</button>
                     <label class="checkbox">
                         <input id="autoToggle" type="checkbox" />
-                        <span>Auto (다음 봉 시작 시 자동 스캔)</span>
+                        <span>Auto (봉 마감 직후)</span>
                     </label>
                 </div>
             </div>
+            <div class="field">
+                <label>과거 리테스트(UTC 기준)</label>
+                <label class="checkbox">
+                    <input id="backtestToggle" type="checkbox" />
+                    <span>켜기</span>
+                </label>
+            </div>
+            <div class="field">
+                <label>리테스트 날짜(UTC)</label>
+                <input id="backtestDate" type="date" disabled />
+            </div>
         </div>
-        <div class="progress" id="progress">준비됨.</div>
+        <div class="progress" id="progress">준비됨. 스캔 버튼 또는 Auto/리테스트를 사용하세요.</div>
     </div>
 
     <div class="panel table-wrap">
@@ -114,26 +143,55 @@
                     <th>점수</th>
                     <th>가격</th>
                     <th>RSI(14)</th>
-                    <th>7/25/99</th>
+                    <th>7 / 25 / 99</th>
+                    <th>UTC 시간(리테스트)</th>
+                    <th>다음봉</th>
                     <th>신호</th>
                     <th>메모</th>
                 </tr>
             </thead>
             <tbody id="tbody"></tbody>
         </table>
-        <div class="foot">※ 점수 구성: 정배열/기울기↑, 7·25·99 상방 종가, 최근 N봉 내 7MA 하회(풀백) 후 재돌파, 미니고점 돌파, RSI 조건 등.</div>
+        <div class="foot">
+            ※ 권장 점수: 51점 이상. 리테스트는 선택한 UTC 날짜의 구간(00:00:00Z~24:00:00Z)에서 조건 일치 봉을 찾아 다음 봉의 방향을 표기합니다.
+        </div>
     </div>
 
     <script>
-        // ======== 유틸 ========
+        // ======== 공통 유틸 ========
+        const FAPI = "https://fapi.binance.com";
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const by = (k) => (a, b) => (a[k] > b[k] ? -1 : a[k] < b[k] ? 1 : 0);
 
+        function intervalMs(tf) {
+            const map = { "1m": 60e3, "5m": 5*60e3, "15m": 15*60e3, "1h": 60*60e3, "4h": 4*60*60e3, "1d": 24*60*60e3 };
+            return map[tf] ?? 15*60e3;
+        }
+
+        async function getServerTimeMs() {
+            try {
+                const r = await fetch(`${FAPI}/fapi/v1/time`);
+                const j = await r.json();
+                return j.serverTime; // ms epoch (UTC)
+            } catch (e) {
+                return Date.now();
+            }
+        }
+
+        // yyyy-mm-dd (UTC) 기본값 세팅
+        function setDefaultUTCDateInput(inp) {
+            const now = new Date();
+            const y = now.getUTCFullYear();
+            const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+            const d = String(now.getUTCDate()).padStart(2, "0");
+            inp.value = `${y}-${m}-${d}`;
+        }
+
+        // ======== 지표 ========
         function ema(values, period) {
             if (!values || values.length < period + 2) return Array(values.length).fill(null);
             const k = 2 / (period + 1);
             const out = Array(values.length).fill(null);
-            // SMA로 시작
             let sum = 0;
             for (let i = 0; i < period; i++) sum += values[i];
             let prev = sum / period;
@@ -169,31 +227,24 @@
             return out;
         }
 
-        function intervalMs(tf) {
-            const map = { "1m": 60e3, "5m": 5*60e3, "15m": 15*60e3, "1h": 60*60e3, "4h": 4*60*60e3, "1d": 24*60*60e3 };
-            return map[tf] ?? 15*60e3;
-        }
+        // ======== 시그널 평가 (임의 인덱스 지원) ========
+        function evaluateAtIndex(klines, idx, lookback = 6) {
+            // kline: [openTime, open, high, low, close, volume, closeTime, ...]
+            if (!klines || klines.length < 120 || idx <= 0 || idx >= klines.length - 1) {
+                return { passed: false, score: 0, flags: ["데이터 부족"] };
+            }
 
-        // ======== 신호 로직 ========
-        function evaluateSignal(klines, lookback = 6) {
-            // klines: [openTime, open, high, low, close, volume, closeTime, ...]
-            if (!klines || klines.length < 120) return { passed: false, score: 0, flags: ["데이터 부족"] };
-
-            // 종가/고가/저가/거래량
             const close = klines.map(k => Number(k[4]));
             const high  = klines.map(k => Number(k[2]));
-            const low   = klines.map(k => Number(k[3]));
             const vol   = klines.map(k => Number(k[5]));
 
-            // 지표
             const e7 = ema(close, 7);
             const e25 = ema(close, 25);
             const e99 = ema(close, 99);
             const r14 = rsi(close, 14);
 
-            // 마지막 완성봉(직전봉) index
-            const last = klines.length - 2;
-            const prev = last - 1;
+            const last = idx;
+            const prev = idx - 1;
 
             if ([e7[last], e25[last], e99[last]].some(v => v == null)) {
                 return { passed: false, score: 0, flags: ["지표 계산 구간 부족"] };
@@ -202,23 +253,24 @@
             let score = 0;
             const flags = [];
 
-            // 1) MA 스택(정배열) + 기울기
+            // 1) 정배열 + 기울기
             const stack = e7[last] > e25[last] && e25[last] > e99[last];
             const slopeUp = e7[last] > e7[prev] && e25[last] > e25[prev];
             if (stack) { score += 15; flags.push("정배열(7>25>99)"); }
             if (slopeUp) { score += 8; flags.push("7/25 기울기↑"); }
-            if (!(stack && slopeUp)) { /* keep evaluating; but note */ }
 
-            // 2) 직전봉 종가가 7/25/99 위
+            // 2) 직전봉(=idx) 종가가 모든 MA 위
             const aboveAll = close[last] > e7[last] && close[last] > e25[last] && close[last] > e99[last];
             if (aboveAll) { score += 10; flags.push("종가>7/25/99"); }
 
-            // 3) 최근 N봉 내 풀백(7MA 하회) 존재 + 현재 재돌파
-            const from = Math.max(99 + 5, last - lookback); // e99 안정화 이후로만 탐색
+            // 3) 최근 N봉 내 7MA 하회(풀백) 존재 + 현재 7MA 재돌파
+            const from = Math.max(99 + 5, last - lookback);
             const to = last - 1;
             let hadPullback = false;
-            for (let i = from; i <= to; i++) {
-                if (close[i] < e7[i]) { hadPullback = true; break; }
+            if (from <= to) {
+                for (let i = from; i <= to; i++) {
+                    if (close[i] < e7[i]) { hadPullback = true; break; }
+                }
             }
             const rebreak = close[last] > e7[last];
             if (hadPullback && rebreak) {
@@ -226,8 +278,8 @@
                 flags.push("풀백 후 7MA 재돌파");
             }
 
-            // 4) 미니 스윙하이(최근 N봉 고점) 돌파
-            const recentHigh = Math.max(...high.slice(from, last));
+            // 4) 미니 스윙하이 돌파
+            const recentHigh = (from <= last - 1) ? Math.max(...klines.slice(from, last).map(k => Number(k[2]))) : -Infinity;
             if (close[last] > recentHigh) {
                 score += 10;
                 flags.push("미니고점 돌파");
@@ -235,13 +287,14 @@
 
             // 5) RSI 조건
             const rsiLast = r14[last] ?? 0;
-            const rsiMinRecent = Math.min(...r14.slice(from, last).filter(v => v != null));
+            const rsiSlice = r14.slice(Math.max(0, from), last).filter(v => v != null);
+            const rsiMinRecent = rsiSlice.length ? Math.min(...rsiSlice) : 100;
             if (rsiLast > 50 && rsiMinRecent >= 40) {
                 score += 6;
                 flags.push("RSI Bull Range");
             }
 
-            // 6) 거래량: 재돌파봉에서 증가(간단 룰)
+            // 6) 거래량 증가
             const volUp = vol[last] > (vol[prev] || 0);
             if (volUp) {
                 score += 4;
@@ -262,18 +315,14 @@
         }
 
         // ======== API ========
-        const FAPI = "https://fapi.binance.com";
-
         async function fetchExchangeInfoUSDTPerp() {
             const url = `${FAPI}/fapi/v1/exchangeInfo`;
             const res = await fetch(url);
             if (!res.ok) throw new Error("exchangeInfo 실패");
             const json = await res.json();
-            // USDT, PERPETUAL, TRADING
-            const syms = json.symbols.filter(s =>
-                s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING"
-            ).map(s => s.symbol);
-            return syms;
+            return json.symbols
+                .filter(s => s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING")
+                .map(s => s.symbol);
         }
 
         async function fetch24hTickers() {
@@ -283,21 +332,52 @@
             return await res.json();
         }
 
-        async function fetchKlines(symbol, interval, limit) {
-            const url = `${FAPI}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        async function fetchKlines(symbol, interval, { limit, startTime, endTime } = {}) {
+            const params = new URLSearchParams({ symbol, interval });
+            if (limit != null) params.set("limit", String(limit));
+            if (startTime != null) params.set("startTime", String(startTime));
+            if (endTime != null) params.set("endTime", String(endTime));
+            const url = `${FAPI}/fapi/v1/klines?${params.toString()}`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`klines 실패: ${symbol}`);
             return await res.json();
         }
 
-        // ======== 스캐너 ========
+        // ======== DOM ========
         const tbody = document.getElementById("tbody");
         const progressEl = document.getElementById("progress");
         const scanBtn = document.getElementById("scanBtn");
         const autoToggle = document.getElementById("autoToggle");
-        let autoTimer = null;
+        const backtestToggle = document.getElementById("backtestToggle");
+        const backtestDate = document.getElementById("backtestDate");
+        const recommendedOnly = document.getElementById("recommendedOnly");
+        const minScoreInput = document.getElementById("minScore");
 
-        async function scanOnce() {
+        setDefaultUTCDateInput(backtestDate);
+
+        // 권장 점수 토글
+        recommendedOnly.addEventListener("change", () => {
+            const on = recommendedOnly.checked;
+            minScoreInput.disabled = on;
+            if (on) minScoreInput.value = 51;
+        });
+
+        // 리테스트 토글
+        backtestToggle.addEventListener("change", () => {
+            const on = backtestToggle.checked;
+            backtestDate.disabled = !on;
+            if (on) {
+                // 리테스트 모드에서는 Auto 비활성화
+                autoToggle.checked = false;
+                clearTimers();
+                progressEl.textContent = "리테스트 모드: 날짜(UTC) 선택 후 스캔하세요.";
+            } else {
+                progressEl.textContent = "리테스트 해제됨. 실시간 스캔/Auto 사용 가능.";
+            }
+        });
+
+        // ======== 스캔(실시간) ========
+        async function scanRealtime() {
             try {
                 scanBtn.disabled = true;
                 tbody.innerHTML = "";
@@ -308,13 +388,13 @@
                 const concurrency = Number(document.getElementById("concurrency").value || 8);
                 const lookback = Number(document.getElementById("lookback").value || 6);
                 const klimit = Number(document.getElementById("klimit").value || 220);
+                const minScore = Number(minScoreInput.value || 0);
 
-                // 1) 심볼 필터 (USDT PERP / TRADING)
                 const [allPerp, tickers] = await Promise.all([
                     fetchExchangeInfoUSDTPerp(),
                     fetch24hTickers()
                 ]);
-                // 2) 거래대금 상위 N 심볼 선별
+
                 const tickerMap = new Map();
                 for (const t of tickers) tickerMap.set(t.symbol, t);
 
@@ -328,31 +408,33 @@
                     .sort((a, b) => b.quoteVol - a.quoteVol)
                     .slice(0, maxSymbols);
 
-                progressEl.textContent = `스캔 대상: ${candidates.length} 종목 · 타임프레임 ${tf} · 요청 준비`;
+                progressEl.textContent = `스캔 대상: ${candidates.length} · TF ${tf} · 요청 중…`;
 
-                // 3) 동시성 제어하며 K라인 수집 + 신호 판정
                 const results = [];
                 let done = 0;
 
                 async function worker(job) {
                     const { symbol, lastPrice } = job;
                     try {
-                        const kl = await fetchKlines(symbol, tf, klimit);
-                        const ev = evaluateSignal(kl, lookback);
-                        if (ev.passed) {
+                        const kl = await fetchKlines(symbol, tf, { limit: klimit });
+                        const lastIdx = kl.length - 2; // 직전(완성)봉
+                        const ev = evaluateAtIndex(kl, lastIdx, lookback);
+                        if (ev.passed && ev.score >= minScore) {
                             results.push({
                                 symbol,
                                 score: ev.score,
-                                price: lastPrice || (kl.length ? Number(kl[kl.length - 2][4]) : null),
+                                price: lastPrice || (kl.length ? Number(kl[lastIdx][4]) : null),
                                 rsi: ev.metrics?.rsi ?? null,
                                 e7: ev.metrics?.e7 ?? null,
                                 e25: ev.metrics?.e25 ?? null,
                                 e99: ev.metrics?.e99 ?? null,
-                                flags: ev.flags
+                                flags: ev.flags,
+                                timeUTC: "-", // 실시간 모드에선 없음
+                                nextBar: "-"  // 실시간 모드에선 없음
                             });
                         }
                     } catch (e) {
-                        // 무시하고 진행
+                        // 심볼별 에러 무시
                     } finally {
                         done += 1;
                         if (done % 5 === 0 || done === candidates.length) {
@@ -361,42 +443,19 @@
                     }
                 }
 
-                // 작업 풀
                 const queue = candidates.slice();
                 const runners = Array.from({ length: concurrency }, async () => {
                     while (queue.length) {
                         const job = queue.shift();
                         await worker(job);
-                        // 살짝 쉼: API 부담 완화
                         await sleep(35);
                     }
                 });
                 await Promise.all(runners);
 
-                // 4) 정렬 후 렌더
                 results.sort(by("score"));
-                tbody.innerHTML = "";
-                results.forEach((r, idx) => {
-                    const tr = document.createElement("tr");
-                    const tags = r.flags.map(f => `<span class="pill">${f}</span>`).join(" ");
-                    tr.innerHTML = `
-                        <td>${idx + 1}</td>
-                        <td class="mono">${r.symbol}</td>
-                        <td><strong>${r.score}</strong></td>
-                        <td class="mono">${r.price?.toFixed ? r.price.toFixed(6).replace(/\.?0+$/,"") : "-"}</td>
-                        <td>${r.rsi != null ? r.rsi.toFixed(1) : "-"}</td>
-                        <td class="mono">
-                            7:${r.e7?.toFixed ? r.e7.toFixed(6).replace(/\.?0+$/,"") : "-"} /
-                            25:${r.e25?.toFixed ? r.e25.toFixed(6).replace(/\.?0+$/,"") : "-"} /
-                            99:${r.e99?.toFixed ? r.e99.toFixed(6).replace(/\.?0+$/,"") : "-"}
-                        </td>
-                        <td><div class="flex">${tags}</div></td>
-                        <td class="note">직전 봉 기준 (완성봉) · 미니고점은 최근 ${document.getElementById("lookback").value}봉 범위 사용</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
-                progressEl.textContent = `완료: 신호 ${results.length}건 / 대상 ${candidates.length}건`;
+                renderRows(results, lookback);
+                progressEl.textContent = `완료: 신호 ${results.length}건 / 대상 ${candidates.length}건 (필터: 점수 ≥ ${minScore})`;
             } catch (err) {
                 progressEl.textContent = `에러: ${err?.message || err}`;
             } finally {
@@ -404,39 +463,234 @@
             }
         }
 
-        function scheduleNextAutoScan() {
-            if (!autoToggle.checked) return;
-            const tf = document.getElementById("tf").value;
-            const ms = intervalMs(tf);
-            const now = Date.now();
-            const next = Math.ceil(now / ms) * ms; // 다음 봉 시작(서버와 약간의 오차 가능)
-            const delay = Math.max(1000, next - now + 1500); // 1.5s 여유
-            clearTimeout(autoTimer);
-            autoTimer = setTimeout(async () => {
-                await scanOnce();
-                scheduleNextAutoScan();
-            }, delay);
-            const remain = Math.round(delay / 1000);
-            progressEl.textContent = `Auto 대기: 다음 봉 시작까지 ~${remain}s`;
+        // ======== 스캔(과거 리테스트) ========
+        async function scanBacktest() {
+            try {
+                scanBtn.disabled = true;
+                tbody.innerHTML = "";
+                progressEl.textContent = "리테스트: 심볼/티커 로딩 중…";
+
+                const tf = document.getElementById("tf").value;
+                const tfMs = intervalMs(tf);
+                const maxSymbols = Number(document.getElementById("maxSymbols").value || 80);
+                const concurrency = Number(document.getElementById("concurrency").value || 8);
+                const lookback = Number(document.getElementById("lookback").value || 6);
+                const minScore = Number(minScoreInput.value || 0);
+
+                const dateStr = backtestDate.value; // yyyy-mm-dd (로컬 입력이지만 우리는 UTC 기준 해석)
+                if (!dateStr) throw new Error("리테스트 날짜(UTC)를 선택하세요.");
+                const [yy, mm, dd] = dateStr.split("-").map(Number);
+                const dayStartUTC = Date.UTC(yy, mm - 1, dd, 0, 0, 0, 0);
+                const dayEndUTC = dayStartUTC + 24 * 60 * 60 * 1000 - 1;
+
+                const warmupBars = 300; // EMA 안정화용
+                const startFetch = dayStartUTC - warmupBars * tfMs;
+                const endFetch = dayEndUTC + tfMs * 2; // 다음 봉 확인까지 여유
+
+                const [allPerp, tickers] = await Promise.all([
+                    fetchExchangeInfoUSDTPerp(),
+                    fetch24hTickers()
+                ]);
+
+                const tickerMap = new Map();
+                for (const t of tickers) tickerMap.set(t.symbol, t);
+
+                const candidates = allPerp
+                    .map(sym => {
+                        const t = tickerMap.get(sym);
+                        const quoteVol = t ? Number(t.quoteVolume || 0) : 0;
+                        const lastPrice = t ? Number(t.lastPrice || 0) : 0;
+                        return { symbol: sym, quoteVol, lastPrice };
+                    })
+                    .sort((a, b) => b.quoteVol - a.quoteVol)
+                    .slice(0, maxSymbols);
+
+                progressEl.textContent = `리테스트 대상: ${candidates.length} · TF ${tf} · ${dateStr} (UTC) · 요청 중…`;
+
+                const results = [];
+                let done = 0;
+
+                async function worker(job) {
+                    const { symbol } = job;
+                    try {
+                        const expectedBars = Math.ceil((endFetch - startFetch) / tfMs) + 10;
+                        const kl = await fetchKlines(symbol, tf, {
+                            startTime: startFetch,
+                            endTime: endFetch,
+                            limit: Math.max(expectedBars, 120)
+                        });
+
+                        // day 범위 내부의 각 "완성 봉" 인덱스 검사
+                        for (let i = 1; i < kl.length - 1; i++) {
+                            const closeTime = Number(kl[i][6]); // ms
+                            if (closeTime < dayStartUTC || closeTime > dayEndUTC) continue;
+
+                            const ev = evaluateAtIndex(kl, i, lookback);
+                            if (ev.passed && ev.score >= minScore) {
+                                // 다음 봉 방향 판정
+                                const nextOpen = Number(kl[i + 1][1]);
+                                const nextClose = Number(kl[i + 1][4]);
+                                let nextBar = "-";
+                                if (nextClose > nextOpen) nextBar = "양봉";
+                                else if (nextClose < nextOpen) nextBar = "음봉";
+                                else nextBar = "도지";
+
+                                results.push({
+                                    symbol,
+                                    score: ev.score,
+                                    price: Number(kl[i][4]),
+                                    rsi: ev.metrics?.rsi ?? null,
+                                    e7: ev.metrics?.e7 ?? null,
+                                    e25: ev.metrics?.e25 ?? null,
+                                    e99: ev.metrics?.e99 ?? null,
+                                    flags: ev.flags,
+                                    timeUTC: new Date(closeTime).toISOString().replace(".000Z", "Z"),
+                                    nextBar
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        // 개별 심볼 에러 무시
+                    } finally {
+                        done += 1;
+                        if (done % 3 === 0 || done === candidates.length) {
+                            progressEl.textContent = `리테스트 진행: ${done}/${candidates.length}`;
+                        }
+                    }
+                }
+
+                const queue = candidates.slice();
+                const runners = Array.from({ length: concurrency }, async () => {
+                    while (queue.length) {
+                        const job = queue.shift();
+                        await worker(job);
+                        await sleep(35);
+                    }
+                });
+                await Promise.all(runners);
+
+                // 점수순 정렬
+                results.sort(by("score"));
+                renderRows(results, lookback);
+
+                // 요약(간단)
+                const bull = results.filter(r => r.nextBar === "양봉").length;
+                const bear = results.filter(r => r.nextBar === "음봉").length;
+                const doji = results.filter(r => r.nextBar === "도지").length;
+                progressEl.innerHTML = `리테스트 완료: 조건 일치 <b>${results.length}</b>건 (양봉 ${bull}, 음봉 ${bear}, 도지 ${doji}) / 대상 ${candidates.length}건 · (필터: 점수 ≥ ${minScore})`;
+            } catch (err) {
+                progressEl.textContent = `리테스트 에러: ${err?.message || err}`;
+            } finally {
+                scanBtn.disabled = false;
+            }
         }
 
-        // 이벤트 바인딩
-        document.getElementById("scanBtn").addEventListener("click", scanOnce);
+        // ======== 렌더 ========
+        function renderRows(items, lookback) {
+            tbody.innerHTML = "";
+            items.forEach((r, idx) => {
+                const tags = r.flags.map(f => `<span class="pill">${f}</span>`).join(" ");
+                const nextCls = r.nextBar === "양봉" ? "bull" : (r.nextBar === "음봉" ? "bear" : (r.nextBar === "도지" ? "doji" : "muted"));
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td class="mono">${r.symbol}</td>
+                    <td><strong>${r.score}</strong></td>
+                    <td class="mono">${r.price?.toFixed ? r.price.toFixed(6).replace(/\.?0+$/,"") : "-"}</td>
+                    <td>${r.rsi != null ? r.rsi.toFixed(1) : "-"}</td>
+                    <td class="mono">
+                        7:${r.e7?.toFixed ? r.e7.toFixed(6).replace(/\.?0+$/,"") : "-"} /
+                        25:${r.e25?.toFixed ? r.e25.toFixed(6).replace(/\.?0+$/,"") : "-"} /
+                        99:${r.e99?.toFixed ? r.e99.toFixed(6).replace(/\.?0+$/,"") : "-"}
+                    </td>
+                    <td class="mono">${r.timeUTC || "-"}</td>
+                    <td class="${nextCls}">${r.nextBar || "-"}</td>
+                    <td><div class="flex">${tags}</div></td>
+                    <td class="mono">lookback=${lookback}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ======== Auto 스케줄러 (서버시각 동기) ========
+        let autoTimer = null;
+        let countdownTimer = null;
+        let nextRunAt = null;
+
+        function clearTimers() {
+            clearTimeout(autoTimer); autoTimer = null;
+            clearInterval(countdownTimer); countdownTimer = null;
+        }
+
+        async function scheduleNextAutoScan() {
+            if (!autoToggle.checked) return;
+            if (backtestToggle.checked) {
+                autoToggle.checked = false;
+                progressEl.textContent = "리테스트 모드에서는 Auto를 사용할 수 없습니다.";
+                return;
+            }
+
+            const tf = document.getElementById("tf").value;
+            const ms = intervalMs(tf);
+            const bufferMs = Math.max(0, Number(document.getElementById("bufferSec").value || 2) * 1000);
+
+            const now = await getServerTimeMs();
+            const next = Math.ceil(now / ms) * ms;
+            const delay = Math.max(1000, next - now + bufferMs);
+            nextRunAt = now + delay;
+
+            clearTimers();
+            autoTimer = setTimeout(async () => {
+                await scanRealtime();
+                scheduleNextAutoScan();
+            }, delay);
+
+            countdownTimer = setInterval(async () => {
+                const cur = await getServerTimeMs();
+                const remainMs = Math.max(0, nextRunAt - cur);
+                const remain = Math.ceil(remainMs / 1000);
+                progressEl.textContent = `Auto 대기: ~${remain}s 후 스캔(봉 마감+버퍼)`;
+                if (remainMs <= 0) clearInterval(countdownTimer);
+            }, 1000);
+
+            const remain = Math.round(delay / 1000);
+            progressEl.textContent = `Auto 대기: ~${remain}s 후 스캔(봉 마감+버퍼)`;
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (autoToggle.checked && document.visibilityState === "visible") {
+                scheduleNextAutoScan();
+            }
+        });
+
+        // ======== 이벤트 ========
+        document.getElementById("scanBtn").addEventListener("click", async () => {
+            if (backtestToggle.checked) {
+                await scanBacktest();
+            } else {
+                await scanRealtime();
+            }
+        });
+
         document.getElementById("autoToggle").addEventListener("change", () => {
             if (autoToggle.checked) {
                 scheduleNextAutoScan();
             } else {
-                clearTimeout(autoTimer);
-                autoTimer = null;
+                clearTimers();
                 progressEl.textContent = "Auto 해제됨.";
             }
         });
+
         document.getElementById("tf").addEventListener("change", () => {
             if (autoToggle.checked) scheduleNextAutoScan();
         });
 
-        // 첫 로드 상태 텍스트
-        progressEl.textContent = "준비됨. 스캔 버튼을 눌러 시작하세요.";
+        document.getElementById("bufferSec").addEventListener("change", () => {
+            if (autoToggle.checked) scheduleNextAutoScan();
+        });
+
+        // 초기 상태
+        progressEl.textContent = "준비됨. 실시간 스캔 또는 리테스트를 사용할 수 있습니다.";
     </script>
 </body>
 </html>
