@@ -21,11 +21,10 @@
         th { position:sticky; top:82px; background:#0b1220; text-align:left; z-index:5; }
         .badge { padding:2px 8px; border-radius:999px; background:#13263b; color:#a7e1ff; font-size:12px; }
         .ok { color:#5cf1a6; }
-        .warn { color:#ffcd58; }
         .err { color:#ff6b6b; }
         .right { text-align:right; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        @media (max-width: 640px) {
+        @media (max-width: 860px) {
             th:nth-child(4), td:nth-child(4) { display:none; } /* 하단/몸통 비율 컬럼 모바일에서 숨김 */
         }
     </style>
@@ -35,8 +34,11 @@
     <div class="row">
         <label><input type="checkbox" id="backtest" /> 과거 백테스팅</label>
         <input type="date" id="dateInput" disabled />
-        <select id="sortBy">
+        <select id="sortBy" title="정렬 기준">
             <option value="pctDesc">% 변화(내림차순)</option>
+            <option value="ratioDesc">하단/몸통 비율(내림차순)</option>
+            <option value="volDesc">체크일 거래량 volume(내림차순)</option>
+            <option value="txnDesc">체크일 체결수 txn(내림차순)</option>
             <option value="symAsc">심볼 (A→Z)</option>
         </select>
         <input type="text" id="symbolFilter" placeholder="심볼 필터 (예: BTC, SOL)" />
@@ -44,8 +46,7 @@
         <span id="status" class="hint"></span>
     </div>
     <div class="hint" style="margin-top:8px">
-        * 바이낸스 1일봉은 <b>UTC 00:00</b> 기준입니다. (한국 시간 오전 9시에 일봉 전환) ·
-        해머 정의: <span class="mono">하단꼬리 ≥ 2 × 몸통</span>
+        * 1일봉 기준(UTC 00:00). 해머 정의: <span class="mono">하단꼬리 ≥ 2 × 몸통</span>
     </div>
 </header>
 
@@ -60,6 +61,8 @@
                 <th class="right">체크일 시가</th>
                 <th class="right">체크일 종가</th>
                 <th class="right">% 변화</th>
+                <th class="right">체크일 volume</th>
+                <th class="right">체크일 txn</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -76,7 +79,6 @@
         return `${y}-${m}-${day}`;
     }
     function dateToUTCStartMs(localDateStr) {
-        // 입력한 'YYYY-MM-DD'를 UTC 00:00으로 해석 (바이낸스 일봉 키와 일치)
         const [y, m, d] = localDateStr.split("-").map(Number);
         return Date.UTC(y, m - 1, d, 0, 0, 0, 0);
     }
@@ -85,6 +87,10 @@
     }
     function fmt(n, digits = 2) {
         return Number.isFinite(n) ? n.toFixed(digits) : "-";
+    }
+    function fmtInt(n) {
+        if (!Number.isFinite(n)) return "-";
+        return Math.round(n).toLocaleString("ko-KR");
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -102,7 +108,6 @@
     }
 
     async function getDailyTwoCandles(symbol, targetUTCStartMs) {
-        // targetUTCStartMs(체크일)과 그 전일 두 개의 캔들만 조회
         const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000; // 전일 00:00Z
         const url = `${API_K}?symbol=${symbol}&interval=1d&startTime=${startTime}&limit=2`;
         const res = await fetch(url);
@@ -114,11 +119,13 @@
             high: parseFloat(k[2]),
             low: parseFloat(k[3]),
             close: parseFloat(k[4]),
-            closeTime: k[6]
+            volume: parseFloat(k[5]),           // base asset volume (체크일 volume 용)
+            closeTime: k[6],
+            numberOfTrades: parseInt(k[8], 10)  // txn
         }));
     }
 
-    // 해머: 아래꼬리 ≥ 2 × 몸통 (상단꼬리 제한/몸통비율 제한 없음 — 요청 정의 그대로)
+    // 해머 정의: 아래꼬리 ≥ 2 × 몸통
     function isHammer(prev) {
         const body = Math.abs(prev.close - prev.open);
         const lower = Math.min(prev.open, prev.close) - prev.low;
@@ -136,18 +143,21 @@
                 if (candles.length < 2) return;
                 const [prev, target] = candles;
 
-                // 직전봉 해머 판정
                 if (isHammer(prev)) {
-                    const changePct = pct(target.close, target.open); // 체크일 등락률 (종/시)
-                    const ratio = (Math.min(prev.open, prev.close) - prev.low) / Math.abs(prev.close - prev.open);
+                    const body = Math.abs(prev.close - prev.open);
+                    const lower = Math.min(prev.open, prev.close) - prev.low;
+                    const ratio = lower / body; // 하단/몸통 비율
+
                     results.push({
                         symbol: sym,
                         checkDate: toUTCDateStr(targetDateUTCStartMs),
                         prevDate: toUTCDateStr(prev.openTime),
                         open: target.open,
                         close: target.close,
-                        changePct,
-                        ratio
+                        changePct: pct(target.close, target.open),
+                        ratio,
+                        volume: target.volume,
+                        txn: target.numberOfTrades
                     });
                 }
             } catch (e) {
@@ -159,13 +169,12 @@
             }
         }
 
-        // 제한 동시성 큐
         const queue = [...symbols];
         const runners = Array.from({ length: concurrency }).map(async () => {
             while (queue.length) {
                 const sym = queue.shift();
                 await worker(sym);
-                await sleep(60); // 과한 요청 방지(소폭 대기)
+                await sleep(60); // 요청 속도 조절
             }
         });
         await Promise.all(runners);
@@ -190,11 +199,9 @@
         if (backtestEl.checked && dateEl.value) {
             return dateToUTCStartMs(dateEl.value);
         } else {
-            // 오늘(UTC) 00:00
             const now = new Date();
             return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         }
-        // KST 사용자 참고: UTC 00:00은 한국시간 오전 9시입니다.
     }
 
     function renderRows(rows) {
@@ -205,10 +212,12 @@
                 <td><span class="badge">USDT</span> ${r.symbol}</td>
                 <td class="mono">${r.checkDate}</td>
                 <td><span class="ok">해머</span> <span class="hint mono">(${r.prevDate})</span></td>
-                <td class="right mono">${fmt(r.ratio, 2)}×</td>
+                <td class="right mono">${Number.isFinite(r.ratio) ? r.ratio.toFixed(2) + "×" : "-"}</td>
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
+                <td class="right mono">${fmt(r.volume, 2)}</td>
+                <td class="right mono">${fmtInt(r.txn)}</td>
             `;
             tbody.appendChild(tr);
         }
@@ -218,11 +227,17 @@
         const key = sortByEl.value;
         const term = filterEl.value.trim().toUpperCase();
         let out = arr.slice();
-        if (term) {
-            out = out.filter(r => r.symbol.includes(term));
-        }
+
+        if (term) out = out.filter(r => r.symbol.includes(term));
+
         if (key === "pctDesc") {
             out.sort((a, b) => b.changePct - a.changePct);
+        } else if (key === "ratioDesc") {
+            out.sort((a, b) => (b.ratio ?? -Infinity) - (a.ratio ?? -Infinity));
+        } else if (key === "volDesc") {
+            out.sort((a, b) => (b.volume ?? -Infinity) - (a.volume ?? -Infinity));
+        } else if (key === "txnDesc") {
+            out.sort((a, b) => (b.txn ?? -Infinity) - (a.txn ?? -Infinity));
         } else if (key === "symAsc") {
             out.sort((a, b) => a.symbol.localeCompare(b.symbol));
         }
