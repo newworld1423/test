@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8" />
-    <title>Binance Futures Scanner — Pullback & MA Stack Rebreak (Server Time + Backtest + Diagnostics)</title>
+    <title>Binance Futures Scanner — Pullback & MA Stack Rebreak (Backtest Returns)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -42,7 +42,7 @@
 
         .progress { margin-top: 8px; font-size: 12px; color: var(--muted); }
         .table-wrap { overflow: auto; border-radius: 12px; border: 1px solid #222533; }
-        table { width: 100%; border-collapse: collapse; min-width: 1300px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1500px; }
         thead th {
             text-align: left; font-size: 12px; color: var(--muted); background: #121520; position: sticky; top: 0;
             padding: 10px; border-bottom: 1px solid #222533;
@@ -63,7 +63,7 @@
     <div class="desc">
         바이낸스 USDⓂ 무기한 선물(USDT) · <b>직전 봉(완성봉)</b> 기준 판정.<br/>
         <b>Auto</b>: 바이낸스 서버 시각 기준 <b>봉 마감 직후(+버퍼)</b> 자동 스캔.<br/>
-        <b>과거 리테스트</b>: 선택한 <b>UTC 날짜(=바이낸스 1D 경계)</b>에서 조건 일치 봉을 찾아 <b>다음 봉의 방향과 원인(진단)</b>을 표시.
+        <b>과거 리테스트</b>: 선택한 <b>UTC 날짜(=바이낸스 1D 경계)</b>에서 조건 일치 봉을 찾아 <b>다음 봉의 방향/수익률</b>과 <b>해당 코인의 하루 합계 수익률</b>을 표시.
     </div>
 
     <div class="panel">
@@ -154,6 +154,8 @@
                     <th>7 / 25 / 99</th>
                     <th>UTC 시간(리테스트)</th>
                     <th>다음봉</th>
+                    <th>다음봉 수익률(%)</th>
+                    <th>그 코인의 하루 합계(%)</th>
                     <th>진단(요인)</th>
                     <th>신호 플래그</th>
                     <th>메모</th>
@@ -162,15 +164,16 @@
             <tbody id="tbody"></tbody>
         </table>
         <div class="foot">
-            ※ 진단은 휴리스틱(경험적 규칙) 기반입니다. 뉴스/이벤트·체결호가 미세구조 등은 반영되지 않습니다.
+            ※ “다음봉 수익률”은 (다음봉 종가−다음봉 시가)/다음봉 시가 × 100 입니다. “하루 합계”는 같은 코인에서 해당 날짜에 발생한 모든 시그널의 “다음봉 수익률”을 합산한 값입니다.
         </div>
     </div>
 
     <script>
-        // ================= 공통 유틸 =================
+        // ========= 공통 유틸 =========
         const FAPI = "https://fapi.binance.com";
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const by = (k) => (a, b) => (a[k] > b[k] ? -1 : a[k] < b[k] ? 1 : 0);
+        const fmtPct = (v) => (v == null || isNaN(v)) ? "-" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 
         function intervalMs(tf) {
             const map = { "1m": 60e3, "5m": 5*60e3, "15m": 15*60e3, "1h": 60*60e3, "4h": 4*60*60e3, "1d": 24*60*60e3 };
@@ -181,7 +184,7 @@
             try {
                 const r = await fetch(`${FAPI}/fapi/v1/time`);
                 const j = await r.json();
-                return j.serverTime; // ms epoch (UTC)
+                return j.serverTime;
             } catch (e) {
                 return Date.now();
             }
@@ -195,7 +198,7 @@
             inp.value = `${y}-${m}-${d}`;
         }
 
-        // ================= 지표 =================
+        // ========= 지표 =========
         function sma(values, period) {
             const out = Array(values.length).fill(null);
             if (values.length < period) return out;
@@ -209,7 +212,6 @@
             }
             return out;
         }
-
         function stdAt(values, i, period, mean) {
             const start = i - period + 1;
             if (start < 0) return null;
@@ -220,7 +222,6 @@
             }
             return Math.sqrt(s / period);
         }
-
         function ema(values, period) {
             if (!values || values.length < period + 2) return Array(values.length).fill(null);
             const k = 2 / (period + 1);
@@ -236,7 +237,6 @@
             }
             return out;
         }
-
         function rsi(values, period = 14) {
             const out = Array(values.length).fill(null);
             if (values.length < period + 2) return out;
@@ -260,12 +260,11 @@
             return out;
         }
 
-        // ================= 시그널 평가 (임의 인덱스 지원) =================
+        // ========= 시그널 평가 =========
         function evaluateAtIndex(klines, idx, lookback = 6) {
             if (!klines || klines.length < 120 || idx <= 0 || idx >= klines.length - 1) {
                 return { passed: false, score: 0, flags: ["데이터 부족"] };
             }
-
             const open  = klines.map(k => Number(k[1]));
             const high  = klines.map(k => Number(k[2]));
             const low   = klines.map(k => Number(k[3]));
@@ -304,169 +303,102 @@
                 }
             }
             const rebreak = close[last] > e7[last];
-            if (hadPullback && rebreak) {
-                score += 8;
-                flags.push("풀백 후 7MA 재돌파");
-            }
+            if (hadPullback && rebreak) { score += 8; flags.push("풀백 후 7MA 재돌파"); }
 
             const recentHigh = (from <= last - 1) ? Math.max(...high.slice(from, last)) : -Infinity;
-            if (close[last] > recentHigh) {
-                score += 10;
-                flags.push("미니고점 돌파");
-            }
+            if (close[last] > recentHigh) { score += 10; flags.push("미니고점 돌파"); }
 
-            const r14Arr = r14;
-            const rsiLast = r14Arr[last] ?? 0;
-            const rsiSlice = r14Arr.slice(Math.max(0, from), last).filter(v => v != null);
+            const rsiLast = r14[last] ?? 0;
+            const rsiSlice = r14.slice(Math.max(0, from), last).filter(v => v != null);
             const rsiMinRecent = rsiSlice.length ? Math.min(...rsiSlice) : 100;
-            if (rsiLast > 50 && rsiMinRecent >= 40) {
-                score += 6;
-                flags.push("RSI Bull Range");
-            }
+            if (rsiLast > 50 && rsiMinRecent >= 40) { score += 6; flags.push("RSI Bull Range"); }
 
             const volUp = vol[last] > (vol[prev] || 0);
-            if (volUp) {
-                score += 4;
-                flags.push("거래량 증가");
-            }
+            if (volUp) { score += 4; flags.push("거래량 증가"); }
 
             const passed = (stack && rebreak && aboveAll && hadPullback);
             return {
                 passed,
                 score,
                 flags,
-                metrics: {
-                    open: open[last],
-                    close: close[last],
-                    high: high[last],
-                    low: low[last],
-                    e7: e7[last], e25: e25[last], e99: e99[last],
-                    rsi: rsiLast,
-                    recentHigh,
-                    from
-                }
+                metrics: { open: open[last], close: close[last], high: high[last], low: low[last],
+                    e7: e7[last], e25: e25[last], e99: e99[last], rsi: rsiLast }
             };
         }
 
-        // ================= 진단(다음봉 원인) =================
+        // ========= 진단(요약) =========
+        function sma20UpperBandCloseFlag(close, idx) {
+            const mean20 = sma(close, 20)[idx];
+            if (mean20 == null) return false;
+            const sd = stdAt(close, idx, 20, mean20);
+            if (sd == null) return false;
+            const upper = mean20 + 2 * sd;
+            return close[idx] >= upper;
+        }
         function buildTimeMap(kl) {
             const m = new Map();
-            for (let i = 0; i < kl.length; i++) {
-                m.set(Number(kl[i][6]), i); // closeTime -> index
-            }
+            for (let i = 0; i < kl.length; i++) m.set(Number(kl[i][6]), i);
             return m;
         }
-
         function pct(a, b) {
             return b === 0 ? 0 : (a - b) / b;
         }
-
         function analyzeNextBarReasons(kl, idx, context) {
-            // kl: 대상 심볼, idx: 신호 봉 index, context: { btc, eth } (각각 {kl, map})
             const open  = kl.map(k => Number(k[1]));
             const high  = kl.map(k => Number(k[2]));
             const low   = kl.map(k => Number(k[3]));
             const close = kl.map(k => Number(k[4]));
             const vol   = kl.map(k => Number(k[5]));
-            const r14   = rsi(close, 14);
-            const sma20 = sma(close, 20);
+            const last = idx; const next = idx + 1;
+            const reasonsBull = [], reasonsBear = [];
 
-            const last = idx;
-            const next = idx + 1;
-            const tClose = Number(kl[last][6]);
-
-            const reasonsBull = [];
-            const reasonsBear = [];
-            const notes = [];
-
-            // 1) 시장 순풍/역풍 (BTC/ETH 동일 closeTime의 다음 봉)
+            // 시장 순/역풍
             if (context && context.btc && context.eth) {
-                const { kl: btc, map: bmap } = context.btc;
-                const { kl: eth, map: emap } = context.eth;
-
-                const bi = bmap.get(tClose); // 신호봉과 동일 closeTime
-                const ei = emap.get(tClose);
-                if (bi != null && bi + 1 < btc.length) {
-                    const bro = Number(btc[bi + 1][1]), brc = Number(btc[bi + 1][4]);
-                    const bRet = pct(brc, bro);
-                    if (bRet > 0.002) reasonsBull.push("BTC 순풍(+0.2%↑)");
-                    if (bRet < -0.002) reasonsBear.push("BTC 역풍(−0.2%↓)");
+                const tClose = Number(kl[last][6]);
+                const bi = context.btc.map.get(tClose);
+                const ei = context.eth.map.get(tClose);
+                if (bi != null && bi + 1 < context.btc.kl.length) {
+                    const ro = Number(context.btc.kl[bi + 1][1]), rc = Number(context.btc.kl[bi + 1][4]);
+                    const r = pct(rc, ro);
+                    if (r > 0.002) reasonsBull.push("BTC 순풍(+0.2%↑)");
+                    if (r < -0.002) reasonsBear.push("BTC 역풍(−0.2%↓)");
                 }
-                if (ei != null && ei + 1 < eth.length) {
-                    const ero = Number(eth[ei + 1][1]), erc = Number(eth[ei + 1][4]);
-                    const eRet = pct(erc, ero);
-                    if (eRet > 0.003) reasonsBull.push("ETH 순풍(+0.3%↑)");
-                    if (eRet < -0.003) reasonsBear.push("ETH 역풍(−0.3%↓)");
+                if (ei != null && ei + 1 < context.eth.kl.length) {
+                    const ro = Number(context.eth.kl[ei + 1][1]), rc = Number(context.eth.kl[ei + 1][4]);
+                    const r = pct(rc, ro);
+                    if (r > 0.003) reasonsBull.push("ETH 순풍(+0.3%↑)");
+                    if (r < -0.003) reasonsBear.push("ETH 역풍(−0.3%↓)");
                 }
             }
 
-            // 2) 상단 저항 근접 (최근 20/50봉 최고가와의 거리)
+            // 저항/과열/이격
             const h20 = Math.max(...high.slice(Math.max(0, last - 20), last));
             const h50 = Math.max(...high.slice(Math.max(0, last - 50), last));
-            const d20 = pct(h20, close[last]);
-            const d50 = pct(h50, close[last]);
-            if (h20 < Infinity && Math.abs(d20) <= 0.003) reasonsBear.push("상단 저항(20봉 최고가 근접)");
-            if (h50 < Infinity && Math.abs(d50) <= 0.005) reasonsBear.push("상단 저항(50봉 최고가 근접)");
-
-            // 3) MA乖離 과다(이격) → 되돌림 위험
-            const e25Arr = ema(close, 25), e7Arr = ema(close, 7);
-            const gap25 = close[last] / (e25Arr[last] || close[last]);
-            const gap7  = close[last] / (e7Arr[last]  || close[last]);
-            if (gap25 >= 1.02 || gap7 >= 1.01) reasonsBear.push("MA 이격 과다(되돌림 위험)");
-
-            // 4) 볼린저 밴드 과열(20,2)
-            const mean20 = sma20[last];
-            if (mean20 != null) {
-                const sd = stdAt(close, last, 20, mean20);
-                if (sd != null) {
-                    const upper = mean20 + 2 * sd;
-                    if (close[last] >= upper) reasonsBear.push("상단 밴드 과열");
-                }
+            if (Math.abs(pct(h20, close[last])) <= 0.003) reasonsBear.push("상단 저항(20봉 근접)");
+            if (Math.abs(pct(h50, close[last])) <= 0.005) reasonsBear.push("상단 저항(50봉 근접)");
+            const e25 = ema(close, 25), e7 = ema(close, 7);
+            if ((close[last] / (e25[last] || close[last])) >= 1.02 || (close[last] / (e7[last] || close[last])) >= 1.01) {
+                reasonsBear.push("MA 이격 과다");
             }
+            if (sma20UpperBandCloseFlag(close, last)) reasonsBear.push("상단 밴드 과열");
 
-            // 5) 상단 꼬리 과다(매도 압력) + 변동폭 과대
+            // 캔들/모멘텀
             const range = Math.max(1e-12, high[last] - low[last]);
             const upperWick = high[last] - Math.max(close[last], open[last]);
-            if (upperWick / range >= 0.5) reasonsBear.push("상단 꼬리 과다(매도 압력)");
+            if (upperWick / range >= 0.5) reasonsBear.push("상단 꼬리 과다");
 
-            // 6) 돌파 대비 약한 거래량 (최근 10봉 평균 이하)
-            const avgVol10 = vol.slice(Math.max(0, last - 10), last).reduce((a, b) => a + b, 0) / Math.max(1, Math.min(10, last));
-            if (avgVol10 && vol[last] <= avgVol10) reasonsBear.push("돌파 거래량 약함");
-
-            // 7) RSI 과매수/다이버전스
-            const r = r14[last] ?? null;
-            if (r != null && r >= 70) reasonsBear.push("RSI 과매수(≥70)");
-            // 간단한 다이버전스: 직전 20봉 내 최고가 대비 RSI 낮음
-            const winStart = Math.max(0, last - 20);
-            let maxIdx = winStart;
-            for (let i = winStart + 1; i < last; i++) {
-                if (close[i] > close[maxIdx]) maxIdx = i;
-            }
-            if (close[last] >= close[maxIdx] && (r14[last] ?? 0) + 3 < (r14[maxIdx] ?? 0)) {
-                reasonsBear.push("RSI 약세 다이버전스");
-            }
-
-            // 8) 리테스트 지지/실패 (미니 고점 = 최근 lookback 범위 최고가)
-            const lookback = 6;
-            const from = Math.max(0, last - lookback);
-            const miniHigh = Math.max(...high.slice(from, last));
             if (next < kl.length) {
-                const nOpen = open[next], nLow = low[next], nClose = close[next], nVol = vol[next];
-                const hold = nLow >= miniHigh; // 지지 유지
-                const ret = pct(nClose, nOpen);
-                if (hold && ret >= 0) reasonsBull.push("리테스트 지지 유지");
-                if (!hold) reasonsBear.push("리테스트 실패(이탈)");
-
-                // 강한 추세 지속 신호
-                const volUp = nVol > vol[last];
-                if (ret > 0.003 && volUp) reasonsBull.push("모멘텀 지속(강한 양봉+거래량↑)");
+                const volUp = Number(kl[next][5]) > Number(kl[last][5]);
+                const nextOpen = Number(kl[next][1]), nextClose = Number(kl[next][4]);
+                const ret = pct(nextClose, nextOpen);
+                if (ret > 0.003 && volUp) reasonsBull.push("모멘텀 지속(양봉+거래량↑)");
                 if (ret < -0.003 && !volUp) reasonsBear.push("모멘텀 약화(음봉+거래량↓)");
             }
 
-            return { reasonsBull, reasonsBear, notes };
+            return { reasonsBull, reasonsBear };
         }
 
-        // ================= API =================
+        // ========= API =========
         async function fetchExchangeInfoUSDTPerp() {
             const url = `${FAPI}/fapi/v1/exchangeInfo`;
             const res = await fetch(url);
@@ -476,14 +408,12 @@
                 .filter(s => s.quoteAsset === "USDT" && s.contractType === "PERPETUAL" && s.status === "TRADING")
                 .map(s => s.symbol);
         }
-
         async function fetch24hTickers() {
             const url = `${FAPI}/fapi/v1/ticker/24hr`;
             const res = await fetch(url);
             if (!res.ok) throw new Error("24hr ticker 실패");
             return await res.json();
         }
-
         async function fetchKlines(symbol, interval, { limit, startTime, endTime } = {}) {
             const params = new URLSearchParams({ symbol, interval });
             if (limit != null) params.set("limit", String(limit));
@@ -495,7 +425,7 @@
             return await res.json();
         }
 
-        // ================= DOM =================
+        // ========= DOM/상태 =========
         const tbody = document.getElementById("tbody");
         const progressEl = document.getElementById("progress");
         const scanBtn = document.getElementById("scanBtn");
@@ -507,32 +437,13 @@
         const diagnosticsToggle = document.getElementById("diagnosticsToggle");
         setDefaultUTCDateInput(backtestDate);
 
-        // 권장 점수 토글
         recommendedOnly.addEventListener("change", () => {
             const on = recommendedOnly.checked;
             minScoreInput.disabled = on;
             if (on) minScoreInput.value = 51;
         });
 
-        // 리테스트 토글
-        function clearTimers() {
-            clearTimeout(autoTimer); autoTimer = null;
-            clearInterval(countdownTimer); countdownTimer = null;
-        }
-        backtestToggle.addEventListener("change", () => {
-            const on = backtestToggle.checked;
-            backtestDate.disabled = !on;
-            diagnosticsToggle.disabled = !on;
-            if (on) {
-                autoToggle.checked = false;
-                clearTimers();
-                progressEl.textContent = "리테스트 모드: 날짜(UTC) 선택 후 스캔하세요.";
-            } else {
-                progressEl.textContent = "리테스트 해제됨. 실시간 스캔/Auto 사용 가능.";
-            }
-        });
-
-        // ================= 스캔(실시간) =================
+        // ========= 실시간 스캔 =========
         async function scanRealtime() {
             try {
                 scanBtn.disabled = true;
@@ -546,29 +457,17 @@
                 const klimit = Number(document.getElementById("klimit").value || 220);
                 const minScore = Number(minScoreInput.value || 0);
 
-                const [allPerp, tickers] = await Promise.all([
-                    fetchExchangeInfoUSDTPerp(),
-                    fetch24hTickers()
-                ]);
-
-                const tickerMap = new Map();
-                for (const t of tickers) tickerMap.set(t.symbol, t);
-
-                const candidates = allPerp
-                    .map(sym => {
-                        const t = tickerMap.get(sym);
-                        const quoteVol = t ? Number(t.quoteVolume || 0) : 0;
-                        const lastPrice = t ? Number(t.lastPrice || 0) : 0;
-                        return { symbol: sym, quoteVol, lastPrice };
-                    })
-                    .sort((a, b) => b.quoteVol - a.quoteVol)
-                    .slice(0, maxSymbols);
+                const [allPerp, tickers] = await Promise.all([fetchExchangeInfoUSDTPerp(), fetch24hTickers()]);
+                const tickerMap = new Map(tickers.map(t => [t.symbol, t]));
+                const candidates = allPerp.map(sym => {
+                    const t = tickerMap.get(sym);
+                    return { symbol: sym, quoteVol: t ? Number(t.quoteVolume || 0) : 0, lastPrice: t ? Number(t.lastPrice || 0) : 0 };
+                }).sort((a, b) => b.quoteVol - a.quoteVol).slice(0, maxSymbols);
 
                 progressEl.textContent = `스캔 대상: ${candidates.length} · TF ${tf} · 요청 중…`;
 
                 const results = [];
                 let done = 0;
-
                 async function worker(job) {
                     const { symbol, lastPrice } = job;
                     try {
@@ -587,10 +486,12 @@
                                 flags: ev.flags,
                                 timeUTC: "-",
                                 nextBar: "-",
+                                nextRetPct: null,
+                                dailySumNextRetPct: null,
                                 diagnostics: "-"
                             });
                         }
-                    } catch (e) { /* 심볼별 에러 무시 */ }
+                    } catch {}
                     finally {
                         done += 1;
                         if (done % 5 === 0 || done === candidates.length) {
@@ -598,14 +499,9 @@
                         }
                     }
                 }
-
                 const queue = candidates.slice();
                 const runners = Array.from({ length: concurrency }, async () => {
-                    while (queue.length) {
-                        const job = queue.shift();
-                        await worker(job);
-                        await sleep(35);
-                    }
+                    while (queue.length) { await worker(queue.shift()); await sleep(35); }
                 });
                 await Promise.all(runners);
 
@@ -619,7 +515,7 @@
             }
         }
 
-        // ================= 스캔(과거 리테스트 + 진단 옵션) =================
+        // ========= 리테스트(다음봉 수익률 + 하루 합계) =========
         async function scanBacktest() {
             try {
                 scanBtn.disabled = true;
@@ -638,40 +534,27 @@
                 if (!dateStr) throw new Error("리테스트 날짜(UTC)를 선택하세요.");
                 const [yy, mm, dd] = dateStr.split("-").map(Number);
                 const dayStartUTC = Date.UTC(yy, mm - 1, dd, 0, 0, 0, 0);
-                const dayEndUTC = dayStartUTC + 24 * 60 * 60 * 1000 - 1;
+                const dayEndUTC = dayStartUTC + 24*60*60*1000 - 1;
 
                 const warmupBars = 300;
                 const startFetch = dayStartUTC - warmupBars * tfMs;
                 const endFetch = dayEndUTC + tfMs * 2;
 
-                const [allPerp, tickers] = await Promise.all([
-                    fetchExchangeInfoUSDTPerp(),
-                    fetch24hTickers()
-                ]);
+                const [allPerp, tickers] = await Promise.all([fetchExchangeInfoUSDTPerp(), fetch24hTickers()]);
+                const tickerMap = new Map(tickers.map(t => [t.symbol, t]));
+                const candidates = allPerp.map(sym => {
+                    const t = tickerMap.get(sym);
+                    return { symbol: sym, quoteVol: t ? Number(t.quoteVolume || 0) : 0 };
+                }).sort((a, b) => b.quoteVol - a.quoteVol).slice(0, maxSymbols);
 
-                const tickerMap = new Map();
-                for (const t of tickers) tickerMap.set(t.symbol, t);
-
-                const candidates = allPerp
-                    .map(sym => {
-                        const t = tickerMap.get(sym);
-                        const quoteVol = t ? Number(t.quoteVolume || 0) : 0;
-                        return { symbol: sym, quoteVol };
-                    })
-                    .sort((a, b) => b.quoteVol - a.quoteVol)
-                    .slice(0, maxSymbols);
-
-                // 시장 진단용 BTC/ETH 준비(선택)
+                // 시장 진단용
                 let market = null;
                 if (doDiag) {
                     const [btc, eth] = await Promise.all([
                         fetchKlines("BTCUSDT", tf, { startTime: startFetch, endTime: endFetch, limit: 1500 }),
                         fetchKlines("ETHUSDT", tf, { startTime: startFetch, endTime: endFetch, limit: 1500 })
                     ]);
-                    market = {
-                        btc: { kl: btc, map: buildTimeMap(btc) },
-                        eth: { kl: eth, map: buildTimeMap(eth) }
-                    };
+                    market = { btc: { kl: btc, map: buildTimeMap(btc) }, eth: { kl: eth, map: buildTimeMap(eth) } };
                 }
 
                 progressEl.textContent = `리테스트 대상: ${candidates.length} · TF ${tf} · ${dateStr} (UTC) · 요청 중…`;
@@ -683,11 +566,7 @@
                     const { symbol } = job;
                     try {
                         const expectedBars = Math.ceil((endFetch - startFetch) / tfMs) + 10;
-                        const kl = await fetchKlines(symbol, tf, {
-                            startTime: startFetch,
-                            endTime: endFetch,
-                            limit: Math.max(expectedBars, 120)
-                        });
+                        const kl = await fetchKlines(symbol, tf, { startTime: startFetch, endTime: endFetch, limit: Math.max(expectedBars, 120) });
 
                         for (let i = 1; i < kl.length - 1; i++) {
                             const closeTime = Number(kl[i][6]);
@@ -695,22 +574,22 @@
 
                             const ev = evaluateAtIndex(kl, i, lookback);
                             if (ev.passed && ev.score >= minScore) {
-                                // 다음 봉 방향
-                                const nOpen = Number(kl[i + 1][1]);
-                                const nClose = Number(kl[i + 1][4]);
+                                // 다음 봉 방향 + 수익률
+                                const nextOpen = Number(kl[i + 1][1]);
+                                const nextClose = Number(kl[i + 1][4]);
                                 let nextBar = "-";
-                                if (nClose > nOpen) nextBar = "양봉";
-                                else if (nClose < nOpen) nextBar = "음봉";
+                                if (nextClose > nextOpen) nextBar = "양봉";
+                                else if (nextClose < nextOpen) nextBar = "음봉";
                                 else nextBar = "도지";
+                                const nextRetPct = ((nextClose - nextOpen) / nextOpen) * 100;
 
-                                // 진단(시장/기술 요인)
+                                // 진단
                                 let diags = "-";
                                 if (doDiag) {
                                     const { reasonsBull, reasonsBear } = analyzeNextBarReasons(kl, i, market);
                                     const bulls = reasonsBull.length ? `상승요인: ${reasonsBull.join(", ")}` : "";
                                     const bears = reasonsBear.length ? `하락요인: ${reasonsBear.join(", ")}` : "";
-                                    diags = [bulls, bears].filter(Boolean).join(" | ");
-                                    if (!diags) diags = "요인 특이사항 적음";
+                                    diags = [bulls, bears].filter(Boolean).join(" | ") || "요인 특이사항 적음";
                                 }
 
                                 results.push({
@@ -724,11 +603,13 @@
                                     flags: ev.flags,
                                     timeUTC: new Date(closeTime).toISOString().replace(".000Z", "Z"),
                                     nextBar,
+                                    nextRetPct,
+                                    dailySumNextRetPct: null, // 나중에 채움
                                     diagnostics: diags
                                 });
                             }
                         }
-                    } catch (e) { /* 개별 심볼 에러 무시 */ }
+                    } catch {}
                     finally {
                         done += 1;
                         if (done % 3 === 0 || done === candidates.length) {
@@ -739,13 +620,19 @@
 
                 const queue = candidates.slice();
                 const runners = Array.from({ length: concurrency }, async () => {
-                    while (queue.length) {
-                        const job = queue.shift();
-                        await worker(job);
-                        await sleep(35);
-                    }
+                    while (queue.length) { await worker(queue.shift()); await sleep(35); }
                 });
                 await Promise.all(runners);
+
+                // 같은 코인(같은 날짜)별 "다음봉 수익률" 합계 계산
+                const sumMap = new Map(); // symbol -> sum(%)
+                for (const r of results) {
+                    if (r.nextRetPct == null) continue;
+                    sumMap.set(r.symbol, (sumMap.get(r.symbol) || 0) + r.nextRetPct);
+                }
+                for (const r of results) {
+                    r.dailySumNextRetPct = sumMap.has(r.symbol) ? sumMap.get(r.symbol) : null;
+                }
 
                 results.sort(by("score"));
                 renderRows(results, lookback);
@@ -753,7 +640,7 @@
                 const bull = results.filter(r => r.nextBar === "양봉").length;
                 const bear = results.filter(r => r.nextBar === "음봉").length;
                 const doji = results.filter(r => r.nextBar === "도지").length;
-                progressEl.innerHTML = `리테스트 완료: 조건 일치 <b>${results.length}</b>건 (양봉 ${bull}, 음봉 ${bear}, 도지 ${doji}) / 대상 ${candidates.length}건 · (필터: 점수 ≥ ${minScore})`;
+                progressEl.innerHTML = `리테스트 완료: 조건 일치 <b>${results.length}</b>건 (양봉 ${bull}, 음봉 ${bear}, 도지 ${doji}) · (점수 ≥ ${minScore})`;
             } catch (err) {
                 progressEl.textContent = `리테스트 에러: ${err?.message || err}`;
             } finally {
@@ -761,12 +648,14 @@
             }
         }
 
-        // ================= 렌더 =================
+        // ========= 렌더 =========
         function renderRows(items, lookback) {
             tbody.innerHTML = "";
             items.forEach((r, idx) => {
                 const tags = r.flags.map(f => `<span class="pill">${f}</span>`).join(" ");
                 const nextCls = r.nextBar === "양봉" ? "bull" : (r.nextBar === "음봉" ? "bear" : (r.nextBar === "도지" ? "doji" : "muted"));
+                const retCls = (r.nextRetPct == null) ? "muted" : (r.nextRetPct > 0 ? "bull" : (r.nextRetPct < 0 ? "bear" : "muted"));
+                const sumCls = (r.dailySumNextRetPct == null) ? "muted" : (r.dailySumNextRetPct > 0 ? "bull" : (r.dailySumNextRetPct < 0 ? "bear" : "muted"));
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
                     <td>${idx + 1}</td>
@@ -781,6 +670,8 @@
                     </td>
                     <td class="mono">${r.timeUTC || "-"}</td>
                     <td class="${nextCls}">${r.nextBar || "-"}</td>
+                    <td class="${retCls}">${fmtPct(r.nextRetPct)}</td>
+                    <td class="${sumCls}">${fmtPct(r.dailySumNextRetPct)}</td>
                     <td>${r.diagnostics || "-"}</td>
                     <td><div class="flex">${tags}</div></td>
                     <td class="mono">lookback=${lookback}</td>
@@ -789,10 +680,9 @@
             });
         }
 
-        // ================= Auto 스케줄러(서버시각 동기) =================
-        let autoTimer = null;
-        let countdownTimer = null;
-        let nextRunAt = null;
+        // ========= Auto(서버시각 동기) =========
+        let autoTimer = null, countdownTimer = null, nextRunAt = null;
+        function clearTimers() { clearTimeout(autoTimer); autoTimer = null; clearInterval(countdownTimer); countdownTimer = null; }
 
         async function scheduleNextAutoScan() {
             if (!autoToggle.checked) return;
@@ -801,7 +691,6 @@
                 progressEl.textContent = "리테스트 모드에서는 Auto를 사용할 수 없습니다.";
                 return;
             }
-
             const tf = document.getElementById("tf").value;
             const ms = intervalMs(tf);
             const bufferMs = Math.max(0, Number(document.getElementById("bufferSec").value || 2) * 1000);
@@ -812,56 +701,41 @@
             nextRunAt = now + delay;
 
             clearTimers();
-            autoTimer = setTimeout(async () => {
-                await scanRealtime();
-                scheduleNextAutoScan();
-            }, delay);
+            autoTimer = setTimeout(async () => { await scanRealtime(); scheduleNextAutoScan(); }, delay);
 
             countdownTimer = setInterval(async () => {
                 const cur = await getServerTimeMs();
                 const remainMs = Math.max(0, nextRunAt - cur);
-                const remain = Math.ceil(remainMs / 1000);
-                progressEl.textContent = `Auto 대기: ~${remain}s 후 스캔(봉 마감+버퍼)`;
+                progressEl.textContent = `Auto 대기: ~${Math.ceil(remainMs / 1000)}s 후 스캔(봉 마감+버퍼)`;
                 if (remainMs <= 0) clearInterval(countdownTimer);
             }, 1000);
 
-            const remain = Math.round(delay / 1000);
-            progressEl.textContent = `Auto 대기: ~${remain}s 후 스캔(봉 마감+버퍼)`;
+            progressEl.textContent = `Auto 대기: ~${Math.round(delay / 1000)}s 후 스캔(봉 마감+버퍼)`;
         }
 
         document.addEventListener("visibilitychange", () => {
-            if (autoToggle.checked && document.visibilityState === "visible") {
-                scheduleNextAutoScan();
-            }
+            if (autoToggle.checked && document.visibilityState === "visible") scheduleNextAutoScan();
         });
 
-        // ================= 이벤트 =================
+        // ========= 이벤트 =========
+        backtestToggle.addEventListener("change", () => {
+            const on = backtestToggle.checked;
+            backtestDate.disabled = !on;
+            diagnosticsToggle.disabled = !on;
+            if (on) { autoToggle.checked = false; clearTimers(); progressEl.textContent = "리테스트 모드: 날짜(UTC) 선택 후 스캔하세요."; }
+            else { progressEl.textContent = "리테스트 해제됨. 실시간 스캔/Auto 사용 가능."; }
+        });
+
         document.getElementById("scanBtn").addEventListener("click", async () => {
-            if (backtestToggle.checked) {
-                await scanBacktest();
-            } else {
-                await scanRealtime();
-            }
+            if (backtestToggle.checked) { await scanBacktest(); } else { await scanRealtime(); }
         });
-
         document.getElementById("autoToggle").addEventListener("change", () => {
-            if (autoToggle.checked) {
-                scheduleNextAutoScan();
-            } else {
-                clearTimers();
-                progressEl.textContent = "Auto 해제됨.";
-            }
+            if (autoToggle.checked) scheduleNextAutoScan(); else { clearTimers(); progressEl.textContent = "Auto 해제됨."; }
         });
+        document.getElementById("tf").addEventListener("change", () => { if (autoToggle.checked) scheduleNextAutoScan(); });
+        document.getElementById("bufferSec").addEventListener("change", () => { if (autoToggle.checked) scheduleNextAutoScan(); });
 
-        document.getElementById("tf").addEventListener("change", () => {
-            if (autoToggle.checked) scheduleNextAutoScan();
-        });
-
-        document.getElementById("bufferSec").addEventListener("change", () => {
-            if (autoToggle.checked) scheduleNextAutoScan();
-        });
-
-        // 초기 상태
+        // 초기
         progressEl.textContent = "준비됨. 실시간 스캔 또는 리테스트를 사용할 수 있습니다.";
     </script>
 </body>
