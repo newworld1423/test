@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>15m High-Win Long Scanner + Backtest (Server-Time Auto)</title>
+  <title>15m High-Win Long Scanner + Backtest (Mobile-Optimized)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
@@ -10,18 +10,18 @@
       --good:#22c55e;--bad:#ef4444;--warn:#f59e0b;--mono:ui-monospace,Menlo,Consolas,monospace
     }
     *{box-sizing:border-box}
-    body{margin:0;padding:24px;background:var(--bg);color:var(--text);
+    body{margin:0;padding:16px;background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial}
-    h1{margin:0 0 8px;font-size:20px}
-    .desc{color:var(--muted);margin-bottom:16px;line-height:1.5}
-    .panel{background:var(--panel);border:1px solid #222533;border-radius:12px;padding:16px;margin-bottom:16px}
+    h1{margin:0 0 8px;font-size:18px}
+    .desc{color:var(--muted);margin-bottom:12px;line-height:1.5}
+    .panel{background:var(--panel);border:1px solid #222533;border-radius:14px;padding:14px;margin-bottom:12px}
     .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
     .field{display:flex;flex-direction:column;gap:6px}
     label{font-size:12px;color:var(--muted)}
-    input,select{background:#0b0d13;border:1px solid #2a2f45;color:var(--text);padding:10px 12px;border-radius:8px;outline:none}
-    button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+    input,select{background:#0b0d13;border:1px solid #2a2f45;color:var(--text);padding:12px;border-radius:10px;outline:none;font-size:14px}
+    button{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;font-size:14px}
     button:disabled{opacity:.6;cursor:not-allowed}
-    .checkbox{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+    .checkbox{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:14px}
     .progress{margin-top:8px;font-size:12px;color:var(--muted)}
     .table-wrap{overflow:auto;border-radius:12px;border:1px solid #222533}
     table{width:100%;min-width:1500px;border-collapse:collapse}
@@ -32,80 +32,80 @@
     .bull{color:var(--good);font-weight:700}
     .bear{color:var(--bad);font-weight:700}
     .muted{color:var(--muted)}
+
+    /* Mobile card list */
+    .cards{display:none;gap:10px}
+    .card{background:#121520;border:1px solid #222533;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+    .row{display:flex;justify-content:space-between;gap:8px}
+    .title{font-weight:800}
+    .kv{display:flex;gap:6px;flex-wrap:wrap}
+    .kv span{font-size:12px;color:var(--muted)}
+    .kv b{color:var(--text)}
+    .chips{display:flex;flex-wrap:wrap;gap:6px}
+
+    /* Sticky bottom action on mobile */
+    .dock{display:none;position:sticky;bottom:0;left:0;right:0;margin:12px -16px -16px -16px;background:linear-gradient(180deg, rgba(15,17,21,0) 0%, rgba(15,17,21,.9) 30%, rgba(15,17,21,1) 100%);padding:12px}
+    .dock-inner{background:#10131b;border:1px solid #222533;border-radius:14px;padding:10px;display:flex;align-items:center;gap:10px}
+
+    /* Accordion */
+    details{border:1px solid #222533;border-radius:12px;padding:8px 12px;background:#10131b}
+    summary{cursor:pointer;list-style:none}
+    summary::-webkit-details-marker{display:none}
+    summary > b{font-size:14px}
+    details[open]{border-color:#2a3758}
+
+    /* Responsive rules */
+    @media (max-width: 900px){
+      .grid{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 720px){
+      body{padding:12px}
+      .grid{grid-template-columns:1fr}
+      .table-wrap{display:none}
+      .cards{display:grid}
+      .dock{display:block}
+      h1{font-size:17px}
+      .desc{font-size:13px}
+    }
   </style>
 </head>
 <body>
   <h1>15m High-Win Long Scanner + Backtest</h1>
   <div class="desc">
-    15분봉 <b>마감 직후(바이낸스 서버 시각)</b> 실시간 스캔 + <b>리테스트</b> 지원.<br/>
-    리테스트는 선택한 날짜(UTC) 하루 동안, 이 스캐너 조건을 적용해 찾은 신호들의 <b>다음 봉 수익률(%)</b>과
-    같은 코인 기준 <b>그날 합계(%)</b>를 보여줍니다. 심볼 입력 시 그 코인만, 비우면 <b>전체 USDT 무기한</b> 대상으로 수행합니다.
+    15분봉 <b>마감 직후(바이낸스 서버 시각)</b> 실시간 스캔 + <b>리테스트(하루)</b> 지원.
+    모바일 화면에선 <b>카드형 리스트</b>로 핵심 지표만 깔끔하게 보여줍니다.
   </div>
 
   <div class="panel">
-    <div class="grid">
-      <div class="field">
-        <label>타임프레임</label>
-        <input id="tf" value="15m" disabled />
-      </div>
-      <div class="field">
-        <label>실시간: 스캔 심볼 수(Top N)</label>
-        <input id="maxSymbols" type="number" value="80" min="10" max="500" />
-      </div>
-      <div class="field">
-        <label>동시 요청 수</label>
-        <input id="concurrency" type="number" value="8" min="1" max="24" />
-      </div>
-      <div class="field">
-        <label>풀백 탐색 N봉</label>
-        <input id="lookback" type="number" value="6" min="3" max="20" />
-      </div>
-      <div class="field">
-        <label>데이터 캔들 수</label>
-        <input id="klimit" type="number" value="360" min="220" max="1500" />
-      </div>
-      <div class="field">
-        <label>마감 후 대기(초)</label>
-        <input id="bufferSec" type="number" value="2" min="0" max="10" />
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <div class="checkbox"><input id="strictMode" type="checkbox" checked /> <span>엄격(승률 최우선) 프리셋</span></div>
-      </div>
-      <div class="field">
-        <label>&nbsp;</label>
-        <div class="checkbox"><input id="autoToggle" type="checkbox" /> <span>Auto (15m 마감 직후)</span></div>
-      </div>
-
-      <!-- Backtest controls -->
-      <div class="field">
-        <label>리테스트 모드</label>
-        <div class="checkbox"><input id="btToggle" type="checkbox" /> <span>켜기</span></div>
-      </div>
-      <div class="field">
-        <label>리테스트 날짜(UTC)</label>
-        <input id="btDate" type="date" disabled />
-      </div>
-      <div class="field" style="grid-column: span 3;">
-        <label>리테스트 심볼(쉼표 구분 · 비우면 전체)</label>
-        <input id="btSymbols" type="text" placeholder="예: BTC, ETH, SOLUSDT" disabled />
-      </div>
-      <div class="field">
-        <label>리테스트: 동시 요청 수</label>
-        <input id="btConcurrency" type="number" value="8" min="1" max="24" disabled />
-      </div>
-      <div class="field">
-        <label>리테스트: 워밍업 캔들</label>
-        <input id="btWarmup" type="number" value="320" min="200" max="2000" disabled />
-      </div>
+    <div class="grid" id="controls-grid">
+      <div class="field"><label>타임프레임</label><input id="tf" value="15m" disabled /></div>
+      <div class="field"><label>실시간: 스캔 심볼 수(Top N)</label><input id="maxSymbols" type="number" value="80" min="10" max="500" /></div>
+      <div class="field"><label>동시 요청 수</label><input id="concurrency" type="number" value="8" min="1" max="24" /></div>
+      <div class="field"><label>풀백 탐색 N봉</label><input id="lookback" type="number" value="6" min="3" max="20" /></div>
+      <div class="field"><label>데이터 캔들 수</label><input id="klimit" type="number" value="360" min="220" max="1500" /></div>
+      <div class="field"><label>마감 후 대기(초)</label><input id="bufferSec" type="number" value="2" min="0" max="10" /></div>
+      <div class="field"><label>&nbsp;</label><div class="checkbox"><input id="strictMode" type="checkbox" checked /> <span>엄격(승률 최우선)</span></div></div>
+      <div class="field"><label>&nbsp;</label><div class="checkbox"><input id="autoToggle" type="checkbox" /> <span>Auto (15m 마감 직후)</span></div></div>
     </div>
 
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+    <details style="margin-top:12px">
+      <summary><b>리테스트 옵션 열기</b></summary>
+      <div class="grid" style="margin-top:10px">
+        <div class="field"><label>리테스트 모드</label><div class="checkbox"><input id="btToggle" type="checkbox" /> <span>켜기</span></div></div>
+        <div class="field"><label>리테스트 날짜(UTC)</label><input id="btDate" type="date" disabled /></div>
+        <div class="field" style="grid-column:span 3"><label>리테스트 심볼(쉼표 구분 · 비우면 전체)</label><input id="btSymbols" type="text" placeholder="예: BTC, ETH, SOLUSDT" disabled /></div>
+        <div class="field"><label>리테스트: 동시 요청 수</label><input id="btConcurrency" type="number" value="8" min="1" max="24" disabled /></div>
+        <div class="field"><label>리테스트: 워밍업 캔들</label><input id="btWarmup" type="number" value="320" min="200" max="2000" disabled /></div>
+      </div>
+    </details>
+
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button id="scanBtn">지금 스캔</button>
       <div class="progress" id="progress">준비됨.</div>
     </div>
   </div>
 
+  <!-- Desktop table -->
   <div class="panel table-wrap">
     <table>
       <thead>
@@ -126,8 +126,16 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
-    <div class="progress" style="margin-top:8px">
-      ※ “다음봉 수익률(%)” = (다음봉 종가−다음봉 시가)/다음봉 시가 × 100. “하루 합계(%)”는 같은 코인에서 그날 발생한 모든 신호의 다음봉 수익률 합계.
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="cards" id="cards"></div>
+
+  <!-- Mobile sticky action dock -->
+  <div class="dock">
+    <div class="dock-inner">
+      <div class="checkbox"><input id="autoToggle2" type="checkbox" /> <span>Auto</span></div>
+      <button id="scanBtn2" style="margin-left:auto">지금 스캔</button>
     </div>
   </div>
 
@@ -141,191 +149,40 @@
 
     function intervalMs(){return 15*60*1000;} // 15m fixed
     async function getServerTimeMs(){ try{const r=await fetch(`${FAPI}/fapi/v1/time`); const j=await r.json(); return j.serverTime;}catch{return Date.now();} }
-    function setDefaultUTCDate(inp){
-      const now=new Date();
-      const y=now.getUTCFullYear(); const m=String(now.getUTCMonth()+1).padStart(2,"0"); const d=String(now.getUTCDate()).padStart(2,"0");
-      inp.value=`${y}-${m}-${d}`;
-    }
+    function setDefaultUTCDate(inp){ const now=new Date(); const y=now.getUTCFullYear(); const m=String(now.getUTCMonth()+1).padStart(2,"0"); const d=String(now.getUTCDate()).padStart(2,"0"); inp.value=`${y}-${m}-${d}`; }
 
     /* ========= API ========= */
-    async function fetchExchangeInfoUSDTPerp(){
-      const r=await fetch(`${FAPI}/fapi/v1/exchangeInfo`);
-      const j=await r.json();
-      return j.symbols
-        .filter(s=>s.quoteAsset==="USDT" && s.contractType==="PERPETUAL" && s.status==="TRADING")
-        .map(s=>({symbol:s.symbol, base:s.baseAsset}));
-    }
+    async function fetchExchangeInfoUSDTPerp(){ const r=await fetch(`${FAPI}/fapi/v1/exchangeInfo`); const j=await r.json(); return j.symbols.filter(s=>s.quoteAsset==="USDT" && s.contractType==="PERPETUAL" && s.status==="TRADING").map(s=>({symbol:s.symbol, base:s.baseAsset})); }
     async function fetch24h(){ const r=await fetch(`${FAPI}/fapi/v1/ticker/24hr`); return await r.json(); }
-    async function fetchKlines(symbol, interval, {limit, startTime, endTime}={}){
-      const p=new URLSearchParams({symbol, interval});
-      if(limit!=null) p.set("limit", String(limit));
-      if(startTime!=null) p.set("startTime", String(startTime));
-      if(endTime!=null) p.set("endTime", String(endTime));
-      const r=await fetch(`${FAPI}/fapi/v1/klines?${p.toString()}`);
-      if(!r.ok) throw new Error(`klines 실패: ${symbol}`);
-      return await r.json();
-    }
+    async function fetchKlines(symbol, interval, {limit, startTime, endTime}={}){ const p=new URLSearchParams({symbol, interval}); if(limit!=null) p.set("limit", String(limit)); if(startTime!=null) p.set("startTime", String(startTime)); if(endTime!=null) p.set("endTime", String(endTime)); const r=await fetch(`${FAPI}/fapi/v1/klines?${p.toString()}`); if(!r.ok) throw new Error(`klines 실패: ${symbol}`); return await r.json(); }
 
     /* ========= Indicators ========= */
-    function ema(values, period){
-      if(values.length<period+2) return Array(values.length).fill(null);
-      const k=2/(period+1), out=Array(values.length).fill(null);
-      let sum=0; for(let i=0;i<period;i++) sum+=values[i];
-      let prev=sum/period; out[period-1]=prev;
-      for(let i=period;i<values.length;i++){ const cur=values[i]*k+prev*(1-k); out[i]=cur; prev=cur; }
-      return out;
-    }
-    function rmaTR(high,low,close,period=14){
-      const out=Array(high.length).fill(null);
-      if(high.length<period+2) return out;
-      const tr=[];
-      for(let i=0;i<high.length;i++){
-        const pc=i>0?close[i-1]:close[i];
-        tr.push(Math.max(high[i]-low[i], Math.abs(high[i]-pc), Math.abs(low[i]-pc)));
-      }
-      let sum=0; for(let i=0;i<period;i++) sum+=tr[i];
-      let prev=sum/period; out[period-1]=prev;
-      for(let i=period;i<tr.length;i++){ prev=(prev*(period-1)+tr[i])/period; out[i]=prev; }
-      return out;
-    }
-    function rsi(values, period=14){
-      const out=Array(values.length).fill(null);
-      if(values.length<period+2) return out;
-      let g=0,l=0;
-      for(let i=1;i<=period;i++){ const d=values[i]-values[i-1]; g+=Math.max(d,0); l+=Math.max(-d,0); }
-      let ag=g/period, al=l/period; out[period]= al===0?100:100-(100/(1+ag/al));
-      for(let i=period+1;i<values.length;i++){
-        const d=values[i]-values[i-1]; const dg=Math.max(d,0), dl=Math.max(-d,0);
-        ag=(ag*(period-1)+dg)/period; al=(al*(period-1)+dl)/period;
-        out[i]= al===0?100:100-(100/(1+ag/al));
-      }
-      return out;
-    }
-    function sma(values, period){
-      const out=Array(values.length).fill(null);
-      if(values.length<period) return out;
-      let sum=0;
-      for(let i=0;i<values.length;i++){
-        sum+=values[i];
-        if(i>=period-1){ out[i]=sum/period; sum-=values[i-(period-1)]; }
-      }
-      return out;
-    }
-    function stdAt(values, i, period, mean){
-      const s=i-period+1; if(s<0) return null;
-      let ss=0; for(let k=s;k<=i;k++){ const d=values[k]-mean; ss+=d*d; }
-      return Math.sqrt(ss/period);
-    }
+    function ema(values, period){ if(values.length<period+2) return Array(values.length).fill(null); const k=2/(period+1), out=Array(values.length).fill(null); let sum=0; for(let i=0;i<period;i++) sum+=values[i]; let prev=sum/period; out[period-1]=prev; for(let i=period;i<values.length;i++){ const cur=values[i]*k+prev*(1-k); out[i]=cur; prev=cur; } return out; }
+    function rmaTR(high,low,close,period=14){ const out=Array(high.length).fill(null); if(high.length<period+2) return out; const tr=[]; for(let i=0;i<high.length;i++){ const pc=i>0?close[i-1]:close[i]; tr.push(Math.max(high[i]-low[i], Math.abs(high[i]-pc), Math.abs(low[i]-pc))); } let sum=0; for(let i=0;i<period;i++) sum+=tr[i]; let prev=sum/period; out[period-1]=prev; for(let i=period;i<tr.length;i++){ prev=(prev*(period-1)+tr[i])/period; out[i]=prev; } return out; }
+    function rsi(values, period=14){ const out=Array(values.length).fill(null); if(values.length<period+2) return out; let g=0,l=0; for(let i=1;i<=period;i++){ const d=values[i]-values[i-1]; g+=Math.max(d,0); l+=Math.max(-d,0); } let ag=g/period, al=l/period; out[period]= al===0?100:100-(100/(1+ag/al)); for(let i=period+1;i<values.length;i++){ const d=values[i]-values[i-1]; const dg=Math.max(d,0), dl=Math.max(-d,0); ag=(ag*(period-1)+dg)/period; al=(al*(period-1)+dl)/period; out[i]= al===0?100:100-(100/(1+ag/al)); } return out; }
+    function sma(values, period){ const out=Array(values.length).fill(null); if(values.length<period) return out; let sum=0; for(let i=0;i<values.length;i++){ sum+=values[i]; if(i>=period-1){ out[i]=sum/period; sum-=values[i-(period-1)]; } } return out; }
+    function stdAt(values, i, period, mean){ const s=i-period+1; if(s<0) return null; let ss=0; for(let k=s;k<=i;k++){ const d=values[k]-mean; ss+=d*d; } return Math.sqrt(ss/period); }
     function median(arr){ const x=arr.slice().sort((a,b)=>a-b); const n=x.length; if(n===0) return 0; const m=Math.floor(n/2); return n%2?x[m]:(x[m-1]+x[m])/2; }
 
     /* ========= Prep / Cache ========= */
-    function prep(kl){
-      const open=kl.map(k=>+k[1]), high=kl.map(k=>+k[2]), low=kl.map(k=>+k[3]), close=kl.map(k=>+k[4]), vol=kl.map(k=>+k[5]);
-      const e7=ema(close,7), e25=ema(close,25), e99=ema(close,99), atr=rmaTR(high,low,close,14), r14=rsi(close,14), sma20=sma(close,20);
-      return {open,high,low,close,vol,e7,e25,e99,atr,r14,sma20};
-    }
+    function prep(kl){ const open=kl.map(k=>+k[1]), high=kl.map(k=>+k[2]), low=kl.map(k=>+k[3]), close=kl.map(k=>+k[4]), vol=kl.map(k=>+k[5]); const e7=ema(close,7), e25=ema(close,25), e99=ema(close,99), atr=rmaTR(high,low,close,14), r14=rsi(close,14), sma20=sma(close,20); return {open,high,low,close,vol,e7,e25,e99,atr,r14,sma20}; }
     function buildTimeMap(kl){ const m=new Map(); for(let i=0;i<kl.length;i++) m.set(+kl[i][6], i); return m; }
 
     /* ========= High-Win Evaluation (index) ========= */
-    function evaluateHWRAtIndex(sym, K, idx, marketCtx, lookback=6){
-      const last=idx, prev=idx-1;
-      if(idx<=0 || idx>=K.close.length-1) return {passed:false, score:0, flags:["인덱스 범위"]};
-      if([K.e7[last],K.e25[last],K.e99[last],K.atr[last],K.r14[last],K.sma20[last]].some(v=>v==null))
-        return {passed:false, score:0, flags:["지표 부족"]};
-
-      let score=0; const flags=[];
-
-      // MA stack & slope & above
-      const stack=K.e7[last]>K.e25[last] && K.e25[last]>K.e99[last];
-      const slopeUp=K.e7[last]>K.e7[prev] && K.e25[last]>K.e25[prev];
-      const aboveAll=K.close[last]>K.e7[last] && K.close[last]>K.e25[last] && K.close[last]>K.e99[last];
-      if(stack){score+=15; flags.push("정배열");} else return {passed:false, score, flags:["정배열 아님"]};
-      if(slopeUp){score+=8; flags.push("7/25 기울기↑");} else return {passed:false, score, flags:["기울기 약함"]};
-      if(aboveAll){score+=8; flags.push("종가>7/25/99");} else return {passed:false, score, flags:["MA 상단 아님"]};
-
-      // Pullback: within lookback, any close<e7 AND low>=e25 (shallow)
-      const fromPB=Math.max(100,last-lookback), toPB=last-1;
-      let hadPull=false, deepBad=false;
-      for(let i=fromPB;i<=toPB;i++){
-        if(K.close[i]<K.e7[i]) hadPull=true;
-        if(K.low[i]<K.e25[i]) deepBad=true;
-      }
-      if(!(hadPull && !deepBad)) return {passed:false, score, flags:["풀백 없음/과심"]};
-      score+=10; flags.push("얕은 풀백OK");
-
-      // Breakout over recent high + buffer
-      const fromH=Math.max(0,last-lookback);
-      const recentHigh=Math.max(...K.high.slice(fromH,last));
-      const bufferAbs=Math.max(K.close[last]*0.001, K.atr[last]*0.3);
-      if(!(K.close[last] > recentHigh + bufferAbs)) return {passed:false, score, flags:["돌파 부족"]};
-      score+=10; flags.push("미니고점+버퍼");
-
-      // Overheat guard (BB upper)
-      const mean20=K.sma20[last], sd20=stdAt(K.close,last,20,mean20), upper=sd20!=null?mean20+2*sd20:Infinity;
-      if(!(K.close[last] < upper)) return {passed:false, score, flags:["과열(밴드 상단)"]};
-      score+=6; flags.push("과열 아님");
-
-      // E25 distance (<= min(1.8%, 1.2*ATR))
-      const dist=K.close[last]-K.e25[last];
-      if(!(dist <= Math.min(K.close[last]*0.018, K.atr[last]*1.2))) return {passed:false, score, flags:["E25 이격 과다"]};
-      score+=6; flags.push("이격 OK");
-
-      // Volume confirm: >= 1.4 × median(20)
-      const vMed=median(K.vol.slice(Math.max(0,last-20), last));
-      const vMult=vMed? K.vol[last]/vMed : 0;
-      if(vMult>=1.4){score+=8; flags.push("거래량 확증");} else return {passed:false, score, flags:["거래량 약함"]};
-
-      // RSI 52~66
-      const r=K.r14[last];
-      if(r<52 || r>66) return {passed:false, score, flags:["RSI 범위 밖"]};
-      score+=5; flags.push("RSI 52~66");
-
-      // Candle quality: bullish, body≥60%, upper wick≤30%
-      const range=Math.max(1e-12, K.high[last]-K.low[last]);
-      const body=Math.max(0, K.close[last]-K.open[last]);
-      const upperWick=K.high[last]-Math.max(K.close[last], K.open[last]);
-      const bodyPct=body/range, uwPct=upperWick/range;
-      if(!(K.close[last]>=K.open[last] && bodyPct>=0.6 && uwPct<=0.3)) return {passed:false, score, flags:["캔들 품질 미달"]};
-      score+=8; flags.push("캔들 품질");
-
-      // Market wind filter at same closeTime
-      if(marketCtx){
-        const tClose = marketCtx.selfTimes[last];
-        for(const key of ["btc","eth"]){
-          const M=marketCtx[key]; if(!M) continue;
-          const mi = M.map.get(tClose);
-          if(mi==null || mi<=0 || mi>=M.prep.close.length-1) return {passed:false, score, flags:["시장데이터 부족"]};
-          const e25m=M.prep.e25[mi], e7m=M.prep.e7[mi], c=M.prep.close[mi], mean20m=M.prep.sma20[mi];
-          const sdm=stdAt(M.prep.close, mi, 20, mean20m), upperm=sdm!=null?mean20m+2*sdm:Infinity;
-          const slopeM=M.prep.e25[mi]>M.prep.e25[mi-1];
-          if(!(c>e25m && e7m>e25m && slopeM && c<upperm)) return {passed:false, score, flags:["시장 역풍"]};
-        }
-        score+=10; flags.push("시장 순풍");
-      }
-
-      // Fine tune
+    function evaluateHWRAtIndex(sym, K, idx, marketCtx, lookback=6){ const last=idx, prev=idx-1; if(idx<=0 || idx>=K.close.length-1) return {passed:false, score:0, flags:["인덱스 범위"]}; if([K.e7[last],K.e25[last],K.e99[last],K.atr[last],K.r14[last],K.sma20[last]].some(v=>v==null)) return {passed:false, score:0, flags:["지표 부족"]}; let score=0; const flags=[]; const stack=K.e7[last]>K.e25[last] && K.e25[last]>K.e99[last]; const slopeUp=K.e7[last]>K.e7[prev] && K.e25[last]>K.e25[prev]; const aboveAll=K.close[last]>K.e7[last] && K.close[last]>K.e25[last] && K.close[last]>K.e99[last]; if(!stack) return {passed:false, score, flags:["정배열 아님"]}; score+=15; flags.push("정배열"); if(!slopeUp) return {passed:false, score, flags:["기울기 약함"]}; score+=8; flags.push("7/25 기울기↑"); if(!aboveAll) return {passed:false, score, flags:["MA 상단 아님"]}; score+=8; flags.push("종가>7/25/99"); const fromPB=Math.max(100,last-lookback), toPB=last-1; let hadPull=false, deepBad=false; for(let i=fromPB;i<=toPB;i++){ if(K.close[i]<K.e7[i]) hadPull=true; if(K.low[i]<K.e25[i]) deepBad=true; } if(!(hadPull && !deepBad)) return {passed:false, score, flags:["풀백 없음/과심"]}; score+=10; flags.push("얕은 풀백OK"); const fromH=Math.max(0,last-lookback); const recentHigh=Math.max(...K.high.slice(fromH,last)); const bufferAbs=Math.max(K.close[last]*0.001, K.atr[last]*0.3); if(!(K.close[last] > recentHigh + bufferAbs)) return {passed:false, score, flags:["돌파 부족"]}; score+=10; flags.push("미니고점+버퍼"); const mean20=K.sma20[last], sd20=stdAt(K.close,last,20,mean20), upper=sd20!=null?mean20+2*sd20:Infinity; if(!(K.close[last] < upper)) return {passed:false, score, flags:["과열(밴드 상단)"]}; score+=6; flags.push("과열 아님"); const dist=K.close[last]-K.e25[last]; if(!(dist <= Math.min(K.close[last]*0.018, K.atr[last]*1.2))) return {passed:false, score, flags:["E25 이격 과다"]}; score+=6; flags.push("이격 OK"); const vMed=median(K.vol.slice(Math.max(0,last-20), last)); const vMult=vMed? K.vol[last]/vMed : 0; if(vMult<1.4) return {passed:false, score, flags:["거래량 약함"]}; score+=8; flags.push("거래량 확증"); const r=K.r14[last]; if(r<52 || r>66) return {passed:false, score, flags:["RSI 범위 밖"]}; score+=5; flags.push("RSI 52~66"); const range=Math.max(1e-12, K.high[last]-K.low[last]); const body=Math.max(0, K.close[last]-K.open[last]); const upperWick=K.high[last]-Math.max(K.close[last], K.open[last]); const bodyPct=body/range, uwPct=upperWick/range; if(!(K.close[last]>=K.open[last] && bodyPct>=0.6 && uwPct<=0.3)) return {passed:false, score, flags:["캔들 품질 미달"]}; score+=8; flags.push("캔들 품질"); if(marketCtx){ const tClose = marketCtx.selfTimes[last]; for(const key of ["btc","eth"]){ const M=marketCtx[key]; if(!M) continue; const mi = M.map.get(tClose); if(mi==null || mi<=0 || mi>=M.prep.close.length-1) return {passed:false, score, flags:["시장데이터 부족"]}; const e25m=M.prep.e25[mi], e7m=M.prep.e7[mi], c=M.prep.close[mi], mean20m=M.prep.sma20[mi]; const sdm=stdAt(M.prep.close, mi, 20, mean20m), upperm=sdm!=null?mean20m+2*sdm:Infinity; const slopeM=M.prep.e25[mi]>M.prep.e25[mi-1]; if(!(c>e25m && e7m>e25m && slopeM && c<upperm)) return {passed:false, score, flags:["시장 역풍"]}; } score+=10; flags.push("시장 순풍"); }
       score += Math.min(6, Math.max(0, (1.8 - (dist/K.close[last]*100)) / 0.6 ));
       score += Math.min(6, Math.max(0, (vMult-1.4)*5 ));
-
-      return {
-        passed:true, score:Math.round(score), flags,
-        metrics:{
-          price:K.close[last],
-          rsi:r,
-          e25gapPct:(dist/K.close[last])*100,
-          atrPct:(K.atr[last]/K.close[last])*100,
-          vMult,
-          bodyPct:bodyPct*100,
-          uwPct:uwPct*100
-        }
-      };
+      return { passed:true, score:Math.round(score), flags, metrics:{ price:K.close[last], rsi:r, e25gapPct:(dist/K.close[last])*100, atrPct:(K.atr[last]/K.close[last])*100, vMult, bodyPct:bodyPct*100, uwPct:uwPct*100 } };
     }
 
     /* ========= DOM ========= */
     const tbody=document.getElementById("tbody");
+    const cards=document.getElementById("cards");
     const progressEl=document.getElementById("progress");
     const scanBtn=document.getElementById("scanBtn");
+    const scanBtn2=document.getElementById("scanBtn2");
     const autoToggle=document.getElementById("autoToggle");
+    const autoToggle2=document.getElementById("autoToggle2");
     const strictMode=document.getElementById("strictMode");
     const btToggle=document.getElementById("btToggle");
     const btDate=document.getElementById("btDate");
@@ -334,17 +191,12 @@
     const btWarmup=document.getElementById("btWarmup");
     setDefaultUTCDate(btDate);
 
-    btToggle.addEventListener("change", ()=>{
-      const on=btToggle.checked;
-      btDate.disabled=!on; btSymbols.disabled=!on; btConcurrency.disabled=!on; btWarmup.disabled=!on;
-      if(on){ autoToggle.checked=false; clearTimers(); progressEl.textContent="리테스트 모드: 날짜/심볼 설정 후 ‘지금 스캔’.";
-      } else { progressEl.textContent="리테스트 해제됨. 실시간 스캔/Auto 사용 가능."; }
-    });
+    btToggle.addEventListener("change", ()=>{ const on=btToggle.checked; btDate.disabled=!on; btSymbols.disabled=!on; btConcurrency.disabled=!on; btWarmup.disabled=!on; if(on){ autoToggle.checked=false; autoToggle2.checked=false; clearTimers(); progressEl.textContent="리테스트 모드: 날짜/심볼 설정 후 ‘지금 스캔’."; } else { progressEl.textContent="리테스트 해제됨. 실시간 스캔/Auto 사용 가능."; } });
 
     /* ========= Real-time scan ========= */
     async function scanRealtime(){
       try{
-        scanBtn.disabled=true; tbody.innerHTML=""; progressEl.textContent="심볼/티커 불러오는 중…";
+        disableScan(true); clearResults(); progressEl.textContent="심볼/티커 불러오는 중…";
         const tf="15m";
         const maxSymbols=+document.getElementById("maxSymbols").value||80;
         const concurrency=+document.getElementById("concurrency").value||8;
@@ -354,45 +206,21 @@
         const [info, t24] = await Promise.all([fetchExchangeInfoUSDTPerp(), fetch24h()]);
         const allPerp=info.map(x=>x.symbol);
         const tmap=new Map(t24.map(t=>[t.symbol,t]));
-        const candidates = allPerp.map(sym=>{
-          const t=tmap.get(sym);
-          return {symbol:sym, quoteVol: t? +t.quoteVolume||0 : 0, lastPrice: t? +t.lastPrice||0 : 0};
-        }).sort((a,b)=>b.quoteVol-a.quoteVol).slice(0, maxSymbols);
+        const candidates = allPerp.map(sym=>{ const t=tmap.get(sym); return {symbol:sym, quoteVol: t? +t.quoteVolume||0 : 0, lastPrice: t? +t.lastPrice||0 : 0}; }).sort((a,b)=>b.quoteVol-a.quoteVol).slice(0, maxSymbols);
 
-        // market context (current arrays)
-        const [btc, eth] = await Promise.all([
-          fetchKlines("BTCUSDT", tf, {limit: klimit}),
-          fetchKlines("ETHUSDT", tf, {limit: klimit})
-        ]);
+        const [btc, eth] = await Promise.all([ fetchKlines("BTCUSDT", tf, {limit: klimit}), fetchKlines("ETHUSDT", tf, {limit: klimit}) ]);
         const mkt={ btc:{prep:prep(btc), map:buildTimeMap(btc)}, eth:{prep:prep(eth), map:buildTimeMap(eth)} };
 
         progressEl.textContent=`평가 중… 0/${candidates.length}`;
         const results=[]; let done=0;
-
         async function worker(job){
           try{
-            const kl=await fetchKlines(job.symbol, tf, {limit: klimit});
-            const K=prep(kl);
-            const last=kl.length-2;
-            const marketCtx={btc:mkt.btc, eth:mkt.eth, selfTimes:kl.map(k=>+k[6])};
+            const kl=await fetchKlines(job.symbol, tf, {limit: klimit}); const K=prep(kl); const last=kl.length-2; const marketCtx={btc:mkt.btc, eth:mkt.eth, selfTimes:kl.map(k=>+k[6])};
             const ev=evaluateHWRAtIndex(job.symbol, K, last, marketCtx, lookback);
-            if(ev.passed){
-              if(!strictMode.checked || ev.score>=65){
-                results.push({
-                  symbol:job.symbol, score:ev.score,
-                  price: job.lastPrice || (+kl[last][4]),
-                  rsi:ev.metrics.rsi, e25gapPct:ev.metrics.e25gapPct, atrPct:ev.metrics.atrPct, vMult:ev.metrics.vMult,
-                  timeUTC:"-", nextRetPct:null, dailySum:null, flags:ev.flags
-                });
-              }
-            }
+            if(ev.passed){ if(!strictMode.checked || ev.score>=65){ results.push({ symbol:job.symbol, score:ev.score, price: job.lastPrice || (+kl[last][4]), rsi:ev.metrics.rsi, e25gapPct:ev.metrics.e25gapPct, atrPct:ev.metrics.atrPct, vMult:ev.metrics.vMult, timeUTC:"-", nextRetPct:null, dailySum:null, flags:ev.flags }); } }
           }catch(e){}
-          finally{
-            done++; if(done%5===0 || done===candidates.length) progressEl.textContent=`평가 중… ${done}/${candidates.length}`;
-            await sleep(20);
-          }
+          finally{ done++; if(done%5===0 || done===candidates.length) progressEl.textContent=`평가 중… ${done}/${candidates.length}`; await sleep(20); }
         }
-
         const q=candidates.slice();
         const runners=Array.from({length:concurrency}, async()=>{ while(q.length){ await worker(q.shift()); } });
         await Promise.all(runners);
@@ -400,149 +228,87 @@
         results.sort(by("score"));
         render(results);
         progressEl.textContent=`완료: 신호 ${results.length}건 (엄격:${strictMode.checked?'ON':'OFF'})`;
-      }catch(err){
-        progressEl.textContent=`에러: ${err?.message||err}`;
-      }finally{ scanBtn.disabled=false; }
+      }catch(err){ progressEl.textContent=`에러: ${err?.message||err}`; }
+      finally{ disableScan(false); }
     }
 
     /* ========= Backtest ========= */
-    function parseSymbols(raw, allInfo){
-      if(!raw||!raw.trim()) return {list:[], bad:[]};
-      const set=new Set(allInfo.map(x=>x.symbol));
-      const items=raw.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean).map(s=>s.toUpperCase());
-      const list=[], bad=[];
-      for(let s of items){ if(!s.endsWith("USDT")) s=s+"USDT"; if(set.has(s)) list.push(s); else bad.push(s); }
-      return {list:Array.from(new Set(list)), bad};
-    }
+    function parseSymbols(raw, allInfo){ if(!raw||!raw.trim()) return {list:[], bad:[]}; const set=new Set(allInfo.map(x=>x.symbol)); const items=raw.split(/[\,\s]+/).map(s=>s.trim()).filter(Boolean).map(s=>s.toUpperCase()); const list=[], bad=[]; for(let s of items){ if(!s.endsWith("USDT")) s=s+"USDT"; if(set.has(s)) list.push(s); else bad.push(s); } return {list:Array.from(new Set(list)), bad}; }
 
     async function scanBacktest(){
       try{
-        scanBtn.disabled=true; tbody.innerHTML="";
-        progressEl.textContent="리테스트 준비 중…";
-
-        const tf="15m";
-        const tfMs=intervalMs();
-        const lookback=+document.getElementById("lookback").value||6;
-        const warmup=+btWarmup.value||320;
-        const conc=+btConcurrency.value||8;
-
-        const dateStr=btDate.value;
-        if(!dateStr) throw new Error("리테스트 날짜(UTC)를 선택하세요.");
-        const [yy,mm,dd]=dateStr.split("-").map(Number);
-        const dayStartUTC=Date.UTC(yy,mm-1,dd,0,0,0,0);
-        const dayEndUTC=dayStartUTC+24*60*60*1000-1;
-        const startFetch=dayStartUTC - warmup*tfMs;
-        const endFetch=dayEndUTC + 2*tfMs;
-
-        const [info, t24] = await Promise.all([fetchExchangeInfoUSDTPerp(), fetch24h()]);
-        const allPerp=info.map(x=>x.symbol);
-        const {list:filterList, bad} = parseSymbols(btSymbols.value, info);
-
-        let targets;
-        if(filterList.length>0){
-          targets=filterList.map(s=>({symbol:s, quoteVol: t24.find(t=>t.symbol===s)?.quoteVolume||0}));
-        }else{
-          // 모든 USDT 무기한
-          targets=allPerp.map(s=>({symbol:s, quoteVol: t24.find(t=>t.symbol===s)?.quoteVolume||0}));
-        }
+        disableScan(true); clearResults(); progressEl.textContent="리테스트 준비 중…";
+        const tf="15m"; const tfMs=intervalMs(); const lookback=+document.getElementById("lookback").value||6; const warmup=+btWarmup.value||320; const conc=+btConcurrency.value||8;
+        const dateStr=btDate.value; if(!dateStr) throw new Error("리테스트 날짜(UTC)를 선택하세요.");
+        const [yy,mm,dd]=dateStr.split("-").map(Number); const dayStartUTC=Date.UTC(yy,mm-1,dd,0,0,0,0); const dayEndUTC=dayStartUTC+24*60*60*1000-1; const startFetch=dayStartUTC - warmup*tfMs; const endFetch=dayEndUTC + 2*tfMs;
+        const [info, t24] = await Promise.all([fetchExchangeInfoUSDTPerp(), fetch24h()]); const allPerp=info.map(x=>x.symbol); const {list:filterList, bad} = parseSymbols(btSymbols.value, info);
+        let targets; if(filterList.length>0){ targets=filterList.map(s=>({symbol:s, quoteVol: t24.find(t=>t.symbol===s)?.quoteVolume||0})); } else { targets=allPerp.map(s=>({symbol:s, quoteVol: t24.find(t=>t.symbol===s)?.quoteVolume||0})); }
         const badMsg = bad.length? ` (제외: ${bad.join(", ")})` : "";
         progressEl.textContent=`리테스트 대상: ${targets.length}개 · 시장데이터 수집 중…${badMsg}`;
-
-        // Market context over the whole day
-        const [btc, eth] = await Promise.all([
-          fetchKlines("BTCUSDT", tf, {startTime:startFetch, endTime:endFetch, limit:1500}),
-          fetchKlines("ETHUSDT", tf, {startTime:startFetch, endTime:endFetch, limit:1500})
-        ]);
+        const [btc, eth] = await Promise.all([ fetchKlines("BTCUSDT", tf, {startTime:startFetch, endTime:endFetch, limit:1500}), fetchKlines("ETHUSDT", tf, {startTime:startFetch, endTime:endFetch, limit:1500}) ]);
         const mktFull = { btc:{prep:prep(btc), map:buildTimeMap(btc)}, eth:{prep:prep(eth), map:buildTimeMap(eth)} };
 
         progressEl.textContent=`개별 심볼 평가 중… 0/${targets.length}${badMsg}`;
         const results=[]; let done=0;
-
         async function worker(job){
           try{
-            const expectedBars=Math.ceil((endFetch-startFetch)/tfMs)+10;
-            const kl=await fetchKlines(job.symbol, tf, {startTime:startFetch, endTime:endFetch, limit:Math.max(120, expectedBars)});
-            if(!kl || kl.length<120) return;
-            const K=prep(kl);
-            const selfTimes=kl.map(k=>+k[6]);
-            const marketCtx = { btc:mktFull.btc, eth:mktFull.eth, selfTimes };
-
+            const expectedBars=Math.ceil((endFetch-startFetch)/tfMs)+10; const kl=await fetchKlines(job.symbol, tf, {startTime:startFetch, endTime:endFetch, limit:Math.max(120, expectedBars)}); if(!kl || kl.length<120) return; const K=prep(kl); const selfTimes=kl.map(k=>+k[6]); const marketCtx = { btc:mktFull.btc, eth:mktFull.eth, selfTimes };
             for(let i=1;i<kl.length-1;i++){
-              const closeTime=+kl[i][6];
-              if(closeTime<dayStartUTC || closeTime>dayEndUTC) continue;
-
-              const ev=evaluateHWRAtIndex(job.symbol, K, i, marketCtx, lookback);
-              if(!ev.passed) continue;
-
-              // Strict gate (same as realtime)
-              if(strictMode.checked && ev.score<65) continue;
-
-              const nOpen=+kl[i+1][1], nClose=+kl[i+1][4];
-              const nextRetPct=((nClose-nOpen)/nOpen)*100;
-
-              results.push({
-                symbol:job.symbol,
-                score:ev.score,
-                price:+kl[i][4],
-                rsi:ev.metrics.rsi,
-                e25gapPct:ev.metrics.e25gapPct,
-                atrPct:ev.metrics.atrPct,
-                vMult:ev.metrics.vMult,
-                timeUTC:new Date(closeTime).toISOString().replace(".000Z","Z"),
-                nextRetPct,
-                dailySum:null,
-                flags:ev.flags
-              });
+              const closeTime=+kl[i][6]; if(closeTime<dayStartUTC || closeTime>dayEndUTC) continue; const ev=evaluateHWRAtIndex(job.symbol, K, i, marketCtx, lookback); if(!ev.passed) continue; if(strictMode.checked && ev.score<65) continue; const nOpen=+kl[i+1][1], nClose=+kl[i+1][4]; const nextRetPct=((nClose-nOpen)/nOpen)*100;
+              results.push({ symbol:job.symbol, score:ev.score, price:+kl[i][4], rsi:ev.metrics.rsi, e25gapPct:ev.metrics.e25gapPct, atrPct:ev.metrics.atrPct, vMult:ev.metrics.vMult, timeUTC:new Date(closeTime).toISOString().replace(".000Z","Z"), nextRetPct, dailySum:null, flags:ev.flags });
             }
           }catch(e){}
-          finally{
-            done++; if(done%2===0 || done===targets.length) progressEl.textContent=`평가 중… ${done}/${targets.length}${badMsg}`;
-            await sleep(25);
-          }
+          finally{ done++; if(done%2===0 || done===targets.length) progressEl.textContent=`평가 중… ${done}/${targets.length}${badMsg}`; await sleep(20); }
         }
-
-        const q=targets.slice();
-        const runners=Array.from({length:conc}, async()=>{ while(q.length){ await worker(q.shift()); } });
-        await Promise.all(runners);
-
-        // Per-symbol daily sum of next-bar returns
-        const sumMap=new Map();
-        for(const r of results){ if(r.nextRetPct!=null) sumMap.set(r.symbol, (sumMap.get(r.symbol)||0)+r.nextRetPct); }
-        for(const r of results){ r.dailySum = sumMap.get(r.symbol) ?? null; }
-
-        results.sort(by("score"));
-        render(results);
-
-        // Summary
-        const pos=results.filter(x=>x.nextRetPct!=null && x.nextRetPct>0).length;
-        const neg=results.filter(x=>x.nextRetPct!=null && x.nextRetPct<0).length;
-        const flat=results.filter(x=>x.nextRetPct!=null && Math.abs(x.nextRetPct)<1e-9).length;
+        const q=targets.slice(); const runners=Array.from({length:conc}, async()=>{ while(q.length){ await worker(q.shift()); } }); await Promise.all(runners);
+        const sumMap=new Map(); for(const r of results){ if(r.nextRetPct!=null) sumMap.set(r.symbol, (sumMap.get(r.symbol)||0)+r.nextRetPct); } for(const r of results){ r.dailySum = sumMap.get(r.symbol) ?? null; }
+        results.sort(by("score")); render(results);
+        const pos=results.filter(x=>x.nextRetPct!=null && x.nextRetPct>0).length; const neg=results.filter(x=>x.nextRetPct!=null && x.nextRetPct<0).length; const flat=results.filter(x=>x.nextRetPct!=null && Math.abs(x.nextRetPct)<1e-9).length;
         progressEl.innerHTML=`리테스트 완료: 신호 <b>${results.length}</b>건 (다음봉 양봉 ${pos}, 음봉 ${neg}, 보합 ${flat})${badMsg}`;
-      }catch(err){
-        progressEl.textContent=`리테스트 에러: ${err?.message||err}`;
-      }finally{ scanBtn.disabled=false; }
+      }catch(err){ progressEl.textContent=`리테스트 에러: ${err?.message||err}`; }
+      finally{ disableScan(false); }
     }
 
     /* ========= Render ========= */
-    function render(items){
-      tbody.innerHTML="";
-      items.forEach((r,i)=>{
-        const tr=document.createElement("tr");
-        tr.innerHTML=`
-          <td>${i+1}</td>
-          <td class="mono">${r.symbol}</td>
-          <td><b>${r.score}</b></td>
-          <td class="mono">${r.price?.toFixed? r.price.toFixed(6).replace(/\.?0+$/,"") : "-"}</td>
-          <td>${r.rsi!=null? r.rsi.toFixed(1): "-"}</td>
-          <td>${r.e25gapPct!=null? r.e25gapPct.toFixed(2)+"%" : "-"}</td>
-          <td>${r.atrPct!=null? r.atrPct.toFixed(2)+"%" : "-"}</td>
-          <td class="${r.vMult>=1.4?'bull':'muted'}">${r.vMult!=null? r.vMult.toFixed(2)+"×":"-"}</td>
-          <td class="mono">${r.timeUTC || "-"}</td>
-          <td class="${r.nextRetPct==null?'muted':(r.nextRetPct>0?'bull':'bear')}">${fmtPct(r.nextRetPct)}</td>
-          <td class="${r.dailySum==null?'muted':(r.dailySum>0?'bull':'bear')}">${fmtPct(r.dailySum)}</td>
-          <td>${(r.flags||[]).map(f=>`<span class="pill">${f}</span>`).join("")}</td>
+    function clearResults(){ tbody.innerHTML=""; cards.innerHTML=""; }
+    function render(items){ renderTable(items); renderCards(items); }
+
+    function renderTable(items){ tbody.innerHTML=""; items.forEach((r,i)=>{ const tr=document.createElement("tr"); tr.innerHTML=`
+      <td>${i+1}</td>
+      <td class=\"mono\">${r.symbol}</td>
+      <td><b>${r.score}</b></td>
+      <td class=\"mono\">${r.price?.toFixed? r.price.toFixed(6).replace(/\.?0+$/,"") : "-"}</td>
+      <td>${r.rsi!=null? r.rsi.toFixed(1): "-"}</td>
+      <td>${r.e25gapPct!=null? r.e25gapPct.toFixed(2)+"%" : "-"}</td>
+      <td>${r.atrPct!=null? r.atrPct.toFixed(2)+"%" : "-"}</td>
+      <td class=\"${r.vMult>=1.4?'bull':'muted'}\">${r.vMult!=null? r.vMult.toFixed(2)+"×":"-"}</td>
+      <td class=\"mono\">${r.timeUTC || "-"}</td>
+      <td class=\"${r.nextRetPct==null?'muted':(r.nextRetPct>0?'bull':'bear')}\">${fmtPct(r.nextRetPct)}</td>
+      <td class=\"${r.dailySum==null?'muted':(r.dailySum>0?'bull':'bear')}\">${fmtPct(r.dailySum)}</td>
+      <td>${(r.flags||[]).map(f=>`<span class=\"pill\">${f}</span>`).join("")}</td>`; tbody.appendChild(tr); }); }
+
+    function renderCards(items){
+      cards.innerHTML="";
+      items.forEach((r)=>{
+        const el=document.createElement("div"); el.className="card";
+        el.innerHTML=`
+          <div class=\"row\"><span class=\"title\">${r.symbol}</span><span><b>${r.score}</b></span></div>
+          <div class=\"kv\"><span>가격</span><b class=\"mono\">${r.price?.toFixed? r.price.toFixed(6).replace(/\.?0+$/,''):'-'}</b> ·
+            <span>RSI</span><b>${r.rsi!=null? r.rsi.toFixed(1):'-'}</b> ·
+            <span>E25</span><b>${r.e25gapPct!=null? r.e25gapPct.toFixed(2)+"%" : '-'}</b> ·
+            <span>ATR%</span><b>${r.atrPct!=null? r.atrPct.toFixed(2)+"%" : '-'}</b> ·
+            <span>Vol×</span><b class=\"${r.vMult>=1.4?'bull':'muted'}\">${r.vMult!=null? r.vMult.toFixed(2)+'×':'-'}</b>
+          </div>
+          <div class=\"kv\">
+            <span>UTC</span><b class=\"mono\">${r.timeUTC||'-'}</b>
+          </div>
+          <div class=\"kv\">
+            <span>다음봉</span><b class=\"${r.nextRetPct==null?'muted':(r.nextRetPct>0?'bull':'bear')}\">${fmtPct(r.nextRetPct)}</b>
+            <span>하루합계</span><b class=\"${r.dailySum==null?'muted':(r.dailySum>0?'bull':'bear')}\">${fmtPct(r.dailySum)}</b>
+          </div>
+          <div class=\"chips\">${(r.flags||[]).map(f=>`<span class=\"pill\">${f}</span>`).join('')}</div>
         `;
-        tbody.appendChild(tr);
+        cards.appendChild(el);
       });
     }
 
@@ -550,33 +316,26 @@
     let autoTimer=null, countdownTimer=null, nextRunAt=null;
     function clearTimers(){ clearTimeout(autoTimer); autoTimer=null; clearInterval(countdownTimer); countdownTimer=null; }
     async function scheduleNext(){
-      if(!autoToggle.checked) return;
-      if(btToggle.checked){ autoToggle.checked=false; progressEl.textContent="리테스트 모드에서는 Auto를 사용할 수 없습니다."; return; }
+      if(!(autoToggle.checked||autoToggle2.checked)) return;
+      if(btToggle.checked){ autoToggle.checked=false; autoToggle2.checked=false; progressEl.textContent="리테스트 모드에서는 Auto를 사용할 수 없습니다."; return; }
       const bufferMs=Math.max(0,(+document.getElementById("bufferSec").value||2)*1000);
-      const now=await getServerTimeMs();
-      const ms=intervalMs();
-      const next=Math.ceil(now/ms)*ms;
-      const delay=Math.max(800, next-now+bufferMs);
-      nextRunAt=now+delay;
-
-      clearTimers();
-      autoTimer=setTimeout(async()=>{ await scanRealtime(); scheduleNext(); }, delay);
-      countdownTimer=setInterval(async()=>{
-        const cur=await getServerTimeMs();
-        const remain=Math.max(0,nextRunAt-cur);
-        progressEl.textContent=`Auto 대기: ~${Math.ceil(remain/1000)}s 후 스캔(마감+버퍼)`;
-        if(remain<=0) clearInterval(countdownTimer);
-      },1000);
-
+      const now=await getServerTimeMs(); const ms=intervalMs(); const next=Math.ceil(now/ms)*ms; const delay=Math.max(800, next-now+bufferMs); nextRunAt=now+delay;
+      clearTimers(); autoTimer=setTimeout(async()=>{ await scanRealtime(); scheduleNext(); }, delay);
+      countdownTimer=setInterval(async()=>{ const cur=await getServerTimeMs(); const remain=Math.max(0,nextRunAt-cur); progressEl.textContent=`Auto 대기: ~${Math.ceil(remain/1000)}s 후 스캔(마감+버퍼)`; if(remain<=0) clearInterval(countdownTimer); },1000);
       progressEl.textContent=`Auto 대기: ~${Math.round(delay/1000)}s 후 스캔(마감+버퍼)`;
     }
-    document.addEventListener("visibilitychange", ()=>{ if(autoToggle.checked && document.visibilityState==="visible") scheduleNext(); });
+    document.addEventListener("visibilitychange", ()=>{ if((autoToggle.checked||autoToggle2.checked) && document.visibilityState==="visible") scheduleNext(); });
 
-    /* ========= Events ========= */
-    document.getElementById("scanBtn").addEventListener("click", async ()=>{
-      if(btToggle.checked) await scanBacktest(); else await scanRealtime();
-    });
-    autoToggle.addEventListener("change", ()=>{ if(autoToggle.checked) scheduleNext(); else { clearTimers(); progressEl.textContent="Auto 해제됨."; } });
+    /* ========= Helpers & Events ========= */
+    function disableScan(on){ scanBtn.disabled=on; scanBtn2.disabled=on; }
+    scanBtn.addEventListener("click", async()=>{ if(btToggle.checked) await scanBacktest(); else await scanRealtime(); });
+    scanBtn2.addEventListener("click", async()=>{ if(btToggle.checked) await scanBacktest(); else await scanRealtime(); });
+    function syncAuto(){ autoToggle2.checked = autoToggle.checked; }
+    autoToggle.addEventListener("change", ()=>{ syncAuto(); if(autoToggle.checked) scheduleNext(); else { clearTimers(); progressEl.textContent="Auto 해제됨."; } });
+    autoToggle2.addEventListener("change", ()=>{ autoToggle.checked = autoToggle2.checked; if(autoToggle2.checked) scheduleNext(); else { clearTimers(); progressEl.textContent="Auto 해제됨."; } });
+
+    // init
+    progressEl.textContent="준비됨. ‘지금 스캔’ 또는 Auto를 켜세요.";
   </script>
 </body>
 </html>
