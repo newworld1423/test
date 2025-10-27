@@ -37,8 +37,8 @@
         <select id="sortBy" title="정렬 기준">
             <option value="pctDesc">% 변화(내림차순)</option>
             <option value="ratioDesc">하단/몸통 비율(내림차순)</option>
-            <option value="volDesc">체크일 거래량 volume(내림차순)</option>
-            <option value="txnDesc">체크일 체결수 txn(내림차순)</option>
+            <option value="volDesc">직전봉 volume(내림차순)</option>
+            <option value="txnDesc">직전봉 txn(내림차순)</option>
             <option value="symAsc">심볼 (A→Z)</option>
         </select>
         <input type="text" id="symbolFilter" placeholder="심볼 필터 (예: BTC, SOL)" />
@@ -46,7 +46,8 @@
         <span id="status" class="hint"></span>
     </div>
     <div class="hint" style="margin-top:8px">
-        * 1일봉 기준(UTC 00:00). 해머 정의: <span class="mono">하단꼬리 ≥ 2 × 몸통</span>
+        * 1일봉은 UTC 00:00 기준(한국 09:00 전환). 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> ·
+        volume/txn은 <b>직전봉</b> 값으로 표시합니다.
     </div>
 </header>
 
@@ -61,8 +62,8 @@
                 <th class="right">체크일 시가</th>
                 <th class="right">체크일 종가</th>
                 <th class="right">% 변화</th>
-                <th class="right">체크일 volume</th>
-                <th class="right">체크일 txn</th>
+                <th class="right">직전봉 volume</th>
+                <th class="right">직전봉 txn</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -94,6 +95,15 @@
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+    // 간단 디바운스
+    function debounce(fn, wait = 200) {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), wait);
+        };
+    }
+
     // ---------- Binance API ----------
     const API_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo";
     const API_K = "https://fapi.binance.com/fapi/v1/klines";
@@ -108,7 +118,8 @@
     }
 
     async function getDailyTwoCandles(symbol, targetUTCStartMs) {
-        const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000; // 전일 00:00Z
+        // targetUTCStartMs(체크일)과 그 전일의 두 개 캔들
+        const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000;
         const url = `${API_K}?symbol=${symbol}&interval=1d&startTime=${startTime}&limit=2`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`klines 오류: ${symbol}`);
@@ -119,8 +130,9 @@
             high: parseFloat(k[2]),
             low: parseFloat(k[3]),
             close: parseFloat(k[4]),
-            volume: parseFloat(k[5]),           // base asset volume (체크일 volume 용)
+            volume: parseFloat(k[5]),           // base asset volume
             closeTime: k[6],
+            quoteVolume: parseFloat(k[7]),
             numberOfTrades: parseInt(k[8], 10)  // txn
         }));
     }
@@ -132,6 +144,7 @@
         return body > 0 && lower >= 2 * body;
     }
 
+    // ---------- 스캔 ----------
     async function scan({ targetDateUTCStartMs, symbols, concurrency = 10, signal }) {
         const results = [];
         let done = 0;
@@ -146,7 +159,7 @@
                 if (isHammer(prev)) {
                     const body = Math.abs(prev.close - prev.open);
                     const lower = Math.min(prev.open, prev.close) - prev.low;
-                    const ratio = lower / body; // 하단/몸통 비율
+                    const ratio = lower / body; // 하단/몸통
 
                     results.push({
                         symbol: sym,
@@ -154,18 +167,17 @@
                         prevDate: toUTCDateStr(prev.openTime),
                         open: target.open,
                         close: target.close,
-                        changePct: pct(target.close, target.open),
+                        changePct: pct(target.close, target.open), // 체크일 등락률
                         ratio,
-                        volume: target.volume,
-                        txn: target.numberOfTrades
+                        volumePrev: prev.volume,                    // 직전봉 volume
+                        txnPrev: prev.numberOfTrades               // 직전봉 txn
                     });
                 }
             } catch (e) {
                 // 심볼별 오류는 스킵
             } finally {
                 done++;
-                const el = document.getElementById("status");
-                el.textContent = `진행: ${done}/${symbols.length}`;
+                document.getElementById("status").textContent = `진행: ${done}/${symbols.length}`;
             }
         }
 
@@ -174,14 +186,14 @@
             while (queue.length) {
                 const sym = queue.shift();
                 await worker(sym);
-                await sleep(60); // 요청 속도 조절
+                await sleep(60); // 과요청 방지
             }
         });
         await Promise.all(runners);
         return results;
     }
 
-    // ---------- UI ----------
+    // ---------- UI 상태 ----------
     const backtestEl = document.getElementById("backtest");
     const dateEl = document.getElementById("dateInput");
     const scanBtn = document.getElementById("scanBtn");
@@ -189,15 +201,22 @@
     const filterEl = document.getElementById("symbolFilter");
     const tbody = document.querySelector("#resultTable tbody");
 
+    let lastScan = [];            // 마지막 스캔 원본
+    let lastTotalSymbols = 0;     // 상태표시용
+    let aborter = null;
+
     backtestEl.addEventListener("change", () => {
         dateEl.disabled = !backtestEl.checked;
     });
+
+    sortByEl.addEventListener("change", updateView);
+    filterEl.addEventListener("input", debounce(updateView, 150));
 
     scanBtn.addEventListener("click", startScan);
 
     function getTargetUTCStartMs() {
         if (backtestEl.checked && dateEl.value) {
-            return dateToUTCStartMs(dateEl.value);
+            return dateToUTCStartMs(dateEl.value); // 선택 날짜 00:00 UTC
         } else {
             const now = new Date();
             return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -216,8 +235,8 @@
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
-                <td class="right mono">${fmt(r.volume, 2)}</td>
-                <td class="right mono">${fmtInt(r.txn)}</td>
+                <td class="right mono">${fmt(r.volumePrev, 2)}</td>
+                <td class="right mono">${fmtInt(r.txnPrev)}</td>
             `;
             tbody.appendChild(tr);
         }
@@ -235,16 +254,22 @@
         } else if (key === "ratioDesc") {
             out.sort((a, b) => (b.ratio ?? -Infinity) - (a.ratio ?? -Infinity));
         } else if (key === "volDesc") {
-            out.sort((a, b) => (b.volume ?? -Infinity) - (a.volume ?? -Infinity));
+            out.sort((a, b) => (b.volumePrev ?? -Infinity) - (a.volumePrev ?? -Infinity));
         } else if (key === "txnDesc") {
-            out.sort((a, b) => (b.txn ?? -Infinity) - (a.txn ?? -Infinity));
+            out.sort((a, b) => (b.txnPrev ?? -Infinity) - (a.txnPrev ?? -Infinity));
         } else if (key === "symAsc") {
             out.sort((a, b) => a.symbol.localeCompare(b.symbol));
         }
         return out;
     }
 
-    let aborter = null;
+    function updateView() {
+        if (!lastScan.length) return;
+        const rows = applySortAndFilter(lastScan);
+        renderRows(rows);
+        const s = document.getElementById("status");
+        s.textContent = `완료: ${rows.length}개 해머 발견 (총 ${lastTotalSymbols || rows.length})`;
+    }
 
     async function startScan() {
         scanBtn.disabled = true;
@@ -259,9 +284,9 @@
             document.getElementById("status").textContent = `총 ${symbols.length}개 심볼 스캔 중…`;
 
             const raw = await scan({ targetDateUTCStartMs: targetUTC, symbols, concurrency: 10, signal: aborter.signal });
-            const rows = applySortAndFilter(raw);
-            renderRows(rows);
-            document.getElementById("status").textContent = `완료: ${rows.length}개 해머 발견 (총 ${symbols.length})`;
+            lastScan = raw;
+            lastTotalSymbols = symbols.length;
+            updateView(); // 정렬/필터 규칙 적용해서 표시
         } catch (e) {
             document.getElementById("status").innerHTML = `<span class="err">오류: ${e.message}</span>`;
         } finally {
