@@ -48,7 +48,8 @@
         <span id="status" class="hint"></span>
     </div>
     <div class="hint" style="margin-top:6px">
-        * 1일봉 UTC 00:00(한국 09:00 전환) · 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값 · 고가 시각은 <b>1시간봉 기준</b>
+        * 표시는 모두 <b>KST(UTC+9)</b> 기준 · (참고) 바이낸스 1일봉 경계는 <b>UTC 00:00</b><br/>
+        * 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값 · 고가 시각은 <b>1시간봉</b>으로 탐색
     </div>
     <div id="metaSummary"></div>
 </header>
@@ -58,13 +59,13 @@
         <thead>
             <tr>
                 <th class="sortable" data-key="sym">심볼<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="checkDate">체크일(UTC)<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="checkDate">체크일(KST)<span class="sort-ind">⇵</span></th>
                 <th>직전봉(해머)</th>
                 <th class="sortable right" data-key="ratio">하단/몸통<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="open">체크일 시가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="close">체크일 종가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="high">체크일 고가<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="highTime">고가 시각(UTC)<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="highTime">고가 시각(KST)<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="pct">시가→종가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="highPct">시가→고가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="volPrev">직전봉 volume<span class="sort-ind">⇵</span></th>
@@ -81,20 +82,24 @@
 
 <script>
     // ---------- 유틸 ----------
-    function toUTCDateStr(ms) {
-        const d = new Date(ms);
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000; // UTC+9
+
+    function toKSTDateStr(msUTC) {
+        const d = new Date(msUTC + KST_OFFSET_MS);
         const y = d.getUTCFullYear();
         const m = String(d.getUTCMonth() + 1).padStart(2, "0");
         const day = String(d.getUTCDate()).padStart(2, "0");
         return `${y}-${m}-${day}`;
     }
-    function toUTCHHMM(ms) {
-        const d = new Date(ms);
+    function toKSTHHMM(msUTC) {
+        const d = new Date(msUTC + KST_OFFSET_MS);
         const hh = String(d.getUTCHours()).padStart(2, "0");
         const mm = String(d.getUTCMinutes()).padStart(2, "0");
         return `${hh}:${mm}`;
     }
     function dateToUTCStartMs(localDateStr) {
+        // 입력한 '로컬 달력 날짜(KST)'를 그대로 사용해도,
+        // 바이낸스 일봉은 UTC로만 존재하므로 내부 기준은 UTC 00:00(ms)로 둠.
         const [y, m, d] = localDateStr.split("-").map(Number);
         return Date.UTC(y, m - 1, d, 0, 0, 0, 0);
     }
@@ -124,7 +129,6 @@
             .map(s => s.symbol);
     }
 
-    // prev/MA 계산용: 체크일 직전까지 최대 120개 일봉
     async function getDailyHistory(symbol, targetDateUTCStartMs, limit = 120) {
         const url = `${API_K}?symbol=${symbol}&interval=1d&endTime=${targetDateUTCStartMs}&limit=${limit}`;
         const res = await fetch(url);
@@ -169,22 +173,19 @@
                 const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
                 if (hist.length < 2) return;
 
-                const idxPrev = hist.length - 1;       // 직전봉(체크일 전날)
+                const idxPrev = hist.length - 1;       // 직전봉(체크일 전날, UTC 기준)
                 const prev = hist[idxPrev];
-                const prev2 = hist[idxPrev - 1];       // 2봉전 (있을 때만)
+                const prev2 = hist[idxPrev - 1];
 
-                // 전체 직전봉 등락률 집계
                 const prevChg = pct(prev.close, prev.open);
                 if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
 
-                // 해머 스캔
                 if (!isHammer(prev)) return;
 
                 const body = Math.abs(prev.close - prev.open);
                 const lower = Math.min(prev.open, prev.close) - prev.low;
                 const ratio = lower / body;
 
-                // MA 계산 (직전봉까지의 종가 기준)
                 const closes = hist.map(h => h.close);
                 const ma7  = smaAt(closes, idxPrev, 7);
                 const ma25 = smaAt(closes, idxPrev, 25);
@@ -193,8 +194,8 @@
                 const above25 = Number.isFinite(ma25) ? (prev.close >= ma25) : null;
                 const above99 = Number.isFinite(ma99) ? (prev.close >= ma99) : null;
 
-                const checkDateStr = toUTCDateStr(targetDateUTCStartMs);
-                const prevDateStr  = toUTCDateStr(prev.openTime);
+                const checkDateMs = targetDateUTCStartMs;     // 정렬/내부 기준(UTC ms)
+                const prevDateMs  = prev.openTime;
 
                 // 체크일 시/고/종
                 let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
@@ -207,36 +208,32 @@
                             openT  = parseFloat(a2[0][1]);
                             highT  = parseFloat(a2[0][2]);
                             closeT = parseFloat(a2[0][4]);
-                            changePct = pct(closeT, openT);     // 시→종
-                            highPct   = pct(highT, openT);      // 시→고
+                            changePct = pct(closeT, openT);
+                            highPct   = pct(highT, openT);
                         }
                     }
                 } catch (e2) {
                     console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
                 }
 
-                // 체크일 고가 시각(UTC) — 1시간봉으로 탐색
+                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC)
                 let highTimeMs = null;
                 try {
                     const dayMs = 24 * 60 * 60 * 1000;
                     const start = targetDateUTCStartMs;
                     const end   = targetDateUTCStartMs + dayMs;
-                    const urlI  = `${API_K}?symbol=${sym}&interval=15m&startTime=${start}&endTime=${end}&limit=1000`;
+                    const urlI  = `${API_K}?symbol=${sym}&interval=1h&startTime=${start}&endTime=${end}&limit=1000`;
                     const r3 = await fetch(urlI);
                     if (r3.ok) {
-                        const arr = await r3.json(); // [ [openTime, open, high, low, close, ...], ... ]
+                        const arr = await r3.json();
                         if (arr.length) {
-                            // 그날 intraday 중 최고 high을 가진 첫 구간의 openTime을 시각으로 사용
-                            let maxH = -Infinity, maxIdx = -1;
+                            let maxH = -Infinity;
                             for (let i = 0; i < arr.length; i++) {
                                 const hi = parseFloat(arr[i][2]);
-                                if (hi > maxH) { maxH = hi; maxIdx = i; }
+                                if (hi > maxH) maxH = hi;
                             }
-                            if (maxIdx >= 0) {
-                                // 같은 high가 여러 번이면 "최초"를 선택
-                                const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
-                                highTimeMs = arr[(firstIdx >= 0 ? firstIdx : maxIdx)][0];
-                            }
+                            const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
+                            if (firstIdx >= 0) highTimeMs = arr[firstIdx][0];
                         }
                     }
                 } catch (e3) {
@@ -245,21 +242,21 @@
 
                 results.push({
                     symbol: sym,
-                    checkDate: checkDateStr,
-                    prevDate: prevDateStr,
+                    checkDateMs,                 // 정렬용(UTC ms)
+                    prevDateMs,
                     open: openT,
                     high: highT,
                     close: closeT,
-                    changePct,          // 시→종 %
-                    highPct,            // 시→고 %
+                    changePct,
+                    highPct,
                     ratio,
                     volumePrev: prev.volume,
                     txnPrev: prev.numberOfTrades,
-                    prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0, // 1=양봉, 0=음봉(또는 없음)
+                    prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0,
                     ma7:  above7,
                     ma25: above25,
                     ma99: above99,
-                    highTimeMs          // UTC ms (없으면 null)
+                    highTimeMs
                 });
             } catch (e) {
                 console.warn(`[${sym}] scan error:`, e?.message || e);
@@ -274,7 +271,7 @@
             while (queue.length) {
                 const sym = queue.shift();
                 await worker(sym);
-                await sleep(60); // 과요청 방지
+                await sleep(60);
             }
         });
         await Promise.all(runners);
@@ -300,9 +297,8 @@
     let lastTotalSymbols = 0;
     let aborter = null;
 
-    // 정렬 상태
-    let sortKey = "pct";   // 기본: 시→종 %
-    let sortDir = "desc";  // asc|desc
+    let sortKey = "pct";
+    let sortDir = "desc";
 
     backtestEl.addEventListener("change", () => {
         dateEl.disabled = !backtestEl.checked;
@@ -310,7 +306,6 @@
     });
     filterEl.addEventListener("input", debounce(updateView, 150));
 
-    // 헤더 클릭 정렬
     ths.forEach(th => {
         th.addEventListener("click", () => {
             const key = th.getAttribute("data-key");
@@ -331,6 +326,7 @@
             return dateToUTCStartMs(dateEl.value);
         } else {
             const now = new Date();
+            // 오늘(현지 KST의 달력 날짜)을 입력했다고 가정해도, 내부 기준은 UTC 00:00
             return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         }
     }
@@ -357,13 +353,13 @@
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td><span class="badge">USDT</span> ${r.symbol}</td>
-                <td class="mono">${r.checkDate}</td>
-                <td><span class="ok">해머</span> <span class="hint mono">(${r.prevDate})</span></td>
+                <td class="mono">${toKSTDateStr(r.checkDateMs)}</td>
+                <td><span class="ok">해머</span> <span class="hint mono">(${toKSTDateStr(r.prevDateMs)})</span></td>
                 <td class="right mono">${Number.isFinite(r.ratio) ? r.ratio.toFixed(2) + "×" : "-"}</td>
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
                 <td class="right mono">${fmt(r.high, 4)}</td>
-                <td class="mono">${r.highTimeMs ? toUTCHHMM(r.highTimeMs) : "-"}</td>
+                <td class="mono">${r.highTimeMs ? toKSTHHMM(r.highTimeMs) : "-"}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
                 <td class="right mono">${fmt(r.highPct, 2)}%</td>
                 <td class="right mono">${fmt(r.volumePrev, 2)}</td>
@@ -381,17 +377,17 @@
         const get = (o) => {
             switch (key) {
                 case "sym": return o.symbol;
-                case "checkDate": return o.checkDate;
+                case "checkDate": return o.checkDateMs;     // ms 정렬
                 case "ratio": return o.ratio;
                 case "open": return o.open;
                 case "close": return o.close;
                 case "high": return o.high;
                 case "highTime": return (o.highTimeMs == null ? -Infinity : o.highTimeMs);
-                case "pct": return o.changePct;      // 시→종
-                case "highPct": return o.highPct;    // 시→고
+                case "pct": return o.changePct;
+                case "highPct": return o.highPct;
                 case "volPrev": return o.volumePrev;
                 case "txnPrev": return o.txnPrev;
-                case "prev2Up": return o.prev2Up;    // 1/0
+                case "prev2Up": return o.prev2Up;
                 case "ma7": return o.ma7 === null ? -1 : (o.ma7 ? 1 : 0);
                 case "ma25": return o.ma25 === null ? -1 : (o.ma25 ? 1 : 0);
                 case "ma99": return o.ma99 === null ? -1 : (o.ma99 ? 1 : 0);
