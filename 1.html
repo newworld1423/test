@@ -63,7 +63,9 @@
                 <th class="sortable right" data-key="ratio">하단/몸통<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="open">체크일 시가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="close">체크일 종가<span class="sort-ind">⇵</span></th>
-                <th class="sortable right" data-key="pct">% 변화<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="high">체크일 고가<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="pct">시가→종가 %<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="highPct">시가→고가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="volPrev">직전봉 volume<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="txnPrev">직전봉 txn<span class="sort-ind">⇵</span></th>
                 <th class="sortable" data-key="prev2Up">2봉전 양/음<span class="sort-ind">⇵</span></th>
@@ -158,7 +160,7 @@
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
-                const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
+                const hist = await getDailyHistory(sym, targetUTCStartMs, 120);
                 if (hist.length < 2) return;
 
                 const idxPrev = hist.length - 1;       // 직전봉(체크일 전날)
@@ -185,24 +187,22 @@
                 const above25 = Number.isFinite(ma25) ? (prev.close >= ma25) : null;
                 const above99 = Number.isFinite(ma99) ? (prev.close >= ma99) : null;
 
-                const checkDateStr = toUTCDateStr(targetDateUTCStartMs);
+                const checkDateStr = toUTCDateStr(targetUTCStartMs);
                 const prevDateStr  = toUTCDateStr(prev.openTime);
 
-                // 체크일(=targetDate)의 시가/종가 얻기 위해 체크일 캔들 1개 더 필요할 수 있음
-                // endTime=targetUTCStartMs 로 가져온 hist에는 '체크일' 캔들은 포함되지 않으므로,
-                // 체크일 시가/종가는 별도 요청 없이 표시 생략할 수도 있지만, 기존 요구에 맞춰 추가 조회 없이 처리:
-                // 방법: 체크일 등락률은 이전 로직과 동일하게 '체크일의 시가/종가' 필요 → 간단히 2캔들 조회로 보완
-                // 여기서는 추가 호출을 피하려고 아래 간단 호출 1회:
-                let openT = NaN, closeT = NaN, changePct = NaN;
+                // 체크일 시/고/종
+                let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
                 try {
-                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
+                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetUTCStartMs}&limit=1`;
                     const r2 = await fetch(url);
                     if (r2.ok) {
                         const a2 = await r2.json();
                         if (a2.length) {
                             openT = parseFloat(a2[0][1]);
+                            highT = parseFloat(a2[0][2]);
                             closeT = parseFloat(a2[0][4]);
-                            changePct = pct(closeT, openT);
+                            changePct = pct(closeT, openT);     // 시→종
+                            highPct = pct(highT, openT);        // 시→고
                         }
                     }
                 } catch (_) {}
@@ -211,12 +211,16 @@
                     symbol: sym,
                     checkDate: checkDateStr,
                     prevDate: prevDateStr,
-                    open: openT, close: closeT, changePct,
+                    open: openT,
+                    high: highT,
+                    close: closeT,
+                    changePct,         // 시→종 %
+                    highPct,           // 시→고 %
                     ratio,
                     volumePrev: prev.volume,
                     txnPrev: prev.numberOfTrades,
                     prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0, // 1=양봉, 0=음봉(또는 없음)
-                    ma7:  above7,  // true/false/null
+                    ma7:  above7,
                     ma25: above25,
                     ma99: above99
                 });
@@ -260,7 +264,7 @@
     let aborter = null;
 
     // 정렬 상태
-    let sortKey = "pct";   // 기본: % 변화
+    let sortKey = "pct";   // 기본: 시→종 %
     let sortDir = "desc";  // asc|desc
 
     backtestEl.addEventListener("change", () => {
@@ -277,7 +281,6 @@
                 sortDir = (sortDir === "asc" ? "desc" : "asc");
             } else {
                 sortKey = key;
-                // 숫자/불리언은 기본 desc, 문자열은 asc가 자연스러우나 여기선 desc 기본
                 sortDir = (key === "sym" || key === "checkDate") ? "asc" : "desc";
             }
             updateView();
@@ -315,7 +318,9 @@
                 <td class="right mono">${Number.isFinite(r.ratio) ? r.ratio.toFixed(2) + "×" : "-"}</td>
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
+                <td class="right mono">${fmt(r.high, 4)}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
+                <td class="right mono">${fmt(r.highPct, 2)}%</td>
                 <td class="right mono">${fmt(r.volumePrev, 2)}</td>
                 <td class="right mono">${fmtInt(r.txnPrev)}</td>
                 <td>${prev2Badge}</td>
@@ -335,10 +340,12 @@
                 case "ratio": return o.ratio;
                 case "open": return o.open;
                 case "close": return o.close;
-                case "pct": return o.changePct;
+                case "high": return o.high;
+                case "pct": return o.changePct;      // 시→종
+                case "highPct": return o.highPct;    // 시→고
                 case "volPrev": return o.volumePrev;
                 case "txnPrev": return o.txnPrev;
-                case "prev2Up": return o.prev2Up;          // 1(양봉) / 0(음봉)
+                case "prev2Up": return o.prev2Up;    // 1/0
                 case "ma7": return o.ma7 === null ? -1 : (o.ma7 ? 1 : 0);
                 case "ma25": return o.ma25 === null ? -1 : (o.ma25 ? 1 : 0);
                 case "ma99": return o.ma99 === null ? -1 : (o.ma99 ? 1 : 0);
@@ -365,7 +372,8 @@
     }
 
     function updateSortIndicators() {
-        ths.forEach(th => {
+        const thsAll = Array.from(document.querySelectorAll("#resultTable thead th.sortable"));
+        thsAll.forEach(th => {
             th.classList.remove("sort-active");
             const ind = th.querySelector(".sort-ind");
             if (!ind) return;
