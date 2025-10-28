@@ -5,26 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Binance 선물 1일봉 해머 스캐너</title>
     <style>
-        :root { --bg:#0b1220; --fg:#eaeef7; --muted:#93a1b1; --accent:#4da3ff; }
+        :root { --bg:#0b1220; --fg:#eaeef7; --muted:#93a1b1; --accent:#4da3ff; --line:#1e293b; }
         * { box-sizing: border-box; }
-        body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif; background:var(--bg); color:var(--fg); }
+        body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif; background:var(--bg); color:var(--fg); }
         header { position:sticky; top:0; background:#0b1220cc; backdrop-filter: blur(6px); border-bottom:1px solid #223; padding:12px 16px; z-index:10; }
         .row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-        input, select, button, label { font-size:14px; }
-        input, select, button { padding:10px 12px; border-radius:12px; border:1px solid #334; background:#111827; color:var(--fg); }
+        input, button, label { font-size:14px; }
+        input, button { padding:10px 12px; border-radius:12px; border:1px solid #334; background:#111827; color:var(--fg); }
         button { background:var(--accent); color:#081018; border:0; font-weight:600; cursor:pointer; }
         button:disabled { opacity:0.6; cursor:not-allowed; }
         .wrap { padding:16px; }
         .hint { color:var(--muted); font-size:12px; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { padding:10px 8px; border-bottom:1px solid #1e293b; font-size:14px; }
-        th { position:sticky; top:110px; background:#0b1220; text-align:left; z-index:5; }
+        table { width:100%; border-collapse:collapse; table-layout: auto; }
+        th, td { padding:10px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
+        th { position:sticky; top:110px; background:#0b1220; text-align:left; z-index:5; white-space:nowrap; }
+        .th-top { top:110px; }
         .badge { padding:2px 8px; border-radius:999px; background:#13263b; color:#a7e1ff; font-size:12px; }
         .ok { color:#5cf1a6; }
         .err { color:#ff6b6b; }
+        .warn { color:#ffcd58; }
         .right { text-align:right; }
-        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-        #metaSummary { margin-top:6px; font-size:12px; color:#cbe4ff; }        
+        .mono { font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+        #metaSummary { margin-top:6px; font-size:12px; color:#cbe4ff; }
+        .sortable { cursor:pointer; user-select:none; }
+        .sort-ind { margin-left:6px; opacity:0.7; }
+        .sort-active .sort-ind { opacity:1; }
+        .ma-pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; line-height:1; }
+        .ma-up { background:#0f2e1f; color:#7dffc2; }
+        .ma-down { background:#2a1720; color:#ff9bb0; }
+        .yb-pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; line-height:1; }
+        .yb-up { background:#0f2e1f; color:#7dffc2; }
+        .yb-down { background:#2a1720; color:#ff9bb0; }
     </style>
 </head>
 <body>
@@ -32,13 +43,6 @@
     <div class="row">
         <label><input type="checkbox" id="backtest" /> 과거 백테스팅</label>
         <input type="date" id="dateInput" disabled />
-        <select id="sortBy" title="정렬 기준">
-            <option value="pctDesc">% 변화(내림차순)</option>
-            <option value="ratioDesc">하단/몸통 비율(내림차순)</option>
-            <option value="volDesc">직전봉 volume(내림차순)</option>
-            <option value="txnDesc">직전봉 txn(내림차순)</option>
-            <option value="symAsc">심볼 (A→Z)</option>
-        </select>
         <input type="text" id="symbolFilter" placeholder="심볼 필터 (예: BTC, SOL)" />
         <button id="scanBtn">스캔</button>
         <span id="status" class="hint"></span>
@@ -53,15 +57,19 @@
     <table id="resultTable">
         <thead>
             <tr>
-                <th>심볼</th>
-                <th>체크일(UTC)</th>
+                <th class="sortable" data-key="sym">심볼<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="checkDate">체크일(UTC)<span class="sort-ind">⇵</span></th>
                 <th>직전봉(해머)</th>
-                <th class="right">하단/몸통</th>
-                <th class="right">체크일 시가</th>
-                <th class="right">체크일 종가</th>
-                <th class="right">% 변화</th>
-                <th class="right">직전봉 volume</th>
-                <th class="right">직전봉 txn</th>
+                <th class="sortable right" data-key="ratio">하단/몸통<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="open">체크일 시가<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="close">체크일 종가<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="pct">% 변화<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="volPrev">직전봉 volume<span class="sort-ind">⇵</span></th>
+                <th class="sortable right" data-key="txnPrev">직전봉 txn<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="prev2Up">2봉전 양/음<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="ma7">7MA 위/아래<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="ma25">25MA 위/아래<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="ma99">99MA 위/아래<span class="sort-ind">⇵</span></th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -92,9 +100,7 @@
         return Math.round(n).toLocaleString("ko-KR");
     }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-    function debounce(fn, wait = 200) {
-        let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };
-    }
+    function debounce(fn, wait = 200) { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
     // ---------- Binance API ----------
     const API_INFO = "https://fapi.binance.com/fapi/v1/exchangeInfo";
@@ -109,9 +115,9 @@
             .map(s => s.symbol);
     }
 
-    async function getDailyTwoCandles(symbol, targetUTCStartMs) {
-        const startTime = targetUTCStartMs - 24 * 60 * 60 * 1000; // 전일 00:00Z
-        const url = `${API_K}?symbol=${symbol}&interval=1d&startTime=${startTime}&limit=2`;
+    // prev/MA 계산용: 체크일 직전까지 최대 120개 일봉
+    async function getDailyHistory(symbol, targetUTCStartMs, limit = 120) {
+        const url = `${API_K}?symbol=${symbol}&interval=1d&endTime=${targetUTCStartMs}&limit=${limit}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`klines 오류: ${symbol}`);
         const arr = await res.json();
@@ -121,61 +127,99 @@
             high: parseFloat(k[2]),
             low: parseFloat(k[3]),
             close: parseFloat(k[4]),
-            volume: parseFloat(k[5]),           // base asset volume
+            volume: parseFloat(k[5]),
             closeTime: k[6],
             quoteVolume: parseFloat(k[7]),
-            numberOfTrades: parseInt(k[8], 10)  // txn
+            numberOfTrades: parseInt(k[8], 10)
         }));
     }
 
-    // 해머 정의: 아래꼬리 ≥ 2 × 몸통
-    function isHammer(prev) {
-        const body = Math.abs(prev.close - prev.open);
-        const lower = Math.min(prev.open, prev.close) - prev.low;
+    // 해머: 아래꼬리 ≥ 2 × 몸통
+    function isHammer(c) {
+        const body = Math.abs(c.close - c.open);
+        const lower = Math.min(c.open, c.close) - c.low;
         return body > 0 && lower >= 2 * body;
     }
 
-    // ---------- 스캔 ----------
-    async function scan({ targetDateUTCStartMs, symbols, concurrency = 10, signal }) {
-        const results = [];
+    function smaAt(closes, endIndex, n) {
+        if (endIndex + 1 < n) return NaN;
+        let sum = 0;
+        for (let i = endIndex - n + 1; i <= endIndex; i++) sum += closes[i];
+        return sum / n;
+    }
 
-        // 전체 코인 직전봉 등락률 집계용
-        let prevSumPct = 0;
-        let prevCount = 0;
+    // ---------- 스캔 ----------
+    async function scan({ targetDateUTCStartMs, symbols, concurrency = 9, signal }) {
+        const results = [];
+        // 전체코인 직전봉 평균 등락률 집계
+        let prevSumPct = 0, prevCount = 0;
 
         let done = 0;
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
-                const candles = await getDailyTwoCandles(sym, targetDateUTCStartMs);
-                if (candles.length < 2) return;
-                const [prev, target] = candles;
+                const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
+                if (hist.length < 2) return;
 
-                // 전체코인 직전봉 등락률 집계
+                const idxPrev = hist.length - 1;       // 직전봉(체크일 전날)
+                const prev = hist[idxPrev];
+                const prev2 = hist[idxPrev - 1];       // 2봉전 (있을 때만)
+
+                // 전체 직전봉 등락률 집계
                 const prevChg = pct(prev.close, prev.open);
-                if (Number.isFinite(prevChg)) {
-                    prevSumPct += prevChg;
-                    prevCount += 1;
-                }
+                if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
 
-                // 직전봉 해머인 경우 결과 수집
-                if (isHammer(prev)) {
-                    const body = Math.abs(prev.close - prev.open);
-                    const lower = Math.min(prev.open, prev.close) - prev.low;
-                    const ratio = lower / body;
+                // 해머 스캔
+                if (!isHammer(prev)) return;
 
-                    results.push({
-                        symbol: sym,
-                        checkDate: toUTCDateStr(targetDateUTCStartMs),
-                        prevDate: toUTCDateStr(prev.openTime),
-                        open: target.open,
-                        close: target.close,
-                        changePct: pct(target.close, target.open), // 체크일 등락률
-                        ratio,
-                        volumePrev: prev.volume,                    // 직전봉 volume
-                        txnPrev: prev.numberOfTrades               // 직전봉 txn
-                    });
-                }
+                const body = Math.abs(prev.close - prev.open);
+                const lower = Math.min(prev.open, prev.close) - prev.low;
+                const ratio = lower / body;
+
+                // MA 계산 (직전봉까지의 종가 기준)
+                const closes = hist.map(h => h.close);
+                const ma7  = smaAt(closes, idxPrev, 7);
+                const ma25 = smaAt(closes, idxPrev, 25);
+                const ma99 = smaAt(closes, idxPrev, 99);
+                const above7  = Number.isFinite(ma7)  ? (prev.close >= ma7)  : null;
+                const above25 = Number.isFinite(ma25) ? (prev.close >= ma25) : null;
+                const above99 = Number.isFinite(ma99) ? (prev.close >= ma99) : null;
+
+                const checkDateStr = toUTCDateStr(targetDateUTCStartMs);
+                const prevDateStr  = toUTCDateStr(prev.openTime);
+
+                // 체크일(=targetDate)의 시가/종가 얻기 위해 체크일 캔들 1개 더 필요할 수 있음
+                // endTime=targetUTCStartMs 로 가져온 hist에는 '체크일' 캔들은 포함되지 않으므로,
+                // 체크일 시가/종가는 별도 요청 없이 표시 생략할 수도 있지만, 기존 요구에 맞춰 추가 조회 없이 처리:
+                // 방법: 체크일 등락률은 이전 로직과 동일하게 '체크일의 시가/종가' 필요 → 간단히 2캔들 조회로 보완
+                // 여기서는 추가 호출을 피하려고 아래 간단 호출 1회:
+                let openT = NaN, closeT = NaN, changePct = NaN;
+                try {
+                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
+                    const r2 = await fetch(url);
+                    if (r2.ok) {
+                        const a2 = await r2.json();
+                        if (a2.length) {
+                            openT = parseFloat(a2[0][1]);
+                            closeT = parseFloat(a2[0][4]);
+                            changePct = pct(closeT, openT);
+                        }
+                    }
+                } catch (_) {}
+
+                results.push({
+                    symbol: sym,
+                    checkDate: checkDateStr,
+                    prevDate: prevDateStr,
+                    open: openT, close: closeT, changePct,
+                    ratio,
+                    volumePrev: prev.volume,
+                    txnPrev: prev.numberOfTrades,
+                    prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0, // 1=양봉, 0=음봉(또는 없음)
+                    ma7:  above7,  // true/false/null
+                    ma25: above25,
+                    ma99: above99
+                });
             } catch (e) {
                 // 심볼별 오류는 스킵
             } finally {
@@ -189,7 +233,7 @@
             while (queue.length) {
                 const sym = queue.shift();
                 await worker(sym);
-                await sleep(60); // 과요청 방지
+                await sleep(60);
             }
         });
         await Promise.all(runners);
@@ -205,23 +249,41 @@
     const backtestEl = document.getElementById("backtest");
     const dateEl = document.getElementById("dateInput");
     const scanBtn = document.getElementById("scanBtn");
-    const sortByEl = document.getElementById("sortBy");
     const filterEl = document.getElementById("symbolFilter");
     const tbody = document.querySelector("#resultTable tbody");
     const metaSummaryEl = document.getElementById("metaSummary");
+    const ths = Array.from(document.querySelectorAll("#resultTable thead th.sortable"));
 
-    let lastScan = [];            // 마지막 스캔 원본(해머 대상들)
-    let lastMeta = null;          // 마지막 메타(전체코인 직전봉 평균 등)
-    let lastTotalSymbols = 0;     // 상태표시용
+    let lastScan = [];
+    let lastMeta = null;
+    let lastTotalSymbols = 0;
     let aborter = null;
+
+    // 정렬 상태
+    let sortKey = "pct";   // 기본: % 변화
+    let sortDir = "desc";  // asc|desc
 
     backtestEl.addEventListener("change", () => {
         dateEl.disabled = !backtestEl.checked;
-        updateMetaSummary(); // 표시/숨김 갱신
+        updateMetaSummary();
+    });
+    filterEl.addEventListener("input", debounce(updateView, 150));
+
+    // 헤더 클릭 정렬
+    ths.forEach(th => {
+        th.addEventListener("click", () => {
+            const key = th.getAttribute("data-key");
+            if (sortKey === key) {
+                sortDir = (sortDir === "asc" ? "desc" : "asc");
+            } else {
+                sortKey = key;
+                // 숫자/불리언은 기본 desc, 문자열은 asc가 자연스러우나 여기선 desc 기본
+                sortDir = (key === "sym" || key === "checkDate") ? "asc" : "desc";
+            }
+            updateView();
+        });
     });
 
-    sortByEl.addEventListener("change", updateView);
-    filterEl.addEventListener("input", debounce(updateView, 150));
     scanBtn.addEventListener("click", startScan);
 
     function getTargetUTCStartMs() {
@@ -236,6 +298,15 @@
     function renderRows(rows) {
         tbody.innerHTML = "";
         for (const r of rows) {
+            const prev2Badge = r.prev2Up === 1
+                ? `<span class="yb-pill yb-up">양봉</span>`
+                : `<span class="yb-pill yb-down">음봉</span>`;
+
+            const maCell = (ok) => {
+                if (ok === null) return `<span class="ma-pill warn">데이터부족</span>`;
+                return ok ? `<span class="ma-pill ma-up">위</span>` : `<span class="ma-pill ma-down">아래</span>`;
+            };
+
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td><span class="badge">USDT</span> ${r.symbol}</td>
@@ -247,30 +318,64 @@
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
                 <td class="right mono">${fmt(r.volumePrev, 2)}</td>
                 <td class="right mono">${fmtInt(r.txnPrev)}</td>
+                <td>${prev2Badge}</td>
+                <td>${maCell(r.ma7)}</td>
+                <td>${maCell(r.ma25)}</td>
+                <td>${maCell(r.ma99)}</td>
             `;
             tbody.appendChild(tr);
         }
     }
 
+    function compare(a, b, key) {
+        const get = (o) => {
+            switch (key) {
+                case "sym": return o.symbol;
+                case "checkDate": return o.checkDate;
+                case "ratio": return o.ratio;
+                case "open": return o.open;
+                case "close": return o.close;
+                case "pct": return o.changePct;
+                case "volPrev": return o.volumePrev;
+                case "txnPrev": return o.txnPrev;
+                case "prev2Up": return o.prev2Up;          // 1(양봉) / 0(음봉)
+                case "ma7": return o.ma7 === null ? -1 : (o.ma7 ? 1 : 0);
+                case "ma25": return o.ma25 === null ? -1 : (o.ma25 ? 1 : 0);
+                case "ma99": return o.ma99 === null ? -1 : (o.ma99 ? 1 : 0);
+                default: return o.changePct;
+            }
+        };
+        const va = get(a), vb = get(b);
+        if (typeof va === "string" || typeof vb === "string") {
+            return va.localeCompare(vb);
+        }
+        return (va ?? -Infinity) - (vb ?? -Infinity);
+    }
+
     function applySortAndFilter(arr) {
-        const key = sortByEl.value;
         const term = filterEl.value.trim().toUpperCase();
         let out = arr.slice();
-
         if (term) out = out.filter(r => r.symbol.includes(term));
 
-        if (key === "pctDesc") {
-            out.sort((a, b) => b.changePct - a.changePct);
-        } else if (key === "ratioDesc") {
-            out.sort((a, b) => (b.ratio ?? -Infinity) - (a.ratio ?? -Infinity));
-        } else if (key === "volDesc") {
-            out.sort((a, b) => (b.volumePrev ?? -Infinity) - (a.volumePrev ?? -Infinity));
-        } else if (key === "txnDesc") {
-            out.sort((a, b) => (b.txnPrev ?? -Infinity) - (a.txnPrev ?? -Infinity));
-        } else if (key === "symAsc") {
-            out.sort((a, b) => a.symbol.localeCompare(b.symbol));
-        }
+        out.sort((a, b) => {
+            const c = compare(a, b, sortKey);
+            return sortDir === "asc" ? c : -c;
+        });
         return out;
+    }
+
+    function updateSortIndicators() {
+        ths.forEach(th => {
+            th.classList.remove("sort-active");
+            const ind = th.querySelector(".sort-ind");
+            if (!ind) return;
+            if (th.getAttribute("data-key") === sortKey) {
+                th.classList.add("sort-active");
+                ind.textContent = sortDir === "asc" ? "▲" : "▼";
+            } else {
+                ind.textContent = "⇵";
+            }
+        });
     }
 
     function updateMetaSummary() {
@@ -283,11 +388,12 @@
     }
 
     function updateView() {
-        if (!lastScan.length) return;
+        if (!lastScan.length) { updateSortIndicators(); return; }
         const rows = applySortAndFilter(lastScan);
         renderRows(rows);
         document.getElementById("status").textContent =
             `완료: ${rows.length}개 해머 발견 (총 ${lastTotalSymbols || rows.length})`;
+        updateSortIndicators();
         updateMetaSummary();
     }
 
@@ -307,14 +413,14 @@
             const { results, meta } = await scan({
                 targetDateUTCStartMs: targetUTC,
                 symbols,
-                concurrency: 10,
+                concurrency: 9,
                 signal: aborter.signal
             });
 
             lastScan = results;
             lastMeta = meta;
             lastTotalSymbols = symbols.length;
-            updateView(); // 정렬/필터 적용 + 요약 표시
+            updateView();
         } catch (e) {
             document.getElementById("status").innerHTML = `<span class="err">오류: ${e.message}</span>`;
         } finally {
