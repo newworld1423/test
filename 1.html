@@ -48,7 +48,7 @@
         <span id="status" class="hint"></span>
     </div>
     <div class="hint" style="margin-top:6px">
-        * 1일봉 UTC 00:00(한국 09:00 전환) · 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값
+        * 1일봉 UTC 00:00(한국 09:00 전환) · 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값 · 고가 시각은 <b>1시간봉 기준</b>
     </div>
     <div id="metaSummary"></div>
 </header>
@@ -64,6 +64,7 @@
                 <th class="sortable right" data-key="open">체크일 시가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="close">체크일 종가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="high">체크일 고가<span class="sort-ind">⇵</span></th>
+                <th class="sortable" data-key="highTime">고가 시각(UTC)<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="pct">시가→종가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="highPct">시가→고가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="volPrev">직전봉 volume<span class="sort-ind">⇵</span></th>
@@ -86,6 +87,12 @@
         const m = String(d.getUTCMonth() + 1).padStart(2, "0");
         const day = String(d.getUTCDate()).padStart(2, "0");
         return `${y}-${m}-${day}`;
+    }
+    function toUTCHHMM(ms) {
+        const d = new Date(ms);
+        const hh = String(d.getUTCHours()).padStart(2, "0");
+        const mm = String(d.getUTCMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
     }
     function dateToUTCStartMs(localDateStr) {
         const [y, m, d] = localDateStr.split("-").map(Number);
@@ -159,7 +166,6 @@
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
-                // ✔ 변수명 통일: targetDateUTCStartMs
                 const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
                 if (hist.length < 2) return;
 
@@ -190,7 +196,7 @@
                 const checkDateStr = toUTCDateStr(targetDateUTCStartMs);
                 const prevDateStr  = toUTCDateStr(prev.openTime);
 
-                // ✔ 체크일(=targetDateUTCStartMs) 시/고/종 1회 조회
+                // 체크일 시/고/종
                 let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
                 try {
                     const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
@@ -198,15 +204,43 @@
                     if (r2.ok) {
                         const a2 = await r2.json();
                         if (a2.length) {
-                            openT = parseFloat(a2[0][1]);
-                            highT = parseFloat(a2[0][2]);
+                            openT  = parseFloat(a2[0][1]);
+                            highT  = parseFloat(a2[0][2]);
                             closeT = parseFloat(a2[0][4]);
-                            changePct = pct(closeT, openT);  // 시→종
-                            highPct   = pct(highT, openT);   // 시→고
+                            changePct = pct(closeT, openT);     // 시→종
+                            highPct   = pct(highT, openT);      // 시→고
                         }
                     }
                 } catch (e2) {
                     console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
+                }
+
+                // 체크일 고가 시각(UTC) — 1시간봉으로 탐색
+                let highTimeMs = null;
+                try {
+                    const dayMs = 24 * 60 * 60 * 1000;
+                    const start = targetDateUTCStartMs;
+                    const end   = targetDateUTCStartMs + dayMs;
+                    const urlI  = `${API_K}?symbol=${sym}&interval=15m&startTime=${start}&endTime=${end}&limit=1000`;
+                    const r3 = await fetch(urlI);
+                    if (r3.ok) {
+                        const arr = await r3.json(); // [ [openTime, open, high, low, close, ...], ... ]
+                        if (arr.length) {
+                            // 그날 intraday 중 최고 high을 가진 첫 구간의 openTime을 시각으로 사용
+                            let maxH = -Infinity, maxIdx = -1;
+                            for (let i = 0; i < arr.length; i++) {
+                                const hi = parseFloat(arr[i][2]);
+                                if (hi > maxH) { maxH = hi; maxIdx = i; }
+                            }
+                            if (maxIdx >= 0) {
+                                // 같은 high가 여러 번이면 "최초"를 선택
+                                const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
+                                highTimeMs = arr[(firstIdx >= 0 ? firstIdx : maxIdx)][0];
+                            }
+                        }
+                    }
+                } catch (e3) {
+                    console.warn(`[${sym}] intraday high-time warn:`, e3?.message || e3);
                 }
 
                 results.push({
@@ -224,10 +258,10 @@
                     prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0, // 1=양봉, 0=음봉(또는 없음)
                     ma7:  above7,
                     ma25: above25,
-                    ma99: above99
+                    ma99: above99,
+                    highTimeMs          // UTC ms (없으면 null)
                 });
             } catch (e) {
-                // ✔ 이제 심볼별 오류가 콘솔에 보입니다.
                 console.warn(`[${sym}] scan error:`, e?.message || e);
             } finally {
                 done++;
@@ -305,7 +339,7 @@
         tbody.innerHTML = "";
         if (!rows.length) {
             const tr = document.createElement("tr");
-            tr.innerHTML = `<td class="empty" colspan="15">조건에 맞는 결과가 없습니다.</td>`;
+            tr.innerHTML = `<td class="empty" colspan="16">조건에 맞는 결과가 없습니다.</td>`;
             tbody.appendChild(tr);
             return;
         }
@@ -329,6 +363,7 @@
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
                 <td class="right mono">${fmt(r.high, 4)}</td>
+                <td class="mono">${r.highTimeMs ? toUTCHHMM(r.highTimeMs) : "-"}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
                 <td class="right mono">${fmt(r.highPct, 2)}%</td>
                 <td class="right mono">${fmt(r.volumePrev, 2)}</td>
@@ -351,6 +386,7 @@
                 case "open": return o.open;
                 case "close": return o.close;
                 case "high": return o.high;
+                case "highTime": return (o.highTimeMs == null ? -Infinity : o.highTimeMs);
                 case "pct": return o.changePct;      // 시→종
                 case "highPct": return o.highPct;    // 시→고
                 case "volPrev": return o.volumePrev;
@@ -364,7 +400,7 @@
         };
         const va = get(a), vb = get(b);
         if (typeof va === "string" || typeof vb === "string") {
-            return va.localeCompare(vb);
+            return String(va).localeCompare(String(vb));
         }
         return (va ?? -Infinity) - (vb ?? -Infinity);
     }
@@ -428,7 +464,7 @@
             document.getElementById("status").textContent = `총 ${symbols.length}개 심볼 스캔 중…`;
 
             const { results, meta } = await scan({
-                targetDateUTCStartMs: targetUTC,   // ✔ 이름 통일
+                targetDateUTCStartMs: targetUTC,
                 symbols,
                 concurrency: 9,
                 signal: aborter.signal
