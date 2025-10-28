@@ -19,7 +19,6 @@
         table { width:100%; border-collapse:collapse; table-layout: auto; }
         th, td { padding:10px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
         th { position:sticky; top:110px; background:#0b1220; text-align:left; z-index:5; white-space:nowrap; }
-        .th-top { top:110px; }
         .badge { padding:2px 8px; border-radius:999px; background:#13263b; color:#a7e1ff; font-size:12px; }
         .ok { color:#5cf1a6; }
         .err { color:#ff6b6b; }
@@ -36,6 +35,7 @@
         .yb-pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; line-height:1; }
         .yb-up { background:#0f2e1f; color:#7dffc2; }
         .yb-down { background:#2a1720; color:#ff9bb0; }
+        .empty { color:#9fb1c6; text-align:center; padding:24px 8px; }
     </style>
 </head>
 <body>
@@ -118,8 +118,8 @@
     }
 
     // prev/MA 계산용: 체크일 직전까지 최대 120개 일봉
-    async function getDailyHistory(symbol, targetUTCStartMs, limit = 120) {
-        const url = `${API_K}?symbol=${symbol}&interval=1d&endTime=${targetUTCStartMs}&limit=${limit}`;
+    async function getDailyHistory(symbol, targetDateUTCStartMs, limit = 120) {
+        const url = `${API_K}?symbol=${symbol}&interval=1d&endTime=${targetDateUTCStartMs}&limit=${limit}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`klines 오류: ${symbol}`);
         const arr = await res.json();
@@ -153,14 +153,14 @@
     // ---------- 스캔 ----------
     async function scan({ targetDateUTCStartMs, symbols, concurrency = 9, signal }) {
         const results = [];
-        // 전체코인 직전봉 평균 등락률 집계
         let prevSumPct = 0, prevCount = 0;
-
         let done = 0;
+
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
-                const hist = await getDailyHistory(sym, targetUTCStartMs, 120);
+                // ✔ 변수명 통일: targetDateUTCStartMs
+                const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
                 if (hist.length < 2) return;
 
                 const idxPrev = hist.length - 1;       // 직전봉(체크일 전날)
@@ -187,13 +187,13 @@
                 const above25 = Number.isFinite(ma25) ? (prev.close >= ma25) : null;
                 const above99 = Number.isFinite(ma99) ? (prev.close >= ma99) : null;
 
-                const checkDateStr = toUTCDateStr(targetUTCStartMs);
+                const checkDateStr = toUTCDateStr(targetDateUTCStartMs);
                 const prevDateStr  = toUTCDateStr(prev.openTime);
 
-                // 체크일 시/고/종
+                // ✔ 체크일(=targetDateUTCStartMs) 시/고/종 1회 조회
                 let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
                 try {
-                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetUTCStartMs}&limit=1`;
+                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
                     const r2 = await fetch(url);
                     if (r2.ok) {
                         const a2 = await r2.json();
@@ -201,11 +201,13 @@
                             openT = parseFloat(a2[0][1]);
                             highT = parseFloat(a2[0][2]);
                             closeT = parseFloat(a2[0][4]);
-                            changePct = pct(closeT, openT);     // 시→종
-                            highPct = pct(highT, openT);        // 시→고
+                            changePct = pct(closeT, openT);  // 시→종
+                            highPct   = pct(highT, openT);   // 시→고
                         }
                     }
-                } catch (_) {}
+                } catch (e2) {
+                    console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
+                }
 
                 results.push({
                     symbol: sym,
@@ -214,8 +216,8 @@
                     open: openT,
                     high: highT,
                     close: closeT,
-                    changePct,         // 시→종 %
-                    highPct,           // 시→고 %
+                    changePct,          // 시→종 %
+                    highPct,            // 시→고 %
                     ratio,
                     volumePrev: prev.volume,
                     txnPrev: prev.numberOfTrades,
@@ -225,7 +227,8 @@
                     ma99: above99
                 });
             } catch (e) {
-                // 심볼별 오류는 스킵
+                // ✔ 이제 심볼별 오류가 콘솔에 보입니다.
+                console.warn(`[${sym}] scan error:`, e?.message || e);
             } finally {
                 done++;
                 document.getElementById("status").textContent = `진행: ${done}/${symbols.length}`;
@@ -237,7 +240,7 @@
             while (queue.length) {
                 const sym = queue.shift();
                 await worker(sym);
-                await sleep(60);
+                await sleep(60); // 과요청 방지
             }
         });
         await Promise.all(runners);
@@ -300,6 +303,13 @@
 
     function renderRows(rows) {
         tbody.innerHTML = "";
+        if (!rows.length) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td class="empty" colspan="15">조건에 맞는 결과가 없습니다.</td>`;
+            tbody.appendChild(tr);
+            return;
+        }
+
         for (const r of rows) {
             const prev2Badge = r.prev2Up === 1
                 ? `<span class="yb-pill yb-up">양봉</span>`
@@ -363,7 +373,6 @@
         const term = filterEl.value.trim().toUpperCase();
         let out = arr.slice();
         if (term) out = out.filter(r => r.symbol.includes(term));
-
         out.sort((a, b) => {
             const c = compare(a, b, sortKey);
             return sortDir === "asc" ? c : -c;
@@ -419,7 +428,7 @@
             document.getElementById("status").textContent = `총 ${symbols.length}개 심볼 스캔 중…`;
 
             const { results, meta } = await scan({
-                targetDateUTCStartMs: targetUTC,
+                targetDateUTCStartMs: targetUTC,   // ✔ 이름 통일
                 symbols,
                 concurrency: 9,
                 signal: aborter.signal
