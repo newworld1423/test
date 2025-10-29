@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>Binance Perp USDT — 1D 직전봉 단일캔들 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --card: #121318;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --warn: #ffd54f;
+            --border: #2a2e36;
+        }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
+                         "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
+                         "Segoe UI Emoji";
+            background: var(--bg);
+            color: var(--text);
+        }
+        header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #0f1116, #0b0c10);
+        }
+        h1 {
+            margin: 0 0 6px 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .sub {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .wrap {
+            padding: 16px 20px 40px;
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+        .field {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .field input[type="date"],
+        .field input[type="text"],
+        .field input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #0c0d12;
+            color: var(--text);
+            font-size: 14px;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #1a1f2b;
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.primary { background: var(--accent); color: #001f33; border: none; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .progress {
+            margin: 12px 0 0;
+            height: 8px;
+            background: #0f1320;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .bar { height: 100%; width: 0%; background: linear-gradient(90deg,#3ea6ff,#7cf3ff); }
+
+        .summary {
+            margin: 16px 0;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .chip {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .chip strong { color: var(--text); }
+
+        .table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            background: var(--card);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #111319;
+            z-index: 2;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            white-space: nowrap;
+        }
+        thead th:first-child,
+        tbody td:first-child { text-align: left; }
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            text-align: right;
+            white-space: nowrap;
+        }
+        tbody tr:hover { background: rgba(62,166,255,0.06); }
+        .num.pos { color: var(--good); }
+        .num.neg { color: var(--bad); }
+        .muted { color: var(--muted); }
+
+        .head-flex {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .sort-arrows {
+            display: inline-flex;
+            gap: 2px;
+        }
+        .sort-arrows button {
+            border: 1px solid var(--border);
+            background: #0f1320;
+            padding: 2px 6px;
+            line-height: 1;
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+        .sort-arrows button.active { color: var(--accent); border-color: var(--accent); }
+
+        .searchline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0 16px;
+        }
+        .searchline input {
+            width: 240px;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #0c0d12;
+            color: var(--text);
+        }
+        .note { font-size: 12px; color: var(--muted); }
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
+        .pill.ok { background: rgba(0,200,83,.15); color: var(--good); }
+        .pill.no { background: rgba(255,82,82,.15); color: var(--bad); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>1일봉 직전봉 단일캔들 스캐너 (Binance Perp USDT)</h1>
+        <div class="sub">선택한 날짜(UTC)의 <strong>직전봉</strong> 하나만으로 점수/상승확률(추정)을 계산합니다. 백테스트를 켜면 해당 날짜의 실제 결과(Open→Close)도 확인합니다.</div>
+    </header>
+
+    <div class="wrap">
+        <div class="controls">
+            <div class="field">
+                <label>스캔 기준 날짜 (UTC 00:00:00Z)</label>
+                <input id="dateInput" type="date" />
+                <div class="note" style="margin-top:6px;">※ Binance 1D 캔들은 <strong>UTC</strong> 기준입니다.</div>
+            </div>
+            <div class="field">
+                <label>옵션</label>
+                <div>
+                    <label><input id="backtestChk" type="checkbox" /> 백테스트 (D일 실제 결과 포함)</label>
+                </div>
+                <div style="margin-top:6px;">
+                    <label><input id="minQuoteVolChk" type="checkbox" /> 직전봉 거래대금 하한(USDT)</label>
+                    <input id="minQuoteVol" type="number" placeholder="예: 5,000,000" style="margin-top:6px;" />
+                    <div class="note">※ 유동성 낮은 종목 제외용(선택)</div>
+                </div>
+            </div>
+            <div class="field">
+                <label>검색</label>
+                <div class="searchline">
+                    <input id="searchSym" type="text" placeholder="심볼 필터 (예: BTC, ETH...)" />
+                    <span class="note">표시된 목록 실시간 필터</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button id="scanBtn" class="primary">스캔 시작</button>
+                <button id="stopBtn">중지</button>
+            </div>
+        </div>
+
+        <div class="summary" id="summary"></div>
+
+        <div class="progress"><div class="bar" id="bar"></div></div>
+
+        <div class="table-wrap" style="margin-top:14px;">
+            <table id="resultTable">
+                <thead id="thead"></thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+
+        <p class="note" style="margin-top:12px;">
+            * 점수 산식(직전봉 하나만 사용): <code>Score = 0.5·(방향×몸통비율) + 0.3·(2·CLV−1) + 0.2·(아랫꼬리−윗꼬리) + 0.1·tanh(범위%) + 0.1·(직전봉 USDT 거래대금 z)</code><br>
+            * <strong>상승확률(추정)</strong>은 동일 시점 전체 심볼의 점수 분포를 z-score로 정규화 후 시그모이드로 변환한 상대적 확률값입니다.
+        </p>
+    </div>
+
+    <script>
+        "use strict";
+
+        // ==========================
+        // 유틸
+        // ==========================
+        function toUTCDateString(date = new Date()) {
+            const y = date.getUTCFullYear();
+            const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+            const d = String(date.getUTCDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+        function parseDateUTC(yyyy_mm_dd) {
+            // "YYYY-MM-DD" → UTC 00:00:00.000
+            return new Date(`${yyyy_mm_dd}T00:00:00.000Z`);
+        }
+        function clamp01(x) {
+            return Math.max(0, Math.min(1, x));
+        }
+        function tanh(x) {
+            const e2x = Math.exp(2 * x);
+            return (e2x - 1) / (e2x + 1);
+        }
+        function sigmoid(x) {
+            return 1 / (1 + Math.exp(-x));
+        }
+        function mean(arr) {
+            if (!arr.length) return 0;
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+        function stddev(arr) {
+            if (arr.length <= 1) return 1;
+            const m = mean(arr);
+            const v = mean(arr.map(x => (x - m) ** 2));
+            return Math.sqrt(v) || 1;
+        }
+        function fmtNum(x, d = 2) {
+            if (x === null || x === undefined || Number.isNaN(x)) return "-";
+            const v = Number(x);
+            const abs = Math.abs(v);
+            if (abs >= 1e10) return v.toExponential(2);
+            return v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+        }
+        function fmtPct(x, d = 2) {
+            if (x === null || x === undefined || Number.isNaN(x)) return "-";
+            const v = Number(x);
+            const cls = v >= 0 ? "pos" : "neg";
+            return `<span class="num ${cls}">${fmtNum(v, d)}%</span>`;
+        }
+        function el(tag, attrs = {}, html = "") {
+            const e = document.createElement(tag);
+            Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+            e.innerHTML = html;
+            return e;
+        }
+
+        // ==========================
+        // 컬럼 정의
+        // ==========================
+        const BASE_COLUMNS = [
+            { key: "symbol", label: "심볼" },
+            { key: "prevOpen", label: "O-1" },
+            { key: "prevHigh", label: "H-1" },
+            { key: "prevLow",  label: "L-1" },
+            { key: "prevClose",label: "C-1" },
+            { key: "chgPct",   label: "등락률(%)" },
+            { key: "rangePct", label: "범위(%)" },
+            { key: "bodyPct",  label: "몸통비율" },
+            { key: "upperW",   label: "윗꼬리" },
+            { key: "lowerW",   label: "아랫꼬리" },
+            { key: "clv",      label: "CLV" },
+            { key: "quoteVol", label: "거래대금(USDT)" },
+            { key: "score",    label: "스코어" },
+            { key: "prob",     label: "상승확률(추정)" },
+        ];
+        const BACKTEST_COLUMNS = [
+            { key: "dayOpen",   label: "D 시가" },
+            { key: "dayClose",  label: "D 종가" },
+            { key: "dayRetPct", label: "D 수익률(%)" },
+            { key: "result",    label: "결과" },
+        ];
+
+        // ==========================
+        // Binance API
+        // ==========================
+        const BASE = "https://fapi.binance.com";
+
+        async function fetchUSDTPerpSymbols(abortSignal) {
+            const url = `${BASE}/fapi/v1/exchangeInfo`;
+            const res = await fetch(url, { signal: abortSignal });
+            if (!res.ok) throw new Error("exchangeInfo error");
+            const data = await res.json();
+            const syms = data.symbols
+                .filter(s =>
+                    s.status === "TRADING" &&
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT"
+                )
+                .map(s => s.symbol);
+            return syms;
+        }
+
+        async function fetchDailyCandle(symbol, openTimeMs, abortSignal) {
+            // 정확히 하나의 캔들을 가져오도록 openTime ~ openTime+1d
+            const start = openTimeMs;
+            const end = openTimeMs + 24 * 60 * 60 * 1000 - 1;
+            const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&startTime=${start}&endTime=${end}&limit=1`;
+            const res = await fetch(url, { signal: abortSignal });
+            if (!res.ok) throw new Error(`klines error ${symbol}`);
+            const arr = await res.json();
+            // 형식: [0 openTime, 1 open, 2 high, 3 low, 4 close, 5 volume, 6 closeTime, 7 quoteAssetVolume, 8 trades, 9 takerBuyBase, 10 takerBuyQuote, 11 ignore]
+            if (!Array.isArray(arr) || !arr.length) return null;
+            const k = arr[0];
+            return {
+                symbol,
+                openTime: Number(k[0]),
+                open: Number(k[1]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+                volume: Number(k[5]),
+                closeTime: Number(k[6]),
+                quoteVolume: Number(k[7]),
+                trades: Number(k[8]),
+                takerBuyBase: Number(k[9]),
+                takerBuyQuote: Number(k[10]),
+            };
+        }
+
+        // ==========================
+        // 점수/확률 계산 (직전봉 하나)
+        // ==========================
+        function featuresFromCandle(k) {
+            // 안전 처리
+            const O = k.open, H = k.high, L = k.low, C = k.close;
+            const QV = k.quoteVolume ?? 0;
+            const range = Math.max(1e-12, (H - L));
+            const body = Math.abs(C - O);
+            const dir = (C > O) ? 1 : (C < O) ? -1 : 0;
+
+            const bodyPct = body / range; // [0..1]
+            const upper = H - Math.max(C, O);
+            const lower = Math.min(C, O) - L;
+            const upperW = upper / range; // [0..1]
+            const lowerW = lower / range; // [0..1]
+            const clv = (C - L) / range;  // [0..1], close location value
+            const chgPct = (C - O) / (O || 1e-12) * 100;
+            const rangePct = (H - L) / (O || 1e-12) * 100;
+
+            return {
+                dir, bodyPct, upperW, lowerW, clv,
+                chgPct, rangePct, quoteVol: QV
+            };
+        }
+
+        function buildScores(rows) {
+            // 거래대금 정규화용 (log)
+            const logs = rows.map(r => Math.log10(Math.max(1, r.features.quoteVol)));
+            const mu = mean(logs), sd = stddev(logs);
+            rows.forEach(r => {
+                const vZ = (Math.log10(Math.max(1, r.features.quoteVol)) - mu) / sd;
+                const f = r.features;
+                // 가중치 (조정 가능)
+                const score =
+                    0.5 * (f.dir * f.bodyPct) +
+                    0.3 * ((2 * f.clv) - 1) +
+                    0.2 * (f.lowerW - f.upperW) +
+                    0.1 * tanh(f.rangePct / 10) +
+                    0.1 * vZ;
+
+                r.score = score;
+                r._volZ = vZ;
+            });
+            // 확률(상대) 변환: 점수 자체 z-score → 시그모이드
+            const sArr = rows.map(r => r.score);
+            const sMu = mean(sArr), sSd = stddev(sArr);
+            const k = 1.2; // 기울기
+            rows.forEach(r => {
+                const z = (r.score - sMu) / sSd;
+                r.prob = sigmoid(k * z); // 0..1
+            });
+        }
+
+        // ==========================
+        // 렌더링
+        // ==========================
+        function renderHeader(isBacktest, sortState) {
+            const thead = document.getElementById("thead");
+            thead.innerHTML = "";
+            const tr = document.createElement("tr");
+            const cols = isBacktest ? [...BASE_COLUMNS, ...BACKTEST_COLUMNS] : BASE_COLUMNS;
+            cols.forEach(col => {
+                const th = document.createElement("th");
+                const wrap = el("div", { class: "head-flex" });
+                const label = el("span", {}, col.label);
+                const arrows = el("span", { class: "sort-arrows" });
+                const up = el("button", { "data-key": col.key, "data-dir": "asc", title: "오름차순" }, "▲");
+                const down = el("button", { "data-key": col.key, "data-dir": "desc", title: "내림차순" }, "▼");
+                if (sortState.key === col.key) {
+                    (sortState.dir === "asc" ? up : down).classList.add("active");
+                }
+                arrows.appendChild(up);
+                arrows.appendChild(down);
+                wrap.appendChild(label);
+                wrap.appendChild(arrows);
+                th.appendChild(wrap);
+                tr.appendChild(th);
+            });
+            thead.appendChild(tr);
+
+            thead.querySelectorAll(".sort-arrows button").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const key = btn.getAttribute("data-key");
+                    const dir = btn.getAttribute("data-dir");
+                    state.sort = { key, dir };
+                    renderHeader(state.isBacktest, state.sort);
+                    drawTable();
+                });
+            });
+        }
+
+        function drawTable() {
+            const tbody = document.getElementById("tbody");
+            const { rows, isBacktest, sort, symbolFilter } = state;
+
+            // 필터
+            const visible = rows.filter(r => {
+                if (!symbolFilter) return true;
+                return r.symbol.toLowerCase().includes(symbolFilter.toLowerCase());
+            });
+
+            // 정렬
+            visible.sort((a, b) => {
+                const k = sort.key;
+                const dir = sort.dir === "asc" ? 1 : -1;
+                const av = a[k];
+                const bv = b[k];
+                // 문자열/숫자 혼용 처리
+                if (typeof av === "string" || typeof bv === "string") {
+                    return String(av).localeCompare(String(bv)) * dir;
+                }
+                return ((av ?? -Infinity) - (bv ?? -Infinity)) * dir;
+            });
+
+            // 렌더
+            const nf2 = (v) => fmtNum(v, 2);
+            const nf4 = (v) => fmtNum(v, 4);
+
+            const frag = document.createDocumentFragment();
+            visible.forEach(r => {
+                const tr = document.createElement("tr");
+                const cells = [];
+
+                // 기본
+                cells.push(`<td>${r.symbol}</td>`);
+                cells.push(`<td>${nf4(r.prevOpen)}</td>`);
+                cells.push(`<td>${nf4(r.prevHigh)}</td>`);
+                cells.push(`<td>${nf4(r.prevLow)}</td>`);
+                cells.push(`<td>${nf4(r.prevClose)}</td>`);
+                cells.push(`<td>${fmtPct(r.chgPct)}</td>`);
+                cells.push(`<td>${fmtNum(r.rangePct, 2)}%</td>`);
+                cells.push(`<td>${fmtNum(r.bodyPct * 100, 2)}%</td>`);
+                cells.push(`<td>${fmtNum(r.upperW * 100, 2)}%</td>`);
+                cells.push(`<td>${fmtNum(r.lowerW * 100, 2)}%</td>`);
+                cells.push(`<td>${fmtNum(r.clv, 3)}</td>`);
+                cells.push(`<td>${fmtNum(r.quoteVol, 0)}</td>`);
+                cells.push(`<td>${fmtNum(r.score, 3)}</td>`);
+                cells.push(`<td>${fmtNum(r.prob * 100, 2)}%</td>`);
+
+                // 백테스트
+                if (isBacktest) {
+                    const resPill = (r.dayRetPct ?? 0) >= 0 ? `<span class="pill ok">성공</span>` : `<span class="pill no">실패</span>`;
+                    cells.push(`<td>${nf4(r.dayOpen)}</td>`);
+                    cells.push(`<td>${nf4(r.dayClose)}</td>`);
+                    cells.push(`<td>${fmtPct(r.dayRetPct)}</td>`);
+                    cells.push(`<td>${resPill}</td>`);
+                }
+
+                tr.innerHTML = cells.join("");
+                frag.appendChild(tr);
+            });
+
+            tbody.innerHTML = "";
+            tbody.appendChild(frag);
+
+            // 요약
+            const sum = document.getElementById("summary");
+            sum.innerHTML = "";
+            const total = visible.length;
+            const top5 = visible.slice(0, 5).map(r => r.symbol).join(", ");
+            sum.appendChild(el("div", { class: "chip" }, `표시 종목: <strong>${total.toLocaleString()}</strong>개`));
+            sum.appendChild(el("div", { class: "chip" }, `정렬: <strong>${state.sort.key}</strong> (${state.sort.dir})`));
+            sum.appendChild(el("div", { class: "chip" }, `Top5: <strong>${top5 || "-"}</strong>`));
+
+            if (isBacktest) {
+                const success = visible.filter(r => (r.dayRetPct ?? 0) >= 0).length;
+                const rate = total ? (success / total) * 100 : 0;
+                sum.appendChild(el("div", { class: "chip" }, `백테스트 성공: <strong>${success}</strong> / ${total} (${fmtNum(rate, 1)}%)`));
+            }
+        }
+
+        function setProgress(done, total) {
+            const bar = document.getElementById("bar");
+            const pct = total ? Math.floor(done / total * 100) : 0;
+            bar.style.width = `${pct}%`;
+        }
+
+        // ==========================
+        // 스캔 로직
+        // ==========================
+        const state = {
+            isBacktest: false,
+            rows: [],
+            sort: { key: "prob", dir: "desc" },
+            symbolFilter: "",
+            abortController: null,
+            running: false,
+        };
+
+        function poolRun(list, limit, worker, onTick) {
+            return new Promise((resolve) => {
+                let i = 0, done = 0;
+                const total = list.length;
+                const results = new Array(total);
+                function next() {
+                    if (i >= total) return;
+                    const idx = i++;
+                    worker(list[idx], idx).then(res => {
+                        results[idx] = res;
+                    }).catch(() => {
+                        results[idx] = null;
+                    }).finally(() => {
+                        done++;
+                        onTick?.(done, total);
+                        if (done === total) resolve(results);
+                        else next();
+                    });
+                }
+                const c = Math.min(limit, total);
+                for (let k = 0; k < c; k++) next();
+            });
+        }
+
+        async function runScan() {
+            if (state.running) return;
+            state.running = true;
+            state.rows = [];
+            setProgress(0, 1);
+
+            const dateStr = document.getElementById("dateInput").value || toUTCDateString(new Date());
+            const isBacktest = document.getElementById("backtestChk").checked;
+            const minQVOn = document.getElementById("minQuoteVolChk").checked;
+            const minQV = Number(document.getElementById("minQuoteVol").value || 0);
+            state.isBacktest = isBacktest;
+
+            // 헤더 렌더
+            renderHeader(isBacktest, state.sort);
+            drawTable();
+
+            // Abort
+            if (state.abortController) state.abortController.abort();
+            const ac = new AbortController();
+            state.abortController = ac;
+
+            try {
+                const D = parseDateUTC(dateStr).getTime();               // D일 00:00:00Z
+                const prevOpenTime = D - 24 * 60 * 60 * 1000;            // 직전봉 openTime
+                const symbols = await fetchUSDTPerpSymbols(ac.signal);
+
+                // 병렬 제한
+                const CONCURRENCY = 10;
+
+                const results = await poolRun(symbols, CONCURRENCY, async (sym) => {
+                    if (ac.signal.aborted) return null;
+                    // 직전봉
+                    const prev = await fetchDailyCandle(sym, prevOpenTime, ac.signal);
+                    if (!prev) return null;
+
+                    // 필터: 직전봉 거래대금 하한
+                    if (minQVOn && (prev.quoteVolume ?? 0) < minQV) return null;
+
+                    const f = featuresFromCandle(prev);
+                    const row = {
+                        symbol: sym,
+                        prevOpen: prev.open,
+                        prevHigh: prev.high,
+                        prevLow: prev.low,
+                        prevClose: prev.close,
+                        chgPct: f.chgPct,
+                        rangePct: f.rangePct,
+                        bodyPct: f.bodyPct,
+                        upperW: f.upperW,
+                        lowerW: f.lowerW,
+                        clv: f.clv,
+                        quoteVol: f.quoteVol,
+                        features: f,
+                        // 나중에 채움
+                        score: null,
+                        prob: null,
+                    };
+
+                    if (isBacktest) {
+                        // D일 실제 캔들
+                        const cur = await fetchDailyCandle(sym, D, ac.signal);
+                        if (cur) {
+                            row.dayOpen = cur.open;
+                            row.dayClose = cur.close;
+                            row.dayRetPct = (cur.close - cur.open) / (cur.open || 1e-12) * 100;
+                            row.result = row.dayRetPct >= 0 ? "성공" : "실패";
+                        } else {
+                            row.dayOpen = null;
+                            row.dayClose = null;
+                            row.dayRetPct = null;
+                            row.result = "-";
+                        }
+                    }
+                    return row;
+                }, (done, total) => setProgress(done, total));
+
+                const rows = results.filter(Boolean);
+                // 점수/확률 계산 (동일 시점 전체 분포 정규화)
+                buildScores(rows);
+
+                // state 업데이트
+                state.rows = rows;
+
+                // 기본 정렬: 확률 desc
+                state.sort = { key: "prob", dir: "desc" };
+                renderHeader(state.isBacktest, state.sort);
+                drawTable();
+                setProgress(1, 1);
+            } catch (err) {
+                console.error(err);
+                alert("스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.");
+            } finally {
+                state.running = false;
+            }
+        }
+
+        function stopScan() {
+            if (state.abortController) {
+                try { state.abortController.abort(); } catch {}
+            }
+            state.running = false;
+        }
+
+        // ==========================
+        // 초기화
+        // ==========================
+        (function init() {
+            // 기본 날짜 = 오늘(UTC)
+            const dateInput = document.getElementById("dateInput");
+            dateInput.value = toUTCDateString(new Date());
+
+            // 이벤트
+            document.getElementById("scanBtn").addEventListener("click", runScan);
+            document.getElementById("stopBtn").addEventListener("click", stopScan);
+            document.getElementById("backtestChk").addEventListener("change", () => {
+                renderHeader(document.getElementById("backtestChk").checked, state.sort);
+                drawTable();
+            });
+            document.getElementById("searchSym").addEventListener("input", (e) => {
+                state.symbolFilter = e.target.value.trim();
+                drawTable();
+            });
+
+            // 최초 헤더
+            renderHeader(false, state.sort);
+        })();
+    </script>
+</body>
+</html>
