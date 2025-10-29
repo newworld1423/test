@@ -19,22 +19,14 @@
         table { width:100%; border-collapse:collapse; table-layout: auto; }
         th, td { padding:10px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
         th { position:sticky; top:110px; background:#0b1220; text-align:left; z-index:5; white-space:nowrap; }
-        .badge { padding:2px 8px; border-radius:999px; background:#13263b; color:#a7e1ff; font-size:12px; }
         .ok { color:#5cf1a6; }
         .err { color:#ff6b6b; }
-        .warn { color:#ffcd58; }
         .right { text-align:right; }
         .mono { font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
         #metaSummary { margin-top:6px; font-size:12px; color:#cbe4ff; }
         .sortable { cursor:pointer; user-select:none; }
         .sort-ind { margin-left:6px; opacity:0.7; }
         .sort-active .sort-ind { opacity:1; }
-        .ma-pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; line-height:1; }
-        .ma-up { background:#0f2e1f; color:#7dffc2; }
-        .ma-down { background:#2a1720; color:#ff9bb0; }
-        .yb-pill { display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; line-height:1; }
-        .yb-up { background:#0f2e1f; color:#7dffc2; }
-        .yb-down { background:#2a1720; color:#ff9bb0; }
         .empty { color:#9fb1c6; text-align:center; padding:24px 8px; }
     </style>
 </head>
@@ -49,7 +41,8 @@
     </div>
     <div class="hint" style="margin-top:6px">
         * 표시는 모두 <b>KST(UTC+9)</b> 기준 · (참고) 바이낸스 1일봉 경계는 <b>UTC 00:00</b><br/>
-        * 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · volume/txn은 <b>직전봉</b> 값 · 고가 시각은 <b>1시간봉</b>으로 탐색
+        * 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · <span class="mono">윗꼬리 &lt; 몸통</span> · <b>2봉전은 음봉</b><br/>
+        * 시가/종가/고가는 체크일(UTC) 1일봉 · 고가 시각은 체크일 <b>15분봉</b>으로 탐색
     </div>
     <div id="metaSummary"></div>
 </header>
@@ -68,12 +61,6 @@
                 <th class="sortable" data-key="highTime">고가 시각(KST)<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="pct">시가→종가 %<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="highPct">시가→고가 %<span class="sort-ind">⇵</span></th>
-                <th class="sortable right" data-key="volPrev">직전봉 volume<span class="sort-ind">⇵</span></th>
-                <th class="sortable right" data-key="txnPrev">직전봉 txn<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="prev2Up">2봉전 양/음<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="ma7">7MA 위/아래<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="ma25">25MA 위/아래<span class="sort-ind">⇵</span></th>
-                <th class="sortable" data-key="ma99">99MA 위/아래<span class="sort-ind">⇵</span></th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -83,7 +70,6 @@
 <script>
     // ---------- 유틸 ----------
     const KST_OFFSET_MS = 9 * 60 * 60 * 1000; // UTC+9
-
     function toKSTDateStr(msUTC) {
         const d = new Date(msUTC + KST_OFFSET_MS);
         const y = d.getUTCFullYear();
@@ -98,21 +84,11 @@
         return `${hh}:${mm}`;
     }
     function dateToUTCStartMs(localDateStr) {
-        // 입력한 '로컬 달력 날짜(KST)'를 그대로 사용해도,
-        // 바이낸스 일봉은 UTC로만 존재하므로 내부 기준은 UTC 00:00(ms)로 둠.
         const [y, m, d] = localDateStr.split("-").map(Number);
         return Date.UTC(y, m - 1, d, 0, 0, 0, 0);
     }
-    function pct(curr, base) {
-        return base === 0 ? 0 : ((curr - base) / base) * 100;
-    }
-    function fmt(n, digits = 2) {
-        return Number.isFinite(n) ? n.toFixed(digits) : "-";
-    }
-    function fmtInt(n) {
-        if (!Number.isFinite(n)) return "-";
-        return Math.round(n).toLocaleString("ko-KR");
-    }
+    function pct(curr, base) { return base === 0 ? 0 : ((curr - base) / base) * 100; }
+    function fmt(n, digits = 2) { return Number.isFinite(n) ? n.toFixed(digits) : "-"; }
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     function debounce(fn, wait = 200) { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
@@ -147,20 +123,17 @@
         }));
     }
 
-    // 해머: 아래꼬리 ≥ 2 × 몸통
-    function isHammer(c) {
+    // 해머: 아래꼬리 ≥ 2 × 몸통  AND  윗꼬리 < 몸통  AND  (2봉전은 음봉)
+    function isHammer(c, prev2) {
         const o = c.open, h = c.high, l = c.low, cl = c.close;
         const body  = Math.abs(cl - o);
-        const lower = Math.min(o, cl) - l;          // 밑꼬리
-        const upper = h - Math.max(o, cl);          // 윗꼬리
-        return body > 0 && lower >= 2 * body && upper < body;
-    }
+        if (body <= 0) return false;
 
-    function smaAt(closes, endIndex, n) {
-        if (endIndex + 1 < n) return NaN;
-        let sum = 0;
-        for (let i = endIndex - n + 1; i <= endIndex; i++) sum += closes[i];
-        return sum / n;
+        const lower = Math.min(o, cl) - l;   // 밑꼬리
+        const upper = h - Math.max(o, cl);   // 윗꼬리
+        const prev2Bear = prev2 && (prev2.close < prev2.open);
+
+        return lower >= 2 * body && upper < body && prev2Bear === true;
     }
 
     // ---------- 스캔 ----------
@@ -179,24 +152,18 @@
                 const prev = hist[idxPrev];
                 const prev2 = hist[idxPrev - 1];
 
+                // 전체 직전봉 등락률 집계(백테스트 요약용)
                 const prevChg = pct(prev.close, prev.open);
                 if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
 
-                if (!isHammer(prev)) return;
+                // 해머 조건 + 2봉전 음봉 조건
+                if (!isHammer(prev, prev2)) return;
 
                 const body = Math.abs(prev.close - prev.open);
                 const lower = Math.min(prev.open, prev.close) - prev.low;
                 const ratio = lower / body;
 
-                const closes = hist.map(h => h.close);
-                const ma7  = smaAt(closes, idxPrev, 7);
-                const ma25 = smaAt(closes, idxPrev, 25);
-                const ma99 = smaAt(closes, idxPrev, 99);
-                const above7  = Number.isFinite(ma7)  ? (prev.close >= ma7)  : null;
-                const above25 = Number.isFinite(ma25) ? (prev.close >= ma25) : null;
-                const above99 = Number.isFinite(ma99) ? (prev.close >= ma99) : null;
-
-                const checkDateMs = targetDateUTCStartMs;     // 정렬/내부 기준(UTC ms)
+                const checkDateMs = targetDateUTCStartMs;     // 내부 정렬 기준(UTC ms)
                 const prevDateMs  = prev.openTime;
 
                 // 체크일 시/고/종
@@ -218,7 +185,7 @@
                     console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
                 }
 
-                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC)
+                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC) — 15분봉
                 let highTimeMs = null;
                 try {
                     const dayMs = 24 * 60 * 60 * 1000;
@@ -244,7 +211,7 @@
 
                 results.push({
                     symbol: sym,
-                    checkDateMs,                 // 정렬용(UTC ms)
+                    checkDateMs,
                     prevDateMs,
                     open: openT,
                     high: highT,
@@ -252,12 +219,6 @@
                     changePct,
                     highPct,
                     ratio,
-                    volumePrev: prev.volume,
-                    txnPrev: prev.numberOfTrades,
-                    prev2Up: (prev2 && prev2.close >= prev2.open) ? 1 : 0,
-                    ma7:  above7,
-                    ma25: above25,
-                    ma99: above99,
                     highTimeMs
                 });
             } catch (e) {
@@ -328,7 +289,6 @@
             return dateToUTCStartMs(dateEl.value);
         } else {
             const now = new Date();
-            // 오늘(현지 KST의 달력 날짜)을 입력했다고 가정해도, 내부 기준은 UTC 00:00
             return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
         }
     }
@@ -337,21 +297,12 @@
         tbody.innerHTML = "";
         if (!rows.length) {
             const tr = document.createElement("tr");
-            tr.innerHTML = `<td class="empty" colspan="16">조건에 맞는 결과가 없습니다.</td>`;
+            tr.innerHTML = `<td class="empty" colspan="10">조건에 맞는 결과가 없습니다.</td>`;
             tbody.appendChild(tr);
             return;
         }
 
         for (const r of rows) {
-            const prev2Badge = r.prev2Up === 1
-                ? `<span class="yb-pill yb-up">양봉</span>`
-                : `<span class="yb-pill yb-down">음봉</span>`;
-
-            const maCell = (ok) => {
-                if (ok === null) return `<span class="ma-pill warn">데이터부족</span>`;
-                return ok ? `<span class="ma-pill ma-up">위</span>` : `<span class="ma-pill ma-down">아래</span>`;
-            };
-
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>${r.symbol}</td>
@@ -364,12 +315,6 @@
                 <td class="mono">${r.highTimeMs ? toKSTHHMM(r.highTimeMs) : "-"}</td>
                 <td class="right mono">${fmt(r.changePct, 2)}%</td>
                 <td class="right mono">${fmt(r.highPct, 2)}%</td>
-                <td class="right mono">${fmt(r.volumePrev, 2)}</td>
-                <td class="right mono">${fmtInt(r.txnPrev)}</td>
-                <td>${prev2Badge}</td>
-                <td>${maCell(r.ma7)}</td>
-                <td>${maCell(r.ma25)}</td>
-                <td>${maCell(r.ma99)}</td>
             `;
             tbody.appendChild(tr);
         }
@@ -387,12 +332,6 @@
                 case "highTime": return (o.highTimeMs == null ? -Infinity : o.highTimeMs);
                 case "pct": return o.changePct;
                 case "highPct": return o.highPct;
-                case "volPrev": return o.volumePrev;
-                case "txnPrev": return o.txnPrev;
-                case "prev2Up": return o.prev2Up;
-                case "ma7": return o.ma7 === null ? -1 : (o.ma7 ? 1 : 0);
-                case "ma25": return o.ma25 === null ? -1 : (o.ma25 ? 1 : 0);
-                case "ma99": return o.ma99 === null ? -1 : (o.ma99 ? 1 : 0);
                 default: return o.changePct;
             }
         };
