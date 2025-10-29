@@ -44,7 +44,9 @@
     </div>
     <div class="hint" style="margin-top:6px">
         * 표시는 모두 <b>KST(UTC+9)</b> 기준 · (참고) 바이낸스 1일봉 경계는 <b>UTC 00:00</b><br/>
-        * 해머: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · <span class="mono">윗꼬리 &lt; 몸통</span> · <b>2봉전은 음봉</b><br/>
+        * 해머 정의: <span class="mono">아래꼬리 ≥ 2 × 몸통</span> · <span class="mono">윗꼬리 &lt; 몸통</span> · <span class="mono">종가 &gt; 시가</span><br/>
+        * <b>백테스팅 OFF</b>: <u>현재 진행 중인 1일봉</u>이 해머이고 <u>직전봉이 음봉</u>일 때 표시<br/>
+        * <b>백테스팅 ON</b>: <u>전날(닫힌 1일봉)</u>이 해머이고 <u>2봉전이 음봉</u>일 때 표시<br/>
         * 시가/종가/고가는 체크일(UTC) 1일봉 · 고가 시각은 체크일 <b>15분봉</b>으로 탐색
     </div>
     <div id="metaSummary"></div>
@@ -56,7 +58,7 @@
             <tr>
                 <th class="sortable" data-key="sym">심볼<span class="sort-ind">⇵</span></th>
                 <th class="sortable" data-key="checkDate">체크일(KST)<span class="sort-ind">⇵</span></th>
-                <th>직전봉(해머)</th>
+                <th>판정</th>
                 <th class="sortable right" data-key="ratio">하단/몸통<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="open">체크일 시가<span class="sort-ind">⇵</span></th>
                 <th class="sortable right" data-key="close">체크일 종가<span class="sort-ind">⇵</span></th>
@@ -126,22 +128,21 @@
         }));
     }
 
-    // 해머: 아래꼬리 ≥ 2 × 몸통 AND 윗꼬리 < 몸통 AND (2봉전은 음봉)
-    function isHammer(c, prev2) {
+    // 해머: 아래꼬리 ≥ 2 × 몸통 AND 윗꼬리 < 몸통 AND 종가>시가 AND (컨텍스트 봉은 음봉)
+    function isHammer(c, prevContext) {
         const o = c.open, h = c.high, l = c.low, cl = c.close;
         const body  = Math.abs(cl - o);
-        if (body <= 0) return false;                 // 몸통 0(도지) 배제
-    
+        if (body <= 0) return false;                 // 도지 배제
+
         const lower = Math.min(o, cl) - l;           // 밑꼬리
         const upper = h - Math.max(o, cl);           // 윗꼬리
-        const prev2Bear = prev2 && (prev2.close < prev2.open); // 2봉전 음봉
-    
-        // 아래꼬리≥2×몸통 AND 윗꼬리<몸통 AND 2봉전 음봉 AND (이번 봉 양봉 마감)
-        return lower >= 2 * body && upper < body && prev2Bear === true && cl > o;
+        const contextBear = prevContext && (prevContext.close < prevContext.open); // 컨텍스트 봉(직전/2봉전) 음봉 요구
+
+        return lower >= 2 * body && upper < body && cl > o && contextBear === true;
     }
 
     // ---------- 스캔 ----------
-    async function scan({ targetDateUTCStartMs, symbols, concurrency = 9, signal }) {
+    async function scan({ targetDateUTCStartMs, symbols, concurrency = 9, signal, useCurrent = false }) {
         const results = [];
         let prevSumPct = 0, prevCount = 0;
         let done = 0;
@@ -149,82 +150,155 @@
         async function worker(sym) {
             if (signal?.aborted) return;
             try {
-                const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
-                if (hist.length < 2) return;
+                if (useCurrent) {
+                    // ── 현재봉(진행 중) 해머 + 직전봉 음봉 ──
+                    // 직전봉(닫힌 캔들) 구하기
+                    const histPrev = await getDailyHistory(sym, targetDateUTCStartMs, 2); // [.., 직전봉]
+                    if (!histPrev.length) return;
+                    const prevClosed = histPrev[histPrev.length - 1];
+                    const prevBear = prevClosed.close < prevClosed.open;
 
-                const idxPrev = hist.length - 1; // 직전봉(체크일 전날, UTC 기준)
-                const prev = hist[idxPrev];
-                const prev2 = hist[idxPrev - 1];
+                    // 현재봉(오늘 UTC 00:00 시작, 진행 중 캔들)
+                    const urlCur = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
+                    const rCur = await fetch(urlCur);
+                    if (!rCur.ok) return;
+                    const aCur = await rCur.json();
+                    if (!aCur.length) return;
 
-                // 전체 직전봉 등락률 집계(백테스트 요약용)
-                const prevChg = pct(prev.close, prev.open);
-                if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
+                    const cur = {
+                        openTime: aCur[0][0],
+                        open: parseFloat(aCur[0][1]),
+                        high: parseFloat(aCur[0][2]),
+                        low:  parseFloat(aCur[0][3]),
+                        close:parseFloat(aCur[0][4]),
+                    };
 
-                // 해머 조건 + 2봉전 음봉 조건
-                if (!isHammer(prev, prev2)) return;
+                    // 현재봉을 해머로 판정(컨텍스트로 직전봉 전달)
+                    if (!isHammer(cur, prevClosed)) return;
 
-                const body = Math.abs(prev.close - prev.open);
-                const lower = Math.min(prev.open, prev.close) - prev.low;
-                const ratio = lower / body;
+                    const body  = Math.abs(cur.close - cur.open);
+                    const lower = Math.min(cur.open, cur.close) - cur.low;
+                    const ratio = lower / body;
 
-                const checkDateMs = targetDateUTCStartMs; // 내부 정렬 기준(UTC ms)
-                const prevDateMs  = prev.openTime;
+                    // 표시값: 현재봉 시/고/종, 퍼센트
+                    const openT  = cur.open;
+                    const highT  = cur.high;
+                    const closeT = cur.close;
+                    const changePct = pct(closeT, openT);
+                    const highPct   = pct(highT, openT);
 
-                // 체크일 시/고/종
-                let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
-                try {
-                    const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
-                    const r2 = await fetch(url);
-                    if (r2.ok) {
-                        const a2 = await r2.json();
-                        if (a2.length) {
-                            openT  = parseFloat(a2[0][1]);
-                            highT  = parseFloat(a2[0][2]);
-                            closeT = parseFloat(a2[0][4]);
-                            changePct = pct(closeT, openT);
-                            highPct   = pct(highT, openT);
-                        }
-                    }
-                } catch (e2) {
-                    console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
-                }
-
-                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC) — 15분봉 탐색
-                let highTimeMs = null;
-                try {
-                    const dayMs = 24 * 60 * 60 * 1000;
-                    const start = targetDateUTCStartMs;
-                    const end   = targetDateUTCStartMs + dayMs;
-                    const urlI  = `${API_K}?symbol=${sym}&interval=15m&startTime=${start}&endTime=${end}&limit=1000`;
-                    const r3 = await fetch(urlI);
-                    if (r3.ok) {
-                        const arr = await r3.json();
-                        if (arr.length) {
-                            let maxH = -Infinity;
-                            for (let i = 0; i < arr.length; i++) {
-                                const hi = parseFloat(arr[i][2]);
-                                if (hi > maxH) maxH = hi;
+                    // 현재봉 고가 시각(15분봉) — endTime은 지금 시각
+                    let highTimeMs = null;
+                    try {
+                        const start = targetDateUTCStartMs;
+                        const end   = Date.now();
+                        const urlI  = `${API_K}?symbol=${sym}&interval=15m&startTime=${start}&endTime=${end}&limit=1000`;
+                        const rI = await fetch(urlI);
+                        if (rI.ok) {
+                            const arr = await rI.json();
+                            if (arr.length) {
+                                let maxH = -Infinity;
+                                for (let i = 0; i < arr.length; i++) {
+                                    const hi = parseFloat(arr[i][2]);
+                                    if (hi > maxH) maxH = hi;
+                                }
+                                const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
+                                if (firstIdx >= 0) highTimeMs = arr[firstIdx][0];
                             }
-                            const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
-                            if (firstIdx >= 0) highTimeMs = arr[firstIdx][0];
                         }
-                    }
-                } catch (e3) {
-                    console.warn(`[${sym}] intraday high-time warn:`, e3?.message || e3);
-                }
+                    } catch {}
 
-                results.push({
-                    symbol: sym,
-                    checkDateMs,
-                    prevDateMs,
-                    open: openT,
-                    high: highT,
-                    close: closeT,
-                    changePct,
-                    highPct,
-                    ratio,
-                    highTimeMs
-                });
+                    // 메타(요약) 집계는 안전하게 유지
+                    const prevChg = pct(prevClosed.close, prevClosed.open);
+                    if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
+
+                    results.push({
+                        symbol: sym,
+                        checkDateMs: targetDateUTCStartMs, // 오늘(UTC) 00:00
+                        prevDateMs: prevClosed.openTime,
+                        open: openT,
+                        high: highT,
+                        close: closeT,
+                        changePct,
+                        highPct,
+                        ratio,
+                        highTimeMs,
+                        prevBear
+                    });
+                } else {
+                    // ── 전날 해머 + 2봉전 음봉(기존 백테스트 로직) ──
+                    const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
+                    if (hist.length < 2) return;
+
+                    const idxPrev = hist.length - 1; // 직전봉(체크일 전날)
+                    const prev = hist[idxPrev];
+                    const prev2 = hist[idxPrev - 1];
+
+                    const prevChg = pct(prev.close, prev.open);
+                    if (Number.isFinite(prevChg)) { prevSumPct += prevChg; prevCount++; }
+
+                    if (!isHammer(prev, prev2)) return;
+
+                    const body = Math.abs(prev.close - prev.open);
+                    const lower = Math.min(prev.open, prev.close) - prev.low;
+                    const ratio = lower / body;
+
+                    const checkDateMs = targetDateUTCStartMs;
+                    const prevDateMs  = prev.openTime;
+
+                    // 체크일(다음 날) 시/고/종
+                    let openT = NaN, highT = NaN, closeT = NaN, changePct = NaN, highPct = NaN;
+                    try {
+                        const url = `${API_K}?symbol=${sym}&interval=1d&startTime=${targetDateUTCStartMs}&limit=1`;
+                        const r2 = await fetch(url);
+                        if (r2.ok) {
+                            const a2 = await r2.json();
+                            if (a2.length) {
+                                openT  = parseFloat(a2[0][1]);
+                                highT  = parseFloat(a2[0][2]);
+                                closeT = parseFloat(a2[0][4]);
+                                changePct = pct(closeT, openT);
+                                highPct   = pct(highT, openT);
+                            }
+                        }
+                    } catch {}
+
+                    // 고가 시각(15분봉) — 체크일 하루 범위
+                    let highTimeMs = null;
+                    try {
+                        const dayMs = 24 * 60 * 60 * 1000;
+                        const start = targetDateUTCStartMs;
+                        const end   = targetDateUTCStartMs + dayMs;
+                        const urlI  = `${API_K}?symbol=${sym}&interval=15m&startTime=${start}&endTime=${end}&limit=1000`;
+                        const r3 = await fetch(urlI);
+                        if (r3.ok) {
+                            const arr = await r3.json();
+                            if (arr.length) {
+                                let maxH = -Infinity;
+                                for (let i = 0; i < arr.length; i++) {
+                                    const hi = parseFloat(arr[i][2]);
+                                    if (hi > maxH) maxH = hi;
+                                }
+                                const firstIdx = arr.findIndex(k => parseFloat(k[2]) === maxH);
+                                if (firstIdx >= 0) highTimeMs = arr[firstIdx][0];
+                            }
+                        }
+                    } catch {}
+
+                    results.push({
+                        symbol: sym,
+                        checkDateMs,
+                        prevDateMs,
+                        open: openT,
+                        high: highT,
+                        close: closeT,
+                        changePct,
+                        highPct,
+                        ratio,
+                        highTimeMs,
+                        prevBear: (prev2 && prev2.close < prev2.open) || false
+                    });
+                }
             } catch (e) {
                 console.warn(`[${sym}] scan error:`, e?.message || e);
             } finally {
@@ -356,12 +430,19 @@
             tbody.appendChild(tr);
             return;
         }
+
+        const basisLabel = backtestEl.checked ? "직전봉 해머" : "현재봉 해머";
+
         for (const r of rows) {
+            const subHint = backtestEl.checked
+                ? `(${toKSTDateStr(r.prevDateMs)})`
+                : (r.prevBear ? "(직전: 음봉)" : "(직전: 양봉)");
+
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>${r.symbol}</td>
                 <td class="mono">${toKSTDateStr(r.checkDateMs)}</td>
-                <td><span class="ok">해머</span> <span class="hint mono">(${toKSTDateStr(r.prevDateMs)})</span></td>
+                <td><span class="ok">${basisLabel}</span> <span class="hint mono">${subHint}</span></td>
                 <td class="right mono">${Number.isFinite(r.ratio) ? r.ratio.toFixed(2) : "-"}</td>
                 <td class="right mono">${fmt(r.open, 4)}</td>
                 <td class="right mono">${fmt(r.close, 4)}</td>
@@ -458,7 +539,8 @@
                 targetDateUTCStartMs: targetUTC,
                 symbols,
                 concurrency: 9,
-                signal: aborter?.signal
+                signal: aborter?.signal,
+                useCurrent: !backtestEl.checked   // ★ 백테스팅 OFF면 현재봉 모드
             });
 
             lastScan = results;
