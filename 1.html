@@ -14,6 +14,8 @@
         input, button { padding:10px 12px; border-radius:12px; border:1px solid #334; background:#111827; color:var(--fg); }
         button { background:var(--accent); color:#081018; border:0; font-weight:600; cursor:pointer; }
         button:disabled { opacity:0.6; cursor:not-allowed; }
+        #calendarBtn { padding:10px 12px; border-radius:12px; border:1px solid #334; background:#0f172a; }
+        #calendarBtn:hover { background:#111b34; }
         .wrap { padding:16px; }
         .hint { color:var(--muted); font-size:12px; }
         table { width:100%; border-collapse:collapse; table-layout: auto; }
@@ -35,6 +37,7 @@
     <div class="row">
         <label><input type="checkbox" id="backtest" /> 과거 백테스팅</label>
         <input type="date" id="dateInput" disabled />
+        <button id="calendarBtn" type="button" title="달력 열기" aria-label="달력 열기">📅</button>
         <input type="text" id="symbolFilter" placeholder="심볼 필터 (예: BTC, SOL)" />
         <button id="scanBtn">스캔</button>
         <span id="status" class="hint"></span>
@@ -123,16 +126,14 @@
         }));
     }
 
-    // 해머: 아래꼬리 ≥ 2 × 몸통  AND  윗꼬리 < 몸통  AND  (2봉전은 음봉)
+    // 해머: 아래꼬리 ≥ 2 × 몸통 AND 윗꼬리 < 몸통 AND (2봉전은 음봉)
     function isHammer(c, prev2) {
         const o = c.open, h = c.high, l = c.low, cl = c.close;
         const body  = Math.abs(cl - o);
         if (body <= 0) return false;
-
         const lower = Math.min(o, cl) - l;   // 밑꼬리
         const upper = h - Math.max(o, cl);   // 윗꼬리
         const prev2Bear = prev2 && (prev2.close < prev2.open);
-
         return lower >= 2 * body && upper < body && prev2Bear === true;
     }
 
@@ -148,7 +149,7 @@
                 const hist = await getDailyHistory(sym, targetDateUTCStartMs, 120);
                 if (hist.length < 2) return;
 
-                const idxPrev = hist.length - 1;       // 직전봉(체크일 전날, UTC 기준)
+                const idxPrev = hist.length - 1; // 직전봉(체크일 전날, UTC 기준)
                 const prev = hist[idxPrev];
                 const prev2 = hist[idxPrev - 1];
 
@@ -163,7 +164,7 @@
                 const lower = Math.min(prev.open, prev.close) - prev.low;
                 const ratio = lower / body;
 
-                const checkDateMs = targetDateUTCStartMs;     // 내부 정렬 기준(UTC ms)
+                const checkDateMs = targetDateUTCStartMs; // 내부 정렬 기준(UTC ms)
                 const prevDateMs  = prev.openTime;
 
                 // 체크일 시/고/종
@@ -185,7 +186,7 @@
                     console.warn(`[${sym}] check-day fetch warn:`, e2?.message || e2);
                 }
 
-                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC) — 15분봉
+                // 체크일 고가 시각(KST 표기용, 내부 ms는 UTC) — 15분봉 탐색
                 let highTimeMs = null;
                 try {
                     const dayMs = 24 * 60 * 60 * 1000;
@@ -249,6 +250,7 @@
     // ---------- UI 상태 ----------
     const backtestEl = document.getElementById("backtest");
     const dateEl = document.getElementById("dateInput");
+    const calendarBtn = document.getElementById("calendarBtn");
     const scanBtn = document.getElementById("scanBtn");
     const filterEl = document.getElementById("symbolFilter");
     const tbody = document.querySelector("#resultTable tbody");
@@ -263,12 +265,62 @@
     let sortKey = "pct";
     let sortDir = "desc";
 
+    // 달력 열기
+    function openDatePicker() {
+        if (typeof dateEl.showPicker === "function") {
+            dateEl.showPicker();
+        } else {
+            dateEl.focus();
+            setTimeout(() => { try { dateEl.click(); } catch(_) {} }, 0);
+        }
+    }
+
+    // 백테스트 체크 토글 시: 활성화 + 자동 달력 오픈
     backtestEl.addEventListener("change", () => {
-        dateEl.disabled = !backtestEl.checked;
+        const on = backtestEl.checked;
+        dateEl.disabled = !on;
         updateMetaSummary();
+        if (on) {
+            if (!dateEl.value) {
+                const now = new Date();
+                const y = now.getUTCFullYear();
+                const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+                const d = String(now.getUTCDate()).padStart(2, "0");
+                dateEl.value = `${y}-${m}-${d}`;
+            }
+            setTimeout(openDatePicker, 50);
+        }
     });
+
+    // 📅 버튼: 자동으로 백테스트 ON + 달력 열기
+    calendarBtn.addEventListener("click", () => {
+        if (!backtestEl.checked) {
+            backtestEl.checked = true;
+            dateEl.disabled = false;
+        }
+        if (!dateEl.value) {
+            const now = new Date();
+            const y = now.getUTCFullYear();
+            const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+            const d = String(now.getUTCDate()).padStart(2, "0");
+            dateEl.value = `${y}-${m}-${d}`;
+        }
+        openDatePicker();
+    });
+
+    // 비활성 상태에서도 날짜 필드 클릭 시 자동으로 켜고 열기
+    dateEl.addEventListener("mousedown", (e) => {
+        if (dateEl.disabled) {
+            e.preventDefault();
+            backtestEl.checked = true;
+            dateEl.disabled = false;
+            setTimeout(openDatePicker, 50);
+        }
+    });
+
     filterEl.addEventListener("input", debounce(updateView, 150));
 
+    // 헤더 클릭 정렬
     ths.forEach(th => {
         th.addEventListener("click", () => {
             const key = th.getAttribute("data-key");
@@ -301,7 +353,6 @@
             tbody.appendChild(tr);
             return;
         }
-
         for (const r of rows) {
             const tr = document.createElement("tr");
             tr.innerHTML = `
@@ -324,7 +375,7 @@
         const get = (o) => {
             switch (key) {
                 case "sym": return o.symbol;
-                case "checkDate": return o.checkDateMs;     // ms 정렬
+                case "checkDate": return o.checkDateMs;
                 case "ratio": return o.ratio;
                 case "open": return o.open;
                 case "close": return o.close;
@@ -404,7 +455,7 @@
                 targetDateUTCStartMs: targetUTC,
                 symbols,
                 concurrency: 9,
-                signal: aborter.signal
+                signal: aborter?.signal
             });
 
             lastScan = results;
