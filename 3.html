@@ -97,6 +97,11 @@
                 <label>최대 표시 개수</label>
                 <input id="limit" type="number" value="200" />
             </div>
+                    <div class="control">
+                <label>다음날 전종목시세 CSV (선택)</label>
+                <input id="fileNext" type="file" accept=".csv,text/csv" />
+                <div class="hint">전일 파일과 연속된 다음 영업일 CSV를 올리면 수익률 열이 채워집니다.</div>
+            </div>
         </div>
         <div class="row">
             <button id="run" disabled>스캔 실행</button>
@@ -266,7 +271,19 @@
             const rangePct = range / Math.max(r.open, 1e-9);
             const bias = nextBiasByRules(r, biasThresh);
             const edge = (bias.probUp - 0.5) * rangePct; // 간이 기대 우위
-            return { ...r, rangePct, probUp: bias.probUp, biasLabel: bias.bias, edge };
+
+            // 다음날 데이터 매칭(있으면 수익률 계산)
+            const next = (window.__nextMap instanceof Map) ? window.__nextMap.get(r.code) : undefined;
+            let nextOpen = null, nextHigh = null, nextLow = null, nextClose = null, retHO = null, retCO = null;
+            if (next) {
+                nextOpen = next.open; nextHigh = next.high; nextLow = next.low; nextClose = next.close;
+                if (isFinite(nextOpen) && nextOpen > 0) {
+                    retHO = (nextHigh - nextOpen) / nextOpen;  // 시가대비 고가
+                    retCO = (nextClose - nextOpen) / nextOpen; // 시가대비 종가
+                }
+            }
+
+            return { ...r, rangePct, probUp: bias.probUp, biasLabel: bias.bias, edge, nextOpen, nextLow, nextHigh, nextClose, retHO, retCO };
         }).filter(r => {
             if (isFinite(minValue) && !isNaN(minValue)) {
                 if (r.value !== undefined && !isNaN(r.value)) {
@@ -317,6 +334,12 @@
             { key: 'probUp', label: 'ProbUp', fmt: v => (v*100).toFixed(1) + '%', cls: 'right' },
             { key: 'biasLabel', label: 'Bias', fmt: v => v === 'UP' ? '<span class="badge up">UP</span>' : (v === 'DOWN' ? '<span class="badge down">DOWN</span>' : '<span class="badge neutral">NEUTRAL</span>') },
             { key: 'edge', label: 'Edge', fmt: v => (v*100).toFixed(2) + 'bp', cls: 'right' },
+            { key: 'nextOpen', label: '다음시가', fmt: fmtKR, cls: 'right' },
+            { key: 'nextLow', label: '다음저가', fmt: fmtKR, cls: 'right' },
+            { key: 'nextHigh', label: '다음고가', fmt: fmtKR, cls: 'right' },
+            { key: 'nextClose', label: '다음종가', fmt: fmtKR, cls: 'right' },
+            { key: 'retHO', label: '시가→고가 수익률', fmt: v => (v==null||isNaN(v) ? '' : (v*100).toFixed(2) + '%'), cls: 'right' },
+            { key: 'retCO', label: '시가→종가 수익률', fmt: v => (v==null||isNaN(v) ? '' : (v*100).toFixed(2) + '%'), cls: 'right' },
         ];
 
         let html = '<table><thead><tr>'; 
@@ -349,7 +372,7 @@
     }
 
     function toCSV(data) {
-        const cols = ['종목명','종목코드','시장','시가','고가','저가','종가','거래대금','Range%','ProbUp','Bias','Edge'];
+        const cols = ['종목명','종목코드','시장','시가','고가','저가','종가','거래대금','Range%','ProbUp','Bias','Edge','다음시가','다음저가','다음고가','다음종가','시가→고가(%)','시가→종가(%)'];
         const lines = [cols.join(',')];
         for (const r of data) {
             const row = [
@@ -364,7 +387,13 @@
                 (r.rangePct*100).toFixed(2),
                 (r.probUp*100).toFixed(1),
                 r.biasLabel,
-                (r.edge*100).toFixed(2)
+                (r.edge*100).toFixed(2),
+                r.nextOpen ?? '',
+                r.nextLow ?? '',
+                r.nextHigh ?? '',
+                r.nextClose ?? '',
+                (r.retHO==null||isNaN(r.retHO)) ? '' : (r.retHO*100).toFixed(2),
+                (r.retCO==null||isNaN(r.retCO)) ? '' : (r.retCO*100).toFixed(2)
             ].map(v => (v === null || v === undefined) ? '' : String(v));
             // 간단한 CSV quoting
             for (let i=0;i<row.length;i++) {
@@ -376,7 +405,7 @@
     }
 
     // ===== 메인 로직 =====
-    let rawRows = [];
+    let rawRows = []; let nextMap = new Map();
 
     document.getElementById('file').addEventListener('change', async (e) => {
         const file = e.target.files && e.target.files[0];
@@ -408,7 +437,41 @@
                 });
             }
             rawRows = out;
-            document.getElementById('run').disabled = false;
+
+    // 다음날 CSV 업로드 (선택)
+    document.getElementById('fileNext').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await readCSVFile(file);
+            const rows = parseCSV(text);
+            if (!rows.length) throw new Error('CSV가 비어있습니다.');
+            const header = rows[0];
+            const idx = buildIndex(header);
+            const map = new Map();
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length < header.length) continue;
+                const open = parseKRNumber(r[idx.open]);
+                const high = parseKRNumber(r[idx.high]);
+                const low  = parseKRNumber(r[idx.low]);
+                const close= parseKRNumber(r[idx.close]);
+                if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) continue;
+                const code = (r[idx.code]||'').trim();
+                if (!code) continue;
+                map.set(code, { open, high, low, close });
+            }
+            nextMap = map;
+            window.__nextMap = map;
+            const sum = document.getElementById('summary');
+            sum.textContent = (sum.textContent ? sum.textContent + ' · ' : '') + `다음날 로딩: ${map.size}종목`;
+        } catch (err) {
+            console.error(err);
+            alert('다음날 CSV 파싱 중 오류: ' + err.message);
+        }
+    });
+
+    document.getElementById('run'.disabled = false;
             document.getElementById('summary').textContent = `로딩됨: ${out.length}종목`;
         } catch (err) {
             console.error(err);
