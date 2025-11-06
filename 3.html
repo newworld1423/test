@@ -10,7 +10,6 @@
             --panel: #141824;
             --text: #e7eaf3;
             --muted: #97a0b3;
-            --acc: #4da3ff;
             --green: #3ecf8e;
             --red: #ff6b6b;
         }
@@ -25,7 +24,7 @@
         .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 12px 0; }
         .control { display: flex; flex-direction: column; gap: 6px; }
         label { font-size: 12px; color: var(--muted); }
-        input[type="number"], input[type="text"], input[type="file"], select {
+        input[type="number"], input[type="file"], select {
             background: #0f1320; border: 1px solid #2a3042; color: var(--text);
             border-radius: 10px; padding: 10px 12px; outline: none;
         }
@@ -44,17 +43,12 @@
         th, td { padding: 10px 8px; border-bottom: 1px solid #212739; text-align: right; }
         th { position: sticky; top: 0; background: #161b2a; z-index: 1; cursor: pointer; }
         td:first-child, th:first-child { text-align: left; }
-        .pos { color: var(--green); }
-        .neg { color: var(--red); }
         .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
         .badge.up { background: rgba(62,207,142,.15); color: var(--green); }
         .badge.down { background: rgba(255,107,107,.15); color: var(--red); }
         .badge.neutral { background: #2a3042; color: var(--muted); }
         .sticky-top { position: sticky; top: 0; background: var(--panel); padding-bottom: 8px; }
         .hr { height: 1px; background: #212739; margin: 12px 0; }
-        .muted { color: var(--muted); }
-        .kbd { padding: 2px 6px; border: 1px solid #2a3042; border-bottom-width: 2px; border-radius: 6px; background: #101425; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
-        .right { text-align: right; }
         .scroll { max-height: 65vh; overflow: auto; border-radius: 12px; border: 1px solid #1a2133; }
         .pill { background: #101425; border: 1px solid #2a3042; padding: 8px 12px; border-radius: 999px; }
     </style>
@@ -65,30 +59,32 @@
     <div class="card">
         <div class="controls">
             <div class="control">
-                <label>전종목시세 CSV 파일 업로드 (KRX 정보데이터시스템)</label>
+                <label>전종목시세 CSV (전일)</label>
                 <input id="file" type="file" accept=".csv,text/csv" />
-                <div class="hint">UTF-8/CP949 모두 자동 인코딩 시도합니다.</div>
+                <div class="hint">UTF-8/CP949 자동 인코딩 시도</div>
             </div>
             <div class="control">
-                <label>최소 거래대금(원) 필터</label>
+                <label>전종목시세 CSV (다음날, 선택)</label>
+                <input id="fileNext" type="file" accept=".csv,text/csv" />
+                <div class="hint">같은 포맷의 다음 영업일 CSV를 올리면 수익률 컬럼이 채워집니다.</div>
+            </div>
+            <div class="control">
+                <label>최소 거래대금(원)</label>
                 <input id="minValue" type="number" inputmode="numeric" value="1000000000" />
-                <div class="hint">기본 10억↑ 유동성만 보기</div>
             </div>
             <div class="control">
-                <label>최소 변동성(전일 Range%)</label>
+                <label>최소 변동성 Range%( (H-L)/O )</label>
                 <input id="minRangePct" type="number" step="0.1" value="1.0" />
-                <div class="hint">(고가-저가)/시가 × 100</div>
             </div>
             <div class="control">
-                <label>바이어스 임계치(UP≥, DOWN≤)</label>
+                <label>바이어스 임계치</label>
                 <input id="biasThresh" type="number" step="0.01" value="0.55" />
-                <div class="hint">0.55→ 애매한 신호 회피</div>
             </div>
             <div class="control">
                 <label>정렬 기준</label>
                 <select id="sortKey">
-                    <option value="probUp">ProbUp (다음날 양봉 확률)</option>
-                    <option value="edge">Edge (ProbUp-0.5)×Range%</option>
+                    <option value="probUp">ProbUp</option>
+                    <option value="edge">Edge</option>
                     <option value="rangePct">Range%</option>
                     <option value="value">거래대금</option>
                 </select>
@@ -97,25 +93,23 @@
                 <label>최대 표시 개수</label>
                 <input id="limit" type="number" value="200" />
             </div>
-                    <div class="control">
-                <label>다음날 전종목시세 CSV (선택)</label>
-                <input id="fileNext" type="file" accept=".csv,text/csv" />
-                <div class="hint">전일 파일과 연속된 다음 영업일 CSV를 올리면 수익률 열이 채워집니다.</div>
-            </div>
         </div>
+
         <div class="row">
             <button id="run" disabled>스캔 실행</button>
             <button id="download" class="btn-secondary" disabled>결과 CSV 다운로드</button>
-            <span id="summary" class="muted"></span>
+            <span id="summary" class="hint"></span>
         </div>
+
         <div class="hr"></div>
         <div class="sticky-top row" style="justify-content: space-between;">
             <div class="row" style="gap:8px;">
-                <span class="pill">규칙 기반: 전일 한 봉(OHLCV)만으로 산출</span>
+                <span class="pill">전일 한 봉(OHLCV)만으로 룰 기반 바이어스</span>
                 <span class="pill">NEUTRAL(애매) → 표에서 제외</span>
             </div>
-            <div class="hint">열 제목을 클릭하면 정렬됩니다.</div>
+            <div class="hint">열 제목 클릭으로 정렬 변경</div>
         </div>
+
         <div id="tableWrap" class="scroll"></div>
     </div>
 </div>
@@ -123,43 +117,34 @@
 <script>
     // ===== 유틸 =====
     function fmtKR(n) {
-        if (n === null || n === undefined || isNaN(n)) return '';
-        return n.toLocaleString('ko-KR');
-    }
-    function fmtPct(x, digits = 2) {
-        if (x === null || x === undefined || isNaN(x)) return '';
-        return (x * 100).toFixed(digits) + '%';
+        if (n === null || n === undefined || isNaN(n)) return "";
+        return n.toLocaleString("ko-KR");
     }
     function parseKRNumber(s) {
         if (s === undefined || s === null) return NaN;
-        if (typeof s === 'number') return s;
-        // 제거: 쉼표, 공백, 퍼센트
-        s = String(s).replace(/[%\s,]/g, '');
-        if (s === '') return NaN;
-        // 과학적 표기(E) 지원
-        const n = Number(s);
+        if (typeof s === "number") return s;
+        s = String(s).replace(/[%\s,]/g, "");
+        if (s === "") return NaN;
+        const n = Number(s);            // 6.41E+08 같은 과학표기도 지원
         return isNaN(n) ? NaN : n;
     }
 
     // 간단 CSV 파서(따옴표 처리)
     function parseCSV(text, delimiter) {
-        delimiter = delimiter || (text.indexOf('\t') > -1 ? '\t' : ',');
+        delimiter = delimiter || (text.indexOf("\t") > -1 ? "\t" : ",");
         const rows = [];
-        let i = 0, field = '', row = [], inQuotes = false;
+        let i = 0, field = "", row = [], inQuotes = false;
         while (i < text.length) {
             const c = text[i];
             if (inQuotes) {
-                if (c === '"') {
-                    if (text[i + 1] === '"') { field += '"'; i++; } // 이스케이프
-                    else { inQuotes = false; }
-                } else {
-                    field += c;
-                }
+                if (c === "\"") {
+                    if (text[i + 1] === "\"") { field += "\""; i++; } else { inQuotes = false; }
+                } else { field += c; }
             } else {
-                if (c === '"') { inQuotes = true; }
-                else if (c === delimiter) { row.push(field); field = ''; }
-                else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-                else if (c === '\r') { /* skip */ }
+                if (c === "\"") { inQuotes = true; }
+                else if (c === delimiter) { row.push(field); field = ""; }
+                else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+                else if (c === "\r") { /* skip */ }
                 else { field += c; }
             }
             i++;
@@ -174,36 +159,35 @@
             const reader = new FileReader();
             reader.onload = () => {
                 let text = reader.result;
-                // 헤더 검증: 한글 깨짐(�) 포함되면 EUC-KR로 재시도
                 if (/�/.test(text)) {
                     const reader2 = new FileReader();
                     reader2.onload = () => resolve(reader2.result);
                     reader2.onerror = reject;
-                    try { reader2.readAsText(file, 'euc-kr'); } catch (e) { resolve(text); }
+                    try { reader2.readAsText(file, "euc-kr"); } catch (e) { resolve(text); }
                 } else {
                     resolve(text);
                 }
             };
             reader.onerror = reject;
-            reader.readAsText(file, 'utf-8');
+            reader.readAsText(file, "utf-8");
         });
     }
 
     // 헤더 매핑(칼럼 이름 유연 매칭)
     const HEADER_MAP = {
-        code: ['종목코드', '단축코드', '코드'],
-        name: ['종목명', '한글명', '이름'],
-        market: ['시장구분', '시장'],
-        open: ['시가'],
-        high: ['고가'],
-        low: ['저가'],
-        close: ['종가'],
-        volume: ['거래량'],
-        value: ['거래대금'],
-        change: ['대비'],
-        changeRate: ['등락률'],
-        shares: ['상장주식수'],
-        cap: ['시가총액']
+        code: ["종목코드", "단축코드", "코드"],
+        name: ["종목명", "한글명", "이름"],
+        market: ["시장구분", "시장"],
+        open: ["시가"],
+        high: ["고가"],
+        low: ["저가"],
+        close: ["종가"],
+        volume: ["거래량"],
+        value: ["거래대금"],
+        change: ["대비"],
+        changeRate: ["등락률"],
+        shares: ["상장주식수"],
+        cap: ["시가총액"]
     };
 
     function buildIndex(header) {
@@ -217,19 +201,19 @@
             }
             idx[key] = found;
         }
-        // 필수 칼럼 확인
-        const required = ['code','name','open','high','low','close'];
+        const required = ["code","name","open","high","low","close"];
         const missing = required.filter(k => idx[k] === -1);
-        if (missing.length) throw new Error('필수 칼럼이 없습니다: ' + missing.join(', '));
+        if (missing.length) throw new Error("필수 칼럼이 없습니다: " + missing.join(", "));
         return idx;
     }
 
     // 전일봉 → 다음날 바이어스 추정(룰 기반)
-    function nextBiasByRules(candle, biasThresh) {
-        const O = candle.open, H = candle.high, L = candle.low, C = candle.close;
+    function nextBiasByRules(prev, biasThresh) {
+        const O = prev.open, H = prev.high, L = prev.low, C = prev.close;
         const eps = 1e-9;
         const range = Math.max(H - L, eps);
         const body = C - O;
+
         const body_frac  = Math.min(Math.abs(body) / range, 1);
         const upper_frac = Math.max((H - Math.max(O, C)) / range, 0);
         const lower_frac = Math.max((Math.min(O, C) - L) / range, 0);
@@ -237,53 +221,133 @@
         const range_to_O = (H - L) / Math.max(O, eps);
 
         let upScore = 0, downScore = 0;
-        // 강한 지속 패턴
         if (clv > 0.6 && body_frac > 0.6 && range_to_O > 0.02 && lower_frac < 0.2) upScore += 1.0;
         if (clv < -0.6 && body_frac > 0.6 && range_to_O > 0.02 && upper_frac < 0.2) downScore += 1.0;
-        // 도지/롱윅 → 되돌림 바이어스(약한 가중)
+
         if (body_frac < 0.2 && range_to_O > 0.015) {
-            if (upper_frac > lower_frac) upScore += 0.5; // 윗꼬리 크면 되돌림(양)
-            if (lower_frac > upper_frac) downScore += 0.5; // 아랫꼬리 크면 되돌림(음)
+            if (upper_frac > lower_frac) upScore += 0.5;  // 윗꼬리 크면 반등 바이어스
+            if (lower_frac > upper_frac) downScore += 0.5; // 아랫꼬리 크면 반락 바이어스
         }
-        // 아주 약한 힌트: 전일 몸통 방향 소폭 반영
+
         if (body > 0) upScore += 0.1; else if (body < 0) downScore += 0.1;
 
         const total = upScore + downScore;
         let probUp = total === 0 ? 0.5 : (upScore / total);
         probUp = Math.max(0, Math.min(1, probUp));
-        let bias = 'NEUTRAL';
-        if (probUp >= biasThresh) bias = 'UP';
-        else if (probUp <= 1 - biasThresh) bias = 'DOWN';
 
-        return {
-            probUp,
-            bias,
-            features: { body_frac, upper_frac, lower_frac, clv, range_to_O }
-        };
+        let bias = "NEUTRAL";
+        if (probUp >= biasThresh) bias = "UP";
+        else if (probUp <= 1 - biasThresh) bias = "DOWN";
+
+        return { probUp, bias, features: { body_frac, upper_frac, lower_frac, clv, range_to_O } };
     }
+
+    // ===== 메인 =====
+    let rawRows = [];
+    let nextMap = new Map();
+
+    // 전일 CSV
+    document.getElementById("file").addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await readCSVFile(file);
+            const rows = parseCSV(text);
+            if (!rows.length) throw new Error("CSV가 비어있습니다.");
+            const header = rows[0];
+            const idx = buildIndex(header);
+            const out = [];
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length < header.length) continue;
+                const open  = parseKRNumber(r[idx.open]);
+                const high  = parseKRNumber(r[idx.high]);
+                const low   = parseKRNumber(r[idx.low]);
+                const close = parseKRNumber(r[idx.close]);
+                if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) continue;
+                out.push({
+                    code: (r[idx.code] || "").trim(),
+                    name: (r[idx.name] || "").trim(),
+                    market: idx.market >= 0 ? (r[idx.market] || "").trim() : "",
+                    open, high, low, close,
+                    volume: idx.volume >= 0 ? parseKRNumber(r[idx.volume]) : undefined,
+                    value:  idx.value  >= 0 ? parseKRNumber(r[idx.value])  : undefined,
+                    change: idx.change >= 0 ? parseKRNumber(r[idx.change]) : undefined,
+                    changeRate: idx.changeRate >= 0 ? parseKRNumber(r[idx.changeRate]) : undefined
+                });
+            }
+            rawRows = out;
+            document.getElementById("run").disabled = false;
+            document.getElementById("summary").textContent = `전일 로딩: ${out.length}종목`;
+        } catch (err) {
+            console.error(err);
+            alert("CSV 파싱 중 오류: " + err.message);
+        }
+    });
+
+    // 다음날 CSV(선택)
+    document.getElementById("fileNext").addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await readCSVFile(file);
+            const rows = parseCSV(text);
+            if (!rows.length) throw new Error("CSV가 비어있습니다.");
+            const header = rows[0];
+            const idx = buildIndex(header);
+            const map = new Map();
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length < header.length) continue;
+                const code  = (r[idx.code] || "").trim();
+                const open  = parseKRNumber(r[idx.open]);
+                const high  = parseKRNumber(r[idx.high]);
+                const low   = parseKRNumber(r[idx.low]);
+                const close = parseKRNumber(r[idx.close]);
+                if (!code || !isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) continue;
+                map.set(code, { open, high, low, close });
+            }
+            nextMap = map;
+            document.getElementById("summary").textContent += ` · 다음날 로딩: ${map.size}종목`;
+        } catch (err) {
+            console.error(err);
+            alert("다음날 CSV 파싱 중 오류: " + err.message);
+        }
+    });
+
+    document.getElementById("run").addEventListener("click", () => {
+        if (!rawRows.length) return;
+        const minValue = parseKRNumber(document.getElementById("minValue").value);
+        const minRangePct = parseKRNumber(document.getElementById("minRangePct").value);
+        const biasThresh = Number(document.getElementById("biasThresh").value);
+        const sortKey = document.getElementById("sortKey").value;
+        const limit = parseInt(document.getElementById("limit").value || "200", 10);
+        rankAndRender(rawRows, { minValue, minRangePct, biasThresh, sortKey, limit });
+    });
 
     function rankAndRender(rows, opts) {
         const { minValue, minRangePct, biasThresh, sortKey, limit } = opts;
 
-        // 변환 + 필터
         const enriched = rows.map(r => {
             const range = r.high - r.low;
             const rangePct = range / Math.max(r.open, 1e-9);
             const bias = nextBiasByRules(r, biasThresh);
-            const edge = (bias.probUp - 0.5) * rangePct; // 간이 기대 우위
+            const edge = (bias.probUp - 0.5) * rangePct;
 
-            // 다음날 데이터 매칭(있으면 수익률 계산)
-            const next = (window.__nextMap instanceof Map) ? window.__nextMap.get(r.code) : undefined;
-            let nextOpen = null, nextHigh = null, nextLow = null, nextClose = null, retHO = null, retCO = null;
+            // 다음날 데이터가 있으면 수익률 계산
+            const next = nextMap.get(r.code);
+            let nextOpen = null, nextHigh = null, nextLow = null, nextClose = null;
+            let retHO = null, retCO = null;
             if (next) {
                 nextOpen = next.open; nextHigh = next.high; nextLow = next.low; nextClose = next.close;
                 if (isFinite(nextOpen) && nextOpen > 0) {
-                    retHO = (nextHigh - nextOpen) / nextOpen;  // 시가대비 고가
-                    retCO = (nextClose - nextOpen) / nextOpen; // 시가대비 종가
+                    retHO = (nextHigh - nextOpen) / nextOpen;   // 시가대비 고가
+                    retCO = (nextClose - nextOpen) / nextOpen;  // 시가대비 종가
                 }
             }
 
-            return { ...r, rangePct, probUp: bias.probUp, biasLabel: bias.bias, edge, nextOpen, nextLow, nextHigh, nextClose, retHO, retCO };
+            return { ...r, rangePct, probUp: bias.probUp, biasLabel: bias.bias, edge,
+                     nextOpen, nextLow, nextHigh, nextClose, retHO, retCO };
         }).filter(r => {
             if (isFinite(minValue) && !isNaN(minValue)) {
                 if (r.value !== undefined && !isNaN(r.value)) {
@@ -293,210 +357,116 @@
             if (isFinite(minRangePct) && !isNaN(minRangePct)) {
                 if ((r.rangePct * 100) < minRangePct) return false;
             }
-            // 애매 제거
-            return r.biasLabel !== 'NEUTRAL';
+            return r.biasLabel !== "NEUTRAL";
         });
 
         const sorters = {
             probUp: (a, b) => (b.probUp - a.probUp) || (b.rangePct - a.rangePct),
             edge: (a, b) => (b.edge - a.edge),
             rangePct: (a, b) => (b.rangePct - a.rangePct),
-            value: (a, b) => ((b.value||0) - (a.value||0)),
+            value: (a, b) => ((b.value || 0) - (a.value || 0))
         };
         enriched.sort(sorters[sortKey] || sorters.probUp);
         const sliced = enriched.slice(0, limit);
 
-        // 렌더
         renderTable(sliced);
-        const upCnt = sliced.filter(x => x.biasLabel === 'UP').length;
-        const downCnt = sliced.filter(x => x.biasLabel === 'DOWN').length;
-        const sum = document.getElementById('summary');
-        sum.textContent = `표시 ${sliced.length}종목 · UP ${upCnt} / DOWN ${downCnt} · 임계치 ${biasThresh}`;
 
-        // CSV 다운로드 데이터 저장
+        const upCnt = sliced.filter(x => x.biasLabel === "UP").length;
+        const downCnt = sliced.filter(x => x.biasLabel === "DOWN").length;
+        document.getElementById("summary").textContent =
+            `표시 ${sliced.length}종목 · UP ${upCnt} / DOWN ${downCnt} · 임계치 ${biasThresh}`;
         window.__lastResult = sliced;
-        document.getElementById('download').disabled = sliced.length === 0;
+        document.getElementById("download").disabled = sliced.length === 0;
     }
 
     function renderTable(data) {
-        const wrap = document.getElementById('tableWrap');
-        if (!data || !data.length) { wrap.innerHTML = '<div class="muted">표시할 결과가 없습니다.</div>'; return; }
+        const wrap = document.getElementById("tableWrap");
+        if (!data || !data.length) { wrap.innerHTML = '<div class="hint">표시할 결과가 없습니다.</div>'; return; }
+
         const headers = [
-            { key: 'name', label: '종목명' },
-            { key: 'code', label: '종목코드' },
-            { key: 'market', label: '시장' },
-            { key: 'open', label: '시가', fmt: fmtKR, cls: 'right' },
-            { key: 'high', label: '고가', fmt: fmtKR, cls: 'right' },
-            { key: 'low', label: '저가', fmt: fmtKR, cls: 'right' },
-            { key: 'close', label: '종가', fmt: fmtKR, cls: 'right' },
-            { key: 'value', label: '거래대금', fmt: fmtKR, cls: 'right' },
-            { key: 'rangePct', label: 'Range%', fmt: v => (v*100).toFixed(2) + '%', cls: 'right' },
-            { key: 'probUp', label: 'ProbUp', fmt: v => (v*100).toFixed(1) + '%', cls: 'right' },
-            { key: 'biasLabel', label: 'Bias', fmt: v => v === 'UP' ? '<span class="badge up">UP</span>' : (v === 'DOWN' ? '<span class="badge down">DOWN</span>' : '<span class="badge neutral">NEUTRAL</span>') },
-            { key: 'edge', label: 'Edge', fmt: v => (v*100).toFixed(2) + 'bp', cls: 'right' },
-            { key: 'nextOpen', label: '다음시가', fmt: fmtKR, cls: 'right' },
-            { key: 'nextLow', label: '다음저가', fmt: fmtKR, cls: 'right' },
-            { key: 'nextHigh', label: '다음고가', fmt: fmtKR, cls: 'right' },
-            { key: 'nextClose', label: '다음종가', fmt: fmtKR, cls: 'right' },
-            { key: 'retHO', label: '시가→고가 수익률', fmt: v => (v==null||isNaN(v) ? '' : (v*100).toFixed(2) + '%'), cls: 'right' },
-            { key: 'retCO', label: '시가→종가 수익률', fmt: v => (v==null||isNaN(v) ? '' : (v*100).toFixed(2) + '%'), cls: 'right' },
+            { key: "name", label: "종목명" },
+            { key: "code", label: "종목코드" },
+            { key: "market", label: "시장" },
+            { key: "open", label: "시가", fmt: fmtKR },
+            { key: "high", label: "고가", fmt: fmtKR },
+            { key: "low",  label: "저가", fmt: fmtKR },
+            { key: "close",label: "종가", fmt: fmtKR },
+            { key: "value",label: "거래대금", fmt: fmtKR },
+            { key: "rangePct", label: "Range%", fmt: v => (v*100).toFixed(2) + "%" },
+            { key: "probUp",   label: "ProbUp", fmt: v => (v*100).toFixed(1) + "%" },
+            { key: "biasLabel",label: "Bias", fmt: v => v === "UP" ? '<span class="badge up">UP</span>' : (v === "DOWN" ? '<span class="badge down">DOWN</span>' : '<span class="badge neutral">NEUTRAL</span>') },
+            { key: "edge",     label: "Edge", fmt: v => (v*100).toFixed(2) + "%" },
+            { key: "nextOpen", label: "다음시가", fmt: v => v==null? "" : fmtKR(v) },
+            { key: "nextLow",  label: "다음저가", fmt: v => v==null? "" : fmtKR(v) },
+            { key: "nextHigh", label: "다음고가", fmt: v => v==null? "" : fmtKR(v) },
+            { key: "nextClose",label: "다음종가", fmt: v => v==null? "" : fmtKR(v) },
+            { key: "retHO",    label: "시가대비고가기준 수익률", fmt: v => (v==null||isNaN(v)) ? "" : (v*100).toFixed(2) + "%" },
+            { key: "retCO",    label: "시가대비종가기준 수익률", fmt: v => (v==null||isNaN(v)) ? "" : (v*100).toFixed(2) + "%" }
         ];
 
-        let html = '<table><thead><tr>'; 
+        let html = "<table><thead><tr>";
         for (const h of headers) html += `<th data-key="${h.key}">${h.label}</th>`;
-        html += '</tr></thead><tbody>';
+        html += "</tr></thead><tbody>";
         for (const r of data) {
-            html += '<tr>';
+            html += "<tr>";
             for (const h of headers) {
                 const val = r[h.key];
-                const content = h.fmt ? h.fmt(val) : (val ?? '');
-                const cls = h.cls || '';
-                html += `<td class="${cls}">${content}</td>`;
+                const content = h.fmt ? h.fmt(val) : (val ?? "");
+                html += `<td>${content}</td>`;
             }
-            html += '</tr>';
+            html += "</tr>";
         }
-        html += '</tbody></table>';
+        html += "</tbody></table>";
         wrap.innerHTML = html;
 
-        // 헤더 클릭 정렬(간단 버전: 정렬 기준만 바꾸고 재계산)
-        wrap.querySelectorAll('th').forEach(th => {
-            th.addEventListener('click', () => {
-                const map = { probUp: 'probUp', Edge: 'edge', Range: 'rangePct', value: 'value' };
-                const key = th.getAttribute('data-key');
-                const sel = document.getElementById('sortKey');
+        // 헤더 클릭 정렬(선택한 키로 다시 실행)
+        wrap.querySelectorAll("th").forEach(th => {
+            th.addEventListener("click", () => {
+                const key = th.getAttribute("data-key");
+                const sel = document.getElementById("sortKey");
                 if (key && sel.querySelector(`option[value="${key}"]`)) {
-                    sel.value = key; document.getElementById('run').click();
+                    sel.value = key; document.getElementById("run").click();
                 }
             });
         });
     }
 
     function toCSV(data) {
-        const cols = ['종목명','종목코드','시장','시가','고가','저가','종가','거래대금','Range%','ProbUp','Bias','Edge','다음시가','다음저가','다음고가','다음종가','시가→고가(%)','시가→종가(%)'];
-        const lines = [cols.join(',')];
+        const cols = [
+            "종목명","종목코드","시장","시가","고가","저가","종가","거래대금",
+            "Range%","ProbUp","Bias","Edge",
+            "다음시가","다음저가","다음고가","다음종가",
+            "시가대비고가기준 수익률","시가대비종가기준 수익률"
+        ];
+        const lines = [cols.join(",")];
         for (const r of data) {
             const row = [
-                r.name,
-                r.code,
-                r.market ?? '',
-                r.open,
-                r.high,
-                r.low,
-                r.close,
-                r.value ?? '',
+                r.name, r.code, r.market ?? "",
+                r.open, r.high, r.low, r.close, r.value ?? "",
                 (r.rangePct*100).toFixed(2),
                 (r.probUp*100).toFixed(1),
                 r.biasLabel,
                 (r.edge*100).toFixed(2),
-                r.nextOpen ?? '',
-                r.nextLow ?? '',
-                r.nextHigh ?? '',
-                r.nextClose ?? '',
-                (r.retHO==null||isNaN(r.retHO)) ? '' : (r.retHO*100).toFixed(2),
-                (r.retCO==null||isNaN(r.retCO)) ? '' : (r.retCO*100).toFixed(2)
-            ].map(v => (v === null || v === undefined) ? '' : String(v));
-            // 간단한 CSV quoting
-            for (let i=0;i<row.length;i++) {
-                if (/[",\n]/.test(row[i])) { row[i] = '"' + row[i].replace(/"/g,'""') + '"'; }
+                r.nextOpen ?? "", r.nextLow ?? "", r.nextHigh ?? "", r.nextClose ?? "",
+                (r.retHO==null||isNaN(r.retHO)) ? "" : (r.retHO*100).toFixed(2),
+                (r.retCO==null||isNaN(r.retCO)) ? "" : (r.retCO*100).toFixed(2)
+            ].map(v => (v === null || v === undefined) ? "" : String(v));
+            for (let i = 0; i < row.length; i++) {
+                if (/[",\n]/.test(row[i])) { row[i] = "\"" + row[i].replace(/"/g,"\"\"") + "\""; }
             }
-            lines.push(row.join(','));
+            lines.push(row.join(","));
         }
-        return lines.join('\n');
+        return lines.join("\n");
     }
 
-    // ===== 메인 로직 =====
-    let rawRows = []; let nextMap = new Map();
-
-    document.getElementById('file').addEventListener('change', async (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        try {
-            const text = await readCSVFile(file);
-            const rows = parseCSV(text);
-            if (!rows.length) throw new Error('CSV가 비어있습니다.');
-            const header = rows[0];
-            const idx = buildIndex(header);
-            const out = [];
-            for (let i = 1; i < rows.length; i++) {
-                const r = rows[i];
-                if (!r || r.length < header.length) continue;
-                const open = parseKRNumber(r[idx.open]);
-                const high = parseKRNumber(r[idx.high]);
-                const low  = parseKRNumber(r[idx.low]);
-                const close= parseKRNumber(r[idx.close]);
-                if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) continue;
-                out.push({
-                    code: (r[idx.code]||'').trim(),
-                    name: (r[idx.name]||'').trim(),
-                    market: idx.market>=0 ? (r[idx.market]||'').trim() : '',
-                    open, high, low, close,
-                    volume: idx.volume>=0 ? parseKRNumber(r[idx.volume]) : undefined,
-                    value: idx.value>=0 ? parseKRNumber(r[idx.value]) : undefined,
-                    change: idx.change>=0 ? parseKRNumber(r[idx.change]) : undefined,
-                    changeRate: idx.changeRate>=0 ? parseKRNumber(r[idx.changeRate]) : undefined,
-                });
-            }
-            rawRows = out;
-
-    // 다음날 CSV 업로드 (선택)
-    document.getElementById('fileNext').addEventListener('change', async (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        try {
-            const text = await readCSVFile(file);
-            const rows = parseCSV(text);
-            if (!rows.length) throw new Error('CSV가 비어있습니다.');
-            const header = rows[0];
-            const idx = buildIndex(header);
-            const map = new Map();
-            for (let i = 1; i < rows.length; i++) {
-                const r = rows[i];
-                if (!r || r.length < header.length) continue;
-                const open = parseKRNumber(r[idx.open]);
-                const high = parseKRNumber(r[idx.high]);
-                const low  = parseKRNumber(r[idx.low]);
-                const close= parseKRNumber(r[idx.close]);
-                if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) continue;
-                const code = (r[idx.code]||'').trim();
-                if (!code) continue;
-                map.set(code, { open, high, low, close });
-            }
-            nextMap = map;
-            window.__nextMap = map;
-            const sum = document.getElementById('summary');
-            sum.textContent = (sum.textContent ? sum.textContent + ' · ' : '') + `다음날 로딩: ${map.size}종목`;
-        } catch (err) {
-            console.error(err);
-            alert('다음날 CSV 파싱 중 오류: ' + err.message);
-        }
-    });
-
-    document.getElementById('run'.disabled = false;
-            document.getElementById('summary').textContent = `로딩됨: ${out.length}종목`;
-        } catch (err) {
-            console.error(err);
-            alert('CSV 파싱 중 오류: ' + err.message);
-        }
-    });
-
-    document.getElementById('run').addEventListener('click', () => {
-        if (!rawRows.length) return;
-        const minValue = parseKRNumber(document.getElementById('minValue').value);
-        const minRangePct = parseKRNumber(document.getElementById('minRangePct').value);
-        const biasThresh = Number(document.getElementById('biasThresh').value);
-        const sortKey = document.getElementById('sortKey').value;
-        const limit = parseInt(document.getElementById('limit').value || '200', 10);
-        rankAndRender(rawRows, { minValue, minRangePct, biasThresh, sortKey, limit });
-    });
-
-    document.getElementById('download').addEventListener('click', () => {
+    document.getElementById("download").addEventListener("click", () => {
         const data = window.__lastResult || [];
         if (!data.length) return;
         const csv = toCSV(data);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'krx_nextday_bias.csv';
+        const a = document.createElement("a");
+        a.href = url; a.download = "krx_nextday_bias.csv";
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
     });
