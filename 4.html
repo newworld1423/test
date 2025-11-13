@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp USDT — 1D 직전봉 단일캔들 스캐너 (+Regime/Signal)</title>
+    <title>Binance Perp USDT — 1D 직전봉 단일캔들 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -30,13 +30,23 @@
             border-bottom: 1px solid var(--border);
             background: linear-gradient(180deg, #0f1116, #0b0c10);
         }
-        h1 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; }
-        .sub { color: var(--muted); font-size: 13px; }
-        .wrap { padding: 16px 20px 40px; max-width: 1300px; margin: 0 auto; }
-
+        h1 {
+            margin: 0 0 6px 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .sub {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .wrap {
+            padding: 16px 20px 40px;
+            max-width: 1300px;
+            margin: 0 auto;
+        }
         .controls {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr auto;
+            grid-template-columns: 1fr auto auto auto;
             gap: 12px;
             align-items: end;
             margin-bottom: 16px;
@@ -64,7 +74,14 @@
             color: var(--text);
             font-size: 14px;
         }
-        .actions { display: flex; gap: 8px; }
+        .field input[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
         button {
             padding: 10px 14px;
             border-radius: 10px;
@@ -77,10 +94,22 @@
         button.primary { background: var(--accent); color: #001f33; border: none; }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .progress { margin: 12px 0 0; height: 8px; background: #0f1320; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+        .progress {
+            margin: 12px 0 0;
+            height: 8px;
+            background: #0f1320;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+        }
         .bar { height: 100%; width: 0%; background: linear-gradient(90deg,#3ea6ff,#7cf3ff); }
 
-        .summary { margin: 16px 0; display: flex; gap: 12px; flex-wrap: wrap; }
+        .summary {
+            margin: 16px 0;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
         .chip {
             background: var(--card);
             border: 1px solid var(--border);
@@ -91,91 +120,137 @@
         }
         .chip strong { color: var(--text); }
 
-        .table-wrap { border: 1px solid var(--border); border-radius: 14px; background: var(--card); overflow: visible; }
-        .table-scroller { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; border-radius: 14px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 1850px; }
-        thead th {
-            position: sticky; top: 0; background: #111319; z-index: 2;
-            padding: 10px 12px; border-bottom: 1px solid var(--border);
-            text-align: right; white-space: nowrap;
+        /* ---------- 테이블 영역 ---------- */
+        .table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--card);
+            overflow: visible;
         }
-        thead th:first-child, tbody td:first-child { text-align: left; }
-        tbody td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); text-align: right; white-space: nowrap; }
+        .table-scroller {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+            min-width: 1600px;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #111319;
+            z-index: 2;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            white-space: nowrap;
+        }
+        thead th:first-child,
+        tbody td:first-child { text-align: left; }
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            text-align: right;
+            white-space: nowrap;
+        }
         tbody tr:hover { background: rgba(62,166,255,0.06); }
-        .num.pos { color: var(--good); } .num.neg { color: var(--bad); }
+        .num.pos { color: var(--good); }
+        .num.neg { color: var(--bad); }
         .muted { color: var(--muted); }
 
-        .head-flex { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .sort-arrows { display: inline-flex; gap: 2px; }
-        .sort-arrows button { border: 1px solid var(--border); background: #0f1320; padding: 2px 6px; line-height: 1; border-radius: 6px; color: var(--muted); font-size: 11px; }
+        .head-flex {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .sort-arrows {
+            display: inline-flex;
+            gap: 2px;
+        }
+        .sort-arrows button {
+            border: 1px solid var(--border);
+            background: #0f1320;
+            padding: 2px 6px;
+            line-height: 1;
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 11px;
+        }
         .sort-arrows button.active { color: var(--accent); border-color: var(--accent); }
 
-        .searchline { display: flex; gap: 10px; align-items: center; margin: 10px 0 16px; }
+        .searchline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0 16px;
+        }
         .searchline input {
-            width: 240px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: #0c0d12; color: var(--text);
+            width: 240px;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #0c0d12;
+            color: var(--text);
         }
         .note { font-size: 12px; color: var(--muted); }
-        .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
         .pill.ok { background: rgba(0,200,83,.15); color: var(--good); }
         .pill.no { background: rgba(255,82,82,.15); color: var(--bad); }
-        .pill.warn { background: rgba(255,213,79,.15); color: var(--warn); }
-        .pill.neutral { background: rgba(154,160,166,.15); color: var(--muted); }
-        .pill.long { background: rgba(0,200,83,.15); color: var(--good); }
-        .pill.short { background: rgba(255,82,82,.15); color: var(--bad); }
     </style>
 </head>
 <body>
     <header>
-        <h1>1일봉 직전봉 단일캔들 스캐너 (Binance Perp USDT)</h1>
-        <div class="sub">선택한 날짜(UTC)의 <strong>직전봉</strong> 하나만으로 예측점수/예측확률을 계산합니다. 백테스트를 켜면 해당 날짜의 실제 결과(Open→High/Close)와 <strong>신호 진입 성공/실패</strong>도 함께 표시합니다. (성공/실패는 시가→종가 기준)</div>
+        <h1>1일봉 단일캔들 스캐너 (Binance Perp USDT)</h1>
+        <div class="sub">
+            백테스트를 켜면 선택한 날짜(UTC)의 <strong>직전봉(D-1)</strong> 하나로 D일 결과를 검증하고,
+            끄면 <strong>현재 진행 중인 1D 캔들(오늘)</strong> 하나만으로 예측점수/예측확률을 계산합니다.
+            (성공/실패는 시가→종가 기준)
+        </div>
     </header>
 
     <div class="wrap">
         <div class="controls">
             <div class="field">
-                <label>스캔 기준 날짜 (UTC 00:00:00Z)</label>
+                <label>스캔 기준 날짜 (UTC 00:00:00Z, 백테스트 ON에서만 사용)</label>
                 <input id="dateInput" type="date" />
                 <div class="note" style="margin-top:6px;">※ Binance 1D 캔들은 <strong>UTC</strong> 기준입니다.</div>
             </div>
-
             <div class="field">
                 <label>옵션</label>
                 <div>
                     <label><input id="backtestChk" type="checkbox" /> 백테스트 (D일 실제 결과 포함)</label>
                 </div>
                 <div style="margin-top:6px;">
-                    <label><input id="minQuoteVolChk" type="checkbox" /> 직전봉 거래대금 하한(USDT)</label>
+                    <label><input id="minQuoteVolChk" type="checkbox" /> 기준 캔들 거래대금 하한(USDT)</label>
                     <input id="minQuoteVol" type="number" placeholder="예: 5,000,000" style="margin-top:6px;" />
-                    <div class="note">※ 유동성 낮은 종목 제외용(선택)</div>
+                    <div class="note">※ 유동성 낮은 종목 제외용(선택, 백테스트/현재봉 공통)</div>
                 </div>
             </div>
-
-            <div class="field">
-                <label>신호/레짐 옵션</label>
-                <div class="searchline" style="margin:0 0 8px;">
-                    <input id="overheatPct" type="number" min="50" max="99" value="80" />
-                    <span class="note">과열 퍼센타일(%) — range/chg 상위 이상이면 과열</span>
-                </div>
-                <div>
-                    <label><input id="signalOnly" type="checkbox" /> 신호만 보기</label>
-                </div>
-                <div class="note" style="margin-top:6px;">레짐 기준(고정값): Bull ≥ 55% 또는 중앙등락률 ≥ +0.5%, Bear ≤ 45% 또는 중앙등락률 ≤ −0.5%</div>
-            </div>
-
             <div class="field">
                 <label>검색</label>
                 <div class="searchline">
                     <input id="searchSym" type="text" placeholder="심볼 필터 (예: BTC, ETH...)" />
                     <span class="note">표시된 목록 실시간 필터</span>
                 </div>
-                <div class="actions">
-                    <button id="scanBtn" class="primary">스캔 시작</button>
-                    <button id="stopBtn">중지</button>
-                </div>
+            </div>
+            <div class="actions">
+                <button id="scanBtn" class="primary">스캔 시작</button>
+                <button id="stopBtn">중지</button>
             </div>
         </div>
 
         <div class="summary" id="summary"></div>
+
         <div class="progress"><div class="bar" id="bar"></div></div>
 
         <div class="table-wrap" style="margin-top:14px;">
@@ -188,8 +263,10 @@
         </div>
 
         <p class="note" style="margin-top:12px;">
-            * 점수 산식(직전봉 하나만 사용): <code>Score = 0.5·(방향×몸통비율) + 0.3·(2·CLV−1) + 0.2·(아랫꼬리−윗꼬리) + 0.1·tanh(범위%) + 0.1·(직전봉 USDT 거래대금 z)</code><br>
-            * <strong>예측확률</strong>은 같은 날짜 전체 심볼의 점수 분포를 z-score로 정규화 후 시그모이드로 변환한 상대적 확률값입니다.
+            * 점수 산식(단일 1D 캔들): <code>Score = 0.5·(방향×몸통비율) + 0.3·(2·CLV−1) + 0.2·(아랫꼬리−윗꼬리) + 0.1·tanh(범위%) + 0.1·(USDT 거래대금 z)</code><br>
+            * <strong>예측확률</strong>은 같은 날짜(또는 같은 기준일)의 전체 심볼 점수 분포를 z-score로 정규화 후 시그모이드로 변환한 상대적 확률값입니다.<br>
+            * 백테스트 ON: 선택한 날짜 D의 직전봉(D-1)을 기준으로 D일 시가→고가/시가→종가 수익률과 성공/실패를 확인합니다.<br>
+            * 백테스트 OFF: 오늘 진행 중인 1D 캔들(UTC 기준)을 기준으로 점수/확률만 계산합니다.
         </p>
     </div>
 
@@ -205,43 +282,24 @@
             const d = String(date.getUTCDate()).padStart(2, "0");
             return `${y}-${m}-${d}`;
         }
-        function parseDateUTC(yyyy_mm_dd) { return new Date(`${yyyy_mm_dd}T00:00:00.000Z`); }
-        function tanh(x) { const e2x = Math.exp(2 * x); return (e2x - 1) / (e2x + 1); }
-        function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
-        function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+        function parseDateUTC(yyyy_mm_dd) {
+            return new Date(`${yyyy_mm_dd}T00:00:00.000Z`);
+        }
+        function tanh(x) {
+            const e2x = Math.exp(2 * x);
+            return (e2x - 1) / (e2x + 1);
+        }
+        function sigmoid(x) {
+            return 1 / (1 + Math.exp(-x));
+        }
+        function mean(arr) {
+            return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+        }
         function stddev(arr) {
             if (arr.length <= 1) return 1;
             const m = mean(arr);
             const v = mean(arr.map(x => (x - m) ** 2));
             return Math.sqrt(v) || 1;
-        }
-        function median(arr) {
-            if (!arr.length) return 0;
-            const a = arr.slice().sort((x, y) => x - y);
-            const mid = Math.floor(a.length / 2);
-            return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
-        }
-        function quantile(arr, q) {
-            if (!arr.length) return 0;
-            const a = arr.slice().sort((x, y) => x - y);
-            const pos = (a.length - 1) * q;
-            const base = Math.floor(pos);
-            const rest = pos - base;
-            if (a[base + 1] !== undefined) return a[base] + rest * (a[base + 1] - a[base]);
-            return a[base];
-        }
-        function quantileThresholds(arr, splits = 10) {
-            const qs = [];
-            for (let i = 1; i < splits; i++) qs.push(quantile(arr, i / splits));
-            return qs; // length = splits-1
-        }
-        function valueToDecile(val, thresholds) {
-            if (val == null || Number.isNaN(val)) return 5;
-            let d = 1;
-            for (let i = 0; i < thresholds.length; i++) {
-                if (val > thresholds[i]) d++;
-            }
-            return Math.min(Math.max(d, 1), thresholds.length + 1);
         }
         function fmtNum(x, d = 2) {
             if (x === null || x === undefined || Number.isNaN(x)) return "-";
@@ -266,25 +324,44 @@
         // ==========================
         // 컬럼 정의
         // ==========================
-        const BASE_COLUMNS = [
-            { key: "symbol", label: "심볼" },
-            { key: "prevOpen", label: "O-1" },
-            { key: "prevHigh", label: "H-1" },
-            { key: "prevLow",  label: "L-1" },
-            { key: "prevClose",label: "C-1" },
-            { key: "chgPct",   label: "등락률(%)" },
-            { key: "rangePct", label: "범위(%)" },
-            { key: "bodyPct",  label: "몸통비율" },
-            { key: "upperW",   label: "윗꼬리" },
-            { key: "lowerW",   label: "아랫꼬리" },
-            { key: "wickImbPct", label: "WickImb(%)" },     // 추가
-            { key: "clv",      label: "CLV" },
-            { key: "quoteVol", label: "거래대금(USDT)" },
-            { key: "overheat", label: "과열" },              // 추가
-            { key: "bias",     label: "신호" },              // 추가 (LC/LR/SR/CH-L/CH-S)
-            { key: "score",    label: "예측점수(원시)" },
-            { key: "prob",     label: "예측확률(%)" },
-        ];
+        function getBaseColumns(isBacktest) {
+            if (isBacktest) {
+                return [
+                    { key: "symbol",    label: "심볼" },
+                    { key: "prevOpen",  label: "O-1" },
+                    { key: "prevHigh",  label: "H-1" },
+                    { key: "prevLow",   label: "L-1" },
+                    { key: "prevClose", label: "C-1" },
+                    { key: "chgPct",    label: "등락률(%)" },
+                    { key: "rangePct",  label: "범위(%)" },
+                    { key: "bodyPct",   label: "몸통비율" },
+                    { key: "upperW",    label: "윗꼬리" },
+                    { key: "lowerW",    label: "아랫꼬리" },
+                    { key: "clv",       label: "CLV" },
+                    { key: "quoteVol",  label: "거래대금(USDT)" },
+                    { key: "score",     label: "예측점수(원시)" },
+                    { key: "prob",      label: "예측확률(%)" }
+                ];
+            }
+            // 백테스트 OFF: 기준 캔들은 "오늘 진행 중인 1D 캔들"
+            return [
+                { key: "symbol",    label: "심볼" },
+                { key: "prevOpen",  label: "O(기준)" },
+                { key: "prevHigh",  label: "H(기준)" },
+                { key: "prevLow",   label: "L(기준)" },
+                { key: "prevClose", label: "C(기준)" },
+                { key: "chgPct",    label: "등락률(%)" },
+                { key: "rangePct",  label: "범위(%)" },
+                { key: "bodyPct",   label: "몸통비율" },
+                { key: "upperW",    label: "윗꼬리" },
+                { key: "lowerW",    label: "아랫꼬리" },
+                { key: "clv",       label: "CLV" },
+                { key: "quoteVol",  label: "거래대금(USDT)" },
+                { key: "score",     label: "예측점수(원시)" },
+                { key: "prob",      label: "예측확률(%)" }
+            ];
+        }
+
         const BACKTEST_COLUMNS = [
             { key: "dayOpen",        label: "D 시가" },
             { key: "dayLow",         label: "D 저가" },
@@ -292,10 +369,7 @@
             { key: "dayClose",       label: "D 종가" },
             { key: "dayRetHighPct",  label: "D 수익률(시→고,%)" },
             { key: "dayRetClosePct", label: "D 수익률(시→종,%)" },
-            { key: "signalSide",     label: "진입" },                  // 추가
-            { key: "signalRtnClosePct", label: "신호수익(시→종,%)" },  // 추가
-            { key: "signalResult",   label: "신호결과" },              // 추가
-            { key: "result",         label: "결과" },
+            { key: "result",         label: "결과" }
         ];
 
         // ==========================
@@ -339,12 +413,12 @@
                 quoteVolume: Number(k[7]),
                 trades: Number(k[8]),
                 takerBuyBase: Number(k[9]),
-                takerBuyQuote: Number(k[10]),
+                takerBuyQuote: Number(k[10])
             };
         }
 
         // ==========================
-        // 점수/확률 계산 (직전봉 하나)
+        // 점수/확률 계산 (단일 캔들)
         // ==========================
         function featuresFromCandle(k) {
             const O = k.open, H = k.high, L = k.low, C = k.close;
@@ -361,9 +435,8 @@
             const clv = (C - L) / range;
             const chgPct = (C - O) / (O || 1e-12) * 100;
             const rangePct = (H - L) / (O || 1e-12) * 100;
-            const wickImbPct = (lowerW - upperW) * 100;
 
-            return { dir, bodyPct, upperW, lowerW, clv, chgPct, rangePct, quoteVol: QV, wickImbPct };
+            return { dir, bodyPct, upperW, lowerW, clv, chgPct, rangePct, quoteVol: QV };
         }
 
         function buildScores(rows) {
@@ -378,6 +451,7 @@
                     0.2 * (f.lowerW - f.upperW) +
                     0.1 * tanh(f.rangePct / 10) +
                     0.1 * vZ;
+
                 r.score = score;
                 r._volZ = vZ;
             });
@@ -386,103 +460,7 @@
             const k = 1.2;
             rows.forEach(r => {
                 const z = (r.score - sMu) / sSd;
-                r.prob = 1 / (1 + Math.exp(-k * z));
-            });
-        }
-
-        // ==========================
-        // 레짐/신호 로직
-        // ==========================
-        const REGIME_CONST = {
-            bullUpRatio: 0.55,     // 상승비율 55% 이상
-            bearUpRatio: 0.45,     // 상승비율 45% 이하
-            bullMedianChg: +0.5,   // 중앙등락률 +0.5% 이상
-            bearMedianChg: -0.5,   // 중앙등락률 -0.5% 이하
-            choppyWickImbGate: 1.0 // 찹피에서 ±1% 넘으면 방향성 신호
-        };
-
-        function computeRegime(rows) {
-            const ups = rows.filter(r => r.chgPct > 0).length;
-            const pctUp = rows.length ? (ups / rows.length) : 0;
-            const medChg = median(rows.map(r => r.chgPct).filter(v => Number.isFinite(v)));
-
-            let regime = "CHOPPY";
-            if (pctUp >= REGIME_CONST.bullUpRatio || medChg >= REGIME_CONST.bullMedianChg) regime = "BULL";
-            else if (pctUp <= REGIME_CONST.bearUpRatio || medChg <= REGIME_CONST.bearMedianChg) regime = "BEAR";
-            return { regime, pctUp, medChg };
-        }
-
-        function buildDecileFns(rows) {
-            const get = k => rows.map(r => r[k]).filter(v => Number.isFinite(v));
-            const t = {};
-            const fields = ["prob","score","chgPct","rangePct","bodyPct","upperW","lowerW","clv"];
-            fields.forEach(f => { t[f] = quantileThresholds(get(f), 10); });
-            return {
-                dProb:  (v) => valueToDecile(v, t.prob),
-                dScore: (v) => valueToDecile(v, t.score),
-                dChg:   (v) => valueToDecile(v, t.chgPct),
-                dRng:   (v) => valueToDecile(v, t.rangePct),
-                dBody:  (v) => valueToDecile(v, t.bodyPct),
-                dUpW:   (v) => valueToDecile(v, t.upperW),
-                dLoW:   (v) => valueToDecile(v, t.lowerW),
-                dCLV:   (v) => valueToDecile(v, t.clv),
-                q80_rng: quantile(get("rangePct"), 0.8),
-                q80_chg: quantile(get("chgPct"), 0.8),
-            };
-        }
-
-        function classifySignals(rows, dec, regime, overheatPct = 80) {
-            const qOver_rng = quantile(rows.map(r => r.rangePct), overheatPct / 100);
-            const qOver_chg = quantile(rows.map(r => r.chgPct),   overheatPct / 100);
-
-            rows.forEach(r => {
-                // 과열 플래그
-                r.overheat = (r.rangePct >= qOver_rng) || (r.chgPct >= qOver_chg);
-
-                // 분위 값
-                const dProb = dec.dProb(r.prob);
-                const dScore = dec.dScore(r.score);
-                const dChg = dec.dChg(r.chgPct);
-                const dRng = dec.dRng(r.rangePct);
-                const dBody = dec.dBody(r.bodyPct);
-                const dUpW = dec.dUpW(r.upperW);
-                const dLoW = dec.dLoW(r.lowerW);
-                const dCLV = dec.dCLV(r.clv);
-
-                // 기본값
-                r.bias = "-";
-                r.signalSide = "-";
-
-                if (regime === "BULL") {
-                    // Long Continuation (LC)
-                    const cond =
-                        (dProb >= 8 || dScore >= 8) &&
-                        (dUpW <= 3) &&
-                        (dCLV >= 7) &&
-                        (dRng <= 8) &&
-                        !r.overheat;
-                    if (cond) { r.bias = "LC-롱"; r.signalSide = "LONG"; }
-                } else if (regime === "BEAR") {
-                    // Long Reversal (LR)
-                    const condLR =
-                        (dChg <= 3) &&
-                        (dLoW >= 7) &&
-                        (dProb >= 4 && dProb <= 6 || dScore >= 4 && dScore <= 6);
-                    // Short Reversal (SR)
-                    const condSR =
-                        (dChg >= 8) &&
-                        (dUpW >= 7) &&
-                        ((dCLV <= 4) || (dBody >= 8)) &&
-                        r.overheat;
-
-                    if (condSR) { r.bias = "SR-숏"; r.signalSide = "SHORT"; }
-                    else if (condLR) { r.bias = "LR-롱"; r.signalSide = "LONG"; }
-                } else {
-                    // CHOPPY: WickImb 기반
-                    if (r.wickImbPct >= REGIME_CONST.choppyWickImbGate) { r.bias = "CH-L"; r.signalSide = "LONG"; }
-                    else if (r.wickImbPct <= -REGIME_CONST.choppyWickImbGate) { r.bias = "CH-S"; r.signalSide = "SHORT"; }
-                    else { r.bias = "CH-N"; r.signalSide = "-"; }
-                }
+                r.prob = sigmoid(k * z);
             });
         }
 
@@ -490,17 +468,21 @@
         // 렌더링
         // ==========================
         function updateTableMinWidth() {
-            const thCount = document.querySelectorAll('#thead th').length || 18;
+            const thCount = document.querySelectorAll('#thead th').length || 14;
             const perCol = 120;
-            const min = Math.max(1600, thCount * perCol);
-            document.getElementById('resultTable').style.minWidth = `${min}px`;
+            const min = Math.max(1400, thCount * perCol);
+            const table = document.getElementById('resultTable');
+            table.style.minWidth = `${min}px`;
         }
 
         function renderHeader(isBacktest, sortState) {
             const thead = document.getElementById("thead");
             thead.innerHTML = "";
             const tr = document.createElement("tr");
-            const cols = isBacktest ? [...BASE_COLUMNS, ...BACKTEST_COLUMNS] : BASE_COLUMNS;
+
+            const baseCols = getBaseColumns(isBacktest);
+            const cols = isBacktest ? [...baseCols, ...BACKTEST_COLUMNS] : baseCols;
+
             cols.forEach(col => {
                 const th = document.createElement("th");
                 const wrap = el("div", { class: "head-flex" });
@@ -535,12 +517,11 @@
 
         function drawTable() {
             const tbody = document.getElementById("tbody");
-            const { rows, isBacktest, sort, symbolFilter, signalOnly } = state;
+            const { rows, isBacktest, sort, symbolFilter } = state;
 
             const visible = rows.filter(r => {
-                if (symbolFilter && !r.symbol.toLowerCase().includes(symbolFilter.toLowerCase())) return false;
-                if (signalOnly && (!r.bias || r.bias === "-" || r.signalSide === "-")) return false;
-                return true;
+                if (!symbolFilter) return true;
+                return r.symbol.toLowerCase().includes(symbolFilter.toLowerCase());
             });
 
             visible.sort((a, b) => {
@@ -563,7 +544,7 @@
                 const tr = document.createElement("tr");
                 const cells = [];
 
-                // 기본 컬럼
+                // 기준 캔들 컬럼 (백테스트 ON일 때는 직전봉, OFF일 때는 현재봉)
                 cells.push(`<td>${r.symbol}</td>`);
                 cells.push(`<td>${nf4(r.prevOpen)}</td>`);
                 cells.push(`<td>${nf4(r.prevHigh)}</td>`);
@@ -574,17 +555,8 @@
                 cells.push(`<td>${fmtNum(r.bodyPct * 100, 2)}%</td>`);
                 cells.push(`<td>${fmtNum(r.upperW * 100, 2)}%</td>`);
                 cells.push(`<td>${fmtNum(r.lowerW * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.wickImbPct, 2)}%</td>`);
                 cells.push(`<td>${fmtNum(r.clv, 3)}</td>`);
                 cells.push(`<td>${fmtNum(r.quoteVol, 0)}</td>`);
-                // 과열/신호 pill
-                const overheatPill = r.overheat ? `<span class="pill warn">HOT</span>` : `<span class="pill neutral">-</span>`;
-                const biasPill = r.signalSide === "LONG" ? `<span class="pill long">${r.bias}</span>`
-                                : r.signalSide === "SHORT" ? `<span class="pill short">${r.bias}</span>`
-                                : `<span class="pill neutral">${r.bias}</span>`;
-                cells.push(`<td>${overheatPill}</td>`);
-                cells.push(`<td>${biasPill}</td>`);
-
                 cells.push(`<td>${nf3(r.score)}</td>`);
                 cells.push(`<td>${fmtNum(r.prob * 100, 2)}%</td>`);
 
@@ -593,21 +565,7 @@
                     const resPill = (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct >= 0)
                         ? `<span class="pill ok">성공</span>`
                         : (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct < 0)
-                            ? `<span class="pill no">실패</span>` : `<span class="pill neutral">-</span>`;
-
-                    // 신호 결과(시→종 기준, 숏이면 부호 반전)
-                    let sigRtn = null, sigRes = "-";
-                    if (r.signalSide === "LONG" && typeof r.dayRetClosePct === "number") {
-                        sigRtn = r.dayRetClosePct;
-                        sigRes = sigRtn >= 0 ? "성공" : "실패";
-                    } else if (r.signalSide === "SHORT" && typeof r.dayRetClosePct === "number") {
-                        sigRtn = -r.dayRetClosePct;
-                        sigRes = sigRtn >= 0 ? "성공" : "실패";
-                    }
-
-                    const sigResPill = sigRes === "성공" ? `<span class="pill ok">성공</span>`
-                                      : sigRes === "실패" ? `<span class="pill no">실패</span>`
-                                      : `<span class="pill neutral">-</span>`;
+                            ? `<span class="pill no">실패</span>` : `<span class="pill">-</span>`;
 
                     cells.push(`<td>${r.dayOpen  != null ? nf4(r.dayOpen)  : '-'}</td>`);
                     cells.push(`<td>${r.dayLow   != null ? nf4(r.dayLow)   : '-'}</td>`);
@@ -615,9 +573,6 @@
                     cells.push(`<td>${r.dayClose != null ? nf4(r.dayClose) : '-'}</td>`);
                     cells.push(`<td>${typeof r.dayRetHighPct  === 'number' ? fmtPct(r.dayRetHighPct)  : '-'}</td>`);
                     cells.push(`<td>${typeof r.dayRetClosePct === 'number' ? fmtPct(r.dayRetClosePct) : '-'}</td>`);
-                    cells.push(`<td>${r.signalSide}</td>`);
-                    cells.push(`<td>${sigRtn != null ? fmtPct(sigRtn) : '-'}</td>`);
-                    cells.push(`<td>${sigResPill}</td>`);
                     cells.push(`<td>${resPill}</td>`);
                 }
 
@@ -628,7 +583,7 @@
             tbody.innerHTML = "";
             tbody.appendChild(frag);
 
-            // 요약
+            // 요약 (성공률은 시→종 기준)
             const sum = document.getElementById("summary");
             sum.innerHTML = "";
             const total = visible.length;
@@ -637,26 +592,11 @@
             sum.appendChild(el("div", { class: "chip" }, `정렬: <strong>${state.sort.key}</strong> (${state.sort.dir})`));
             sum.appendChild(el("div", { class: "chip" }, `Top5: <strong>${top5 || "-"}</strong>`));
 
-            // 레짐/신호 요약
-            if (state.regimeInfo) {
-                const { regime, pctUp, medChg } = state.regimeInfo;
-                sum.appendChild(el("div", { class: "chip" }, `레짐: <strong>${regime}</strong> (상승비율 ${fmtNum(pctUp*100,1)}%, 중앙등락 ${fmtNum(medChg,2)}%)`));
-            }
-
-            const sigLong = visible.filter(r => r.signalSide === "LONG").length;
-            const sigShort = visible.filter(r => r.signalSide === "SHORT").length;
-            sum.appendChild(el("div", { class: "chip" }, `신호(L/S): <strong>${sigLong}</strong> / <strong>${sigShort}</strong>`));
-
-            if (state.isBacktest) {
+            if (isBacktest) {
                 const tested = visible.filter(r => typeof r.dayRetClosePct === 'number');
                 const success = tested.filter(r => r.dayRetClosePct >= 0).length;
                 const rate = tested.length ? (success / tested.length) * 100 : 0;
-                sum.appendChild(el("div", { class: "chip" }, `백테스트 성공(시→종): <strong>${success}</strong> / ${tested.length} (${fmtNum(rate, 1)}%)`));
-
-                const sigTested = visible.filter(r => r.signalSide !== "-" && typeof r.dayRetClosePct === "number");
-                const sigWin = sigTested.filter(r => (r.signalSide === "LONG" && r.dayRetClosePct >= 0) || (r.signalSide === "SHORT" && r.dayRetClosePct < 0)).length;
-                const sigRate = sigTested.length ? sigWin / sigTested.length * 100 : 0;
-                sum.appendChild(el("div", { class: "chip" }, `신호기반 성공률: <strong>${fmtNum(sigRate,1)}%</strong> (${sigWin}/${sigTested.length})`));
+                sum.appendChild(el("div", { class: "chip" }, `백테스트 성공: <strong>${success}</strong> / ${tested.length} (${fmtNum(rate, 1)}%)`));
             }
         }
 
@@ -674,10 +614,8 @@
             rows: [],
             sort: { key: "prob", dir: "desc" },
             symbolFilter: "",
-            signalOnly: false,
             abortController: null,
-            running: false,
-            regimeInfo: null,
+            running: false
         };
 
         function poolRun(list, limit, worker, onTick) {
@@ -688,9 +626,11 @@
                 function next() {
                     if (i >= total) return;
                     const idx = i++;
-                    worker(list[idx], idx).then(res => { results[idx] = res; })
-                    .catch(() => { results[idx] = null; })
-                    .finally(() => {
+                    worker(list[idx], idx).then(res => {
+                        results[idx] = res;
+                    }).catch(() => {
+                        results[idx] = null;
+                    }).finally(() => {
                         done++;
                         onTick?.(done, total);
                         if (done === total) resolve(results);
@@ -706,112 +646,122 @@
             if (state.running) return;
             state.running = true;
             state.rows = [];
-            state.regimeInfo = null;
             setProgress(0, 1);
 
-            const dateStr = document.getElementById("dateInput").value || toUTCDateString(new Date());
-            const isBacktest = document.getElementById("backtestChk").checked;
+            const backtestChkEl = document.getElementById("backtestChk");
+            const isBacktest = backtestChkEl.checked;
             const minQVOn = document.getElementById("minQuoteVolChk").checked;
             const minQV = Number(document.getElementById("minQuoteVol").value || 0);
-            const overheatPct = Math.min(99, Math.max(50, Number(document.getElementById("overheatPct").value || 80)));
             state.isBacktest = isBacktest;
 
+            // 기준 날짜 D (00:00:00Z)
+            // - 백테스트 ON  : 사용자가 고른 날짜(없으면 오늘 UTC)
+            // - 백테스트 OFF : 항상 오늘 UTC (현재 진행 중인 1D 캔들 기준)
+            const now = new Date();
+            const todayStr = toUTCDateString(now);
+            const dateInputEl = document.getElementById("dateInput");
+            const picked = (dateInputEl.value || "").trim();
+            const baseStr = isBacktest ? (picked || todayStr) : todayStr;
+            const D = parseDateUTC(baseStr).getTime();
+
+            // 헤더 렌더
             renderHeader(isBacktest, state.sort);
             drawTable();
 
-            if (state.abortController) state.abortController.abort();
+            // Abort
+            if (state.abortController) {
+                try { state.abortController.abort(); } catch (e) {}
+            }
             const ac = new AbortController();
             state.abortController = ac;
 
             try {
-                const D = parseDateUTC(dateStr).getTime();               // D일 00:00:00Z
-                const prevOpenTime = D - 24 * 60 * 60 * 1000;            // 직전봉 openTime
-                const symbols = await fetchUSDTPerpSymbols(ac.signal);
+                const prevOpenTime = D - 24 * 60 * 60 * 1000;  // D-1 (직전봉)
+                const curOpenTime = D;                         // D   (현재/백테스트 대상 봉)
 
+                const symbols = await fetchUSDTPerpSymbols(ac.signal);
                 const CONCURRENCY = 10;
 
-                const results = await poolRun(symbols, CONCURRENCY, async (sym) => {
-                    if (ac.signal.aborted) return null;
+                const results = await poolRun(
+                    symbols,
+                    CONCURRENCY,
+                    async (sym) => {
+                        if (ac.signal.aborted) return null;
 
-                    // 직전봉
-                    const prev = await fetchDailyCandle(sym, prevOpenTime, ac.signal);
-                    if (!prev) return null;
-                    if (minQVOn && (prev.quoteVolume ?? 0) < minQV) return null;
+                        let srcCandle = null;
+                        let dayCandle = null; // 백테스트용 D일 캔들
 
-                    const f = featuresFromCandle(prev);
-                    const row = {
-                        symbol: sym,
-                        prevOpen: prev.open,
-                        prevHigh: prev.high,
-                        prevLow: prev.low,
-                        prevClose: prev.close,
-                        chgPct: f.chgPct,
-                        rangePct: f.rangePct,
-                        bodyPct: f.bodyPct,
-                        upperW: f.upperW,
-                        lowerW: f.lowerW,
-                        wickImbPct: f.wickImbPct,
-                        clv: f.clv,
-                        quoteVol: f.quoteVol,
-                        features: f,
-                        score: null,
-                        prob: null,
-                        overheat: false,
-                        bias: "-",
-                        signalSide: "-",
-                    };
+                        if (isBacktest) {
+                            // 직전봉(D-1)으로 피처/점수 계산
+                            const prev = await fetchDailyCandle(sym, prevOpenTime, ac.signal);
+                            if (!prev) return null;
 
-                    if (isBacktest) {
-                        // D일 실제 캔들
-                        const cur = await fetchDailyCandle(sym, D, ac.signal);
-                        if (cur) {
-                            row.dayOpen  = cur.open;
-                            row.dayLow   = cur.low;
-                            row.dayHigh  = cur.high;
-                            row.dayClose = cur.close;
-                            row.dayRetHighPct  = (cur.high  - cur.open) / (cur.open || 1e-12) * 100; // 시→고
-                            row.dayRetClosePct = (cur.close - cur.open) / (cur.open || 1e-12) * 100; // 시→종
-                            row.result = row.dayRetClosePct >= 0 ? "성공" : "실패"; // 종가 기준 판정
+                            // 거래대금 하한 필터 (직전봉 기준)
+                            if (minQVOn && (prev.quoteVolume ?? 0) < minQV) return null;
+
+                            srcCandle = prev;
+
+                            // D일 실제 캔들 (백테스트용)
+                            dayCandle = await fetchDailyCandle(sym, curOpenTime, ac.signal);
                         } else {
-                            row.dayOpen = row.dayLow = row.dayHigh = row.dayClose = null;
-                            row.dayRetHighPct = row.dayRetClosePct = null;
-                            row.result = "-";
+                            // 현재 진행 중인 1D 캔들(D)으로 피처/점수 계산
+                            const cur = await fetchDailyCandle(sym, curOpenTime, ac.signal);
+                            if (!cur) return null;
+
+                            // 거래대금 하한 필터 (현재봉 기준)
+                            if (minQVOn && (cur.quoteVolume ?? 0) < minQV) return null;
+
+                            srcCandle = cur;
                         }
-                    }
-                    return row;
-                }, (done, total) => setProgress(done, total));
+
+                        const f = featuresFromCandle(srcCandle);
+                        const row = {
+                            symbol: sym,
+                            prevOpen: srcCandle.open,
+                            prevHigh: srcCandle.high,
+                            prevLow: srcCandle.low,
+                            prevClose: srcCandle.close,
+                            chgPct: f.chgPct,
+                            rangePct: f.rangePct,
+                            bodyPct: f.bodyPct,
+                            upperW: f.upperW,
+                            lowerW: f.lowerW,
+                            clv: f.clv,
+                            quoteVol: f.quoteVol,
+                            features: f,
+                            score: null,
+                            prob: null
+                        };
+
+                        if (isBacktest) {
+                            if (dayCandle) {
+                                row.dayOpen  = dayCandle.open;
+                                row.dayLow   = dayCandle.low;
+                                row.dayHigh  = dayCandle.high;
+                                row.dayClose = dayCandle.close;
+                                row.dayRetHighPct  =
+                                    (dayCandle.high  - dayCandle.open) / (dayCandle.open || 1e-12) * 100; // 시→고
+                                row.dayRetClosePct =
+                                    (dayCandle.close - dayCandle.open) / (dayCandle.open || 1e-12) * 100; // 시→종
+                                row.result = row.dayRetClosePct >= 0 ? "성공" : "실패"; // 종가 기준 판정
+                            } else {
+                                row.dayOpen = row.dayLow = row.dayHigh = row.dayClose = null;
+                                row.dayRetHighPct = row.dayRetClosePct = null;
+                                row.result = "-";
+                            }
+                        }
+
+                        return row;
+                    },
+                    (done, total) => setProgress(done, total)
+                );
 
                 const rows = results.filter(Boolean);
-
-                // 점수/확률
                 buildScores(rows);
-
-                // 레짐
-                const regimeInfo = computeRegime(rows);
-                state.regimeInfo = regimeInfo;
-
-                // 분위/과열/신호
-                const dec = buildDecileFns(rows);
-                classifySignals(rows, dec, regimeInfo.regime, overheatPct);
-
-                // 신호 기반 백테스트 결과(시→종 기준, 숏 반전)
-                if (isBacktest) {
-                    rows.forEach(r => {
-                        if (r.signalSide === "LONG" && typeof r.dayRetClosePct === "number") {
-                            r.signalRtnClosePct = r.dayRetClosePct;
-                            r.signalResult = r.signalRtnClosePct >= 0 ? "성공" : "실패";
-                        } else if (r.signalSide === "SHORT" && typeof r.dayRetClosePct === "number") {
-                            r.signalRtnClosePct = -r.dayRetClosePct;
-                            r.signalResult = r.signalRtnClosePct >= 0 ? "성공" : "실패";
-                        } else {
-                            r.signalRtnClosePct = null;
-                            r.signalResult = "-";
-                        }
-                    });
-                }
 
                 state.rows = rows;
                 state.sort = { key: "prob", dir: "desc" };
+
                 renderHeader(state.isBacktest, state.sort);
                 drawTable();
                 setProgress(1, 1);
@@ -824,7 +774,9 @@
         }
 
         function stopScan() {
-            if (state.abortController) { try { state.abortController.abort(); } catch {} }
+            if (state.abortController) {
+                try { state.abortController.abort(); } catch (e) {}
+            }
             state.running = false;
         }
 
@@ -833,20 +785,34 @@
         // ==========================
         (function init() {
             const dateInput = document.getElementById("dateInput");
-            dateInput.value = toUTCDateString(new Date());
+            const backtestChk = document.getElementById("backtestChk");
+
+            // 기본값: 오늘(UTC)로 세팅해 두되, 처음엔 비활성화 (백테스트 OFF 상태)
+            const todayStr = toUTCDateString(new Date());
+            dateInput.value = todayStr;
+            dateInput.disabled = true;
 
             document.getElementById("scanBtn").addEventListener("click", runScan);
             document.getElementById("stopBtn").addEventListener("click", stopScan);
-            document.getElementById("backtestChk").addEventListener("change", () => {
-                renderHeader(document.getElementById("backtestChk").checked, state.sort);
+
+            backtestChk.addEventListener("change", (e) => {
+                const on = e.target.checked;
+
+                // 백테스트 체크 시에만 날짜 선택 가능
+                dateInput.disabled = !on;
+
+                if (!on) {
+                    // 백테스트 끄면 날짜는 다시 "오늘 UTC" 기준으로 되돌려둠
+                    dateInput.value = toUTCDateString(new Date());
+                }
+
+                state.isBacktest = on;
+                renderHeader(on, state.sort);
                 drawTable();
             });
+
             document.getElementById("searchSym").addEventListener("input", (e) => {
                 state.symbolFilter = e.target.value.trim();
-                drawTable();
-            });
-            document.getElementById("signalOnly").addEventListener("change", (e) => {
-                state.signalOnly = !!e.target.checked;
                 drawTable();
             });
 
