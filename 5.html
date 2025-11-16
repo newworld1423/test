@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp USDT — 99MA 근접도 스캐너</title>
+    <title>Binance Perp USDT — 4H MA 역배열 · 99MA 근접도 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -13,6 +13,7 @@
             --accent: #3ea6ff;
             --good: #00c853;
             --bad: #ff5252;
+            --warn: #ffd54f;
             --border: #2a2e36;
         }
 
@@ -22,87 +23,116 @@
 
         body {
             margin: 0;
+            padding: 16px;
             font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
                          Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
                          "Noto Sans KR", sans-serif;
-            background: radial-gradient(circle at top, #1b1c24 0, #050608 55%);
+            background: radial-gradient(circle at top, #111827 0, #020617 55%, #000 100%);
             color: var(--text);
-        }
-
-        .app {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 16px;
         }
 
         h1 {
             font-size: 20px;
-            margin: 0 0 8px;
+            margin: 0 0 4px;
         }
 
-        .description {
+        .subtitle {
             font-size: 13px;
             color: var(--muted);
             margin-bottom: 16px;
-            line-height: 1.5;
-        }
-
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .controls-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        select,
-        button {
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background-color: #171821;
-            color: var(--text);
-            padding: 6px 10px;
-            font-size: 13px;
-        }
-
-        button {
-            cursor: pointer;
-            border-color: var(--accent);
-        }
-
-        button:hover {
-            filter: brightness(1.1);
-        }
-
-        .status {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 4px;
-        }
-
-        .status strong {
-            color: var(--accent);
         }
 
         .card {
-            background: var(--card);
+            background: rgba(9, 11, 17, 0.96);
             border-radius: 16px;
-            padding: 12px;
             border: 1px solid var(--border);
-            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.65);
+            padding: 16px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin-bottom: 12px;
+        }
+
+        .toolbar-left {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            flex: 1 1 auto;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn {
+            border: 1px solid var(--accent);
+            background: rgba(62, 166, 255, 0.1);
+            color: var(--accent);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: rgba(62, 166, 255, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(62, 166, 255, 0.35);
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: default;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            background: rgba(15, 23, 42, 0.9);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill strong {
+            color: var(--text);
+        }
+
+        .progress {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .progress span {
+            color: var(--accent);
         }
 
         .table-wrap {
-            max-height: 70vh;
-            overflow: auto;
+            margin-top: 8px;
             border-radius: 12px;
             border: 1px solid var(--border);
+            overflow: hidden;
+            background: rgba(10, 12, 18, 0.98);
         }
 
         table {
@@ -112,376 +142,414 @@
         }
 
         thead {
-            position: sticky;
-            top: 0;
-            background: #171821;
-            z-index: 1;
+            background: radial-gradient(circle at top left, #1f2937 0, #020617 70%);
         }
 
-        th,
-        td {
+        th, td {
             padding: 6px 8px;
-            border-bottom: 1px solid #22242e;
-        }
-
-        th {
-            text-align: left;
-            font-weight: 600;
-            color: var(--muted);
+            text-align: right;
+            border-bottom: 1px solid rgba(31, 41, 55, 0.75);
             white-space: nowrap;
         }
 
-        tr:nth-child(even) td {
-            background: #14151e;
+        th:first-child,
+        td:first-child {
+            text-align: left;
         }
 
-        .symbol {
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        thead th {
             font-weight: 600;
+            color: var(--muted);
         }
 
-        .distance {
-            font-variant-numeric: tabular-nums;
+        tbody tr:nth-child(even) {
+            background: rgba(15, 23, 42, 0.9);
         }
 
-        .distance.good {
-            color: var(--good);
+        tbody tr:nth-child(odd) {
+            background: rgba(3, 7, 18, 0.9);
         }
 
-        .distance.far {
-            color: var(--bad);
-        }
-
-        .num {
-            font-variant-numeric: tabular-nums;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
+        .badge-direction {
+            font-size: 10px;
             padding: 2px 6px;
             border-radius: 999px;
             border: 1px solid var(--border);
-            background: rgba(62, 166, 255, 0.06);
-            color: var(--muted);
         }
 
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 999px;
-            background: var(--accent);
+        .badge-up {
+            border-color: var(--good);
+            color: var(--good);
+            background: rgba(0, 200, 83, 0.05);
         }
 
-        .auto-on {
+        .badge-down {
+            border-color: var(--bad);
+            color: var(--bad);
+            background: rgba(255, 82, 82, 0.05);
+        }
+
+        .distance-strong {
+            font-weight: 600;
             color: var(--accent);
         }
 
-        .auto-off {
+        .footer-note {
+            margin-top: 10px;
+            font-size: 11px;
             color: var(--muted);
-            text-decoration: line-through;
+            line-height: 1.5;
+        }
+
+        .footer-note code {
+            font-size: 11px;
+            background: rgba(15, 23, 42, 0.95);
+            padding: 2px 5px;
+            border-radius: 4px;
+            border: 1px solid rgba(31, 41, 55, 0.9);
         }
 
         @media (max-width: 768px) {
-            .app {
-                padding: 10px;
+            body {
+                padding: 8px;
+            }
+            .card {
+                padding: 12px;
+                border-radius: 12px;
             }
             h1 {
                 font-size: 18px;
             }
+            .toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .toolbar-left,
+            .toolbar-right {
+                width: 100%;
+                justify-content: space-between;
+            }
             table {
                 font-size: 11px;
             }
-            th:nth-child(6),
-            td:nth-child(6),
-            th:nth-child(7),
-            td:nth-child(7) {
-                display: none;
+            th, td {
+                padding: 5px 6px;
             }
         }
     </style>
 </head>
 <body>
-<div class="app">
-    <h1>Binance Perp USDT — 99MA 근접도 스캐너</h1>
-    <div class="description">
-        모든 <strong>무기한 선물 USDT 페어</strong>에 대해 선택한 타임프레임의
-        <strong>“현재 진행 중인 봉의 이전 봉” 종가</strong>와
-        <strong>99MA</strong> 간 거리를 계산해서,
-        <strong>가까운 순서</strong>로 정렬해 보여줍니다.<br />
-        이 페이지를 열어두면 <strong>15분마다 자동으로 재스캔</strong>합니다.
-    </div>
-
-    <div class="controls">
-        <div class="controls-group">
-            <label for="interval">타임프레임</label>
-            <select id="interval">
-                <option value="15m" selected>15m</option>
-                <option value="30m">30m</option>
-                <option value="1h">1h</option>
-                <option value="4h">4h</option>
-                <option value="1d">1d</option>
-            </select>
-        </div>
-
-        <div class="controls-group">
-            <button id="scanNowBtn">지금 스캔</button>
-        </div>
-
-        <div class="controls-group">
-            <span class="badge" id="autoScanBadge">
-                <span class="badge-dot"></span>
-                <span>15분 자동 스캔 <span id="autoScanState" class="auto-on">ON</span></span>
-            </span>
-        </div>
-    </div>
-
-    <div class="status" id="statusText">
-        준비됨.
-    </div>
-
     <div class="card">
+        <h1>4H MA 역배열 · 99MA 근접도 스캐너</h1>
+        <div class="subtitle">
+            Binance USDT 무기한 선물 · <strong>4시간봉</strong> 기준
+            — <strong>직전봉 7/25/99MA 역배열</strong> + <strong>직전봉 종가의 99MA 근접도</strong>로 정렬
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button id="scanBtn" class="btn">
+                    🔍 스캔 시작 (4H)
+                </button>
+                <div class="pill">
+                    조건: <strong>이전봉 7MA &lt; 25MA &lt; 99MA</strong>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <div id="progressText" class="progress">대기 중…</div>
+            </div>
+        </div>
+
         <div class="table-wrap">
             <table>
                 <thead>
-                <tr>
-                    <th>#</th>
-                    <th>심볼</th>
-                    <th>이전봉 종가</th>
-                    <th>99MA</th>
-                    <th>거리(%)</th>
-                    <th>위/아래</th>
-                    <th>현재가</th>
-                </tr>
+                    <tr>
+                        <th>#</th>
+                        <th>심볼</th>
+                        <th>이전봉 시각 (UTC)</th>
+                        <th>이전봉 종가</th>
+                        <th>7MA</th>
+                        <th>25MA</th>
+                        <th>99MA</th>
+                        <th>99MA 대비 거리%</th>
+                        <th>위치</th>
+                    </tr>
                 </thead>
                 <tbody id="resultBody">
-                <tr>
-                    <td colspan="7" style="text-align:center; padding:12px; color:var(--muted);">
-                        아직 스캔된 데이터가 없습니다.
-                    </td>
-                </tr>
+                    <!-- 결과 행이 여기에 들어갑니다 -->
                 </tbody>
             </table>
         </div>
+
+        <div class="footer-note">
+            · “이전봉”은 <strong>현재 진행 중인 4시간봉 바로 전, 마지막으로 완성된 캔들</strong> 기준입니다.<br />
+            · “99MA 대비 거리%” = <code>|종가 - 99MA| / 99MA × 100</code>, 값이 작을수록 99MA에 더 가깝습니다.<br />
+            · 역배열 정의: <code>7MA &lt; 25MA &lt; 99MA</code> 인 종목만 리스트에 포함됩니다.
+        </div>
     </div>
-</div>
 
-<script>
-    const API_BASE = "https://fapi.binance.com";
-    const AUTO_SCAN_MS = 15 * 60 * 1000; // 15분
-    let usdtPerpSymbols = [];
-    let autoScanTimer = null;
-    let isScanning = false;
-    let lastScanStartedAt = null;
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+        const progressEl = document.getElementById("progressText");
+        const scanBtn = document.getElementById("scanBtn");
+        const resultBody = document.getElementById("resultBody");
 
-    // 상태 표시 헬퍼
-    function setStatus(msg) {
-        const el = document.getElementById("statusText");
-        if (!el) return;
-        el.textContent = msg;
-    }
+        // 숫자 포맷
+        function formatNumber(x, digits) {
+            if (!isFinite(x)) return "-";
+            return Number(x).toFixed(digits);
+        }
 
-    function formatNumber(num, decimals = 4) {
-        if (!isFinite(num)) return "-";
-        return Number(num).toFixed(decimals);
-    }
+        function formatTimeUTC(ms) {
+            const d = new Date(ms);
+            const yyyy = d.getUTCFullYear();
+            const MM = String(d.getUTCMonth() + 1).padStart(2, "0");
+            const dd = String(d.getUTCDate()).padStart(2, "0");
+            const hh = String(d.getUTCHours()).padStart(2, "0");
+            const mi = String(d.getUTCMinutes()).padStart(2, "0");
+            return `${yyyy}-${MM}-${dd} ${hh}:${mi}`;
+        }
 
-    function formatPercent(num) {
-        if (!isFinite(num)) return "-";
-        return Number(num).toFixed(3) + "%";
-    }
+        // 간단 SMA
+        function sma(values, period) {
+            const out = new Array(values.length).fill(null);
+            let sum = 0;
+            for (let i = 0; i < values.length; i++) {
+                const v = values[i];
+                sum += v;
+                if (i >= period) {
+                    sum -= values[i - period];
+                }
+                if (i >= period - 1) {
+                    out[i] = sum / period;
+                }
+            }
+            return out;
+        }
 
-    // 무기한 선물 USDT 심볼 목록 가져오기
-    async function fetchUsdtPerpSymbols() {
-        const url = API_BASE + "/fapi/v1/exchangeInfo";
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("exchangeInfo 요청 실패: " + res.status);
-        const data = await res.json();
-        const list = (data.symbols || []).filter(s =>
-            s.contractType === "PERPETUAL" &&
-            s.quoteAsset === "USDT" &&
-            s.status === "TRADING"
-        );
-        return list.map(s => s.symbol);
-    }
+        async function fetchSymbols() {
+            const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error("exchangeInfo 요청 실패: " + res.status);
+            }
+            const data = await res.json();
+            const symbols = data.symbols || [];
 
-    // 심볼별 K라인 가져오기
-    async function fetchKlines(symbol, interval, limit = 200) {
-        const url = API_BASE + "/fapi/v1/klines"
-            + "?symbol=" + symbol
-            + "&interval=" + interval
-            + "&limit=" + limit;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("klines 요청 실패: " + symbol + " " + res.status);
-        return await res.json();
-    }
+            // USDT 무기한 선물만 필터 (PERPETUAL + quoteAsset=USDT + TRADING)
+            return symbols
+                .filter(s =>
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT" &&
+                    s.status === "TRADING"
+                )
+                .map(s => s.symbol)
+                .sort();
+        }
 
-    // 특정 심볼에 대해 "이전봉 vs 그 시점의 99MA" 계산
-    async function scanSymbol(symbol, interval) {
-        try {
-            const klines = await fetchKlines(symbol, interval, 200);
+        async function fetchKlines(symbol) {
+            // 4시간봉, 150개 정도면 99MA 계산에 충분
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=150`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(symbol + " klines 요청 실패: " + res.status);
+            }
+            const data = await res.json();
+            return data;
+        }
+
+        async function analyzeSymbol(symbol) {
+            const klines = await fetchKlines(symbol);
             if (!Array.isArray(klines) || klines.length < 120) {
                 return null; // 데이터 부족
             }
 
-            // 마지막 원소는 "진행중인 봉"이라 가정하고 제거
-            const closed = klines.slice(0, -1);
-            if (closed.length < 110) return null;
+            const closes = klines.map(k => Number(k[4]));
+            const openTimes = klines.map(k => Number(k[0]));
 
-            const closes = closed.map(k => parseFloat(k[4])); // 종가
+            const ma7  = sma(closes, 7);
+            const ma25 = sma(closes, 25);
+            const ma99 = sma(closes, 99);
 
-            // 이전봉 = closed[closed.length - 1]
-            // 그 이전 98개를 포함해서 총 99개로 MA 계산
+            // 마지막 요소는 현재 진행 중인 캔들이 포함되어 있을 수 있으므로,
+            // "이전봉" = 끝에서 두 번째 인덱스 사용
             const lastIndex = closes.length - 1;
-            const startIndex = lastIndex - 98; // 99개
-            if (startIndex < 0) return null;
+            const idx = lastIndex - 1;
 
-            let sum = 0;
-            for (let i = startIndex; i <= lastIndex; i++) {
-                sum += closes[i];
+            if (idx < 99) {
+                return null;
             }
-            const ma99 = sum / 99;
-            const prevClose = closes[lastIndex];
 
-            const distanceAbs = Math.abs(prevClose - ma99);
-            const distancePct = (distanceAbs / ma99) * 100;
+            const cPrev   = closes[idx];
+            const m7Prev  = ma7[idx];
+            const m25Prev = ma25[idx];
+            const m99Prev = ma99[idx];
 
-            const direction = prevClose >= ma99 ? "위" : "아래";
+            if (m7Prev == null || m25Prev == null || m99Prev == null) {
+                return null;
+            }
 
-            // 현재 진행중인 봉 종가(대략 현재가)
-            const currentClose = parseFloat(klines[klines.length - 1][4]);
+            // 역배열 조건: 7MA < 25MA < 99MA
+            if (!(m7Prev < m25Prev && m25Prev < m99Prev)) {
+                return null;
+            }
+
+            const diffAbs = Math.abs(cPrev - m99Prev);
+            const diffPct = (diffAbs / m99Prev) * 100;
+
+            const direction = cPrev >= m99Prev ? "above" : "below";
 
             return {
                 symbol,
-                prevClose,
-                ma99,
-                distancePct,
-                direction,
-                currentClose
+                openTimePrev: openTimes[idx],
+                closePrev: cPrev,
+                ma7: m7Prev,
+                ma25: m25Prev,
+                ma99: m99Prev,
+                diffAbs,
+                diffPct,
+                direction
             };
-        } catch (err) {
-            console.error("scanSymbol 에러:", symbol, err);
-            return null;
-        }
-    }
-
-    // 결과 테이블 렌더
-    function renderResults(results) {
-        const tbody = document.getElementById("resultBody");
-        if (!tbody) return;
-
-        if (!results || results.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:12px; color:var(--muted);">표시할 결과가 없습니다.</td></tr>';
-            return;
         }
 
-        const rows = [];
-        results.forEach((row, idx) => {
-            const distanceClass = row.distancePct <= 0.2 ? "distance good" : "distance far";
-            rows.push(
-                "<tr>" +
-                    "<td>" + (idx + 1) + "</td>" +
-                    '<td class="symbol">' + row.symbol + "</td>" +
-                    '<td class="num">' + formatNumber(row.prevClose, 4) + "</td>" +
-                    '<td class="num">' + formatNumber(row.ma99, 4) + "</td>" +
-                    '<td class="' + distanceClass + '">' + formatPercent(row.distancePct) + "</td>" +
-                    "<td>" + row.direction + "</td>" +
-                    '<td class="num">' + formatNumber(row.currentClose, 4) + "</td>" +
-                "</tr>"
-            );
-        });
+        function renderResults(rows) {
+            resultBody.innerHTML = "";
 
-        tbody.innerHTML = rows.join("");
-    }
-
-    // 전체 스캔 (모든 USDT Perp)
-    async function scanAll() {
-        if (isScanning) {
-            console.warn("이미 스캔 중입니다.");
-            return;
-        }
-        isScanning = true;
-        lastScanStartedAt = new Date();
-
-        try {
-            const interval = document.getElementById("interval").value;
-            setStatus("심볼 목록 로딩 중...");
-
-            if (!usdtPerpSymbols || usdtPerpSymbols.length === 0) {
-                usdtPerpSymbols = await fetchUsdtPerpSymbols();
+            if (!rows.length) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.colSpan = 9;
+                td.textContent = "조건을 만족하는 심볼이 없습니다.";
+                td.style.textAlign = "center";
+                td.style.color = "var(--muted)";
+                tr.appendChild(td);
+                resultBody.appendChild(tr);
+                return;
             }
 
-            const total = usdtPerpSymbols.length;
-            setStatus("총 " + total + "개 심볼 스캔 중... (타임프레임: " + interval + ")");
+            rows.forEach((row, idx) => {
+                const tr = document.createElement("tr");
 
-            const results = [];
-            const concurrency = 10; // 한 번에 10개씩 병렬 요청
+                const rankTd = document.createElement("td");
+                rankTd.textContent = idx + 1;
 
-            for (let i = 0; i < total; i += concurrency) {
-                const chunk = usdtPerpSymbols.slice(i, i + concurrency);
-                setStatus(
-                    "스캔 중... (" + (i + 1) + " ~ " + (i + chunk.length) + " / " + total + ")"
-                );
+                const symbolTd = document.createElement("td");
+                symbolTd.textContent = row.symbol;
 
-                const chunkResults = await Promise.all(
-                    chunk.map(sym => scanSymbol(sym, interval))
-                );
+                const timeTd = document.createElement("td");
+                timeTd.textContent = formatTimeUTC(row.openTimePrev);
 
-                for (const r of chunkResults) {
-                    if (r && isFinite(r.distancePct)) results.push(r);
+                const closeTd = document.createElement("td");
+                closeTd.textContent = formatNumber(row.closePrev, 4);
+
+                const ma7Td = document.createElement("td");
+                ma7Td.textContent = formatNumber(row.ma7, 4);
+
+                const ma25Td = document.createElement("td");
+                ma25Td.textContent = formatNumber(row.ma25, 4);
+
+                const ma99Td = document.createElement("td");
+                ma99Td.textContent = formatNumber(row.ma99, 4);
+
+                const distTd = document.createElement("td");
+                distTd.textContent = formatNumber(row.diffPct, 3);
+                distTd.className = "distance-strong";
+
+                const dirTd = document.createElement("td");
+                const span = document.createElement("span");
+                span.classList.add("badge-direction");
+                if (row.direction === "above") {
+                    span.classList.add("badge-up");
+                    span.textContent = "상단 (종가 > 99MA)";
+                } else {
+                    span.classList.add("badge-down");
+                    span.textContent = "하단 (종가 < 99MA)";
                 }
-            }
+                dirTd.appendChild(span);
 
-            // 99MA와 거리(%) 기준 오름차순 정렬
-            results.sort((a, b) => a.distancePct - b.distancePct);
+                tr.appendChild(rankTd);
+                tr.appendChild(symbolTd);
+                tr.appendChild(timeTd);
+                tr.appendChild(closeTd);
+                tr.appendChild(ma7Td);
+                tr.appendChild(ma25Td);
+                tr.appendChild(ma99Td);
+                tr.appendChild(distTd);
+                tr.appendChild(dirTd);
 
-            renderResults(results);
-
-            const now = new Date();
-            const elapsedSec = ((now - lastScanStartedAt) / 1000).toFixed(1);
-            setStatus(
-                "스캔 완료 — 결과 " + results.length + "개 / " + usdtPerpSymbols.length +
-                "개 심볼 (소요 시간: " + elapsedSec + "초)"
-            );
-        } catch (err) {
-            console.error(err);
-            setStatus("에러 발생: " + (err && err.message ? err.message : err));
-        } finally {
-            isScanning = false;
-        }
-    }
-
-    // 15분 자동 스캔 시작
-    function startAutoScan() {
-        if (autoScanTimer) {
-            clearInterval(autoScanTimer);
-            autoScanTimer = null;
-        }
-        autoScanTimer = setInterval(() => {
-            scanAll();
-        }, AUTO_SCAN_MS);
-
-        const autoState = document.getElementById("autoScanState");
-        if (autoState) {
-            autoState.textContent = "ON";
-            autoState.className = "auto-on";
-        }
-    }
-
-    // 초기 설정
-    window.addEventListener("load", () => {
-        const btn = document.getElementById("scanNowBtn");
-        if (btn) {
-            btn.addEventListener("click", () => {
-                scanAll();
+                resultBody.appendChild(tr);
             });
         }
 
-        // 첫 로드 시 1회 스캔 후 15분 자동 스캔
-        scanAll();
-        startAutoScan();
-    });
-</script>
+        async function runScan() {
+            scanBtn.disabled = true;
+            progressEl.textContent = "심볼 목록 가져오는 중…";
+
+            try {
+                const symbols = await fetchSymbols();
+                const total = symbols.length;
+                let processed = 0;
+                const results = [];
+
+                progressEl.textContent = `4시간봉 스캔 중… 0 / ${total}`;
+
+                // 너무 많이 동시에 요청하면 Binance rate limit 걸릴 수 있으니
+                // 간단한 워커 방식으로 동시 요청 수 제한 (예: 최대 6개)
+                const maxWorkers = 6;
+                let index = 0;
+
+                async function worker() {
+                    while (true) {
+                        const myIndex = index++;
+                        if (myIndex >= total) break;
+                        const symbol = symbols[myIndex];
+
+                        try {
+                            const r = await analyzeSymbol(symbol);
+                            if (r) {
+                                results.push(r);
+                            }
+                        } catch (err) {
+                            console.error("에러:", symbol, err);
+                        }
+
+                        processed++;
+                        progressEl.innerHTML = `4시간봉 스캔 중… <span>${processed}</span> / ${total}`;
+                    }
+                }
+
+                const workers = [];
+                for (let i = 0; i < maxWorkers; i++) {
+                    workers.push(worker());
+                }
+
+                await Promise.all(workers);
+
+                // 99MA 근접도(%) 오름차순 정렬
+                results.sort((a, b) => a.diffPct - b.diffPct);
+
+                progressEl.innerHTML =
+                    `완료 · 총 심볼 <span>${total}</span>개 중 `
+                    + `<span>${results.length}</span>개가 조건(역배열)을 만족했습니다.`;
+
+                renderResults(results);
+            } catch (err) {
+                console.error(err);
+                progressEl.textContent = "에러 발생: " + err.message;
+                resultBody.innerHTML = "";
+            } finally {
+                scanBtn.disabled = false;
+            }
+        }
+
+        scanBtn.addEventListener("click", () => {
+            runScan();
+        });
+    </script>
 </body>
 </html>
