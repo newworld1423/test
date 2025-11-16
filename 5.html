@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>Binance Perp USDT — 99MA 근접도 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --card: #121318;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
+                         "Noto Sans KR", sans-serif;
+            background: radial-gradient(circle at top, #1b1c24 0, #050608 55%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 8px;
+        }
+
+        .description {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .controls-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        select,
+        button {
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background-color: #171821;
+            color: var(--text);
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+
+        button {
+            cursor: pointer;
+            border-color: var(--accent);
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .status strong {
+            color: var(--accent);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .table-wrap {
+            max-height: 70vh;
+            overflow: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #171821;
+            z-index: 1;
+        }
+
+        th,
+        td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #22242e;
+        }
+
+        th {
+            text-align: left;
+            font-weight: 600;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        tr:nth-child(even) td {
+            background: #14151e;
+        }
+
+        .symbol {
+            font-weight: 600;
+        }
+
+        .distance {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .distance.good {
+            color: var(--good);
+        }
+
+        .distance.far {
+            color: var(--bad);
+        }
+
+        .num {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(62, 166, 255, 0.06);
+            color: var(--muted);
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .auto-on {
+            color: var(--accent);
+        }
+
+        .auto-off {
+            color: var(--muted);
+            text-decoration: line-through;
+        }
+
+        @media (max-width: 768px) {
+            .app {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 18px;
+            }
+            table {
+                font-size: 11px;
+            }
+            th:nth-child(6),
+            td:nth-child(6),
+            th:nth-child(7),
+            td:nth-child(7) {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>Binance Perp USDT — 99MA 근접도 스캐너</h1>
+    <div class="description">
+        모든 <strong>무기한 선물 USDT 페어</strong>에 대해 선택한 타임프레임의
+        <strong>“현재 진행 중인 봉의 이전 봉” 종가</strong>와
+        <strong>99MA</strong> 간 거리를 계산해서,
+        <strong>가까운 순서</strong>로 정렬해 보여줍니다.<br />
+        이 페이지를 열어두면 <strong>15분마다 자동으로 재스캔</strong>합니다.
+    </div>
+
+    <div class="controls">
+        <div class="controls-group">
+            <label for="interval">타임프레임</label>
+            <select id="interval">
+                <option value="15m" selected>15m</option>
+                <option value="30m">30m</option>
+                <option value="1h">1h</option>
+                <option value="4h">4h</option>
+                <option value="1d">1d</option>
+            </select>
+        </div>
+
+        <div class="controls-group">
+            <button id="scanNowBtn">지금 스캔</button>
+        </div>
+
+        <div class="controls-group">
+            <span class="badge" id="autoScanBadge">
+                <span class="badge-dot"></span>
+                <span>15분 자동 스캔 <span id="autoScanState" class="auto-on">ON</span></span>
+            </span>
+        </div>
+    </div>
+
+    <div class="status" id="statusText">
+        준비됨.
+    </div>
+
+    <div class="card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>심볼</th>
+                    <th>이전봉 종가</th>
+                    <th>99MA</th>
+                    <th>거리(%)</th>
+                    <th>위/아래</th>
+                    <th>현재가</th>
+                </tr>
+                </thead>
+                <tbody id="resultBody">
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:12px; color:var(--muted);">
+                        아직 스캔된 데이터가 없습니다.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "https://fapi.binance.com";
+    const AUTO_SCAN_MS = 15 * 60 * 1000; // 15분
+    let usdtPerpSymbols = [];
+    let autoScanTimer = null;
+    let isScanning = false;
+    let lastScanStartedAt = null;
+
+    // 상태 표시 헬퍼
+    function setStatus(msg) {
+        const el = document.getElementById("statusText");
+        if (!el) return;
+        el.textContent = msg;
+    }
+
+    function formatNumber(num, decimals = 4) {
+        if (!isFinite(num)) return "-";
+        return Number(num).toFixed(decimals);
+    }
+
+    function formatPercent(num) {
+        if (!isFinite(num)) return "-";
+        return Number(num).toFixed(3) + "%";
+    }
+
+    // 무기한 선물 USDT 심볼 목록 가져오기
+    async function fetchUsdtPerpSymbols() {
+        const url = API_BASE + "/fapi/v1/exchangeInfo";
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("exchangeInfo 요청 실패: " + res.status);
+        const data = await res.json();
+        const list = (data.symbols || []).filter(s =>
+            s.contractType === "PERPETUAL" &&
+            s.quoteAsset === "USDT" &&
+            s.status === "TRADING"
+        );
+        return list.map(s => s.symbol);
+    }
+
+    // 심볼별 K라인 가져오기
+    async function fetchKlines(symbol, interval, limit = 200) {
+        const url = API_BASE + "/fapi/v1/klines"
+            + "?symbol=" + symbol
+            + "&interval=" + interval
+            + "&limit=" + limit;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("klines 요청 실패: " + symbol + " " + res.status);
+        return await res.json();
+    }
+
+    // 특정 심볼에 대해 "이전봉 vs 그 시점의 99MA" 계산
+    async function scanSymbol(symbol, interval) {
+        try {
+            const klines = await fetchKlines(symbol, interval, 200);
+            if (!Array.isArray(klines) || klines.length < 120) {
+                return null; // 데이터 부족
+            }
+
+            // 마지막 원소는 "진행중인 봉"이라 가정하고 제거
+            const closed = klines.slice(0, -1);
+            if (closed.length < 110) return null;
+
+            const closes = closed.map(k => parseFloat(k[4])); // 종가
+
+            // 이전봉 = closed[closed.length - 1]
+            // 그 이전 98개를 포함해서 총 99개로 MA 계산
+            const lastIndex = closes.length - 1;
+            const startIndex = lastIndex - 98; // 99개
+            if (startIndex < 0) return null;
+
+            let sum = 0;
+            for (let i = startIndex; i <= lastIndex; i++) {
+                sum += closes[i];
+            }
+            const ma99 = sum / 99;
+            const prevClose = closes[lastIndex];
+
+            const distanceAbs = Math.abs(prevClose - ma99);
+            const distancePct = (distanceAbs / ma99) * 100;
+
+            const direction = prevClose >= ma99 ? "위" : "아래";
+
+            // 현재 진행중인 봉 종가(대략 현재가)
+            const currentClose = parseFloat(klines[klines.length - 1][4]);
+
+            return {
+                symbol,
+                prevClose,
+                ma99,
+                distancePct,
+                direction,
+                currentClose
+            };
+        } catch (err) {
+            console.error("scanSymbol 에러:", symbol, err);
+            return null;
+        }
+    }
+
+    // 결과 테이블 렌더
+    function renderResults(results) {
+        const tbody = document.getElementById("resultBody");
+        if (!tbody) return;
+
+        if (!results || results.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:12px; color:var(--muted);">표시할 결과가 없습니다.</td></tr>';
+            return;
+        }
+
+        const rows = [];
+        results.forEach((row, idx) => {
+            const distanceClass = row.distancePct <= 0.2 ? "distance good" : "distance far";
+            rows.push(
+                "<tr>" +
+                    "<td>" + (idx + 1) + "</td>" +
+                    '<td class="symbol">' + row.symbol + "</td>" +
+                    '<td class="num">' + formatNumber(row.prevClose, 4) + "</td>" +
+                    '<td class="num">' + formatNumber(row.ma99, 4) + "</td>" +
+                    '<td class="' + distanceClass + '">' + formatPercent(row.distancePct) + "</td>" +
+                    "<td>" + row.direction + "</td>" +
+                    '<td class="num">' + formatNumber(row.currentClose, 4) + "</td>" +
+                "</tr>"
+            );
+        });
+
+        tbody.innerHTML = rows.join("");
+    }
+
+    // 전체 스캔 (모든 USDT Perp)
+    async function scanAll() {
+        if (isScanning) {
+            console.warn("이미 스캔 중입니다.");
+            return;
+        }
+        isScanning = true;
+        lastScanStartedAt = new Date();
+
+        try {
+            const interval = document.getElementById("interval").value;
+            setStatus("심볼 목록 로딩 중...");
+
+            if (!usdtPerpSymbols || usdtPerpSymbols.length === 0) {
+                usdtPerpSymbols = await fetchUsdtPerpSymbols();
+            }
+
+            const total = usdtPerpSymbols.length;
+            setStatus("총 " + total + "개 심볼 스캔 중... (타임프레임: " + interval + ")");
+
+            const results = [];
+            const concurrency = 10; // 한 번에 10개씩 병렬 요청
+
+            for (let i = 0; i < total; i += concurrency) {
+                const chunk = usdtPerpSymbols.slice(i, i + concurrency);
+                setStatus(
+                    "스캔 중... (" + (i + 1) + " ~ " + (i + chunk.length) + " / " + total + ")"
+                );
+
+                const chunkResults = await Promise.all(
+                    chunk.map(sym => scanSymbol(sym, interval))
+                );
+
+                for (const r of chunkResults) {
+                    if (r && isFinite(r.distancePct)) results.push(r);
+                }
+            }
+
+            // 99MA와 거리(%) 기준 오름차순 정렬
+            results.sort((a, b) => a.distancePct - b.distancePct);
+
+            renderResults(results);
+
+            const now = new Date();
+            const elapsedSec = ((now - lastScanStartedAt) / 1000).toFixed(1);
+            setStatus(
+                "스캔 완료 — 결과 " + results.length + "개 / " + usdtPerpSymbols.length +
+                "개 심볼 (소요 시간: " + elapsedSec + "초)"
+            );
+        } catch (err) {
+            console.error(err);
+            setStatus("에러 발생: " + (err && err.message ? err.message : err));
+        } finally {
+            isScanning = false;
+        }
+    }
+
+    // 15분 자동 스캔 시작
+    function startAutoScan() {
+        if (autoScanTimer) {
+            clearInterval(autoScanTimer);
+            autoScanTimer = null;
+        }
+        autoScanTimer = setInterval(() => {
+            scanAll();
+        }, AUTO_SCAN_MS);
+
+        const autoState = document.getElementById("autoScanState");
+        if (autoState) {
+            autoState.textContent = "ON";
+            autoState.className = "auto-on";
+        }
+    }
+
+    // 초기 설정
+    window.addEventListener("load", () => {
+        const btn = document.getElementById("scanNowBtn");
+        if (btn) {
+            btn.addEventListener("click", () => {
+                scanAll();
+            });
+        }
+
+        // 첫 로드 시 1회 스캔 후 15분 자동 스캔
+        scanAll();
+        startAutoScan();
+    });
+</script>
+</body>
+</html>
