@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp USDT — 4H 99MA 크로스 스캐너</title>
+    <title>Binance Perp USDT — 4H 99MA 3-연속 크로스 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -120,10 +120,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>Binance Perp USDT — 4H 99MA 크로스 스캐너</h1>
+        <h1>Binance Perp USDT — 4H 99MA 3-연속 크로스 스캐너</h1>
         <p class="desc">
-            4시간봉 기준으로 <strong>전전봉 종가 &lt; 99MA</strong>, <strong>전봉 종가 &gt; 99MA</strong> 인
-            USDT 무기한 선물만 모아서 24h 거래대금(USDT) 내림차순으로 정렬합니다.
+            4시간봉 기준으로
+            <strong>전전전봉 종가 &lt; 99MA</strong>,
+            <strong>전전봉 종가 &lt; 99MA</strong>,
+            <strong>전봉 종가 &gt; 99MA</strong>
+            인 USDT 무기한 선물만 모아서 24h 거래대금(USDT) 내림차순으로 정렬합니다.
         </p>
 
         <div class="controls">
@@ -142,6 +145,8 @@
                         <th>乂 차이%</th>
                         <th>전전봉 종가</th>
                         <th>전전봉 99MA</th>
+                        <th>전전전봉 종가</th>
+                        <th>전전전봉 99MA</th>
                         <th>24h 거래대금(USDT)</th>
                         <th>24h 거래량(코인)</th>
                         <th>현재가(24h)</th>
@@ -153,10 +158,10 @@
         </div>
 
         <div class="note">
-            • 심볼 목록은 <code>/fapi/v1/exchangeInfo</code>에서 USDT 무기한(PERPETUAL)만 가져옵니다.<br>
-            • 24h 거래대금은 <code>/fapi/v1/ticker/24hr</code>의 <code>quoteVolume</code> 기준입니다.<br>
-            • 캔들은 <code>/fapi/v1/klines</code> 4h 기준, 마지막 봉은 진행 중으로 보고
-              <strong>전봉 = 마지막에서 두 번째, 전전봉 = 마지막에서 세 번째</strong>로 계산합니다.
+            • 심볼 목록: <code>/fapi/v1/exchangeInfo</code> (USDT PERPETUAL, TRADING만 사용)<br>
+            • 24h 거래대금: <code>/fapi/v1/ticker/24hr</code>의 <code>quoteVolume</code><br>
+            • 캔들: <code>/fapi/v1/klines?interval=4h</code> 기준 최근 150개 사용<br>
+            • 인덱스: <strong>전봉 = length-2, 전전봉 = length-3, 전전전봉 = length-4</strong> 기준
         </div>
     </div>
 
@@ -211,6 +216,8 @@
                         formatNumber(row.diffPrev, 2) + '%</td>' +
                     '<td>' + formatNumber(row.closePrevPrev, 6) + '</td>' +
                     '<td>' + formatNumber(row.maPrevPrev, 6) + '</td>' +
+                    '<td>' + formatNumber(row.closePrevPrevPrev, 6) + '</td>' +
+                    '<td>' + formatNumber(row.maPrevPrevPrev, 6) + '</td>' +
                     '<td>' + formatNumber(row.quoteVolume, 0) + '</td>' +
                     '<td>' + formatNumber(row.baseVolume, 0) + '</td>' +
                     '<td>' + formatNumber(row.lastPrice, 6) + '</td>';
@@ -234,8 +241,8 @@
                 throw new Error('klines 요청 실패: ' + symbol);
             }
             const klines = await res.json();
-            // 99MA 계산을 위해 최소 99 + 2봉 필요
-            if (!Array.isArray(klines) || klines.length < 101) {
+            // 99MA 계산을 위해 최소 99 + 3봉 필요
+            if (!Array.isArray(klines) || klines.length < 102) {
                 return null;
             }
 
@@ -245,25 +252,33 @@
             const len = closes.length;
             const period = 99;
 
-            const idxPrev = len - 2;      // 이전(완료된) 봉
-            const idxPrevPrev = len - 3;  // 이전의 이전 봉
+            const idxPrev = len - 2;          // 전봉 (완료된 봉)
+            const idxPrevPrev = len - 3;      // 전전봉
+            const idxPrevPrevPrev = len - 4;  // 전전전봉
 
-            if (idxPrevPrev < period - 1) {
+            if (idxPrevPrevPrev < period - 1) {
                 return null;
             }
 
             const maPrev = sma(closes, idxPrev, period);
             const maPrevPrev = sma(closes, idxPrevPrev, period);
+            const maPrevPrevPrev = sma(closes, idxPrevPrevPrev, period);
 
             const closePrev = closes[idxPrev];
             const closePrevPrev = closes[idxPrevPrev];
+            const closePrevPrevPrev = closes[idxPrevPrevPrev];
 
-            if (!isFinite(maPrev) || !isFinite(maPrevPrev)) {
+            if (!isFinite(maPrev) || !isFinite(maPrevPrev) || !isFinite(maPrevPrevPrev)) {
                 return null;
             }
 
-            // 조건: 전봉 종가 > 99MA && 전전봉 종가 < 99MA  (위/밑)
-            if (!(closePrev > maPrev && closePrevPrev < maPrevPrev)) {
+            // 조건:
+            // 1) 전봉 종가 > 99MA
+            // 2) 전전봉 종가 < 99MA
+            // 3) 전전전봉 종가 < 99MA
+            if (!(closePrev > maPrev &&
+                  closePrevPrev < maPrevPrev &&
+                  closePrevPrevPrev < maPrevPrevPrev)) {
                 return null;
             }
 
@@ -279,6 +294,8 @@
                 diffPrev: diffPrev,
                 closePrevPrev: closePrevPrev,
                 maPrevPrev: maPrevPrev,
+                closePrevPrevPrev: closePrevPrevPrev,
+                maPrevPrevPrev: maPrevPrevPrev,
                 quoteVolume: quoteVolume,
                 baseVolume: baseVolume,
                 lastPrice: lastPrice
@@ -295,84 +312,4 @@
                 throw new Error('exchangeInfo 요청 실패');
             }
             const exJson = await exRes.json();
-            const symbols = (exJson.symbols || []).filter(function (s) {
-                return s.contractType === 'PERPETUAL' &&
-                       s.quoteAsset === 'USDT' &&
-                       s.status === 'TRADING';
-            });
-
-            if (!symbols.length) {
-                setStatus('USDT 무기한 심볼을 찾지 못했습니다.');
-                return;
-            }
-
-            // 2) 24h ticker (거래대금 등) 가져오기
-            setStatus('24h 거래량 불러오는 중...');
-            const tRes = await fetch(API_BASE + '/fapi/v1/ticker/24hr');
-            if (!tRes.ok) {
-                throw new Error('ticker/24hr 요청 실패');
-            }
-            const tickers = await tRes.json();
-            const tickerMap = {};
-            tickers.forEach(function (t) {
-                tickerMap[t.symbol] = t;
-            });
-
-            // 3) 심볼별로 4H 캔들 스캔 (동시 8개씩)
-            setStatus('4H 캔들 스캔 중... (0 / ' + symbols.length + ')');
-
-            const results = [];
-            let processed = 0;
-            const maxConcurrency = 8;
-            let index = 0;
-
-            async function worker() {
-                while (true) {
-                    let currentIndex;
-                    if (index >= symbols.length) {
-                        break;
-                    }
-                    currentIndex = index;
-                    index += 1;
-
-                    const symInfo = symbols[currentIndex];
-                    try {
-                        const row = await scanSymbol(symInfo, tickerMap[symInfo.symbol]);
-                        if (row) {
-                            results.push(row);
-                        }
-                    } catch (e) {
-                        console.error('scan error', symInfo.symbol, e);
-                    }
-
-                    processed += 1;
-                    if (processed % 5 === 0 || processed === symbols.length) {
-                        setStatus('4H 캔들 스캔 중... (' +
-                            processed + ' / ' + symbols.length + ')');
-                    }
-                }
-            }
-
-            const workers = [];
-            for (let i = 0; i < maxConcurrency; i += 1) {
-                workers.push(worker());
-            }
-            await Promise.all(workers);
-
-            if (!results.length) {
-                setStatus('조건에 맞는 심볼이 없습니다.');
-                return;
-            }
-
-            // 4) 24h 거래대금(USDT, quoteVolume) 기준 내림차순 정렬
-            results.sort(function (a, b) {
-                return b.quoteVolume - a.quoteVolume;
-            });
-
-            renderResults(results);
-            setStatus('완료: ' + results.length +
-                '개 심볼 (총 ' + symbols.length + '개 중)');
-        }
-    </script>
-</body>
-</html>
+            const symbols = (e
