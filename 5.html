@@ -312,4 +312,88 @@
                 throw new Error('exchangeInfo 요청 실패');
             }
             const exJson = await exRes.json();
-            const symbols = (e
+            const symbols = (exJson.symbols || []).filter(function (s) {
+                return s.contractType === 'PERPETUAL' &&
+                       s.quoteAsset === 'USDT' &&
+                       s.status === 'TRADING';
+            });
+
+            if (!symbols.length) {
+                setStatus('USDT 무기한 심볼을 찾지 못했습니다.');
+                return;
+            }
+
+            // 2) 24h ticker (거래대금 등) 가져오기
+            setStatus('24h 거래량 불러오는 중...');
+            const tRes = await fetch(API_BASE + '/fapi/v1/ticker/24hr');
+            if (!tRes.ok) {
+                throw new Error('ticker/24hr 요청 실패');
+            }
+            const tickers = await tRes.json();
+            const tickerMap = {};
+            tickers.forEach(function (t) {
+                tickerMap[t.symbol] = t;
+            });
+
+            // 3) 심볼별로 4H 캔들 스캔 (동시 8개씩)
+            setStatus('4H 캔들 스캔 중... (0 / ' + symbols.length + ')');
+
+            const results = [];
+            let processed = 0;
+            const maxConcurrency = 8;
+            let index = 0;
+
+            async function worker() {
+                while (true) {
+                    let currentIndex;
+                    if (index >= symbols.length) {
+                        break;
+                    }
+                    currentIndex = index;
+                    index += 1;
+
+                    const symInfo = symbols[currentIndex];
+                    try {
+                        const row = await scanSymbol(symInfo, tickerMap[symInfo.symbol]);
+                        if (row) {
+                            results.push(row);
+                        }
+                    } catch (e) {
+                        console.error('scan error', symInfo.symbol, e);
+                    }
+
+                    processed += 1;
+                    if (processed % 5 === 0 || processed === symbols.length) {
+                        setStatus(
+                            '4H 캔들 스캔 중... (' +
+                            processed + ' / ' + symbols.length + ')'
+                        );
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < maxConcurrency; i += 1) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+
+            if (!results.length) {
+                setStatus('조건에 맞는 심볼이 없습니다.');
+                return;
+            }
+
+            // 4) 24h 거래대금(USDT, quoteVolume) 기준 내림차순 정렬
+            results.sort(function (a, b) {
+                return b.quoteVolume - a.quoteVolume;
+            });
+
+            renderResults(results);
+            setStatus(
+                '완료: ' + results.length +
+                '개 심볼 (총 ' + symbols.length + '개 중)'
+            );
+        }
+    </script>
+</body>
+</html>
