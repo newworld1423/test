@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>Binance Perp USDT — 24h Volume Delta Scanner (15m)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --card: #121318;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
+                         "Noto Sans KR", sans-serif;
+            background: radial-gradient(circle at top, #111827 0, #020617 55%, #000 100%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        header {
+            margin-bottom: 16px;
+        }
+
+        header h1 {
+            margin: 0 0 4px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        header p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            background: rgba(62, 166, 255, 0.12);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .btn span.dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .btn-danger {
+            border-color: var(--bad);
+            background: rgba(255, 82, 82, 0.1);
+        }
+
+        .status-line {
+            flex: 1;
+            min-width: 180px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status-line strong {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--bad);
+        }
+
+        .badge-dot.on {
+            background: var(--good);
+        }
+
+        .card {
+            background: radial-gradient(circle at top left, #1e293b 0, #020617 65%);
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            padding: 12px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+        }
+
+        .table-wrap {
+            margin-top: 4px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(30, 64, 175, 0.7);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            background: radial-gradient(circle at top left, #020617 0, #020617 40%, #000 100%);
+        }
+
+        thead {
+            background: linear-gradient(to right, #0f172a, #020617);
+        }
+
+        thead th {
+            padding: 6px 8px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            color: var(--muted);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        thead th:first-child,
+        thead th:nth-child(2) {
+            text-align: left;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(3, 7, 18, 0.9);
+        }
+
+        tbody tr:hover {
+            background: rgba(30, 64, 175, 0.35);
+        }
+
+        tbody td {
+            padding: 5px 8px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.9);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        tbody td.rank {
+            font-variant-numeric: tabular-nums;
+            color: var(--muted);
+        }
+
+        tbody td.symbol {
+            font-weight: 600;
+            text-align: left;
+        }
+
+        tbody td.num {
+            font-variant-numeric: tabular-nums;
+        }
+
+        tbody td.up {
+            color: var(--good);
+        }
+
+        tbody td.down {
+            color: var(--bad);
+        }
+
+        tfoot td {
+            padding: 6px 8px;
+            font-size: 11px;
+            color: var(--muted);
+            background: #020617;
+        }
+
+        .meta-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .meta-line span.label {
+            color: var(--muted);
+        }
+
+        .meta-line span.value {
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 16px;
+            }
+
+            .app {
+                padding: 10px;
+            }
+
+            .card {
+                padding: 10px;
+            }
+
+            table {
+                font-size: 11px;
+            }
+
+            thead th,
+            tbody td {
+                padding: 4px 6px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <h1>Binance Perp USDT — 24h Volume Δ Scanner (15m)</h1>
+        <p>
+            바이낸스 USDT 무기한선물 전 페어<br>
+            <strong>15분봉 기준 최근 24시간(96개 캔들) quote volume 합계</strong> 스캔 +
+            직전 스캔 대비 거래량 증감률 정렬
+        </p>
+    </header>
+
+    <div class="card">
+        <div class="controls">
+            <div class="controls-left">
+                <button id="btnScan" class="btn" disabled>
+                    <span class="dot"></span>
+                    <span>스캔 시작 (즉시 1회 + 매 15분 자동)</span>
+                </button>
+                <button id="btnStopAuto" class="btn btn-danger">
+                    자동 스캔 중지
+                </button>
+            </div>
+            <div class="status-line">
+                <div id="statusText">USDT 무기한 선물 심볼 목록 로딩 중...</div>
+                <div id="autoInfo" style="margin-top:2px;"></div>
+            </div>
+            <div class="badge">
+                <span class="badge-dot" id="autoDot"></span>
+                <span id="badgeText">Auto: OFF</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table id="resultTable">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Symbol</th>
+                    <th>현재 24h 거래량<br>(합산 Quote, USDT)</th>
+                    <th>직전 24h 거래량<br>(합산 Quote, USDT)</th>
+                    <th>증감액</th>
+                    <th>증감률</th>
+                </tr>
+                </thead>
+                <tbody>
+                <!-- rows will be injected -->
+                </tbody>
+                <tfoot>
+                <tr>
+                    <td colspan="6" id="footerInfo">
+                        준비 중...
+                    </td>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="meta-line">
+            <div>
+                <span class="label">최근 스캔 시각:</span>
+                <span class="value" id="lastScanAt">-</span>
+            </div>
+            <div>
+                <span class="label">스캔 횟수:</span>
+                <span class="value" id="scanCount">0</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const API_BASE = "https://fapi.binance.com";
+
+        /** USDT 무기한 심볼 목록 */
+        let allSymbols = [];
+        /** 직전 스캔 결과: symbol -> { volume, at } */
+        let prevScanMap = new Map();
+        /** 마지막 스캔 시작 시각 */
+        let lastScanAt = null;
+        /** 전체 스캔 횟수 */
+        let scanCount = 0;
+        /** 현재 스캔 중인지 플래그 */
+        let isScanning = false;
+        /** 자동 스캔용 타이머/인터벌 핸들 */
+        let autoTimer = null;
+        let autoInterval = null;
+
+        function setStatus(msg) {
+            const el = document.getElementById("statusText");
+            if (el) el.textContent = msg;
+        }
+
+        function setFooter(msg) {
+            const el = document.getElementById("footerInfo");
+            if (el) el.textContent = msg;
+        }
+
+        function setAutoStatus(on, extraText) {
+            const dot = document.getElementById("autoDot");
+            const badge = document.getElementById("badgeText");
+            const info = document.getElementById("autoInfo");
+
+            if (dot) {
+                dot.classList.toggle("on", !!on);
+            }
+            if (badge) {
+                badge.textContent = on ? "Auto: ON (15m)" : "Auto: OFF";
+            }
+            if (info) {
+                info.textContent = extraText || "";
+            }
+        }
+
+        function formatNumber(num) {
+            if (num == null || !isFinite(num)) return "-";
+            if (num === 0) return "0";
+
+            const abs = Math.abs(num);
+            // 억/조 단위보다는 그냥 K/M/B 표기
+            if (abs >= 1_000_000_000) {
+                return (num / 1_000_000_000).toFixed(2) + "B";
+            }
+            if (abs >= 1_000_000) {
+                return (num / 1_000_000).toFixed(2) + "M";
+            }
+            if (abs >= 1_000) {
+                return (num / 1_000).toFixed(2) + "K";
+            }
+            return num.toFixed(2);
+        }
+
+        function formatPercent(pct) {
+            if (pct == null || !isFinite(pct)) return "-";
+            const v = pct.toFixed(2);
+            if (pct > 0) return "+" + v + "%";
+            if (pct < 0) return v + "%";
+            return "0.00%";
+        }
+
+        function msUntilNextQuarter() {
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const ms = now.getMilliseconds();
+
+            const remainder = minutes % 15;
+            let addMinutes = (remainder === 0 && seconds === 0 && ms === 0)
+                ? 15
+                : (15 - remainder);
+
+            const next = new Date(now.getTime());
+            next.setMinutes(minutes + addMinutes);
+            next.setSeconds(0, 0);
+
+            return next.getTime() - now.getTime();
+        }
+
+        function updateMeta() {
+            const scanEl = document.getElementById("scanCount");
+            if (scanEl) scanEl.textContent = String(scanCount);
+
+            const lastEl = document.getElementById("lastScanAt");
+            if (lastEl) {
+                lastEl.textContent = lastScanAt
+                    ? lastScanAt.toLocaleString("ko-KR", { hour12: false })
+                    : "-";
+            }
+        }
+
+        async function loadSymbols() {
+            setStatus("USDT 무기한 선물 심볼 목록 로딩 중...");
+            try {
+                const resp = await fetch(API_BASE + "/fapi/v1/exchangeInfo");
+                const data = await resp.json();
+
+                if (!data || !Array.isArray(data.symbols)) {
+                    throw new Error("exchangeInfo 응답 형식이 올바르지 않습니다.");
+                }
+
+                allSymbols = data.symbols
+                    .filter(function (s) {
+                        return s.contractType === "PERPETUAL" &&
+                            s.quoteAsset === "USDT" &&
+                            s.status === "TRADING";
+                    })
+                    .map(function (s) { return s.symbol; })
+                    .sort();
+
+                setStatus(
+                    "USDT 무기한 선물 TRADING 심볼 " +
+                    allSymbols.length +
+                    "개 로딩 완료. 스캔 버튼을 눌러 시작하세요."
+                );
+                setFooter("심볼 수: " + allSymbols.length + "개");
+                const btn = document.getElementById("btnScan");
+                if (btn) btn.disabled = false;
+            } catch (err) {
+                console.error(err);
+                setStatus("심볼 목록 로딩 실패: " + (err.message || err));
+                setFooter("심볼 로딩 실패 (F12 콘솔 확인)");
+            }
+        }
+
+        async function scanVolumes(isAuto) {
+            if (isScanning) {
+                console.log("이미 스캔 중이므로 이번 요청은 무시합니다.");
+                return;
+            }
+            if (!allSymbols || allSymbols.length === 0) {
+                setStatus("심볼 목록이 비어 있습니다. 잠시 후 다시 시도하세요.");
+                return;
+            }
+
+            isScanning = true;
+            scanCount += 1;
+            const thisScanIndex = scanCount;
+            const startedAt = new Date();
+            lastScanAt = startedAt;
+            updateMeta();
+
+            setStatus(
+                "스캔 #" + thisScanIndex +
+                " 진행 중... (심볼 " + allSymbols.length +
+                "개, 15분봉 96개 기준 24h quote volume 합산)"
+            );
+            setFooter("Binance /fapi/v1/klines 15m × 96 요청 진행 중...");
+
+            const results = [];
+            const prevMapSnapshot = prevScanMap;
+            const concurrency = 8;
+            const queue = allSymbols.slice();
+            let completed = 0;
+
+            async function worker() {
+                while (queue.length > 0) {
+                    const symbol = queue.shift();
+                    if (!symbol) continue;
+
+                    try {
+                        const url =
+                            API_BASE +
+                            "/fapi/v1/klines?symbol=" +
+                            symbol +
+                            "&interval=15m&limit=96";
+
+                        const resp = await fetch(url);
+                        const klines = await resp.json();
+
+                        if (!Array.isArray(klines)) {
+                            console.warn("klines 형식 오류:", symbol, klines);
+                            continue;
+                        }
+
+                        let quoteSum = 0;
+                        for (let i = 0; i < klines.length; i++) {
+                            const k = klines[i];
+                            // index 7 = quote asset volume (USDT 기준) :contentReference[oaicite:0]{index=0}
+                            const q = parseFloat(k[7]);
+                            if (!Number.isNaN(q)) {
+                                quoteSum += q;
+                            }
+                        }
+
+                        const prev = prevMapSnapshot.get(symbol);
+                        let diff = null;
+                        let pct = null;
+
+                        if (prev && prev.volume > 0) {
+                            diff = quoteSum - prev.volume;
+                            pct = (diff / prev.volume) * 100;
+                        }
+
+                        results.push({
+                            symbol: symbol,
+                            volume: quoteSum,
+                            prevVolume: prev ? prev.volume : null,
+                            diff: diff,
+                            pct: pct
+                        });
+                    } catch (e) {
+                        console.warn("심볼 스캔 실패:", symbol, e);
+                    } finally {
+                        completed += 1;
+                        if (completed === allSymbols.length || completed % 10 === 0) {
+                            setStatus(
+                                "스캔 #" + thisScanIndex +
+                                " 진행 중... " + completed +
+                                "/" + allSymbols.length + " 완료"
+                            );
+                        }
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+
+            // 정렬
+            if (scanCount === 1) {
+                // 첫 스캔: 24h 거래량 자체 기준 내림차순
+                results.sort(function (a, b) {
+                    return (b.volume || 0) - (a.volume || 0);
+                });
+            } else {
+                // 두 번째 스캔부터: 직전 스캔 대비 증감률 기준 내림차순
+                results.sort(function (a, b) {
+                    const ap = (a.pct == null || !isFinite(a.pct)) ? -Infinity : a.pct;
+                    const bp = (b.pct == null || !isFinite(b.pct)) ? -Infinity : b.pct;
+                    return bp - ap;
+                });
+            }
+
+            // 이번 스캔 결과를 다음 스캔의 기준으로 저장
+            const newMap = new Map();
+            for (let i = 0; i < results.length; i++) {
+                const row = results[i];
+                newMap.set(row.symbol, {
+                    volume: row.volume,
+                    at: startedAt.getTime()
+                });
+            }
+            prevScanMap = newMap;
+
+            renderTable(results);
+            updateMeta();
+
+            const timeStr = startedAt.toLocaleString("ko-KR", { hour12: false });
+            if (scanCount === 1) {
+                setStatus(
+                    "스캔 #" + thisScanIndex +
+                    " 완료 (" + timeStr +
+                    "). 24h quote volume (USDT) 기준 내림차순 정렬."
+                );
+                setFooter(
+                    "다음 스캔부터는 직전 스캔 대비 24h quote volume 증감률 기준으로 정렬됩니다."
+                );
+            } else {
+                setStatus(
+                    "스캔 #" + thisScanIndex +
+                    " 완료 (" + timeStr +
+                    "). 직전 스캔 대비 24h quote volume 증감률 기준 내림차순 정렬."
+                );
+                setFooter(
+                    "증감률(%) = (현재 24h 거래량 - 직전 24h 거래량) / 직전 24h 거래량 × 100"
+                );
+            }
+
+            isScanning = false;
+        }
+
+        function renderTable(rows) {
+            const tbody = document.querySelector("#resultTable tbody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const tr = document.createElement("tr");
+
+                const rank = i + 1;
+                const pct = row.pct;
+                const diff = row.diff;
+
+                let pctClass = "";
+                if (pct != null && isFinite(pct)) {
+                    if (pct > 0) pctClass = "up";
+                    else if (pct < 0) pctClass = "down";
+                }
+
+                const prevText = (row.prevVolume == null || !isFinite(row.prevVolume))
+                    ? "-"
+                    : formatNumber(row.prevVolume);
+
+                const diffText = (diff == null || !isFinite(diff))
+                    ? "-"
+                    : ((diff > 0 ? "+" : "") + formatNumber(diff));
+
+                tr.innerHTML =
+                    '<td class="rank">' + rank + "</td>" +
+                    '<td class="symbol">' + row.symbol + "</td>" +
+                    '<td class="num">' + formatNumber(row.volume) + "</td>" +
+                    '<td class="num">' + prevText + "</td>" +
+                    '<td class="num">' + diffText + "</td>" +
+                    '<td class="num ' + pctClass + '">' + formatPercent(pct) + "</td>";
+
+                tbody.appendChild(tr);
+            }
+        }
+
+        function startAutoSchedule() {
+            // 기존 스케줄이 있으면 초기화
+            if (autoTimer) {
+                clearTimeout(autoTimer);
+                autoTimer = null;
+            }
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+
+            const delay = msUntilNextQuarter();
+            const minutes = Math.round(delay / 60000);
+            setAutoStatus(
+                true,
+                "자동 스캔: 활성화 (다음 스캔까지 약 " + minutes + "분 남음; 매시 00/15/30/45분 실행)"
+            );
+
+            autoTimer = setTimeout(function () {
+                scanVolumes(true);
+                autoInterval = setInterval(function () {
+                    scanVolumes(true);
+                }, 15 * 60 * 1000);
+            }, delay);
+        }
+
+        function stopAutoSchedule() {
+            if (autoTimer) {
+                clearTimeout(autoTimer);
+                autoTimer = null;
+            }
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+            setAutoStatus(false, "자동 스캔 꺼짐");
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const btnScan = document.getElementById("btnScan");
+            const btnStopAuto = document.getElementById("btnStopAuto");
+
+            if (btnScan) {
+                btnScan.addEventListener("click", async function () {
+                    if (btnScan.disabled) return;
+                    btnScan.disabled = true;
+                    try {
+                        await scanVolumes(false);
+                        // 첫 스캔 후 자동 스케줄 시작
+                        startAutoSchedule();
+                    } finally {
+                        btnScan.disabled = false;
+                    }
+                });
+            }
+
+            if (btnStopAuto) {
+                btnStopAuto.addEventListener("click", function () {
+                    stopAutoSchedule();
+                });
+            }
+
+            stopAutoSchedule();
+            loadSymbols();
+        });
+    })();
+</script>
+</body>
+</html>
