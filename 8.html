@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 추세 + 15m 눌림 전략 스캔 & 백테스트</title>
+    <title>Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -96,12 +96,12 @@
             color: var(--muted);
         }
 
-        .tag.good {
+        .tag.long {
             border-color: var(--good);
             color: var(--good);
         }
 
-        .tag.bad {
+        .tag.short {
             border-color: var(--bad);
             color: var(--bad);
         }
@@ -193,16 +193,17 @@
             background: #101118;
         }
 
-        .num.good {
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                         "Liberation Mono", "Courier New", monospace;
+        }
+
+        .dir-long {
             color: var(--good);
         }
 
-        .num.bad {
+        .dir-short {
             color: var(--bad);
-        }
-
-        .num.warn {
-            color: var(--warn);
         }
 
         .pill {
@@ -213,11 +214,6 @@
             border: 1px solid var(--border);
             font-size: 10px;
             color: var(--muted);
-        }
-
-        .pill.signal {
-            border-color: var(--accent);
-            color: var(--accent);
         }
 
         .pill.none {
@@ -234,10 +230,6 @@
             font-size: 11px;
             color: var(--muted);
             line-height: 1.5;
-        }
-
-        .mono {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
         @media (max-width: 768px) {
@@ -258,20 +250,17 @@
 <body>
     <div class="app">
         <header class="header">
-            <div class="title">Binance Perp USDT — 4H 추세 + 15m 눌림 전략 스캐너 & 백테스터</div>
+            <div class="title">Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너</div>
             <div class="desc">
                 · 모든 <span class="mono">PERPETUAL / USDT</span> 페어에 대해<br>
-                · <strong>4시간봉 50EMA &gt; 200EMA, 종가 &gt; 200EMA (상승 추세 필터)</strong> +<br>
-                · <strong>15분봉 20EMA 아래 → 위 재돌파 + 양봉</strong> 패턴을 검출하고,<br>
-                · 진입 시점 기준 <strong>TP +1% / SL -0.6%</strong> 백테스트 결과를 표로 보여줍니다.
+                · <strong>4시간봉 추세 필터(50EMA vs 200EMA)</strong> + <strong>15분봉 20EMA 눌림</strong> 조건을 검사해서<br>
+                · 조건에 맞는 심볼에 대해 <strong>롱/숏 포지션 시그널 (진입/손절/익절)</strong>을 한 번에 보여줍니다.
             </div>
 
             <div class="controls">
-                <button id="runBtn" class="btn primary">
-                    <span>스캔 + 백테스트 시작</span>
-                </button>
-                <span class="tag">롱 방향만 (4H 상승 추세)</span>
-                <span class="tag">모든 USDT 무기한 페어 자동 탐색</span>
+                <button id="scanBtn" class="btn primary">USDT 페어 스캔 시작</button>
+                <span class="tag long">롱: 4H 상승 추세 + 15m 20EMA 재돌파 양봉</span>
+                <span class="tag short">숏: 4H 하락 추세 + 15m 20EMA 재이탈 음봉</span>
             </div>
 
             <div class="status-bar">
@@ -290,14 +279,14 @@
                 <thead>
                     <tr>
                         <th class="sortable" data-sort="symbol">심볼</th>
-                        <th class="sortable" data-sort="winRate">승률(%)</th>
-                        <th class="sortable" data-sort="avgR">평균 R/트레이드</th>
-                        <th class="sortable" data-sort="total">트레이드수</th>
-                        <th class="sortable" data-sort="wins">TP</th>
-                        <th class="sortable" data-sort="losses">SL</th>
-                        <th class="sortable" data-sort="unresolved">미해결</th>
-                        <th>최근 시그널</th>
-                        <th class="sortable" data-sort="signalBarsAgo">시그널 후 경과봉</th>
+                        <th class="sortable" data-sort="direction">방향</th>
+                        <th>시그널 시간 (15m 기준)</th>
+                        <th class="sortable" data-sort="trend">4H 추세</th>
+                        <th>진입가</th>
+                        <th>손절(SL)</th>
+                        <th>익절(TP)</th>
+                        <th class="sortable" data-sort="risk">손절폭(%)</th>
+                        <th class="sortable" data-sort="reward">익절폭(%)</th>
                         <th>상태</th>
                     </tr>
                 </thead>
@@ -306,15 +295,15 @@
             </table>
 
             <div class="footer-note">
-                · 이 결과는 예시용 단순 백테스트이며, <strong>수수료·슬리피지·펀딩·동시 진입 관리</strong> 등은 반영하지 않습니다.<br>
-                · "미해결"은 마지막 부분에서 TP/SL 어디에도 닿지 않고 데이터가 끝난 시그널입니다.<br>
-                · TP/SL이 같은 15m 봉 안에서 동시에 닿은 경우, <strong>보수적으로 SL 우선 (실패)</strong>으로 처리했습니다.
+                · 이 스캐너는 참고용 시그널만 제공하며, <strong>실제 매매 판단·리스크 관리는 본인 책임</strong>입니다.<br>
+                · 시그널은 항상 <strong>마지막에서 두 번째 15분봉(완전히 마감된 봉)</strong> 기준으로만 생성됩니다.<br>
+                · 수수료, 슬리피지, 펀딩, 서버/네트워크 지연 등은 반영되지 않았습니다.
             </div>
         </section>
     </div>
 
     <script>
-        // ===== 유틸리티 =====
+        // ========== 유틸 함수 ==========
         function toNum(v) {
             return Number(v);
         }
@@ -364,169 +353,21 @@
                 throw new Error(`exchangeInfo error: ${res.status}`);
             }
             const data = await res.json();
-            const list = data.symbols.filter(s =>
-                s.contractType === "PERPETUAL" &&
-                s.quoteAsset === "USDT" &&
-                s.status === "TRADING"
-            ).map(s => s.symbol);
-            list.sort();
+            const list = data.symbols
+                .filter(s =>
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT" &&
+                    s.status === "TRADING"
+                )
+                .map(s => s.symbol)
+                .sort();
             return list;
         }
 
-        // ===== 전략 로직 (4H 추세 + 15m 눌림) =====
-        function runTrendPullbackStrategy(klines4h, klines15m) {
-            const close4h = klines4h.map(k => k.close);
-            const close15 = klines15m.map(k => k.close);
-
-            const ema50_4h = calcEMA(close4h, 50);
-            const ema200_4h = calcEMA(close4h, 200);
-            const ema20_15 = calcEMA(close15, 20);
-
-            let idx4 = 0;
-
-            const R_WIN = 1.0;
-            const R_LOSS = -0.6;
-
-            let wins = 0;
-            let losses = 0;
-            let total = 0;
-            let unresolved = 0;
-            let netR = 0;
-            let lastSignalIndex = null;
-
-            // 15m 기준 루프
-            for (let i = 1; i < klines15m.length - 1; i++) {
-                const c15_prev = klines15m[i - 1];
-                const c15_curr = klines15m[i];
-
-                // 4H 인덱스 정렬 (현재 15m 봉 시작 전에 열린 마지막 4H 봉)
-                const t15 = c15_curr.openTime;
-                while (idx4 + 1 < klines4h.length && klines4h[idx4 + 1].openTime < t15) {
-                    idx4++;
-                }
-                if (idx4 < 200) {
-                    continue;
-                }
-
-                const c4 = klines4h[idx4];
-                const ema50 = ema50_4h[idx4];
-                const ema200 = ema200_4h[idx4];
-                if (ema50 === null || ema200 === null) {
-                    continue;
-                }
-
-                // 4H 상승 추세 필터: 종가 > 200EMA, 50EMA > 200EMA
-                if (!(c4.close > ema200 && ema50 > ema200)) {
-                    continue;
-                }
-
-                const emaPrev = ema20_15[i - 1];
-                const emaCurr = ema20_15[i];
-                if (emaPrev === null || emaCurr === null) {
-                    continue;
-                }
-
-                const prevClose = c15_prev.close;
-                const currOpen = c15_curr.open;
-                const currClose = c15_curr.close;
-
-                // 15m 눌림 후 재돌파 패턴
-                // 1) 이전 봉 종가 < 20EMA
-                // 2) 현재 봉 종가 > 20EMA
-                // 3) 현재 봉 양봉
-                if (!(prevClose < emaPrev && currClose > emaCurr && currClose > currOpen)) {
-                    continue;
-                }
-
-                // 시그널 발견
-                lastSignalIndex = i;
-
-                const entry = currClose;
-                const tp = entry * (1 + 0.01);   // +1%
-                const sl = entry * (1 - 0.006);  // -0.6%
-
-                let result = null;
-
-                for (let j = i + 1; j < klines15m.length; j++) {
-                    const bar = klines15m[j];
-                    const high = bar.high;
-                    const low = bar.low;
-
-                    // 같은 봉에서 TP/SL 둘 다 닿으면 보수적으로 SL 우선
-                    if (low <= sl && high >= tp) {
-                        result = "LOSS_BOTH_HIT";
-                        break;
-                    }
-                    if (low <= sl) {
-                        result = "LOSS";
-                        break;
-                    }
-                    if (high >= tp) {
-                        result = "WIN";
-                        break;
-                    }
-                }
-
-                if (!result) {
-                    unresolved++;
-                    continue;
-                }
-
-                total++;
-                if (result.startsWith("WIN")) {
-                    wins++;
-                    netR += R_WIN;
-                } else {
-                    losses++;
-                    netR += R_LOSS;
-                }
-            }
-
-            const winRate = total > 0 ? (wins / total * 100) : 0;
-            const avgR = total > 0 ? (netR / total) : 0;
-
-            let lastSignalTime = null;
-            let signalBarsAgo = null;
-            if (lastSignalIndex !== null) {
-                lastSignalTime = new Date(klines15m[lastSignalIndex].openTime);
-                signalBarsAgo = (klines15m.length - 1) - lastSignalIndex;
-            }
-
-            return {
-                wins,
-                losses,
-                total,
-                unresolved,
-                winRate,
-                netR,
-                avgR,
-                lastSignalIndex,
-                lastSignalTime,
-                signalBarsAgo
-            };
-        }
-
-        // ===== 상태 및 렌더링 =====
-        const state = {
-            symbols: [],
-            results: [],
-            totalSymbols: 0,
-            doneSymbols: 0,
-            running: false,
-            sortKey: "winRate",
-            sortDir: "desc"
-        };
-
-        const runBtn = document.getElementById("runBtn");
-        const progressBar = document.getElementById("progressBar");
-        const statusText = document.getElementById("statusText");
-        const summaryText = document.getElementById("summaryText");
-        const resultBody = document.getElementById("resultBody");
-
-        function formatDateLocal(date) {
-            if (!date) return "-";
+        function formatLocalTime(ms) {
             try {
-                return date.toLocaleString("ko-KR", {
+                const d = new Date(ms);
+                return d.toLocaleString("ko-KR", {
                     year: "2-digit",
                     month: "2-digit",
                     day: "2-digit",
@@ -534,202 +375,260 @@
                     minute: "2-digit"
                 });
             } catch {
-                return date.toISOString();
+                return "-";
             }
         }
 
+        // ========== 전략: 4H 추세 + 15m 눌림 롱/숏 시그널 ==========
+        function findTrendPullbackSignal(klines4h, klines15m) {
+            if (klines4h.length < 200 || klines15m.length < 30) {
+                return null;
+            }
+
+            const close4h = klines4h.map(k => k.close);
+            const close15 = klines15m.map(k => k.close);
+
+            const ema50_4h = calcEMA(close4h, 50);
+            const ema200_4h = calcEMA(close4h, 200);
+            const ema20_15 = calcEMA(close15, 20);
+
+            // 현재 시그널은 "마지막에서 두 번째 15m 봉" 기준
+            const currIndex = klines15m.length - 2;
+            const prevIndex = currIndex - 1;
+            if (prevIndex < 0) return null;
+
+            const curr15 = klines15m[currIndex];
+            const prev15 = klines15m[prevIndex];
+
+            const emaPrev = ema20_15[prevIndex];
+            const emaCurr = ema20_15[currIndex];
+            if (emaPrev === null || emaCurr === null) return null;
+
+            // 4H 인덱스 매칭: curr15.openTime 이전에 시작한 마지막 4H 봉
+            let idx4 = 0;
+            const t15 = curr15.openTime;
+            while (idx4 + 1 < klines4h.length && klines4h[idx4 + 1].openTime < t15) {
+                idx4++;
+            }
+            if (idx4 < 200) return null;
+
+            const c4 = klines4h[idx4];
+            const ema50 = ema50_4h[idx4];
+            const ema200 = ema200_4h[idx4];
+            if (ema50 === null || ema200 === null) return null;
+
+            const prevClose = prev15.close;
+            const currOpen = curr15.open;
+            const currClose = curr15.close;
+
+            // 4H 추세 방향 체크
+            const upTrend = (c4.close > ema200 && ema50 > ema200);
+            const downTrend = (c4.close < ema200 && ema50 < ema200);
+
+            // ----- 롱 조건 -----
+            if (upTrend &&
+                prevClose < emaPrev &&
+                currClose > emaCurr &&
+                currClose > currOpen) {
+
+                const direction = "LONG";
+                const entry = currClose;
+                const tp = entry * 1.01;    // +1%
+                const sl = entry * 0.994;   // -0.6%
+
+                const riskPct = (sl / entry - 1) * 100;
+                const rewardPct = (tp / entry - 1) * 100;
+
+                return {
+                    direction,
+                    trend: "UP",
+                    entry,
+                    tp,
+                    sl,
+                    riskPct,
+                    rewardPct,
+                    signalTime: curr15.openTime
+                };
+            }
+
+            // ----- 숏 조건 -----
+            if (downTrend &&
+                prevClose > emaPrev &&
+                currClose < emaCurr &&
+                currClose < currOpen) {
+
+                const direction = "SHORT";
+                const entry = currClose;
+                const tp = entry * 0.99;    // -1%
+                const sl = entry * 1.006;   // +0.6%
+
+                const riskPct = (sl / entry - 1) * 100;
+                const rewardPct = (tp / entry - 1) * 100;
+
+                return {
+                    direction,
+                    trend: "DOWN",
+                    entry,
+                    tp,
+                    sl,
+                    riskPct,
+                    rewardPct,
+                    signalTime: curr15.openTime
+                };
+            }
+
+            return null;
+        }
+
+        // ========== 상태 & 렌더링 ==========
+        const state = {
+            running: false,
+            totalSymbols: 0,
+            doneSymbols: 0,
+            signals: [],
+            sortKey: "symbol",
+            sortDir: "asc"
+        };
+
+        const scanBtn = document.getElementById("scanBtn");
+        const progressBar = document.getElementById("progressBar");
+        const statusText = document.getElementById("statusText");
+        const summaryText = document.getElementById("summaryText");
+        const resultBody = document.getElementById("resultBody");
+
         function renderProgress() {
-            const { totalSymbols, doneSymbols, running } = state;
-            if (!running) {
+            if (!state.running) {
                 progressBar.style.width = "0%";
                 statusText.textContent = "대기 중입니다. 버튼을 눌러 시작하세요.";
                 summaryText.textContent = "";
                 return;
             }
-            if (totalSymbols === 0) {
+            if (state.totalSymbols === 0) {
                 progressBar.style.width = "0%";
                 statusText.textContent = "심볼 목록 로딩 중...";
                 summaryText.textContent = "";
                 return;
             }
-            const pct = Math.min(100, Math.round(doneSymbols / totalSymbols * 100));
+            const pct = Math.min(100, Math.round(state.doneSymbols / state.totalSymbols * 100));
             progressBar.style.width = pct + "%";
-            statusText.textContent = `진행률: ${doneSymbols} / ${totalSymbols} (${pct}%)`;
-            const withTrades = state.results.filter(r => r.total > 0);
-            if (withTrades.length > 0) {
-                const avgWinRate = withTrades.reduce((acc, r) => acc + r.winRate, 0) / withTrades.length;
-                summaryText.textContent = `백테스트 결과 있음: ${withTrades.length}개 심볼, 평균 승률: ${avgWinRate.toFixed(1)}%`;
+            statusText.textContent = `진행률: ${state.doneSymbols} / ${state.totalSymbols} (${pct}%)`;
+
+            if (state.signals.length > 0) {
+                const longCnt = state.signals.filter(s => s.direction === "LONG").length;
+                const shortCnt = state.signals.filter(s => s.direction === "SHORT").length;
+                summaryText.textContent = `시그널 수: 롱 ${longCnt}개 / 숏 ${shortCnt}개 (총 ${state.signals.length}개)`;
             } else {
-                summaryText.textContent = "";
+                summaryText.textContent = "아직 검출된 시그널이 없습니다.";
             }
         }
 
         function renderTable() {
-            const { results, sortKey, sortDir } = state;
-            const sorted = [...results];
+            const rows = [...state.signals];
 
-            sorted.sort((a, b) => {
-                const va = a[sortKey];
-                const vb = b[sortKey];
+            rows.sort((a, b) => {
+                const key = state.sortKey;
+                const dir = state.sortDir;
+                let va = a[key];
+                let vb = b[key];
 
-                if (va === null && vb !== null) return 1;
-                if (va !== null && vb === null) return -1;
-                if (va === null && vb === null) return 0;
-
-                if (typeof va === "string") {
-                    if (va < vb) return sortDir === "asc" ? -1 : 1;
-                    if (va > vb) return sortDir === "asc" ? 1 : -1;
-                    return 0;
-                } else {
-                    if (va < vb) return sortDir === "asc" ? -1 : 1;
-                    if (va > vb) return sortDir === "asc" ? 1 : -1;
-                    return 0;
+                // direction, trend 문자열 정렬 보정
+                if (key === "direction" || key === "trend" || key === "symbol") {
+                    va = String(va);
+                    vb = String(vb);
                 }
+
+                if (va < vb) return dir === "asc" ? -1 : 1;
+                if (va > vb) return dir === "asc" ? 1 : -1;
+                return 0;
             });
 
             resultBody.innerHTML = "";
 
-            for (const r of sorted) {
+            if (rows.length === 0) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.colSpan = 10;
+                td.style.textAlign = "center";
+                td.textContent = "조건에 맞는 시그널이 없습니다.";
+                tr.appendChild(td);
+                resultBody.appendChild(tr);
+                return;
+            }
+
+            for (const s of rows) {
                 const tr = document.createElement("tr");
 
                 const tdSymbol = document.createElement("td");
-                tdSymbol.textContent = r.symbol;
+                tdSymbol.textContent = s.symbol;
                 tr.appendChild(tdSymbol);
 
-                const tdWinRate = document.createElement("td");
-                if (r.total > 0) {
-                    const span = document.createElement("span");
-                    span.className = "num " + (r.winRate >= 55 ? "good" : (r.winRate <= 45 ? "bad" : "warn"));
-                    span.textContent = r.winRate.toFixed(2);
-                    tdWinRate.appendChild(span);
-                } else {
-                    tdWinRate.textContent = "-";
-                }
-                tr.appendChild(tdWinRate);
+                const tdDir = document.createElement("td");
+                const spanDir = document.createElement("span");
+                spanDir.textContent = s.direction;
+                spanDir.className = s.direction === "LONG" ? "dir-long" : "dir-short";
+                tdDir.appendChild(spanDir);
+                tr.appendChild(tdDir);
 
-                const tdAvgR = document.createElement("td");
-                if (r.total > 0) {
-                    const span = document.createElement("span");
-                    span.className = "num " + (r.avgR >= 0.05 ? "good" : (r.avgR <= -0.05 ? "bad" : "warn"));
-                    span.textContent = r.avgR.toFixed(3);
-                    tdAvgR.appendChild(span);
-                } else {
-                    tdAvgR.textContent = "-";
-                }
-                tr.appendChild(tdAvgR);
+                const tdTime = document.createElement("td");
+                tdTime.textContent = formatLocalTime(s.signalTime);
+                tr.appendChild(tdTime);
 
-                const tdTotal = document.createElement("td");
-                tdTotal.textContent = r.total;
-                tr.appendChild(tdTotal);
+                const tdTrend = document.createElement("td");
+                tdTrend.textContent = s.trend === "UP" ? "상승(UP)" : "하락(DOWN)";
+                tr.appendChild(tdTrend);
 
-                const tdWins = document.createElement("td");
-                tdWins.textContent = r.wins;
-                tr.appendChild(tdWins);
+                const tdEntry = document.createElement("td");
+                tdEntry.textContent = s.entry.toFixed(4);
+                tr.appendChild(tdEntry);
 
-                const tdLosses = document.createElement("td");
-                tdLosses.textContent = r.losses;
-                tr.appendChild(tdLosses);
+                const tdSL = document.createElement("td");
+                tdSL.textContent = s.sl.toFixed(4);
+                tr.appendChild(tdSL);
 
-                const tdUnresolved = document.createElement("td");
-                tdUnresolved.textContent = r.unresolved;
-                tr.appendChild(tdUnresolved);
+                const tdTP = document.createElement("td");
+                tdTP.textContent = s.tp.toFixed(4);
+                tr.appendChild(tdTP);
 
-                const tdSignal = document.createElement("td");
-                if (r.lastSignalTime) {
-                    const pill = document.createElement("span");
-                    pill.className = "pill signal";
-                    pill.textContent = formatDateLocal(r.lastSignalTime);
-                    tdSignal.appendChild(pill);
-                } else {
-                    const pill = document.createElement("span");
-                    pill.className = "pill none";
-                    pill.textContent = "시그널 없음";
-                    tdSignal.appendChild(pill);
-                }
-                tr.appendChild(tdSignal);
+                const tdRisk = document.createElement("td");
+                tdRisk.textContent = s.riskPct.toFixed(2);
+                tr.appendChild(tdRisk);
 
-                const tdBarsAgo = document.createElement("td");
-                tdBarsAgo.textContent = r.signalBarsAgo !== null ? r.signalBarsAgo : "-";
-                tr.appendChild(tdBarsAgo);
+                const tdReward = document.createElement("td");
+                tdReward.textContent = s.rewardPct.toFixed(2);
+                tr.appendChild(tdReward);
 
                 const tdStatus = document.createElement("td");
-                if (r.error) {
-                    const pill = document.createElement("span");
-                    pill.className = "pill error";
-                    pill.textContent = "에러";
-                    tdStatus.appendChild(pill);
-                } else if (r.total > 0) {
-                    const pill = document.createElement("span");
-                    pill.className = "pill";
-                    pill.textContent = "OK";
-                    tdStatus.appendChild(pill);
-                } else {
-                    const pill = document.createElement("span");
-                    pill.className = "pill none";
-                    pill.textContent = "트레이드 없음";
-                    tdStatus.appendChild(pill);
-                }
+                const pill = document.createElement("span");
+                pill.className = "pill";
+                pill.textContent = "시그널";
+                tdStatus.appendChild(pill);
                 tr.appendChild(tdStatus);
 
                 resultBody.appendChild(tr);
             }
         }
 
-        // ===== 실행 로직 =====
+        // ========== 심볼별 처리 ==========
         async function processSymbol(symbol) {
             try {
+                // 데이터 너무 많이 안 쓰게 4H 300개, 15m 300개 정도만
                 const [kl4h, kl15m] = await Promise.all([
-                    fetchKlines(symbol, "4h", 500),
-                    fetchKlines(symbol, "15m", 1500)
+                    fetchKlines(symbol, "4h", 300),
+                    fetchKlines(symbol, "15m", 300)
                 ]);
 
-                if (kl4h.length < 200 || kl15m.length < 100) {
-                    state.results.push({
+                const sig = findTrendPullbackSignal(kl4h, kl15m);
+                if (sig) {
+                    state.signals.push({
                         symbol,
-                        wins: 0,
-                        losses: 0,
-                        total: 0,
-                        unresolved: 0,
-                        winRate: 0,
-                        netR: 0,
-                        avgR: 0,
-                        lastSignalTime: null,
-                        signalBarsAgo: null,
-                        error: null
+                        ...sig,
+                        risk: sig.riskPct,
+                        reward: sig.rewardPct
                     });
-                    return;
                 }
-
-                const stats = runTrendPullbackStrategy(kl4h, kl15m);
-
-                state.results.push({
-                    symbol,
-                    wins: stats.wins,
-                    losses: stats.losses,
-                    total: stats.total,
-                    unresolved: stats.unresolved,
-                    winRate: stats.winRate,
-                    netR: stats.netR,
-                    avgR: stats.avgR,
-                    lastSignalTime: stats.lastSignalTime,
-                    signalBarsAgo: stats.signalBarsAgo,
-                    error: null
-                });
             } catch (err) {
-                console.error("processSymbol error", symbol, err);
-                state.results.push({
-                    symbol,
-                    wins: 0,
-                    losses: 0,
-                    total: 0,
-                    unresolved: 0,
-                    winRate: 0,
-                    netR: 0,
-                    avgR: 0,
-                    lastSignalTime: null,
-                    signalBarsAgo: null,
-                    error: err.message || String(err)
-                });
+                console.error("processSymbol error:", symbol, err);
+                // 에러는 테이블에 굳이 표시 안 하고, 콘솔로만
             } finally {
                 state.doneSymbols++;
                 renderProgress();
@@ -737,24 +636,25 @@
             }
         }
 
-        async function runForAllSymbols() {
+        async function runScan() {
+            if (state.running) return;
             state.running = true;
-            state.results = [];
             state.doneSymbols = 0;
+            state.totalSymbols = 0;
+            state.signals = [];
             renderProgress();
             renderTable();
-            runBtn.disabled = true;
+            scanBtn.disabled = true;
 
             try {
                 statusText.textContent = "심볼 목록 로딩 중...";
                 const symbols = await fetchPerpUsdtSymbols();
-                state.symbols = symbols;
                 state.totalSymbols = symbols.length;
                 state.doneSymbols = 0;
                 renderProgress();
 
-                const MAX_CONCURRENT = 4;
                 const queue = [...symbols];
+                const MAX_CONCURRENT = 4;
                 const workers = [];
 
                 async function worker() {
@@ -776,14 +676,13 @@
                 statusText.textContent = `에러: ${err.message || String(err)}`;
             } finally {
                 state.running = false;
-                runBtn.disabled = false;
+                scanBtn.disabled = false;
             }
         }
 
-        // ===== 이벤트 바인딩 =====
-        runBtn.addEventListener("click", () => {
-            if (state.running) return;
-            runForAllSymbols();
+        // ========== 이벤트 ==========
+        scanBtn.addEventListener("click", () => {
+            runScan();
         });
 
         document.querySelectorAll("th.sortable").forEach(th => {
