@@ -255,7 +255,8 @@
                 · 모든 <span class="mono">PERPETUAL / USDT</span> 페어에 대해<br>
                 · <strong>4시간봉 추세 필터(50EMA vs 200EMA)</strong> + <strong>15분봉 20EMA 눌림</strong> 조건을 검사해서<br>
                 · 조건에 맞는 심볼에 대해 <strong>롱/숏 포지션 시그널 (진입/손절/익절)</strong>을 한 번에 보여줍니다.<br>
-                · 스캔 버튼 클릭 시 즉시 1회 스캔 후, 매시 <strong>00 / 15 / 30 / 45분</strong>마다 자동으로 다시 스캔합니다.
+                · 스캔 버튼 클릭 시 즉시 1회 스캔 후, 매시 <strong>00 / 15 / 30 / 45분</strong>마다 자동으로 다시 스캔합니다.<br>
+                · 결과는 <strong>최근 24시간 거래대금(USDT) 기준 내림차순</strong>으로 정렬됩니다.
             </div>
 
             <div class="controls">
@@ -288,6 +289,8 @@
                         <th>익절(TP)</th>
                         <th class="sortable" data-sort="risk">손절폭(%)</th>
                         <th class="sortable" data-sort="reward">익절폭(%)</th>
+                        <!-- 새 컬럼: 24h 거래대금 -->
+                        <th class="sortable" data-sort="volume24h">24h 거래대금(USDT)</th>
                         <th>상태</th>
                     </tr>
                 </thead>
@@ -298,7 +301,8 @@
             <div class="footer-note">
                 · 이 스캐너는 참고용 시그널만 제공하며, <strong>실제 매매 판단·리스크 관리는 본인 책임</strong>입니다.<br>
                 · 시그널은 항상 <strong>마지막에서 두 번째 15분봉(완전히 마감된 봉)</strong> 기준으로만 생성됩니다.<br>
-                · 수수료, 슬리피지, 펀딩, 서버/네트워크 지연 등은 반영되지 않았습니다.
+                · 수수료, 슬리피지, 펀딩, 서버/네트워크 지연 등은 반영되지 않았습니다.<br>
+                · 24h 거래대금은 <span class="mono">/fapi/v1/ticker/24hr</span>의 <strong>quoteVolume(USDT)</strong>을 사용합니다.
             </div>
         </section>
     </div>
@@ -364,6 +368,24 @@
                 .sort();
             return list;
         }
+
+        // ★ 추가: 24h 거래대금 맵 (symbol → quoteVolume(USDT))
+        async function fetch24hVolumeMap() {
+            const url = "https://fapi.binance.com/fapi/v1/ticker/24hr";
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(`24h ticker error: ${res.status}`);
+            }
+            const data = await res.json();
+            const map = {};
+            for (const t of data) {
+                // quoteVolume: 최근 24시간 거래대금(USDT 기준)
+                map[t.symbol] = Number(t.quoteVolume || 0);
+            }
+            return map;
+        }
+
+        let volume24hMap = {}; // 전역 맵
 
         function formatLocalTime(ms) {
             try {
@@ -487,8 +509,9 @@
             totalSymbols: 0,
             doneSymbols: 0,
             signals: [],
-            sortKey: "symbol",
-            sortDir: "asc"
+            // ★ 기본 정렬 기준: 24h 거래대금 desc
+            sortKey: "volume24h",
+            sortDir: "desc"
         };
 
         let autoScanTimer = null;
@@ -550,7 +573,7 @@
             if (rows.length === 0) {
                 const tr = document.createElement("tr");
                 const td = document.createElement("td");
-                td.colSpan = 10;
+                td.colSpan = 11; // ★ 컬럼 하나 추가됐으니 11
                 td.style.textAlign = "center";
                 td.textContent = "조건에 맞는 시그널이 없습니다.";
                 tr.appendChild(td);
@@ -600,6 +623,12 @@
                 tdReward.textContent = s.rewardPct.toFixed(2);
                 tr.appendChild(tdReward);
 
+                // ★ 24h 거래대금(USDT) 컬럼
+                const tdVol = document.createElement("td");
+                const vol = s.volume24h || 0;
+                tdVol.textContent = vol ? Math.round(vol).toLocaleString("en-US") : "-";
+                tr.appendChild(tdVol);
+
                 const tdStatus = document.createElement("td");
                 const pill = document.createElement("span");
                 pill.className = "pill";
@@ -621,8 +650,10 @@
 
                 const sig = findTrendPullbackSignal(kl4h, kl15m);
                 if (sig) {
+                    const vol = volume24hMap[symbol] || 0;
                     state.signals.push({
                         symbol,
+                        volume24h: vol,
                         ...sig,
                         risk: sig.riskPct,
                         reward: sig.rewardPct
@@ -655,6 +686,10 @@
             try {
                 statusText.textContent = "심볼 목록 로딩 중...";
                 const symbols = await fetchPerpUsdtSymbols();
+
+                statusText.textContent = "24h 거래대금 로딩 중...";
+                volume24hMap = await fetch24hVolumeMap();
+
                 state.totalSymbols = symbols.length;
                 state.doneSymbols = 0;
                 renderProgress();
@@ -751,6 +786,7 @@
                     state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
                 } else {
                     state.sortKey = key;
+                    // 심볼은 asc 나머지는 기본 desc 느낌 살리고 싶으면 이렇게:
                     state.sortDir = key === "symbol" ? "asc" : "desc";
                 }
                 renderTable();
