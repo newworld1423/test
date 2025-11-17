@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너</title>
+    <title>Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너 (Safe)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -250,11 +250,13 @@
 <body>
     <div class="app">
         <header class="header">
-            <div class="title">Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너</div>
+            <div class="title">Binance Perp USDT — 4H 추세 + 15m 눌림 롱/숏 시그널 스캐너 (Safe)</div>
             <div class="desc">
                 · 모든 <span class="mono">PERPETUAL / USDT</span> 페어에 대해<br>
                 · <strong>4시간봉 추세 필터(50EMA vs 200EMA)</strong> + <strong>15분봉 20EMA 눌림</strong> 조건을 검사해서<br>
-                · 조건에 맞는 심볼에 대해 <strong>롱/숏 포지션 시그널 (진입/손절/익절)</strong>을 한 번에 보여줍니다.
+                · 조건에 맞는 심볼에 대해 <strong>롱/숏 포지션 시그널 (진입/손절/익절)</strong>을 한 번에 보여줍니다.<br>
+                · 스캔 버튼 클릭 시 즉시 1회 스캔 후, 매시 <strong>00 / 15 / 30 / 45분</strong>마다 자동으로 다시 스캔합니다.<br>
+                · 바이낸스 레이트리밋을 고려해서, 한 번 스캔할 때 <strong>일부 심볼(chunk)</strong>만 돌리고 다음 스캔에서 이어서 검사합니다.
             </div>
 
             <div class="controls">
@@ -297,13 +299,24 @@
             <div class="footer-note">
                 · 이 스캐너는 참고용 시그널만 제공하며, <strong>실제 매매 판단·리스크 관리는 본인 책임</strong>입니다.<br>
                 · 시그널은 항상 <strong>마지막에서 두 번째 15분봉(완전히 마감된 봉)</strong> 기준으로만 생성됩니다.<br>
-                · 수수료, 슬리피지, 펀딩, 서버/네트워크 지연 등은 반영되지 않았습니다.
+                · 수수료, 슬리피지, 펀딩, 서버/네트워크 지연 등은 반영되지 않았습니다.<br>
+                · 레이트리밋을 위해 한 번 스캔당 최대 <span class="mono">CHUNK_SIZE</span>개 심볼만 검사합니다.
             </div>
         </section>
     </div>
 
     <script>
-        // ========== 유틸 함수 ==========
+        // ===== 설정 (레이트리밋 관련) =====
+        const CONFIG = {
+            // 한 번 스캔할 때 최대 몇 개 심볼만 돌릴지
+            // 이 정도면: 60심볼 × (4h+15m) = 120 요청 / 15분
+            // 같은 구조 스캐너 2개 돌려도 240 요청 / 15분 → 매우 여유
+            CHUNK_SIZE: 60,
+            // 동시에 몇 개 심볼까지 병렬로 요청할지 (너무 올리면 순간 폭발)
+            MAX_CONCURRENT: 2
+        };
+
+        // ===== 유틸 함수 =====
         function toNum(v) {
             return Number(v);
         }
@@ -379,7 +392,7 @@
             }
         }
 
-        // ========== 전략: 4H 추세 + 15m 눌림 롱/숏 시그널 ==========
+        // ===== 전략: 4H 추세 + 15m 눌림 롱/숏 시그널 =====
         function findTrendPullbackSignal(klines4h, klines15m) {
             if (klines4h.length < 200 || klines15m.length < 30) {
                 return null;
@@ -392,7 +405,7 @@
             const ema200_4h = calcEMA(close4h, 200);
             const ema20_15 = calcEMA(close15, 20);
 
-            // 현재 시그널은 "마지막에서 두 번째 15m 봉" 기준
+            // 현재 시그널은 "마지막에서 두 번째 15m 봉" 기준 (완전히 마감된 봉)
             const currIndex = klines15m.length - 2;
             const prevIndex = currIndex - 1;
             if (prevIndex < 0) return null;
@@ -480,15 +493,20 @@
             return null;
         }
 
-        // ========== 상태 & 렌더링 ==========
+        // ===== 상태 & 렌더링 =====
         const state = {
             running: false,
-            totalSymbols: 0,
+            symbols: [],        // 전체 USDT PERP 심볼 리스트
+            symbolOffset: 0,    // 다음 스캔에서 시작할 인덱스
+            totalSymbols: 0,    // 이번 스캔 대상 심볼 수 (chunk 기준)
             doneSymbols: 0,
             signals: [],
             sortKey: "symbol",
             sortDir: "asc"
         };
+
+        let autoScanTimer = null;
+        let autoScanInterval = null;
 
         const scanBtn = document.getElementById("scanBtn");
         const progressBar = document.getElementById("progressBar");
@@ -497,28 +515,37 @@
         const resultBody = document.getElementById("resultBody");
 
         function renderProgress() {
-            if (!state.running) {
+            const totalAll = state.symbols.length;
+            if (!state.running && state.totalSymbols === 0 && totalAll === 0) {
                 progressBar.style.width = "0%";
                 statusText.textContent = "대기 중입니다. 버튼을 눌러 시작하세요.";
                 summaryText.textContent = "";
                 return;
             }
+
             if (state.totalSymbols === 0) {
                 progressBar.style.width = "0%";
-                statusText.textContent = "심볼 목록 로딩 중...";
+                if (totalAll > 0) {
+                    statusText.textContent = `심볼 목록 로딩 완료. 전체 심볼 수: ${totalAll}개`;
+                } else {
+                    statusText.textContent = "심볼 목록 로딩 중...";
+                }
                 summaryText.textContent = "";
                 return;
             }
+
             const pct = Math.min(100, Math.round(state.doneSymbols / state.totalSymbols * 100));
             progressBar.style.width = pct + "%";
-            statusText.textContent = `진행률: ${state.doneSymbols} / ${state.totalSymbols} (${pct}%)`;
+
+            const baseInfo = `이번 스캔 대상: ${state.doneSymbols} / ${state.totalSymbols}개 심볼 (전체: ${totalAll}개 중 일부)`;
+            statusText.textContent = baseInfo;
 
             if (state.signals.length > 0) {
                 const longCnt = state.signals.filter(s => s.direction === "LONG").length;
                 const shortCnt = state.signals.filter(s => s.direction === "SHORT").length;
                 summaryText.textContent = `시그널 수: 롱 ${longCnt}개 / 숏 ${shortCnt}개 (총 ${state.signals.length}개)`;
             } else {
-                summaryText.textContent = "아직 검출된 시그널이 없습니다.";
+                summaryText.textContent = "이번 스캔에서는 조건에 맞는 시그널이 아직 없습니다.";
             }
         }
 
@@ -531,7 +558,6 @@
                 let va = a[key];
                 let vb = b[key];
 
-                // direction, trend 문자열 정렬 보정
                 if (key === "direction" || key === "trend" || key === "symbol") {
                     va = String(va);
                     vb = String(vb);
@@ -608,13 +634,13 @@
             }
         }
 
-        // ========== 심볼별 처리 ==========
+        // ===== 심볼별 처리 =====
         async function processSymbol(symbol) {
             try {
-                // 데이터 너무 많이 안 쓰게 4H 300개, 15m 300개 정도만
+                // 레이트리밋을 위해 캔들 수는 최소한만 (limit 값은 weight에 영향 거의 없음 / 어차피 1요청)
                 const [kl4h, kl15m] = await Promise.all([
-                    fetchKlines(symbol, "4h", 300),
-                    fetchKlines(symbol, "15m", 300)
+                    fetchKlines(symbol, "4h", 220),
+                    fetchKlines(symbol, "15m", 220)
                 ]);
 
                 const sig = findTrendPullbackSignal(kl4h, kl15m);
@@ -628,7 +654,6 @@
                 }
             } catch (err) {
                 console.error("processSymbol error:", symbol, err);
-                // 에러는 테이블에 굳이 표시 안 하고, 콘솔로만
             } finally {
                 state.doneSymbols++;
                 renderProgress();
@@ -637,7 +662,11 @@
         }
 
         async function runScan() {
-            if (state.running) return;
+            if (state.running) {
+                console.log("[INFO] scan skipped: already running");
+                return;
+            }
+
             state.running = true;
             state.doneSymbols = 0;
             state.totalSymbols = 0;
@@ -647,14 +676,44 @@
             scanBtn.disabled = true;
 
             try {
-                statusText.textContent = "심볼 목록 로딩 중...";
-                const symbols = await fetchPerpUsdtSymbols();
-                state.totalSymbols = symbols.length;
+                // 심볼 리스트가 없으면 한 번만 가져와서 캐싱
+                if (!state.symbols || state.symbols.length === 0) {
+                    statusText.textContent = "심볼 목록 로딩 중...";
+                    const symbols = await fetchPerpUsdtSymbols();
+                    state.symbols = symbols;
+                    state.symbolOffset = 0;
+                }
+
+                const all = state.symbols;
+                const totalAll = all.length;
+                if (totalAll === 0) {
+                    throw new Error("USDT PERP 심볼을 찾지 못했습니다.");
+                }
+
+                // 이번 스캔에서 사용할 chunk 결정 (라운드 로빈)
+                const chunkSize = CONFIG.CHUNK_SIZE;
+                const start = state.symbolOffset;
+                let end = start + chunkSize;
+                let subset = [];
+
+                if (end <= totalAll) {
+                    subset = all.slice(start, end);
+                } else {
+                    // 끝까지 갔다가 앞에서 이어붙이기
+                    const first = all.slice(start, totalAll);
+                    const rest = all.slice(0, end - totalAll);
+                    subset = first.concat(rest);
+                }
+
+                // 다음 스캔에서 이어갈 오프셋
+                state.symbolOffset = (start + subset.length) % totalAll;
+                state.totalSymbols = subset.length;
                 state.doneSymbols = 0;
+
+                statusText.textContent = `이번 스캔: 전체 ${totalAll}개 중 ${subset.length}개 심볼 검사 (offset=${start})`;
                 renderProgress();
 
-                const queue = [...symbols];
-                const MAX_CONCURRENT = 4;
+                const queue = [...subset];
                 const workers = [];
 
                 async function worker() {
@@ -665,12 +724,14 @@
                     }
                 }
 
-                for (let i = 0; i < MAX_CONCURRENT; i++) {
+                const maxWorkers = Math.max(1, CONFIG.MAX_CONCURRENT);
+                for (let i = 0; i < maxWorkers; i++) {
                     workers.push(worker());
                 }
 
                 await Promise.all(workers);
-                statusText.textContent = `완료: ${state.doneSymbols} / ${state.totalSymbols}`;
+
+                statusText.textContent = `스캔 완료: 이번 스캔 ${state.doneSymbols}개 / 전체 ${state.totalSymbols}개 검사 (다음 offset=${state.symbolOffset})`;
             } catch (err) {
                 console.error(err);
                 statusText.textContent = `에러: ${err.message || String(err)}`;
@@ -680,9 +741,57 @@
             }
         }
 
-        // ========== 이벤트 ==========
+        // ===== 자동 스케줄링 (매시 00/15/30/45) =====
+        function getMsToNextQuarter() {
+            const now = new Date();
+            const m = now.getMinutes();
+            const currentQuarter = Math.floor(m / 15) * 15;
+            let nextQuarter = currentQuarter + 15;
+            if (nextQuarter >= 60) {
+                nextQuarter -= 60;
+                now.setHours(now.getHours() + 1);
+            }
+
+            const next = new Date(now);
+            next.setMinutes(nextQuarter);
+            next.setSeconds(0);
+            next.setMilliseconds(0);
+
+            const diff = next.getTime() - (new Date().getTime());
+            return diff > 0 ? diff : 0;
+        }
+
+        function scheduleAutoScan() {
+            if (autoScanTimer) {
+                clearTimeout(autoScanTimer);
+                autoScanTimer = null;
+            }
+            if (autoScanInterval) {
+                clearInterval(autoScanInterval);
+                autoScanInterval = null;
+            }
+
+            const delay = getMsToNextQuarter();
+            const now = new Date();
+            const nextTime = new Date(now.getTime() + delay);
+
+            summaryText.textContent =
+                `자동 스캔 예약됨: 다음 스캔 ${nextTime.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 이후 15분마다 (chunk=${CONFIG.CHUNK_SIZE})`;
+
+            autoScanTimer = setTimeout(() => {
+                runScan();
+                autoScanInterval = setInterval(() => {
+                    runScan();
+                }, 15 * 60 * 1000);
+            }, delay);
+        }
+
+        // ===== 이벤트 =====
         scanBtn.addEventListener("click", () => {
+            // 1) 즉시 1회 스캔
             runScan();
+            // 2) 이후 정각/15/30/45 자동 스캔
+            scheduleAutoScan();
         });
 
         document.querySelectorAll("th.sortable").forEach(th => {
