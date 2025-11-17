@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp USDT — 24h Volume Delta Scanner (15m)</title>
+    <title>Binance Perp USDT — 24h Volume Δ (Prev vs PrevPrev)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -13,7 +13,6 @@
             --accent: #3ea6ff;
             --good: #00c853;
             --bad: #ff5252;
-            --warn: #ffd54f;
             --border: #2a2e36;
         }
 
@@ -269,11 +268,12 @@
 <body>
 <div class="app">
     <header>
-        <h1>Binance Perp USDT — 24h Volume Δ Scanner (15m)</h1>
+        <h1>Binance Perp USDT — 24h Volume Δ (Prev vs PrevPrev)</h1>
         <p>
             바이낸스 USDT 무기한선물 전 페어<br>
-            <strong>15분봉 기준 최근 24시간(96개 캔들) quote volume 합계</strong> +
-            <strong>이전봉 vs 이전-이전봉 거래량/종가 비교</strong>
+            <strong>15분봉 기준 이전봉 vs 이전-이전봉</strong>의
+            <strong>각각 24h(96개 15m) 거래량</strong>과 종가를 비교해서
+            <strong>24h 거래량 증감률 순서대로 정렬</strong>
         </p>
     </header>
 
@@ -304,24 +304,19 @@
                 <tr>
                     <th>#</th>
                     <th>Symbol</th>
-                    <th>현재 24h 거래량<br>(합산 Quote, USDT)</th>
-                    <th>직전 24h 거래량<br>(합산 Quote, USDT)</th>
-                    <th>24h 증감액</th>
-                    <th>24h 증감률</th>
-                    <th>이전봉 거래량<br>(Quote, USDT)</th>
-                    <th>이전-이전봉 거래량</th>
-                    <th>이전봉 거래량 증감률</th>
+                    <th>이전봉 24h 거래량<br>(Quote, USDT)</th>
+                    <th>이전-이전봉 24h 거래량</th>
+                    <th>24h 거래량 증감액</th>
+                    <th>24h 거래량 증감률</th>
                     <th>이전봉 종가 증감률</th>
                 </tr>
                 </thead>
                 <tbody>
-                <!-- rows will be injected -->
+                <!-- rows -->
                 </tbody>
                 <tfoot>
                 <tr>
-                    <td colspan="10" id="footerInfo">
-                        준비 중...
-                    </td>
+                    <td colspan="7" id="footerInfo">준비 중...</td>
                 </tr>
                 </tfoot>
             </table>
@@ -344,19 +339,12 @@
     (function () {
         const API_BASE = "https://fapi.binance.com";
 
-        /** USDT 무기한 심볼 목록 */
         let allSymbols = [];
-        /** 직전 스캔 결과: symbol -> { volume, at } */
-        let prevScanMap = new Map();
-        /** 마지막 스캔 시작 시각 */
-        let lastScanAt = null;
-        /** 전체 스캔 횟수 */
-        let scanCount = 0;
-        /** 현재 스캔 중인지 플래그 */
         let isScanning = false;
-        /** 자동 스캔용 타이머/인터벌 핸들 */
         let autoTimer = null;
         let autoInterval = null;
+        let scanCount = 0;
+        let lastScanAt = null;
 
         function setStatus(msg) {
             const el = document.getElementById("statusText");
@@ -373,15 +361,9 @@
             const badge = document.getElementById("badgeText");
             const info = document.getElementById("autoInfo");
 
-            if (dot) {
-                dot.classList.toggle("on", !!on);
-            }
-            if (badge) {
-                badge.textContent = on ? "Auto: ON (15m)" : "Auto: OFF";
-            }
-            if (info) {
-                info.textContent = extraText || "";
-            }
+            if (dot) dot.classList.toggle("on", !!on);
+            if (badge) badge.textContent = on ? "Auto: ON (15m)" : "Auto: OFF";
+            if (info) info.textContent = extraText || "";
         }
 
         function formatNumber(num) {
@@ -389,15 +371,9 @@
             if (num === 0) return "0";
 
             const abs = Math.abs(num);
-            if (abs >= 1_000_000_000) {
-                return (num / 1_000_000_000).toFixed(2) + "B";
-            }
-            if (abs >= 1_000_000) {
-                return (num / 1_000_000).toFixed(2) + "M";
-            }
-            if (abs >= 1_000) {
-                return (num / 1_000).toFixed(2) + "K";
-            }
+            if (abs >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + "B";
+            if (abs >= 1_000_000) return (num / 1_000_000).toFixed(2) + "M";
+            if (abs >= 1_000) return (num / 1_000).toFixed(2) + "K";
             return num.toFixed(2);
         }
 
@@ -473,7 +449,7 @@
             }
         }
 
-        async function scanVolumes(isAuto) {
+        async function scanOnce(isAuto) {
             if (isScanning) {
                 console.log("이미 스캔 중이므로 이번 요청은 무시합니다.");
                 return;
@@ -493,12 +469,11 @@
             setStatus(
                 "스캔 #" + thisScanIndex +
                 " 진행 중... (심볼 " + allSymbols.length +
-                "개, 15분봉 96개 기준 24h quote volume 합산)"
+                "개, 15분봉 기준 이전봉/이전-이전봉 24h 거래량 계산)"
             );
-            setFooter("Binance /fapi/v1/klines 15m × 96 요청 진행 중...");
+            setFooter("Binance /fapi/v1/klines 15m × 120 요청 진행 중...");
 
             const results = [];
-            const prevMapSnapshot = prevScanMap;
             const concurrency = 8;
             const queue = allSymbols.slice();
             let completed = 0;
@@ -513,67 +488,68 @@
                             API_BASE +
                             "/fapi/v1/klines?symbol=" +
                             symbol +
-                            "&interval=15m&limit=96";
+                            "&interval=15m&limit=120";
 
                         const resp = await fetch(url);
                         const klines = await resp.json();
 
-                        if (!Array.isArray(klines) || klines.length < 3) {
-                            console.warn("klines 형식/길이 오류:", symbol, klines);
+                        if (!Array.isArray(klines)) {
+                            console.warn("klines 형식 오류:", symbol, klines);
                             continue;
                         }
 
-                        // 24h quote volume 합산 (index 7)
-                        let quoteSum = 0;
-                        for (let i = 0; i < klines.length; i++) {
-                            const k = klines[i];
-                            const q = parseFloat(k[7]);
-                            if (!Number.isNaN(q)) {
-                                quoteSum += q;
-                            }
+                        const L = klines.length;
+                        // 24h = 96개 15m, 각각 끝나는 봉이
+                        // 이전봉: j1 = L-2, 이전-이전봉: j0 = L-3
+                        // j0 기준으로도 96개 필요하므로 L >= 98 필요
+                        if (L < 98) {
+                            continue;
                         }
 
-                        // 이전봉 / 이전-이전봉
-                        const prevBar = klines[klines.length - 2];      // 직전 완성 봉
-                        const prevPrevBar = klines[klines.length - 3];  // 그 이전 봉
+                        const j1 = L - 2; // 이전봉
+                        const j0 = L - 3; // 이전-이전봉
 
-                        const prevBarQuote = parseFloat(prevBar[7]);      // quote volume
-                        const prevPrevBarQuote = parseFloat(prevPrevBar[7]);
-
-                        let barVolDiff = null;
-                        let barVolPct = null;
-                        if (isFinite(prevBarQuote) && isFinite(prevPrevBarQuote) && prevPrevBarQuote > 0) {
-                            barVolDiff = prevBarQuote - prevPrevBarQuote;
-                            barVolPct = (barVolDiff / prevPrevBarQuote) * 100;
+                        if (j0 < 95) {
+                            // 96개 확보 안 되면 스킵
+                            continue;
                         }
 
-                        const prevBarClose = parseFloat(prevBar[4]);
-                        const prevPrevBarClose = parseFloat(prevPrevBar[4]);
+                        const q = [];
+                        for (let i = 0; i < L; i++) {
+                            const v = parseFloat(klines[i][7]); // quote volume
+                            q.push(Number.isNaN(v) ? 0 : v);
+                        }
+
+                        let prev24h = 0;
+                        for (let i = j1 - 95; i <= j1; i++) {
+                            prev24h += q[i];
+                        }
+
+                        let prevPrev24h = 0;
+                        for (let i = j0 - 95; i <= j0; i++) {
+                            prevPrev24h += q[i];
+                        }
+
+                        let volDiff = null;
+                        let volPct = null;
+                        if (prevPrev24h > 0) {
+                            volDiff = prev24h - prevPrev24h;
+                            volPct = (volDiff / prevPrev24h) * 100;
+                        }
+
+                        const closePrev = parseFloat(klines[j1][4]);
+                        const closePrevPrev = parseFloat(klines[j0][4]);
                         let closePct = null;
-                        if (isFinite(prevBarClose) && isFinite(prevPrevBarClose) && prevPrevBarClose > 0) {
-                            closePct = (prevBarClose - prevPrevBarClose) / prevPrevBarClose * 100;
-                        }
-
-                        // 직전 스캔과의 24h volume 비교
-                        const prev = prevMapSnapshot.get(symbol);
-                        let diff = null;
-                        let pct = null;
-
-                        if (prev && prev.volume > 0) {
-                            diff = quoteSum - prev.volume;
-                            pct = (diff / prev.volume) * 100;
+                        if (isFinite(closePrev) && isFinite(closePrevPrev) && closePrevPrev > 0) {
+                            closePct = (closePrev - closePrevPrev) / closePrevPrev * 100;
                         }
 
                         results.push({
                             symbol: symbol,
-                            volume: quoteSum,
-                            prevVolume: prev ? prev.volume : null,
-                            diff: diff,
-                            pct: pct,
-                            prevBarVolume: isFinite(prevBarQuote) ? prevBarQuote : null,
-                            prevPrevBarVolume: isFinite(prevPrevBarQuote) ? prevPrevBarQuote : null,
-                            barVolDiff: barVolDiff,
-                            barVolPct: barVolPct,
+                            prev24h: prev24h,
+                            prevPrev24h: prevPrev24h,
+                            volDiff: volDiff,
+                            volPct: volPct,
                             closePct: closePct
                         });
                     } catch (e) {
@@ -597,56 +573,25 @@
             }
             await Promise.all(workers);
 
-            // 정렬
-            if (scanCount === 1) {
-                // 첫 스캔: 24h 거래량 자체 기준 내림차순
-                results.sort(function (a, b) {
-                    return (b.volume || 0) - (a.volume || 0);
-                });
-            } else {
-                // 두 번째 스캔부터: 직전 스캔 대비 24h 증감률 기준 내림차순
-                results.sort(function (a, b) {
-                    const ap = (a.pct == null || !isFinite(a.pct)) ? -Infinity : a.pct;
-                    const bp = (b.pct == null || !isFinite(b.pct)) ? -Infinity : b.pct;
-                    return bp - ap;
-                });
-            }
-
-            // 이번 스캔 결과를 다음 스캔의 기준으로 저장
-            const newMap = new Map();
-            for (let i = 0; i < results.length; i++) {
-                const row = results[i];
-                newMap.set(row.symbol, {
-                    volume: row.volume,
-                    at: startedAt.getTime()
-                });
-            }
-            prevScanMap = newMap;
+            // 항상 24h 거래량 증감률 기준 내림차순 정렬
+            results.sort(function (a, b) {
+                const ap = (a.volPct == null || !isFinite(a.volPct)) ? -Infinity : a.volPct;
+                const bp = (b.volPct == null || !isFinite(b.volPct)) ? -Infinity : b.volPct;
+                return bp - ap;
+            });
 
             renderTable(results);
             updateMeta();
 
             const timeStr = startedAt.toLocaleString("ko-KR", { hour12: false });
-            if (scanCount === 1) {
-                setStatus(
-                    "스캔 #" + thisScanIndex +
-                    " 완료 (" + timeStr +
-                    "). 24h quote volume (USDT) 기준 내림차순 정렬."
-                );
-                setFooter(
-                    "첫 스캔에서도 이전봉 vs 이전-이전봉 거래량/종가 비교 열이 채워집니다. " +
-                    "다음 스캔부터는 직전 스캔 대비 24h quote volume 증감률 기준으로 정렬됩니다."
-                );
-            } else {
-                setStatus(
-                    "스캔 #" + thisScanIndex +
-                    " 완료 (" + timeStr +
-                    "). 직전 스캔 대비 24h quote volume 증감률 기준 내림차순 정렬."
-                );
-                setFooter(
-                    "24h 증감률(%) = (현재 24h 거래량 - 직전 24h 거래량) / 직전 24h 거래량 × 100"
-                );
-            }
+            setStatus(
+                "스캔 #" + thisScanIndex +
+                " 완료 (" + timeStr +
+                "). 24h 거래량 증감률(이전봉 vs 이전-이전봉) 기준 내림차순 정렬."
+            );
+            setFooter(
+                "24h 거래량 증감률(%) = (이전봉 24h 거래량 - 이전-이전봉 24h 거래량) / 이전-이전봉 24h 거래량 × 100"
+            );
 
             isScanning = false;
         }
@@ -662,58 +607,30 @@
 
                 const rank = i + 1;
 
-                // 24h 증감률 색상
-                let pctClass = "";
-                if (row.pct != null && isFinite(row.pct)) {
-                    if (row.pct > 0) pctClass = "up";
-                    else if (row.pct < 0) pctClass = "down";
+                let volPctClass = "";
+                if (row.volPct != null && isFinite(row.volPct)) {
+                    if (row.volPct > 0) volPctClass = "up";
+                    else if (row.volPct < 0) volPctClass = "down";
                 }
 
-                // 이전봉 거래량 증감률 색상
-                let barVolPctClass = "";
-                if (row.barVolPct != null && isFinite(row.barVolPct)) {
-                    if (row.barVolPct > 0) barVolPctClass = "up";
-                    else if (row.barVolPct < 0) barVolPctClass = "down";
-                }
-
-                // 이전봉 종가 증감률 색상
                 let closePctClass = "";
                 if (row.closePct != null && isFinite(row.closePct)) {
                     if (row.closePct > 0) closePctClass = "up";
                     else if (row.closePct < 0) closePctClass = "down";
                 }
 
-                const prev24hText = (row.prevVolume == null || !isFinite(row.prevVolume))
+                const diffText = (row.volDiff == null || !isFinite(row.volDiff))
                     ? "-"
-                    : formatNumber(row.prevVolume);
-
-                const diff24hText = (row.diff == null || !isFinite(row.diff))
-                    ? "-"
-                    : ((row.diff > 0 ? "+" : "") + formatNumber(row.diff));
-
-                const prevBarVolText = (row.prevBarVolume == null || !isFinite(row.prevBarVolume))
-                    ? "-"
-                    : formatNumber(row.prevBarVolume);
-
-                const prevPrevBarVolText = (row.prevPrevBarVolume == null || !isFinite(row.prevPrevBarVolume))
-                    ? "-"
-                    : formatNumber(row.prevPrevBarVolume);
-
-                const barVolDiffText = (row.barVolDiff == null || !isFinite(row.barVolDiff))
-                    ? "-"
-                    : ((row.barVolDiff > 0 ? "+" : "") + formatNumber(row.barVolDiff));
+                    : ((row.volDiff > 0 ? "+" : "") + formatNumber(row.volDiff));
 
                 tr.innerHTML =
-                    '<td class="rank">' + rank + "</td>" +
-                    '<td class="symbol">' + row.symbol + "</td>" +
-                    '<td class="num">' + formatNumber(row.volume) + "</td>" +
-                    '<td class="num">' + prev24hText + "</td>" +
-                    '<td class="num">' + diff24hText + "</td>" +
-                    '<td class="num ' + pctClass + '">' + formatPercent(row.pct) + "</td>" +
-                    '<td class="num">' + prevBarVolText + "</td>" +
-                    '<td class="num">' + prevPrevBarVolText + "</td>" +
-                    '<td class="num ' + barVolPctClass + '">' + formatPercent(row.barVolPct) + "</td>" +
-                    '<td class="num ' + closePctClass + '">' + formatPercent(row.closePct) + "</td>";
+                    '<td class="rank">' + rank + '</td>' +
+                    '<td class="symbol">' + row.symbol + '</td>' +
+                    '<td class="num">' + formatNumber(row.prev24h) + '</td>' +
+                    '<td class="num">' + formatNumber(row.prevPrev24h) + '</td>' +
+                    '<td class="num">' + diffText + '</td>' +
+                    '<td class="num ' + volPctClass + '">' + formatPercent(row.volPct) + '</td>' +
+                    '<td class="num ' + closePctClass + '">' + formatPercent(row.closePct) + '</td>';
 
                 tbody.appendChild(tr);
             }
@@ -737,9 +654,9 @@
             );
 
             autoTimer = setTimeout(function () {
-                scanVolumes(true);
+                scanOnce(true);
                 autoInterval = setInterval(function () {
-                    scanVolumes(true);
+                    scanOnce(true);
                 }, 15 * 60 * 1000);
             }, delay);
         }
@@ -765,8 +682,8 @@
                     if (btnScan.disabled) return;
                     btnScan.disabled = true;
                     try {
-                        await scanVolumes(false);
-                        startAutoSchedule();
+                        await scanOnce(false);   // 첫 스캔
+                        startAutoSchedule();     // 이후 00/15/30/45 자동
                     } finally {
                         btnScan.disabled = false;
                     }
