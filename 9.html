@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8" />
-    <title>Binance Perp USDT — 15m 7MA Cross Scanner</title>
+    <title>Binance Perp USDT — 15m 7MA Cross Scanner (자동)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         :root {
@@ -49,6 +49,10 @@
             color: var(--muted);
             line-height: 1.5;
             margin-bottom: 12px;
+        }
+
+        .desc strong {
+            color: var(--accent);
         }
 
         .controls {
@@ -185,16 +189,17 @@
 </head>
 <body>
     <div class="card">
-        <h1>Binance Perp USDT — 15m 7MA Cross 스캐너</h1>
+        <h1>Binance Perp USDT — 15m 7MA Cross 스캐너 (자동)</h1>
         <div class="desc">
             조건:
-            <div>• <strong>2봉 전</strong> 7MA &lt; 25MA <strong>그리고</strong> 7MA &lt; 99MA</div>
+            <div>• <strong>2봉 전</strong> 7MA &lt; 25MA <strong>또는</strong> 7MA &lt; 99MA (둘 중 하나라도 아래면 포함)</div>
             <div>• <strong>1봉 전</strong> 7MA &gt; 25MA <strong>그리고</strong> 7MA &gt; 99MA</div>
             <div>• 결과는 <strong>최근 24시간 USDT 거래대금(quoteVolume)</strong> 내림차순 정렬</div>
+            <div>• [스캔 시작] 클릭 시 ① 현재 시간 기준 즉시 1회 스캔 ② 이후 매 시 00/15/30/45분마다 자동 스캔</div>
         </div>
 
         <div class="controls">
-            <button id="scanBtn" type="button">15m 스캔 실행 (USDT Perp 전체)</button>
+            <button id="scanBtn" type="button">15m 스캔 시작 (자동)</button>
             <div id="status" class="status">대기 중...</div>
         </div>
 
@@ -231,6 +236,8 @@
         const statusEl = document.getElementById("status");
         const resultBody = document.getElementById("resultBody");
         const countInfo = document.getElementById("countInfo");
+
+        let autoTimerId = null;
 
         function formatNumber(value, fractionDigits = 4) {
             if (!Number.isFinite(value)) return "-";
@@ -320,6 +327,9 @@
             return res.json();
         }
 
+        // ★ 조건 변경 포인트
+        // 2봉 전: 7MA < 25MA 또는 7MA < 99MA (둘 중 하나만 아래여도 포함)
+        // 1봉 전: 7MA > 25MA && 7MA > 99MA
         function checkCrossCondition(closes) {
             if (!closes || closes.length < 100) {
                 return null;
@@ -348,10 +358,12 @@
                 return null;
             }
 
+            // 2봉 전: 7MA가 25MA 또는 99MA 중 하나만 아래여도 포함 (OR)
             const cond2 =
-                ma7_2 < ma25_2 &&
-                ma7_2 < ma99_2;
+                (ma7_2 < ma25_2) ||
+                (ma7_2 < ma99_2);
 
+            // 1봉 전: 7MA가 25, 99 둘 다 위
             const cond1 =
                 ma7_1 > ma25_1 &&
                 ma7_1 > ma99_1;
@@ -428,6 +440,56 @@
 
             resultBody.appendChild(frag);
             countInfo.textContent = "조건 일치 심볼: " + results.length + "개";
+        }
+
+        // 다음 00/15/30/45분까지 남은 ms 계산
+        function getNextQuarterDelayMs() {
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const ms = now.getMilliseconds();
+
+            const currentQuarterIndex = Math.floor(minutes / 15);
+            const nextQuarterIndex = currentQuarterIndex + 1;
+            const nextQuarterMinutes = (nextQuarterIndex * 15) % 60;
+            const hourOffset = Math.floor((minutes + 15) / 60);
+
+            const next = new Date(now.getTime());
+            next.setHours(now.getHours() + hourOffset, nextQuarterMinutes, 0, 0);
+
+            // 혹시나 동일 시각이면 15분 뒤로 밀어줌
+            if (next.getTime() <= now.getTime()) {
+                next.setMinutes(next.getMinutes() + 15);
+            }
+
+            return next.getTime() - now.getTime();
+        }
+
+        // 다음 자동 스캔 예약
+        function scheduleNextAutoScan() {
+            if (autoTimerId) {
+                clearTimeout(autoTimerId);
+                autoTimerId = null;
+            }
+
+            const delay = getNextQuarterDelayMs();
+            const next = new Date(Date.now() + delay);
+            const timeStr = next.toLocaleTimeString("ko-KR", {
+                hour12: false,
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            });
+
+            // 직전 runScan에서 쓴 상태 메시지 뒤에 다음 스캔 시각을 붙여줌
+            statusEl.innerHTML +=
+                ' <span class="muted">(다음 자동 스캔 예정: ' + timeStr + ')</span>';
+
+            autoTimerId = setTimeout(async () => {
+                autoTimerId = null;
+                await runScan();        // 자동 스캔 1회
+                scheduleNextAutoScan(); // 다음 00/15/30/45분으로 또 예약
+            }, delay);
         }
 
         async function runScan() {
@@ -513,8 +575,18 @@
             }
         }
 
-        scanBtn.addEventListener("click", () => {
-            runScan();
+        // 버튼 클릭 시:
+        // 1) 기존 자동 타이머 제거
+        // 2) 현재 시간 기준 즉시 1회 스캔
+        // 3) 다음 00/15/30/45분에 자동 스캔 예약
+        scanBtn.addEventListener("click", async () => {
+            if (autoTimerId) {
+                clearTimeout(autoTimerId);
+                autoTimerId = null;
+            }
+
+            await runScan();
+            scheduleNextAutoScan();
         });
     </script>
 </body>
