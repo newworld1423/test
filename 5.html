@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H/1H 방향 + 15m 반대봉 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            background: radial-gradient(circle at top, #181b25 0, #05060a 55%, #020308 100%);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                "Noto Sans KR", sans-serif;
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: 20px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .panel {
+            background: rgba(10, 12, 20, 0.85);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 18px;
+            font-size: 13px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #3ea6ff, #6b8bff);
+            color: #000;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+            transition: transform 0.08s ease, box-shadow 0.08s ease,
+                filter 0.08s ease, opacity 0.15s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .status-text {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status-text strong {
+            color: var(--accent);
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 16px;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+
+        .meta span.label {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .table-wrap {
+            margin-top: 10px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: rgba(5, 6, 10, 0.9);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            background: linear-gradient(90deg, rgba(62, 166, 255, 0.1), rgba(107, 139, 255, 0.05));
+        }
+
+        th, td {
+            padding: 6px 8px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: center;
+        }
+
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        th {
+            border-bottom: 1px solid var(--border);
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(12, 13, 22, 0.9);
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        tbody tr:hover {
+            background: rgba(45, 55, 72, 0.7);
+        }
+
+        .dir-bull {
+            color: var(--good);
+            font-weight: 600;
+        }
+
+        .dir-bear {
+            color: var(--bad);
+            font-weight: 600;
+        }
+
+        .chg-pos {
+            color: var(--good);
+        }
+
+        .chg-neg {
+            color: var(--bad);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            gap: 4px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 16px;
+            }
+
+            .panel {
+                padding: 10px;
+            }
+
+            th, td {
+                padding: 5px 6px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>Binance Perp USDT — 4H/1H 방향 + 직전 15m 반대봉 스캐너</h1>
+    <div class="subtitle">
+        모든 USDT 선물 페어 중에서 <strong>현재 4H·1H 방향이 같고, 직전 15m 봉이 그 반대인 심볼</strong>만
+        추려서 <strong>24시간 가격 증감률 순</strong>으로 보여줍니다.
+    </div>
+
+    <div class="panel">
+        <div class="controls">
+            <button id="scanBtn">스캔 시작</button>
+            <div class="status-text" id="statusText">대기 중</div>
+        </div>
+
+        <div class="meta">
+            <div><span class="label">USDT Perp 심볼 수:</span> <span id="symbolCount">-</span>개</div>
+            <div><span class="label">마지막 스캔:</span> <span id="lastScan">-</span></div>
+            <div><span class="label">다음 자동 스캔(00/15/30/45분):</span> <span id="nextScan">-</span></div>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table id="resultTable">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>심볼</th>
+                <th>4H</th>
+                <th>1H</th>
+                <th>직전 15m</th>
+                <th>24h 증감률</th>
+                <th>Last Price</th>
+                <th>24h 거래대금(USDT)</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- 결과 행이 여기 채워짐 -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const BASE_URL = "https://fapi.binance.com";
+    let allSymbols = [];
+    let tickerMap = new Map();
+    let isScanning = false;
+    let autoScanActive = false;
+    let autoScanTimeoutId = null;
+    let autoScanScheduledOnce = false;
+
+    const els = {
+        scanBtn: document.getElementById("scanBtn"),
+        statusText: document.getElementById("statusText"),
+        symbolCount: document.getElementById("symbolCount"),
+        lastScan: document.getElementById("lastScan"),
+        nextScan: document.getElementById("nextScan"),
+        tableBody: document.querySelector("#resultTable tbody")
+    };
+
+    function setStatus(msg, isBusy = false) {
+        els.statusText.innerHTML = msg;
+        els.scanBtn.disabled = isBusy;
+    }
+
+    function formatNumber(value, decimals = 2) {
+        if (value === null || value === undefined || isNaN(value)) return "-";
+        const num = Number(value);
+        const fixed = num.toFixed(decimals);
+        const parts = fixed.split(".");
+        parts[0] = Number(parts[0]).toLocaleString("en-US");
+        return parts.join(".");
+    }
+
+    function formatTime(date) {
+        return date.toLocaleString("ko-KR", {
+            hour12: false,
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        });
+    }
+
+    async function loadExchangeInfo() {
+        if (allSymbols.length > 0) return allSymbols;
+
+        setStatus("심볼 정보 불러오는 중...", true);
+        const url = BASE_URL + "/fapi/v1/exchangeInfo";
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error("exchangeInfo 요청 실패: " + res.status);
+        }
+        const data = await res.json();
+        allSymbols = data.symbols
+            .filter(s =>
+                s.contractType === "PERPETUAL" &&
+                s.quoteAsset === "USDT" &&
+                s.status === "TRADING"
+            )
+            .map(s => s.symbol);
+
+        els.symbolCount.textContent = allSymbols.length;
+        return allSymbols;
+    }
+
+    async function load24hTickers() {
+        const url = BASE_URL + "/fapi/v1/ticker/24hr";
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error("24h ticker 요청 실패: " + res.status);
+        }
+        const list = await res.json();
+        const map = new Map();
+        for (const t of list) {
+            map.set(t.symbol, t);
+        }
+        tickerMap = map;
+    }
+
+    async function fetchKlines(symbol, interval, limit) {
+        const url =
+            BASE_URL +
+            "/fapi/v1/klines?symbol=" +
+            symbol +
+            "&interval=" +
+            interval +
+            "&limit=" +
+            limit;
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error(
+                "klines 실패: " + symbol + " " + interval + " " + res.status
+            );
+        }
+        return await res.json();
+    }
+
+    function candleDir(open, close) {
+        if (close > open) return "bull"; // 양봉
+        if (close < open) return "bear"; // 음봉
+        return "doji";
+    }
+
+    function dirLabel(dir) {
+        if (dir === "bull") return "양봉 ▲";
+        if (dir === "bear") return "음봉 ▼";
+        return "중립";
+    }
+
+    function renderTable(rows) {
+        const tbody = els.tableBody;
+        tbody.innerHTML = "";
+
+        if (!rows || rows.length === 0) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 8;
+            td.style.textAlign = "center";
+            td.style.padding = "14px 8px";
+            td.style.color = "var(--muted)";
+            td.textContent = "조건을 만족하는 심볼이 없습니다.";
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        rows.forEach((row, idx) => {
+            const tr = document.createElement("tr");
+
+            const rankTd = document.createElement("td");
+            rankTd.textContent = idx + 1;
+            tr.appendChild(rankTd);
+
+            const symTd = document.createElement("td");
+            symTd.textContent = row.symbol;
+            tr.appendChild(symTd);
+
+            const h4Td = document.createElement("td");
+            h4Td.textContent = dirLabel(row.dir4h);
+            h4Td.className = row.dir4h === "bull" ? "dir-bull" : "dir-bear";
+            tr.appendChild(h4Td);
+
+            const h1Td = document.createElement("td");
+            h1Td.textContent = dirLabel(row.dir1h);
+            h1Td.className = row.dir1h === "bull" ? "dir-bull" : "dir-bear";
+            tr.appendChild(h1Td);
+
+            const m15Td = document.createElement("td");
+            m15Td.textContent = dirLabel(row.dir15mPrev);
+            m15Td.className =
+                row.dir15mPrev === "bull" ? "dir-bull" : "dir-bear";
+            tr.appendChild(m15Td);
+
+            const chgTd = document.createElement("td");
+            const chgCls = row.change24hPct >= 0 ? "chg-pos" : "chg-neg";
+            chgTd.className = chgCls;
+            chgTd.textContent = formatNumber(row.change24hPct, 2) + "%";
+            tr.appendChild(chgTd);
+
+            const lastTd = document.createElement("td");
+            lastTd.textContent = formatNumber(row.lastPrice, 4);
+            tr.appendChild(lastTd);
+
+            const volTd = document.createElement("td");
+            volTd.textContent = formatNumber(row.quoteVolume, 0);
+            tr.appendChild(volTd);
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function scanSymbol(symbol) {
+        const ticker = tickerMap.get(symbol);
+        if (!ticker) {
+            return null;
+        }
+
+        const [k4h, k1h, k15] = await Promise.all([
+            fetchKlines(symbol, "4h", 2),
+            fetchKlines(symbol, "1h", 2),
+            fetchKlines(symbol, "15m", 3)
+        ]);
+
+        if (
+            !k4h ||
+            !k1h ||
+            !k15 ||
+            k4h.length < 1 ||
+            k1h.length < 1 ||
+            k15.length < 2
+        ) {
+            return null;
+        }
+
+        const c4 = k4h[k4h.length - 1];
+        const c1 = k1h[k1h.length - 1];
+        const prev15 = k15[k15.length - 2];
+
+        const open4 = parseFloat(c4[1]);
+        const close4 = parseFloat(c4[4]);
+        const open1 = parseFloat(c1[1]);
+        const close1 = parseFloat(c1[4]);
+        const open15 = parseFloat(prev15[1]);
+        const close15 = parseFloat(prev15[4]);
+
+        const dir4 = candleDir(open4, close4);
+        const dir1 = candleDir(open1, close1);
+        const dir15 = candleDir(open15, close15);
+
+        // 1) 4H / 1H 둘 다 양봉 or 둘 다 음봉만
+        if (dir4 === "doji" || dir1 === "doji") return null;
+        if (dir4 !== dir1) return null;
+
+        // 2) 직전 15m 봉이 현재 4H/1H와 반대일 것
+        if (dir15 === "doji") return null;
+        if (dir4 === "bull" && dir15 !== "bear") return null;
+        if (dir4 === "bear" && dir15 !== "bull") return null;
+
+        const change24hPct = parseFloat(ticker.priceChangePercent || "0");
+        const lastPrice = parseFloat(ticker.lastPrice || "0");
+        const quoteVolume = parseFloat(ticker.quoteVolume || "0");
+
+        return {
+            symbol,
+            dir4h: dir4,
+            dir1h: dir1,
+            dir15mPrev: dir15,
+            change24hPct,
+            lastPrice,
+            quoteVolume
+        };
+    }
+
+    async function scanOnce() {
+        if (isScanning) {
+            console.log("스캔 중 중복 요청 방지");
+            return;
+        }
+
+        isScanning = true;
+        const startedAt = new Date();
+        setStatus("스캔 준비중...", true);
+
+        try {
+            await loadExchangeInfo();
+            setStatus("24h 티커 불러오는 중...", true);
+            await load24hTickers();
+
+            const symbols = allSymbols.slice();
+            const concurrency = 8;
+            const results = [];
+
+            let index = 0;
+
+            async function worker() {
+                while (index < symbols.length) {
+                    const myIndex = index++;
+                    const symbol = symbols[myIndex];
+                    try {
+                        const row = await scanSymbol(symbol);
+                        if (row) {
+                            results.push(row);
+                        }
+                    } catch (err) {
+                        console.error("심볼 스캔 실패:", symbol, err);
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(worker());
+            }
+
+            setStatus("심볼 스캔 중... (약간 시간 소요)", true);
+            await Promise.all(workers);
+
+            results.sort(
+                (a, b) => b.change24hPct - a.change24hPct
+            );
+
+            renderTable(results);
+
+            const finishedAt = new Date();
+            els.lastScan.textContent = formatTime(finishedAt);
+
+            const diffSec = Math.round(
+                (finishedAt.getTime() - startedAt.getTime()) / 1000
+            );
+
+            setStatus(
+                `<strong>완료</strong> · 결과 ${results.length}개 · 소요 ${diffSec}초`,
+                false
+            );
+        } catch (err) {
+            console.error(err);
+            setStatus("에러: " + err.message, false);
+        } finally {
+            isScanning = false;
+        }
+    }
+
+    function scheduleNextAutoScan() {
+        if (!autoScanActive) return;
+
+        if (autoScanTimeoutId) {
+            clearTimeout(autoScanTimeoutId);
+            autoScanTimeoutId = null;
+        }
+
+        const now = new Date();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        const ms = now.getMilliseconds();
+
+        const quarters = [0, 15, 30, 45];
+        let targetMinute = 0;
+        let addHour = 0;
+
+        let found = false;
+        for (const q of quarters) {
+            if (minutes < q || (minutes === q && (seconds > 0 || ms > 0))) {
+                targetMinute = q;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // 다음 시의 00분
+            targetMinute = 0;
+            addHour = 1;
+        }
+
+        const next = new Date(now);
+        next.setHours(now.getHours() + addHour);
+        next.setMinutes(targetMinute, 0, 0);
+
+        const delay = next.getTime() - now.getTime();
+        els.nextScan.textContent = formatTime(next);
+
+        autoScanTimeoutId = setTimeout(async () => {
+            await scanOnce();
+            scheduleNextAutoScan();
+        }, delay);
+    }
+
+    function init() {
+        els.scanBtn.addEventListener("click", async () => {
+            if (!autoScanActive) {
+                autoScanActive = true;
+            }
+
+            await scanOnce();
+
+            if (!autoScanScheduledOnce) {
+                autoScanScheduledOnce = true;
+                scheduleNextAutoScan();
+            }
+        });
+
+        setStatus("대기 중 (스캔 시작 버튼을 눌러주세요)", false);
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
