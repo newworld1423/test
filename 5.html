@@ -186,24 +186,6 @@
             color: var(--bad);
         }
 
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 999px;
-            padding: 2px 8px;
-            font-size: 11px;
-            gap: 4px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--accent);
-        }
-
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -229,7 +211,7 @@
     <h1>Binance Perp USDT — 4H/1H 방향 + 직전 15m 반대봉 스캐너</h1>
     <div class="subtitle">
         모든 USDT 선물 페어 중에서 <strong>현재 4H·1H 방향이 같고, 직전 15m 봉이 그 반대인 심볼</strong>만
-        추려서 <strong>24시간 가격 증감률 순</strong>으로 보여줍니다.
+        추려서 <strong>4H 기반 24h 가격 증감률 순</strong>으로 정렬합니다.
     </div>
 
     <div class="panel">
@@ -254,9 +236,7 @@
                 <th>4H</th>
                 <th>1H</th>
                 <th>직전 15m</th>
-                <th>24h 증감률</th>
-                <th>Last Price</th>
-                <th>24h 거래대금(USDT)</th>
+                <th>4H 기반 24h 증감률</th>
             </tr>
             </thead>
             <tbody>
@@ -269,12 +249,11 @@
 <script>
     const BASE_URL = "https://fapi.binance.com";
 
-    // 요청 관련 튜닝 포인트
-    const CONCURRENCY = 3;          // 동시에 처리할 심볼 수 (8 → 3 으로 줄임)
-    const PER_REQUEST_DELAY_MS = 120; // 심볼 하나 처리 후 잠깐 쉬는 시간 (ms)
+    // 요청 관련 튜닝 포인트 (속도 vs 레이트리밋)
+    const CONCURRENCY = 2;             // 동시에 처리할 심볼 수
+    const PER_REQUEST_DELAY_MS = 200;  // 심볼 하나 처리 후 딜레이(ms)
 
     let allSymbols = [];
-    let tickerMap = new Map();
     let isScanning = false;
     let autoScanActive = false;
     let autoScanTimeoutId = null;
@@ -353,16 +332,6 @@
         return allSymbols;
     }
 
-    async function load24hTickers() {
-        const url = BASE_URL + "/fapi/v1/ticker/24hr";
-        const list = await fetchJson(url, "24h ticker");
-        const map = new Map();
-        for (const t of list) {
-            map.set(t.symbol, t);
-        }
-        tickerMap = map;
-    }
-
     async function fetchKlines(symbol, interval, limit) {
         const url =
             BASE_URL +
@@ -394,7 +363,7 @@
         if (!rows || rows.length === 0) {
             const tr = document.createElement("tr");
             const td = document.createElement("td");
-            td.colSpan = 8;
+            td.colSpan = 6;
             td.style.textAlign = "center";
             td.style.padding = "14px 8px";
             td.style.color = "var(--muted)";
@@ -437,41 +406,23 @@
             chgTd.textContent = formatNumber(row.change24hPct, 2) + "%";
             tr.appendChild(chgTd);
 
-            const lastTd = document.createElement("td");
-            lastTd.textContent = formatNumber(row.lastPrice, 4);
-            tr.appendChild(lastTd);
-
-            const volTd = document.createElement("td");
-            volTd.textContent = formatNumber(row.quoteVolume, 0);
-            tr.appendChild(volTd);
-
             tbody.appendChild(tr);
         });
     }
 
     async function scanSymbol(symbol) {
-        const ticker = tickerMap.get(symbol);
-        if (!ticker) {
-            return null;
-        }
-
+        // 4h: 7개 (24h 계산용), 1h: 2개, 15m: 2개 (직전 봉 방향용)
         const [k4h, k1h, k15] = await Promise.all([
-            fetchKlines(symbol, "4h", 2),
+            fetchKlines(symbol, "4h", 7),
             fetchKlines(symbol, "1h", 2),
-            fetchKlines(symbol, "15m", 3)
+            fetchKlines(symbol, "15m", 2)
         ]);
 
-        if (
-            !k4h ||
-            !k1h ||
-            !k15 ||
-            k4h.length < 1 ||
-            k1h.length < 1 ||
-            k15.length < 2
-        ) {
+        if (!k4h || !k1h || !k15 || k4h.length < 2 || k1h.length < 1 || k15.length < 2) {
             return null;
         }
 
+        // 현재 4H / 1H / 직전 15m
         const c4 = k4h[k4h.length - 1];
         const c1 = k1h[k1h.length - 1];
         const prev15 = k15[k15.length - 2];
@@ -496,18 +447,22 @@
         if (dir4 === "bull" && dir15 !== "bear") return null;
         if (dir4 === "bear" && dir15 !== "bull") return null;
 
-        const change24hPct = parseFloat(ticker.priceChangePercent || "0");
-        const lastPrice = parseFloat(ticker.lastPrice || "0");
-        const quoteVolume = parseFloat(ticker.quoteVolume || "0");
+        // === 4H 기반 24h 증감률 계산 ===
+        // k4h: 최신 7개. 24h 전: 6번째 전 봉의 시가, 현재: 최신 봉 종가
+        const idx24 = Math.max(0, k4h.length - 7);
+        const candle24 = k4h[idx24];
+        const open24 = parseFloat(candle24[1]);
+        let change24hPct = 0;
+        if (open24 > 0) {
+            change24hPct = (close4 - open24) / open24 * 100;
+        }
 
         return {
             symbol,
             dir4h: dir4,
             dir1h: dir1,
             dir15mPrev: dir15,
-            change24hPct,
-            lastPrice,
-            quoteVolume
+            change24hPct
         };
     }
 
@@ -523,12 +478,8 @@
 
         try {
             await loadExchangeInfo();
-            setStatus("24h 티커 불러오는 중...", true);
-            await load24hTickers();
 
-            // 모든 USDT PERP 심볼 대상 (상위 N개 필터 없음)
             const symbols = allSymbols.slice();
-
             const results = [];
             let index = 0;
 
@@ -555,7 +506,7 @@
                         }
                     }
 
-                    // 심볼 하나 처리 후 살짝 쉬어가기 → 순간 요청폭 완화
+                    // 심볼 하나 처리 후 잠깐 쉬어가기 → 순간 요청폭 완화
                     if (PER_REQUEST_DELAY_MS > 0) {
                         await sleep(PER_REQUEST_DELAY_MS);
                     }
@@ -568,14 +519,13 @@
             }
 
             setStatus(
-                `심볼 스캔 중... (동시 ${CONCURRENCY}개, 심볼 ${symbols.length}개, 잠깐씩 딜레이 적용)`,
+                `심볼 스캔 중... (동시 ${CONCURRENCY}개, 심볼 ${symbols.length}개, 딜레이 ${PER_REQUEST_DELAY_MS}ms)`,
                 true
             );
             await Promise.all(workers);
 
-            results.sort(
-                (a, b) => b.change24hPct - a.change24hPct
-            );
+            // 4H 기반 24h 증감률 내림차순 정렬
+            results.sort((a, b) => b.change24hPct - a.change24hPct);
 
             renderTable(results);
 
