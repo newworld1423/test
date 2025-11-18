@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <title>Binance Perp USDT — 15m 이전봉 증감률 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0b0c10;
+            --card: #121318;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --warn: #ffd54f;
+            --border: #2a2e36;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
+                         "Noto Sans KR", sans-serif;
+            background: radial-gradient(circle at top, #151821 0, #050609 55%, #020308 100%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        header {
+            margin-bottom: 16px;
+        }
+
+        header h1 {
+            font-size: 20px;
+            margin: 0 0 6px;
+        }
+
+        header p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .card {
+            background: rgba(18, 19, 24, 0.95);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+            padding: 12px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            background: linear-gradient(135deg, #1b2635, #162032);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .status-text {
+            color: var(--muted);
+        }
+
+        .status-text strong {
+            color: var(--accent);
+        }
+
+        .meta {
+            margin-left: auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        .table-wrap {
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            max-height: calc(100vh - 220px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        thead th {
+            background: #151821;
+            padding: 8px 6px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        thead th:first-child {
+            text-align: left;
+            padding-left: 10px;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(9, 10, 14, 0.9);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(6, 7, 11, 0.9);
+        }
+
+        tbody td {
+            padding: 6px 6px;
+            text-align: right;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            white-space: nowrap;
+        }
+
+        tbody td:first-child {
+            text-align: left;
+            padding-left: 10px;
+            font-weight: 600;
+        }
+
+        .sym {
+            cursor: pointer;
+        }
+
+        .sym:hover {
+            text-decoration: underline;
+        }
+
+        .chg-pos {
+            color: var(--good);
+        }
+
+        .chg-neg {
+            color: var(--bad);
+        }
+
+        .rank {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .empty-row td {
+            text-align: center;
+            padding: 14px 6px;
+            color: var(--muted);
+        }
+
+        .small {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .code {
+            font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+        }
+
+        @media (max-width: 768px) {
+            .app {
+                padding: 10px;
+            }
+
+            header h1 {
+                font-size: 18px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .meta {
+                margin-left: 0;
+            }
+
+            thead th:nth-child(5),
+            tbody td:nth-child(5) {
+                display: none; /* 이전봉 시간은 모바일에서 숨김 */
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <h1>Binance Perp USDT — 15m 이전봉 증감률 스캐너</h1>
+        <p>
+            바이낸스 무기한 선물 USDT 페어 전체를 스캔해서
+            <strong>15분봉 기준 직전 봉(이전봉)의 (종가−시가)/시가 증감률(%)</strong>이
+            높은 순으로 정렬합니다.
+        </p>
+    </header>
+
+    <div class="card">
+        <div class="controls">
+            <div class="controls-left">
+                <button id="scanBtn" type="button">
+                    🔍 스캔 시작
+                </button>
+                <div class="status-text" id="statusText">
+                    준비됨
+                </div>
+            </div>
+            <div class="meta">
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    <span id="symbolCount">심볼 0개</span>
+                </div>
+                <div class="badge">
+                    마지막 스캔:
+                    <span id="lastScan" style="margin-left:4px;">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="small" style="margin-bottom:8px;">
+            • 증감률 = (이전봉 종가 − 이전봉 시가) / 이전봉 시가 × 100<br />
+            • 심볼 클릭 시 <span class="code">/futures/&lt;symbol&gt;</span> 마켓 페이지 새 탭으로 이동
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>심볼</th>
+                    <th>순위</th>
+                    <th>이전봉 시가</th>
+                    <th>이전봉 종가</th>
+                    <th>이전봉 시간</th>
+                    <th>이전봉 증감률</th>
+                </tr>
+                </thead>
+                <tbody id="resultBody">
+                <tr class="empty-row">
+                    <td colspan="6">아직 스캔 전입니다. <strong>스캔 시작</strong> 버튼을 눌러 주세요.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "https://fapi.binance.com";
+    const INTERVAL = "15m";
+
+    const scanBtn      = document.getElementById("scanBtn");
+    const statusText   = document.getElementById("statusText");
+    const resultBody   = document.getElementById("resultBody");
+    const symbolCount  = document.getElementById("symbolCount");
+    const lastScanElem = document.getElementById("lastScan");
+
+    let isScanning = false;
+
+    // 심볼 목록 가져오기 (USDT 무기한 선물만 필터)
+    async function fetchUsdtPerpSymbols() {
+        const url = API_BASE + "/fapi/v1/exchangeInfo";
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error("exchangeInfo 요청 실패: " + res.status);
+        }
+        const data = await res.json();
+        const symbols = (data.symbols || []).filter((s) => {
+            return s.quoteAsset === "USDT" &&
+                   s.contractType === "PERPETUAL" &&
+                   s.status === "TRADING";
+        }).map((s) => s.symbol);
+
+        return symbols;
+    }
+
+    // 특정 심볼의 15m 이전봉 증감률 계산
+    async function fetchPrevChange(symbol) {
+        // 가장 최근 2개의 15m 봉을 가져온다고 가정
+        const url = API_BASE +
+            "/fapi/v1/klines?symbol=" + symbol +
+            "&interval=" + INTERVAL +
+            "&limit=2";
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error("klines 요청 실패(" + symbol + "): " + res.status);
+        }
+
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length < 2) {
+            return null;
+        }
+
+        // data[0] = 이전봉(닫힌 봉), data[1] = 현재 진행 중인 봉이라고 가정
+        const prev = data[0];
+
+        const open  = parseFloat(prev[1]); // 시가
+        const close = parseFloat(prev[4]); // 종가
+        const openTime  = prev[0];         // ms
+        const closeTime = prev[6];         // ms
+
+        if (!isFinite(open) || open === 0 || !isFinite(close)) {
+            return null;
+        }
+
+        const changePct = ((close - open) / open) * 100;
+
+        return {
+            symbol,
+            open,
+            close,
+            changePct,
+            openTime,
+            closeTime
+        };
+    }
+
+    // 전체 심볼 스캔 (동시 요청 개수 제한)
+    async function scanAllSymbols(symbols) {
+        const results = [];
+        const errors  = [];
+        const total   = symbols.length;
+
+        const MAX_CONCURRENT = 10;
+        let index = 0;
+        let done  = 0;
+
+        async function worker() {
+            while (true) {
+                const myIndex = index++;
+                if (myIndex >= total) break;
+
+                const sym = symbols[myIndex];
+                try {
+                    const row = await fetchPrevChange(sym);
+                    if (row) {
+                        results.push(row);
+                    }
+                } catch (err) {
+                    console.error("에러:", sym, err);
+                    errors.push(sym);
+                } finally {
+                    done++;
+                    if (done % 5 === 0 || done === total) {
+                        statusText.innerHTML =
+                            "스캔 중... <strong>" + done +
+                            "</strong> / " + total + " 완료";
+                    }
+                }
+            }
+        }
+
+        const workers = [];
+        for (let i = 0; i < MAX_CONCURRENT; i++) {
+            workers.push(worker());
+        }
+
+        await Promise.all(workers);
+        return { results, errors };
+    }
+
+    function formatNumber(val, digits) {
+        return Number(val).toLocaleString("en-US", {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits
+        });
+    }
+
+    function formatTime(ms) {
+        if (!ms && ms !== 0) return "-";
+        const d = new Date(ms);
+        return d.toLocaleString("ko-KR", {
+            year: "2-digit",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    }
+
+    function renderTable(rows) {
+        resultBody.innerHTML = "";
+
+        if (!rows.length) {
+            const tr = document.createElement("tr");
+            tr.className = "empty-row";
+            tr.innerHTML = "<td colspan='6'>조건에 맞는 데이터가 없습니다.</td>";
+            resultBody.appendChild(tr);
+            return;
+        }
+
+        rows.forEach((row, idx) => {
+            const tr = document.createElement("tr");
+
+            const chgClass = row.changePct >= 0 ? "chg-pos" : "chg-neg";
+
+            tr.innerHTML =
+                "<td class='sym' data-symbol='" + row.symbol + "'>" +
+                    row.symbol +
+                "</td>" +
+                "<td><span class='rank'>#" + (idx + 1) + "</span></td>" +
+                "<td>" + formatNumber(row.open, 4) + "</td>" +
+                "<td>" + formatNumber(row.close, 4) + "</td>" +
+                "<td>" + formatTime(row.openTime) + "</td>" +
+                "<td class='" + chgClass + "'>" +
+                    (row.changePct >= 0 ? "▲ " : "▼ ") +
+                    formatNumber(row.changePct, 2) + " %" +
+                "</td>";
+
+            resultBody.appendChild(tr);
+        });
+
+        // 심볼 클릭 시 바이낸스 선물 마켓 새 탭
+        resultBody.querySelectorAll(".sym").forEach((td) => {
+            td.addEventListener("click", () => {
+                const sym = td.getAttribute("data-symbol");
+                if (!sym) return;
+                const url = "https://www.binance.com/ko/futures/" + sym;
+                window.open(url, "_blank");
+            });
+        });
+    }
+
+    async function startScan() {
+        if (isScanning) return;
+        isScanning = true;
+        scanBtn.disabled = true;
+        scanBtn.textContent = "스캔 중...";
+
+        statusText.textContent = "USDT 무기한 선물 심볼 목록 불러오는 중...";
+        resultBody.innerHTML = "";
+        symbolCount.textContent = "심볼 0개";
+
+        try {
+            const symbols = await fetchUsdtPerpSymbols();
+            symbolCount.textContent = "심볼 " + symbols.length + "개";
+
+            statusText.innerHTML =
+                "15분봉 이전봉 증감률 계산 중... 총 <strong>" +
+                symbols.length + "</strong>개 심볼";
+
+            const { results, errors } = await scanAllSymbols(symbols);
+
+            // 증감률 내림차순 정렬
+            results.sort((a, b) => b.changePct - a.changePct);
+
+            renderTable(results);
+
+            const nowStr = new Date().toLocaleString("ko-KR", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            });
+            lastScanElem.textContent = nowStr;
+
+            if (errors.length) {
+                statusText.innerHTML =
+                    "완료: " + results.length +
+                    "개 / 실패: " + errors.length + "개";
+            } else {
+                statusText.innerHTML =
+                    "완료: <strong>" + results.length + "</strong>개 심볼 스캔";
+            }
+        } catch (err) {
+            console.error(err);
+            statusText.textContent = "에러 발생: " + err.message;
+        } finally {
+            isScanning = false;
+            scanBtn.disabled = false;
+            scanBtn.textContent = "🔍 스캔 시작";
+        }
+    }
+
+    scanBtn.addEventListener("click", startScan);
+</script>
+</body>
+</html>
