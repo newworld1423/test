@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 09:00 15분봉 상승률 1위 + 당일 고점 시각 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #11131a;
+            --card-soft: #181b24;
+            --border: #2a2e36;
+            --text: #e8eaed;
+            --muted: #9aa0a6;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --warn: #ffd54f;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at top, #191c27 0, #05060a 60%, #020308 100%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        }
+
+        .app {
+            max-width: 980px;
+            margin: 24px auto 40px;
+            padding: 0 16px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 4px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, rgba(62, 166, 255, 0.08), transparent);
+            border-radius: 16px;
+            padding: 18px 18px 16px;
+            border: 1px solid rgba(62, 166, 255, 0.3);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            flex: 1 1 160px;
+            min-width: 0;
+        }
+
+        .field label {
+            margin-bottom: 4px;
+            color: var(--muted);
+        }
+
+        .field input[type="date"] {
+            background: var(--card-soft);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            font-size: 13px;
+            color: var(--text);
+            outline: none;
+        }
+
+        .field input[type="date"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(62, 166, 255, 0.4);
+        }
+
+        button {
+            border-radius: 999px;
+            border: none;
+            padding: 9px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--accent);
+            color: #021019;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 10px 20px rgba(62, 166, 255, 0.35);
+            white-space: nowrap;
+        }
+
+        button[disabled] {
+            opacity: 0.6;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+
+        .hint strong {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .log {
+            margin-top: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(6, 7, 12, 0.9);
+            padding: 10px 12px;
+            font-size: 12px;
+            max-height: 140px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        .log-line {
+            color: var(--muted);
+        }
+
+        .log-line strong {
+            color: var(--accent);
+        }
+
+        .results-wrap {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 800px) {
+            .results-wrap {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .result-card {
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 14px 14px 12px;
+        }
+
+        .result-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .result-main-symbol {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+
+        .result-main-change {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            padding: 3px 9px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .pill-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .grid {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .grid thead {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .grid th,
+        .grid td {
+            padding: 6px 7px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .grid th:first-child,
+        .grid td:first-child {
+            text-align: left;
+        }
+
+        .grid tr.highlight {
+            background: rgba(62, 166, 255, 0.12);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 2px 7px 1px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .badge-good {
+            background: rgba(0, 200, 83, 0.2);
+            color: var(--good);
+        }
+
+        .badge-warn {
+            background: rgba(255, 213, 79, 0.15);
+            color: var(--warn);
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .good {
+            color: var(--good);
+        }
+
+        .bad {
+            color: var(--bad);
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>09:00 15분봉 상승률 1위 + 당일 고점 시각 스캐너</h1>
+    <div class="subtitle">
+        <span class="muted">Binance Perp USDT · 15m</span> ·
+        <span class="muted">선택한 날짜의 <strong>09:00 15분봉 상승률 1위 코인</strong>과
+        그 코인의 <strong>해당 날짜 15분봉 기준 고점 시각</strong>을 찾습니다.</span>
+    </div>
+
+    <div class="card">
+        <div class="controls-row">
+            <div class="field">
+                <label for="scanDate">날짜 선택 (로컬 시간 기준, 예: 한국 = KST)</label>
+                <input type="date" id="scanDate">
+            </div>
+            <div class="field" style="flex: 0 0 auto;">
+                <button id="scanButton">
+                    <span>스캔 시작</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="hint">
+            · 시간 기준은 <strong>브라우저 로컬 시간대</strong>입니다.  
+            · 예: 한국에서 <strong>2025-11-17</strong> 선택 → <strong>2025-11-17 09:00~09:15 (KST)</strong> 15분봉 기준으로 스캔합니다.
+        </div>
+
+        <div id="log" class="log"></div>
+    </div>
+
+    <div class="results-wrap">
+        <div class="result-card">
+            <div class="result-title">선택 날짜 09:00 15분봉 상승률 1위</div>
+            <div id="topResultEmpty" class="muted" style="font-size: 12px;">
+                아직 스캔 전입니다. 날짜를 선택하고 <strong>스캔 시작</strong> 버튼을 눌러주세요.
+            </div>
+            <div id="topResult" style="display:none;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <div class="result-main-symbol" id="topSymbol">-</div>
+                    <div class="result-main-change" id="topChange">-</div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;font-size:11px;">
+                    <span class="pill">
+                        <span class="pill-dot"></span>
+                        <span id="topDateLabel">-</span>
+                    </span>
+                    <span class="pill">
+                        09:00 15분봉 O/H/L/C:
+                        <span class="mono" id="topOhlc">-</span>
+                    </span>
+                </div>
+                <table class="grid">
+                    <tbody>
+                    <tr>
+                        <td>09:00 15분봉 상승률</td>
+                        <td class="good" id="topChangeDetail">-</td>
+                    </tr>
+                    <tr>
+                        <td>그날 15분봉 기준 고점</td>
+                        <td id="topHighPrice">-</td>
+                    </tr>
+                    <tr>
+                        <td>고점 시각 (15분봉 기준)</td>
+                        <td id="topHighTime">-</td>
+                    </tr>
+                    <tr>
+                        <td>해당 날짜 기준</td>
+                        <td class="muted" id="topDayInfo">-</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="result-card">
+            <div class="result-title">
+                상위 코인 리스트 (09:00 15분봉 상승률 순)
+                <span class="badge badge-warn" id="rankCountBadge" style="margin-left:6px;display:none;"></span>
+            </div>
+            <div class="muted" id="rankEmpty" style="font-size:12px;">
+                참고용으로 09:00 15분봉 상승률 상위 코인들을 함께 보여줍니다.
+            </div>
+            <div style="max-height:240px;overflow:auto;margin-top:6px;display:none;" id="rankTableWrap">
+                <table class="grid" id="rankTable">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>심볼</th>
+                        <th>09:00 변화율</th>
+                        <th>09:00 종가</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <!-- rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 유틸 함수들 ---
+
+    function logLine(message) {
+        const logEl = document.getElementById('log');
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.textContent = message;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+        const logEl = document.getElementById('log');
+        logEl.innerHTML = '';
+    }
+
+    function formatPct(value) {
+        if (!isFinite(value)) return '-';
+        return (value >= 0 ? '+' : '') + value.toFixed(2) + '%';
+    }
+
+    function formatNumber(value, digits) {
+        if (!isFinite(value)) return '-';
+        const num = digits != null ? Number(value).toFixed(digits) : Number(value);
+        return Number(num).toLocaleString(undefined, {
+            maximumFractionDigits: digits != null ? digits : 8
+        });
+    }
+
+    function formatTimeLocal(ms) {
+        const d = new Date(ms);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return hh + ':' + mm;
+    }
+
+    function getLocalDateParts(ms) {
+        const d = new Date(ms);
+        return {
+            year: d.getFullYear(),
+            month: d.getMonth() + 1,
+            day: d.getDate()
+        };
+    }
+
+    function sameLocalDate(ms, year, month, day) {
+        const p = getLocalDateParts(ms);
+        return p.year === year && p.month === month && p.day === day;
+    }
+
+    function parseSelectedDate() {
+        const input = document.getElementById('scanDate');
+        const value = input.value;
+        if (!value) {
+            alert('날짜를 선택해주세요.');
+            return null;
+        }
+        const [yearStr, monthStr, dayStr] = value.split('-');
+        const year = Number(yearStr);
+        const month = Number(monthStr);
+        const day = Number(dayStr);
+        if (!year || !month || !day) {
+            alert('날짜 형식이 올바르지 않습니다.');
+            return null;
+        }
+        // 로컬 자정 ~ 23:59:59.999
+        const dayStartLocal = new Date(year, month - 1, day, 0, 0, 0, 0);
+        const dayEndLocal = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+        return {
+            year,
+            month,
+            day,
+            dayStartMs: dayStartLocal.getTime(),
+            dayEndMs: dayEndLocal.getTime(),
+            label: year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0')
+        };
+    }
+
+    // --- Binance 관련 ---
+
+    let usdtSymbols = null;
+
+    async function loadUsdtSymbols() {
+        if (usdtSymbols && usdtSymbols.length) return usdtSymbols;
+
+        logLine('Binance 선물 심볼 목록을 불러오는 중...');
+        const url = 'https://fapi.binance.com/fapi/v1/exchangeInfo';
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error('exchangeInfo 요청 실패: ' + res.status);
+        }
+        const data = await res.json();
+        const symbols = (data.symbols || []).filter(s =>
+            s.quoteAsset === 'USDT' &&
+            s.contractType === 'PERPETUAL' &&
+            s.status === 'TRADING'
+        ).map(s => s.symbol);
+
+        usdtSymbols = symbols;
+        logLine('USDT PERPETUAL 심볼 수: ' + symbols.length + '개');
+        return symbols;
+    }
+
+    async function fetch15mKlinesForDay(symbol, dayInfo) {
+        const params = new URLSearchParams({
+            symbol: symbol,
+            interval: '15m',
+            startTime: String(dayInfo.dayStartMs),
+            endTime: String(dayInfo.dayEndMs),
+            limit: '200'
+        });
+        const url = 'https://fapi.binance.com/fapi/v1/klines?' + params.toString();
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error('klines 요청 실패: ' + res.status + ' (' + symbol + ')');
+        }
+        const raw = await res.json();
+        if (!Array.isArray(raw)) return [];
+
+        // 혹시 몰라서 선택한 날짜만 다시 한 번 필터 (로컬 시간 기준)
+        const filtered = raw.filter(c => {
+            const openTime = c[0];
+            return sameLocalDate(openTime, dayInfo.year, dayInfo.month, dayInfo.day);
+        });
+
+        return filtered;
+    }
+
+    // --- 스캔 메인 로직 ---
+
+    async function runScan() {
+        const btn = document.getElementById('scanButton');
+        const topEmpty = document.getElementById('topResultEmpty');
+        const topBox = document.getElementById('topResult');
+        const rankEmpty = document.getElementById('rankEmpty');
+        const rankWrap = document.getElementById('rankTableWrap');
+        const rankBadge = document.getElementById('rankCountBadge');
+
+        const dayInfo = parseSelectedDate();
+        if (!dayInfo) return;
+
+        clearLog();
+        logLine('선택 날짜: ' + dayInfo.label + ' (로컬 시간 기준).');
+        logLine('09:00 15분봉 기준으로 모든 USDT PERP를 스캔합니다...');
+
+        btn.disabled = true;
+
+        try {
+            const symbols = await loadUsdtSymbols();
+
+            const targetHour = 9;
+            const targetMinute = 0;
+
+            const perSymbolResults = [];
+            const dayKlinesBySymbol = {};
+
+            let processed = 0;
+            const total = symbols.length;
+            const concurrency = 10;
+            let index = 0;
+
+            async function worker() {
+                while (true) {
+                    const myIndex = index++;
+                    if (myIndex >= total) break;
+                    const symbol = symbols[myIndex];
+                    try {
+                        const klines = await fetch15mKlinesForDay(symbol, dayInfo);
+                        processed++;
+                        if (processed % 10 === 0 || processed === total) {
+                            logLine('진행 상황: ' + processed + ' / ' + total + '개 처리 중...');
+                        }
+                        if (!klines.length) continue;
+
+                        // 09:00 15분봉 찾기 (로컬 시간 기준)
+                        let targetCandle = null;
+                        for (const c of klines) {
+                            const openTime = c[0];
+                            const d = new Date(openTime);
+                            const hh = d.getHours();
+                            const mm = d.getMinutes();
+                            if (hh === targetHour && mm === targetMinute) {
+                                targetCandle = c;
+                                break;
+                            }
+                        }
+                        if (!targetCandle) {
+                            // 이 심볼은 해당 날짜 09:00 15분봉이 없으면 스킵
+                            return;
+                        }
+
+                        dayKlinesBySymbol[symbol] = klines;
+
+                        const o = Number(targetCandle[1]);
+                        const h = Number(targetCandle[2]);
+                        const l = Number(targetCandle[3]);
+                        const c = Number(targetCandle[4]);
+                        if (!isFinite(o) || o === 0) return;
+
+                        const changePct = (c - o) / o * 100;
+
+                        perSymbolResults.push({
+                            symbol,
+                            changePct,
+                            open: o,
+                            high: h,
+                            low: l,
+                            close: c,
+                            openTime: targetCandle[0]
+                        });
+
+                    } catch (err) {
+                        // 심볼 개별 에러는 무시하고 계속 진행
+                        console.warn('심볼 처리 중 오류:', symbol, err);
+                        logLine('[경고] ' + symbol + ' 처리 중 오류가 발생했습니다.');
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+
+            if (!perSymbolResults.length) {
+                logLine('결과 없음: 해당 날짜 09:00 15분봉 데이터가 있는 USDT PERP 심볼이 없습니다.');
+                topEmpty.style.display = '';
+                topBox.style.display = 'none';
+                rankEmpty.textContent = '해당 조건을 만족하는 코인이 없습니다.';
+                rankWrap.style.display = 'none';
+                rankBadge.style.display = 'none';
+                return;
+            }
+
+            // 상승률 순으로 정렬
+            perSymbolResults.sort((a, b) => b.changePct - a.changePct);
+
+            const best = perSymbolResults[0];
+            const bestDayKlines = dayKlinesBySymbol[best.symbol] || [];
+
+            // 당일(선택 날짜) 15분봉 기준 고점 찾기
+            let dayHigh = -Infinity;
+            let dayHighCandle = null;
+            for (const c of bestDayKlines) {
+                const high = Number(c[2]);
+                if (!isFinite(high)) continue;
+                if (high > dayHigh) {
+                    dayHigh = high;
+                    dayHighCandle = c;
+                }
+            }
+
+            // 결과 표시
+            topEmpty.style.display = 'none';
+            topBox.style.display = '';
+
+            document.getElementById('topSymbol').textContent = best.symbol;
+            document.getElementById('topChange').textContent = formatPct(best.changePct);
+            document.getElementById('topChange').className = 'result-main-change ' + (best.changePct >= 0 ? 'good' : 'bad');
+
+            document.getElementById('topDateLabel').textContent =
+                dayInfo.label + ' · 09:00 15분봉';
+
+            const ohlcLabel = [
+                'O ' + formatNumber(best.open, 4),
+                'H ' + formatNumber(best.high, 4),
+                'L ' + formatNumber(best.low, 4),
+                'C ' + formatNumber(best.close, 4)
+            ].join(' / ');
+            document.getElementById('topOhlc').textContent = ohlcLabel;
+
+            document.getElementById('topChangeDetail').textContent = formatPct(best.changePct);
+            document.getElementById('topChangeDetail').className =
+                'good';
+
+            if (dayHighCandle) {
+                const highTime = dayHighCandle[0];
+                const highPrice = Number(dayHighCandle[2]);
+                document.getElementById('topHighPrice').textContent =
+                    formatNumber(highPrice, 4);
+                document.getElementById('topHighTime').textContent =
+                    formatTimeLocal(highTime) + ' 봉 (로컬 시간 기준)';
+            } else {
+                document.getElementById('topHighPrice').textContent = '-';
+                document.getElementById('topHighTime').textContent = '-';
+            }
+
+            document.getElementById('topDayInfo').textContent =
+                dayInfo.label + ' · 브라우저 로컬 날짜 기준';
+
+            // 상위 리스트 (참고용, 최대 30개)
+            const tbody = document.querySelector('#rankTable tbody');
+            tbody.innerHTML = '';
+            const maxRows = Math.min(30, perSymbolResults.length);
+            for (let i = 0; i < maxRows; i++) {
+                const r = perSymbolResults[i];
+                const tr = document.createElement('tr');
+                if (i === 0) tr.className = 'highlight';
+
+                const tdRank = document.createElement('td');
+                const tdSym = document.createElement('td');
+                const tdPct = document.createElement('td');
+                const tdClose = document.createElement('td');
+
+                tdRank.textContent = (i + 1);
+                tdSym.textContent = r.symbol;
+                tdPct.textContent = formatPct(r.changePct);
+                tdPct.className = r.changePct >= 0 ? 'good mono' : 'bad mono';
+                tdClose.textContent = formatNumber(r.close, 4);
+                tdClose.className = 'mono';
+
+                tr.appendChild(tdRank);
+                tr.appendChild(tdSym);
+                tr.appendChild(tdPct);
+                tr.appendChild(tdClose);
+                tbody.appendChild(tr);
+            }
+
+            rankEmpty.style.display = 'none';
+            rankWrap.style.display = '';
+            rankBadge.style.display = 'inline-flex';
+            rankBadge.textContent = '총 ' + perSymbolResults.length + '개 심볼';
+
+            logLine('스캔 완료! 09:00 15분봉 상승률 1위: ' + best.symbol + ' (' + formatPct(best.changePct) + ')');
+
+        } catch (err) {
+            console.error(err);
+            alert('스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+            logLine('[오류] ' + (err.message || err));
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('scanButton').addEventListener('click', runScan);
+
+    // 초기 날짜를 어제로 설정 (원하면 오늘로 바꿔도 됨)
+    (function initDefaultDate() {
+        const input = document.getElementById('scanDate');
+        const now = new Date();
+        // 어제
+        now.setDate(now.getDate() - 1);
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        input.value = y + '-' + m + '-' + d;
+    })();
+</script>
+</body>
+</html>
