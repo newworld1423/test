@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 최근 7일 일일 상승률 1위 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05070a;
+            --card: #10131a;
+            --border: #272b33;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #3b82f6;
+            --good: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #151821 0, #05070a 55%, #020308 100%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        }
+
+        .app {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 20px;
+        }
+
+        p {
+            margin: 0 0 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--accent);
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        #status {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        .card h2 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        th, td {
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .chip {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .pct {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pct.pos {
+            color: var(--good);
+        }
+
+        .small {
+            font-size: 11px;
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <h1>최근 7일 — 일일 상승률 1위 USDT Perp 스캐너</h1>
+        <p>
+            Binance 무기한 선물(USDT 페어) 기준으로, 최근 7일간
+            <span class="chip">각 날짜마다 일일 상승률 1위였던 심볼</span>을 스캔합니다.
+            (1일봉, UTC 기준)
+        </p>
+
+        <div class="controls">
+            <button id="scanBtn">최근 7일 스캔 시작</button>
+            <div id="status">대기 중...</div>
+        </div>
+
+        <div class="card">
+            <h2>날짜별 일일 상승률 1위 페어</h2>
+            <div class="small">※ 1d 봉 (UTC) 기준 / (종가-시가)/시가 * 100</div>
+            <div style="overflow-x:auto; margin-top:8px;">
+                <table id="resultTable">
+                    <thead>
+                        <tr>
+                            <th>날짜 (UTC)</th>
+                            <th>심볼</th>
+                            <th>등락률</th>
+                            <th>시가</th>
+                            <th>종가</th>
+                            <th>고가</th>
+                            <th>저가</th>
+                            <th>거래량</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>심볼별 1위 횟수 (최근 7일)</h2>
+            <div class="small">같은 심볼이 여러 날 1위를 하면 횟수로 집계됩니다.</div>
+            <div style="overflow-x:auto; margin-top:8px;">
+                <table id="summaryTable">
+                    <thead>
+                        <tr>
+                            <th>심볼</th>
+                            <th>1위 횟수</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+        const DAYS = 7;
+        const CHUNK_SIZE = 8;      // 한 번에 요청할 심볼 수
+        const CHUNK_DELAY = 350;   // 청크 사이 딜레이(ms)
+
+        const scanBtn = document.getElementById("scanBtn");
+        const statusEl = document.getElementById("status");
+        const resultTBody = document.querySelector("#resultTable tbody");
+        const summaryTBody = document.querySelector("#summaryTable tbody");
+
+        scanBtn.addEventListener("click", () => {
+            scanBtn.disabled = true;
+            resultTBody.innerHTML = "";
+            summaryTBody.innerHTML = "";
+            statusEl.textContent = "USDT Perp 심볼 목록 불러오는 중...";
+
+            runScan().catch(err => {
+                console.error(err);
+                statusEl.textContent = "오류: " + err.message;
+                scanBtn.disabled = false;
+            });
+        });
+
+        async function runScan() {
+            const symbols = await fetchUSDTPerpSymbols();
+            statusEl.textContent = `USDT PERPETUAL 심볼 ${symbols.length}개 스캔 준비...`;
+
+            const dayKeys = buildLast7UtcDayKeys();  // ['2025-11-11', ..., '2025-11-17'] 이런 식
+            const winnersByDay = {};                 // dateKey -> { symbol, ... }
+            const winCountBySymbol = {};             // symbol -> 횟수
+
+            let processed = 0;
+
+            for (let i = 0; i < symbols.length; i += CHUNK_SIZE) {
+                const chunk = symbols.slice(i, i + CHUNK_SIZE);
+
+                await Promise.all(chunk.map(async (symbol) => {
+                    try {
+                        const klines = await fetchDailyKlines(symbol);
+                        updateWinnersFromKlines(symbol, klines, dayKeys, winnersByDay);
+                    } catch (e) {
+                        console.warn("kline 실패:", symbol, e);
+                    } finally {
+                        processed++;
+                    }
+                }));
+
+                statusEl.textContent = `1d 봉 스캔 중... (${processed}/${symbols.length})`;
+                await sleep(CHUNK_DELAY);
+            }
+
+            // 날짜별 1위들 기준으로 심볼별 1위 횟수 집계
+            dayKeys.forEach(dayKey => {
+                const w = winnersByDay[dayKey];
+                if (w) {
+                    winCountBySymbol[w.symbol] = (winCountBySymbol[w.symbol] || 0) + 1;
+                }
+            });
+
+            renderResultTable(dayKeys, winnersByDay);
+            renderSummaryTable(winCountBySymbol);
+
+            statusEl.textContent = "스캔 완료!";
+            scanBtn.disabled = false;
+        }
+
+        // USDT PERPETUAL 심볼 목록
+        async function fetchUSDTPerpSymbols() {
+            const res = await fetch(API_BASE + "/fapi/v1/exchangeInfo");
+            if (!res.ok) {
+                throw new Error("exchangeInfo 요청 실패");
+            }
+            const data = await res.json();
+            return data.symbols
+                .filter(s =>
+                    s.quoteAsset === "USDT" &&
+                    s.contractType === "PERPETUAL" &&
+                    s.status === "TRADING"
+                )
+                .map(s => s.symbol)
+                .sort();
+        }
+
+        // 특정 심볼의 1d 봉 최근 8개 (마지막 진행중 봉 하나 버리고 7개 사용)
+        async function fetchDailyKlines(symbol) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=${DAYS + 1}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(symbol + " 1d klines 요청 실패");
+            }
+            const data = await res.json();
+            if (!Array.isArray(data)) return [];
+
+            // limit=8 중 마지막(진행중 봉) 하나 제거 → 최근 7개 완료된 봉
+            if (data.length > DAYS) {
+                data.pop();
+            }
+            return data;
+        }
+
+        // 최근 7일(UTC) 날짜 키 배열 생성 (과거→최근 순)
+        function buildLast7UtcDayKeys() {
+            const keys = [];
+            const d = new Date();
+            d.setUTCHours(0, 0, 0, 0);   // 오늘 00:00 (UTC)
+            d.setUTCDate(d.getUTCDate() - 1); // 어제 00:00 기준부터 시작
+
+            for (let i = 0; i < DAYS; i++) {
+                keys.push(d.toISOString().slice(0, 10)); // 'YYYY-MM-DD'
+                d.setUTCDate(d.getUTCDate() - 1);
+            }
+            // keys: 과거 → 최근 순으로 맞춰둠
+            return keys.reverse();
+        }
+
+        // 각 심볼의 klines 를 보고 날짜별 1위 후보 갱신
+        function updateWinnersFromKlines(symbol, klines, dayKeys, winnersByDay) {
+            for (const k of klines) {
+                const openTime = k[0];
+                const open = parseFloat(k[1]);
+                const high = parseFloat(k[2]);
+                const low = parseFloat(k[3]);
+                const close = parseFloat(k[4]);
+                const volume = parseFloat(k[5]);
+                if (!open || !close) continue;
+
+                const dateKey = new Date(openTime).toISOString().slice(0, 10);
+                if (!dayKeys.includes(dateKey)) continue; // 우리가 보는 7일 범위 밖이면 스킵
+
+                const changePct = ((close - open) / open) * 100;
+                const current = winnersByDay[dateKey];
+
+                if (!current || changePct > current.changePct) {
+                    winnersByDay[dateKey] = {
+                        symbol,
+                        dateKey,
+                        changePct,
+                        open,
+                        close,
+                        high,
+                        low,
+                        volume
+                    };
+                }
+            }
+        }
+
+        // 날짜별 1위 테이블 렌더링
+        function renderResultTable(dayKeys, winnersByDay) {
+            resultTBody.innerHTML = "";
+
+            // 최신 날짜부터 보이도록 정렬
+            const sortedKeys = [...dayKeys].sort().reverse();
+
+            for (const dateKey of sortedKeys) {
+                const w = winnersByDay[dateKey];
+                if (!w) continue;
+
+                const tr = document.createElement("tr");
+                const pctClass = w.changePct >= 0 ? "pct pos" : "pct";
+
+                tr.innerHTML = `
+                    <td>${dateKey}</td>
+                    <td>${w.symbol}</td>
+                    <td class="${pctClass}">${w.changePct.toFixed(2)}%</td>
+                    <td>${w.open.toFixed(4)}</td>
+                    <td>${w.close.toFixed(4)}</td>
+                    <td>${w.high.toFixed(4)}</td>
+                    <td>${w.low.toFixed(4)}</td>
+                    <td>${w.volume.toFixed(0)}</td>
+                `;
+                resultTBody.appendChild(tr);
+            }
+        }
+
+        // 심볼별 1위 횟수 테이블 렌더링
+        function renderSummaryTable(winCountBySymbol) {
+            summaryTBody.innerHTML = "";
+
+            const entries = Object.entries(winCountBySymbol);
+            entries.sort((a, b) => b[1] - a[1]); // 횟수 내림차순
+
+            for (const [symbol, count] of entries) {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${symbol}</td>
+                    <td>${count}</td>
+                `;
+                summaryTBody.appendChild(tr);
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>
