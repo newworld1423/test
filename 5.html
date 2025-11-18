@@ -359,6 +359,47 @@
         return "중립";
     }
 
+    function createRow(row, idx) {
+        const tr = document.createElement("tr");
+
+        const rankTd = document.createElement("td");
+        rankTd.textContent = idx + 1;
+        tr.appendChild(rankTd);
+
+        const symTd = document.createElement("td");
+        symTd.textContent = row.symbol;
+        tr.appendChild(symTd);
+
+        const h4Td = document.createElement("td");
+        h4Td.textContent = dirLabel(row.dir4h);
+        h4Td.className = row.dir4h === "bull" ? "dir-bull" : "dir-bear";
+        tr.appendChild(h4Td);
+
+        const h1Td = document.createElement("td");
+        h1Td.textContent = dirLabel(row.dir1h);
+        h1Td.className = row.dir1h === "bull" ? "dir-bull" : "dir-bear";
+        tr.appendChild(h1Td);
+
+        const m15Td = document.createElement("td");
+        m15Td.textContent = dirLabel(row.dir15mPrev);
+        m15Td.className =
+            row.dir15mPrev === "bull" ? "dir-bull" : "dir-bear";
+        tr.appendChild(m15Td);
+
+        const chgTd = document.createElement("td");
+        const chgCls = row.change24hPct >= 0 ? "chg-pos" : "chg-neg";
+        chgTd.className = chgCls;
+        chgTd.textContent = formatNumber(row.change24hPct, 2) + "%";
+        tr.appendChild(chgTd);
+
+        return tr;
+    }
+
+    function appendRow(row, idx) {
+        const tr = createRow(row, idx);
+        els.tableBody.appendChild(tr);
+    }
+
     function renderTable(rows) {
         const tbody = els.tableBody;
         tbody.innerHTML = "";
@@ -377,39 +418,7 @@
         }
 
         rows.forEach((row, idx) => {
-            const tr = document.createElement("tr");
-
-            const rankTd = document.createElement("td");
-            rankTd.textContent = idx + 1;
-            tr.appendChild(rankTd);
-
-            const symTd = document.createElement("td");
-            symTd.textContent = row.symbol;
-            tr.appendChild(symTd);
-
-            const h4Td = document.createElement("td");
-            h4Td.textContent = dirLabel(row.dir4h);
-            h4Td.className = row.dir4h === "bull" ? "dir-bull" : "dir-bear";
-            tr.appendChild(h4Td);
-
-            const h1Td = document.createElement("td");
-            h1Td.textContent = dirLabel(row.dir1h);
-            h1Td.className = row.dir1h === "bull" ? "dir-bull" : "dir-bear";
-            tr.appendChild(h1Td);
-
-            const m15Td = document.createElement("td");
-            m15Td.textContent = dirLabel(row.dir15mPrev);
-            m15Td.className =
-                row.dir15mPrev === "bull" ? "dir-bull" : "dir-bear";
-            tr.appendChild(m15Td);
-
-            const chgTd = document.createElement("td");
-            const chgCls = row.change24hPct >= 0 ? "chg-pos" : "chg-neg";
-            chgTd.className = chgCls;
-            chgTd.textContent = formatNumber(row.change24hPct, 2) + "%";
-            tr.appendChild(chgTd);
-
-            tbody.appendChild(tr);
+            tbody.appendChild(createRow(row, idx));
         });
     }
 
@@ -535,6 +544,9 @@
             const results = [];
             let index = 0;
 
+            // 새 스캔 시작할 때 테이블 싹 비우기
+            els.tableBody.innerHTML = "";
+
             async function worker() {
                 while (true) {
                     const myIndex = index++;
@@ -546,6 +558,8 @@
                         const row = await scanSymbol(symbol);
                         if (row) {
                             results.push(row);
+                            // 스캔되자마자 바로 테이블에 한 줄 추가
+                            appendRow(row, results.length - 1);
                         }
                     } catch (err) {
                         console.error("심볼 스캔 실패:", symbol, err);
@@ -576,9 +590,8 @@
             );
             await Promise.all(workers);
 
-            // 4H 기반 24h 증감률 내림차순
+            // 전체 스캔 끝난 후: 24h 증감률 기준으로 다시 정렬해서 테이블 재렌더
             results.sort((a, b) => b.change24hPct - a.change24hPct);
-
             renderTable(results);
 
             const finishedAt = new Date();
