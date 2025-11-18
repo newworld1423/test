@@ -28,7 +28,7 @@
             background: radial-gradient(circle at top, #181b25 0, #05060a 55%, #020308 100%);
             color: var(--text);
             font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-            "Noto Sans KR", sans-serif;
+                "Noto Sans KR", sans-serif;
         }
 
         .app {
@@ -73,7 +73,7 @@
             font-weight: 600;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
             transition: transform 0.08s ease, box-shadow 0.08s ease,
-            filter 0.08s ease, opacity 0.15s ease;
+                filter 0.08s ease, opacity 0.15s ease;
         }
 
         button:hover:not(:disabled) {
@@ -251,7 +251,7 @@
 <script>
     const BASE_URL = "https://fapi.binance.com";
 
-    // 요청 튜닝: 1분 안에 끝나도록 + 레이트리밋(2400/min) 안 넘도록
+    // 요청 튜닝: 1분 안 + 레이트리밋(2400/min) 안 넘도록
     const CONCURRENCY = 4;             // 동시에 처리할 심볼 수
     const PER_REQUEST_DELAY_MS = 120;  // 심볼 하나 처리 후 딜레이(ms)
 
@@ -261,9 +261,11 @@
 
     let allSymbols = [];
     let isScanning = false;
+
     let autoScanActive = false;
     let autoScanTimeoutId = null;
     let autoScanScheduledOnce = false;
+    let autoScanPending = false; // 스캔 중에 자동스캔 타이밍 온 경우 1회 예약용
 
     const els = {
         scanBtn: document.getElementById("scanBtn"),
@@ -544,7 +546,7 @@
             const results = [];
             let index = 0;
 
-            // 새 스캔 시작할 때 테이블 싹 비우기
+            // 새 스캔 시작할 때 테이블 초기화
             els.tableBody.innerHTML = "";
 
             async function worker() {
@@ -580,7 +582,7 @@
             }
 
             const workers = [];
-            for (let i = 0; i <= CONCURRENCY - 1; i++) {
+            for (let i = 0; i < CONCURRENCY; i++) {
                 workers.push(worker());
             }
 
@@ -616,6 +618,7 @@
                 String(err.message).includes("429")
             ) {
                 autoScanActive = false;
+                autoScanPending = false;
                 if (autoScanTimeoutId) {
                     clearTimeout(autoScanTimeoutId);
                     autoScanTimeoutId = null;
@@ -625,6 +628,24 @@
         } finally {
             isScanning = false;
         }
+    }
+
+    // 자동스캔 타이머에서 직접 scanOnce() 부르지 않고,
+    // "스캔 중인지" 먼저 체크해서 끝난 뒤 딱 한 번만 돌리는 함수
+    async function checkAndRunAutoScan() {
+        if (!autoScanActive) return;
+
+        if (isScanning) {
+            // 스캔 중이면 1회 pending 표시 후 5초 뒤 다시 체크
+            autoScanPending = true;
+            autoScanTimeoutId = setTimeout(checkAndRunAutoScan, 5000);
+            return;
+        }
+
+        // 스캔이 비어있다면 실제 실행
+        autoScanPending = false;
+        await scanOnce();
+        scheduleNextAutoScan();
     }
 
     function scheduleNextAutoScan() {
@@ -643,8 +664,8 @@
         const quarters = [0, 15, 30, 45];
         let targetMinute = 0;
         let addHour = 0;
-
         let found = false;
+
         for (const q of quarters) {
             if (minutes < q || (minutes === q && (seconds > 0 || ms > 0))) {
                 targetMinute = q;
@@ -665,10 +686,8 @@
         const delay = next.getTime() - now.getTime();
         els.nextScan.textContent = formatTime(next);
 
-        autoScanTimeoutId = setTimeout(async () => {
-            await scanOnce();
-            scheduleNextAutoScan();
-        }, delay);
+        // 타이머 만료 시 checkAndRunAutoScan으로 위임
+        autoScanTimeoutId = setTimeout(checkAndRunAutoScan, delay);
     }
 
     function init() {
