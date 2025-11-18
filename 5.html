@@ -268,6 +268,11 @@
 
 <script>
     const BASE_URL = "https://fapi.binance.com";
+
+    // 요청 관련 튜닝 포인트
+    const CONCURRENCY = 3;          // 동시에 처리할 심볼 수 (8 → 3 으로 줄임)
+    const PER_REQUEST_DELAY_MS = 120; // 심볼 하나 처리 후 잠깐 쉬는 시간 (ms)
+
     let allSymbols = [];
     let tickerMap = new Map();
     let isScanning = false;
@@ -309,16 +314,33 @@
         });
     }
 
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 공용 fetch 래퍼: 레이트리밋(418/429) 감지용
+    async function fetchJson(url, context) {
+        const res = await fetch(url);
+        if (res.status === 418 || res.status === 429) {
+            const text = await res.text().catch(() => "");
+            throw new Error(
+                `Binance ${res.status} (레이트리밋/IP 밴 가능성) · ${context || ""} · ${text}`
+            );
+        }
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`HTTP ${res.status} · ${context || ""} · ${text}`);
+        }
+        return res.json();
+    }
+
     async function loadExchangeInfo() {
         if (allSymbols.length > 0) return allSymbols;
 
         setStatus("심볼 정보 불러오는 중...", true);
         const url = BASE_URL + "/fapi/v1/exchangeInfo";
-        const res = await fetch(url);
-        if (!res.ok) {
-            throw new Error("exchangeInfo 요청 실패: " + res.status);
-        }
-        const data = await res.json();
+        const data = await fetchJson(url, "exchangeInfo");
+
         allSymbols = data.symbols
             .filter(s =>
                 s.contractType === "PERPETUAL" &&
@@ -333,11 +355,7 @@
 
     async function load24hTickers() {
         const url = BASE_URL + "/fapi/v1/ticker/24hr";
-        const res = await fetch(url);
-        if (!res.ok) {
-            throw new Error("24h ticker 요청 실패: " + res.status);
-        }
-        const list = await res.json();
+        const list = await fetchJson(url, "24h ticker");
         const map = new Map();
         for (const t of list) {
             map.set(t.symbol, t);
@@ -354,13 +372,7 @@
             interval +
             "&limit=" +
             limit;
-        const res = await fetch(url);
-        if (!res.ok) {
-            throw new Error(
-                "klines 실패: " + symbol + " " + interval + " " + res.status
-            );
-        }
-        return await res.json();
+        return await fetchJson(url, `klines ${symbol} ${interval}`);
     }
 
     function candleDir(open, close) {
@@ -514,16 +526,19 @@
             setStatus("24h 티커 불러오는 중...", true);
             await load24hTickers();
 
+            // 모든 USDT PERP 심볼 대상 (상위 N개 필터 없음)
             const symbols = allSymbols.slice();
-            const concurrency = 8;
-            const results = [];
 
+            const results = [];
             let index = 0;
 
-            async function worker() {
-                while (index < symbols.length) {
+            async function worker(workerId) {
+                while (true) {
                     const myIndex = index++;
+                    if (myIndex >= symbols.length) break;
+
                     const symbol = symbols[myIndex];
+
                     try {
                         const row = await scanSymbol(symbol);
                         if (row) {
@@ -531,16 +546,31 @@
                         }
                     } catch (err) {
                         console.error("심볼 스캔 실패:", symbol, err);
+                        // 레이트리밋 관련 에러라면 그대로 던져서 전체 스캔 중단
+                        if (String(err.message).includes("레이트리밋") ||
+                            String(err.message).includes("IP 밴") ||
+                            String(err.message).includes("418") ||
+                            String(err.message).includes("429")) {
+                            throw err;
+                        }
+                    }
+
+                    // 심볼 하나 처리 후 살짝 쉬어가기 → 순간 요청폭 완화
+                    if (PER_REQUEST_DELAY_MS > 0) {
+                        await sleep(PER_REQUEST_DELAY_MS);
                     }
                 }
             }
 
             const workers = [];
-            for (let i = 0; i < concurrency; i++) {
-                workers.push(worker());
+            for (let i = 0; i < CONCURRENCY; i++) {
+                workers.push(worker(i));
             }
 
-            setStatus("심볼 스캔 중... (약간 시간 소요)", true);
+            setStatus(
+                `심볼 스캔 중... (동시 ${CONCURRENCY}개, 심볼 ${symbols.length}개, 잠깐씩 딜레이 적용)`,
+                true
+            );
             await Promise.all(workers);
 
             results.sort(
@@ -563,6 +593,19 @@
         } catch (err) {
             console.error(err);
             setStatus("에러: " + err.message, false);
+
+            // 레이트리밋 / IP 밴 감지 시 자동스캔 멈춤
+            if (String(err.message).includes("레이트리밋") ||
+                String(err.message).includes("IP 밴") ||
+                String(err.message).includes("418") ||
+                String(err.message).includes("429")) {
+                autoScanActive = false;
+                if (autoScanTimeoutId) {
+                    clearTimeout(autoScanTimeoutId);
+                    autoScanTimeoutId = null;
+                }
+                els.nextScan.textContent = "중지됨 (레이트리밋/IP 밴 감지)";
+            }
         } finally {
             isScanning = false;
         }
@@ -621,7 +664,7 @@
 
             await scanOnce();
 
-            if (!autoScanScheduledOnce) {
+            if (!autoScanScheduledOnce && autoScanActive) {
                 autoScanScheduledOnce = true;
                 scheduleNextAutoScan();
             }
