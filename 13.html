@@ -502,29 +502,13 @@
                 isScanning = false;
             }
 
+            // 🔧 여기 함수가 핵심 수정 부분
+            // 항상 "지금보다 뒤에 있는" 00/15/30/45 시각만 반환
             function computeNextQuarterHour(from) {
-                const base = from ? new Date(from.getTime()) : new Date();
-                const m = base.getMinutes();
-                const s = base.getSeconds();
-                const ms = base.getMilliseconds();
-                const quarters = [0, 15, 30, 45];
-
-                for (let i = 0; i < quarters.length; i += 1) {
-                    const q = quarters[i];
-                    if (m < q || (m === q && (s > 0 || ms > 0))) {
-                        base.setMinutes(q);
-                        base.setSeconds(0);
-                        base.setMilliseconds(0);
-                        return base;
-                    }
-                }
-
-                // 다음 시각 00분
-                base.setHours(base.getHours() + 1);
-                base.setMinutes(0);
-                base.setSeconds(0);
-                base.setMilliseconds(0);
-                return base;
+                const baseMs = (from ? from.getTime() : Date.now()) + 1000; // +1초 여유
+                const interval = 15 * 60 * 1000; // 15분
+                const nextTs = Math.ceil(baseMs / interval) * interval;
+                return new Date(nextTs);
             }
 
             function scheduleNextScan() {
