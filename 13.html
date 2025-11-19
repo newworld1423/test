@@ -190,9 +190,9 @@
     <div class="app">
         <h1>Binance Perp USDT — 15m 2→1봉 99MA 근접도 스캐너</h1>
         <p class="desc">
-            15분봉 기준으로 <strong>2봉전 종가와 99MA</strong> 사이 거리보다
-            <strong>1봉전 종가와 99MA</strong> 사이 거리가 더 짧아진 USDT 페어들을 찾고,<br>
-            거리 감소폭(2봉전 거리 − 1봉전 거리, % 기준)이 큰 순서대로 정렬합니다.
+            15분봉 기준으로 <strong>2전봉 종가와 99MA</strong> 사이 거리보다
+            <strong>1전봉 종가와 99MA</strong> 사이 거리가 더 짧아진 USDT 페어들을 찾고,<br>
+            거리 감소폭(2전봉 거리 − 1전봉 거리, % 기준)이 큰 순서대로 정렬합니다.
         </p>
 
         <div class="controls">
@@ -226,12 +226,12 @@
                     <tr>
                         <th>#</th>
                         <th>심볼</th>
-                        <th>2봉전 종가</th>
-                        <th>2봉전 99MA</th>
-                        <th>2봉전 거리(%)</th>
-                        <th>1봉전 종가</th>
-                        <th>1봉전 99MA</th>
-                        <th>1봉전 거리(%)</th>
+                        <th>2전봉 종가</th>
+                        <th>2전봉 99MA</th>
+                        <th>2전봉 거리(%)</th>
+                        <th>1전봉 종가</th>
+                        <th>1전봉 99MA</th>
+                        <th>1전봉 거리(%)</th>
                         <th>거리 감소폭(%)</th>
                     </tr>
                 </thead>
@@ -360,43 +360,56 @@
                 });
             }
 
-            // 개별 심볼 스캔: 15m, 100개 캔들로 99MA 계산
+            // 개별 심볼 스캔: 15m, 충분한 캔들(120개)로 2전/1전 99MA 정확히 계산
             async function scanSymbol(symbol) {
-                const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
+                // 99MA를 2전봉까지 정확히 계산하려면 최소 101개 이상 필요해서 여유 있게 120개 요청
+                const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=120`;
+
                 const res = await fetch(url);
                 if (!res.ok) {
-                    // 레이트리밋 등은 여기서 그냥 무시하고 다음 심볼로
-                    return null;
+                    return null; // 레이트리밋/에러는 그냥 스킵
                 }
+
                 const data = await res.json();
-                if (!Array.isArray(data) || data.length < 100) {
+                if (!Array.isArray(data) || data.length < 101) {
+                    // 2전봉 기준 99MA를 계산하려면 최소 101개 필요
                     return null;
                 }
 
                 const closes = data.map(function (k) {
-                    return parseFloat(k[4]);
+                    return parseFloat(k[4]); // 종가
                 });
                 const n = closes.length;
 
-                // 1봉전 = 최근 종가, 2봉전 = 그 이전 종가
-                const close1 = closes[n - 1];
-                const close2 = closes[n - 2];
+                // idxCurrent = 현재 진행 중 캔들 (사용 X)
+                const idxCurrent = n - 1;
 
-                // 99MA (거리 기준은 %)
-                // 1봉전 99MA: 최근 99개 (index 1..99 => slice(n-99))
-                // 2봉전 99MA: 그 바로 이전 99개 (index 0..98 => slice(n-100, n-1))
-                const window1 = closes.slice(n - 99);
-                const window2 = closes.slice(n - 100, n - 1);
+                // 1전봉 = 바로 이전 완성 봉
+                const idx1 = n - 2;
 
-                const sum1 = window1.reduce(function (acc, v) {
+                // 2전봉 = 그 이전 완성 봉
+                const idx2 = n - 3;
+
+                // 2전봉에서 99MA를 계산할 때 시작 인덱스가 음수가 되면 안 됨
+                if (idx2 - 98 < 0) {
+                    return null;
+                }
+
+                const close1 = closes[idx1]; // 1전봉 종가
+                const close2 = closes[idx2]; // 2전봉 종가
+
+                // 1전봉 99MA: idx1에서 끝나는 99개 (idx1-98 ~ idx1)
+                const ma1Window = closes.slice(idx1 - 98, idx1 + 1);
+                // 2전봉 99MA: idx2에서 끝나는 99개 (idx2-98 ~ idx2)
+                const ma2Window = closes.slice(idx2 - 98, idx2 + 1);
+
+                const ma1 = ma1Window.reduce(function (acc, v) {
                     return acc + v;
-                }, 0);
-                const sum2 = window2.reduce(function (acc, v) {
-                    return acc + v;
-                }, 0);
+                }, 0) / ma1Window.length;
 
-                const ma1 = sum1 / 99;
-                const ma2 = sum2 / 99;
+                const ma2 = ma2Window.reduce(function (acc, v) {
+                    return acc + v;
+                }, 0) / ma2Window.length;
 
                 const dist1 = Math.abs(close1 - ma1);
                 const dist2 = Math.abs(close2 - ma2);
@@ -405,12 +418,12 @@
                 const dist1Pct = (dist1 / ma1) * 100;
                 const dist2Pct = (dist2 / ma2) * 100;
 
-                // 조건: 1봉전이 2봉전보다 99MA에 더 가까워져야 함 (거리1 < 거리2)
+                // 진짜로 "99MA까지 거리가 줄어든 것"만 통과 (1전봉이 더 가까워야 함)
                 if (dist1Pct >= dist2Pct) {
                     return null;
                 }
 
-                // 거리 감소폭(%) = 2봉전 거리 − 1봉전 거리
+                // 거리 감소폭(%) = 2전봉 거리 − 1전봉 거리
                 const deltaPct = dist2Pct - dist1Pct;
 
                 return {
@@ -529,6 +542,7 @@
 
                 if (autoTimer) {
                     clearTimeout(autoTimer);
+                    autoTimer = null;
                 }
 
                 autoTimer = setTimeout(async function () {
