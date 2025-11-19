@@ -636,9 +636,11 @@
         if (!autoScanActive) return;
 
         if (isScanning) {
-            // 스캔 중이면 1회 pending 표시 후 5초 뒤 다시 체크
-            autoScanPending = true;
-            autoScanTimeoutId = setTimeout(checkAndRunAutoScan, 5000);
+            // 이미 예약된 체크가 없을 때만 1회 예약
+            if (!autoScanPending) {
+                autoScanPending = true;
+                autoScanTimeoutId = setTimeout(checkAndRunAutoScan, 5000);
+            }
             return;
         }
 
@@ -657,33 +659,29 @@
         }
 
         const now = new Date();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const ms = now.getMilliseconds();
-
-        const quarters = [0, 15, 30, 45];
-        let targetMinute = 0;
-        let addHour = 0;
-        let found = false;
-
-        for (const q of quarters) {
-            if (minutes < q || (minutes === q && (seconds > 0 || ms > 0))) {
-                targetMinute = q;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            targetMinute = 0;
-            addHour = 1;
-        }
-
         const next = new Date(now);
-        next.setHours(now.getHours() + addHour);
-        next.setMinutes(targetMinute, 0, 0);
 
-        const delay = next.getTime() - now.getTime();
+        // 초/밀리초는 0으로 맞추고 기준만 분 단위로 계산
+        next.setSeconds(0, 0);
+
+        const totalMinutes =
+            now.getMinutes() +
+            now.getSeconds() / 60 +
+            now.getMilliseconds() / 60000;
+
+        // 항상 "현재보다 이후"인 다음 15분 단위
+        // 예) 10:10.xx → 10:15, 10:15.00 → 10:30, 10:59.xx → 11:00
+        let nextQuarter = Math.floor(totalMinutes / 15) * 15 + 15;
+
+        if (nextQuarter >= 60) {
+            next.setHours(now.getHours() + 1);
+            next.setMinutes(nextQuarter - 60); // 보통 0
+        } else {
+            next.setMinutes(nextQuarter);
+        }
+
+        const delay = next.getTime() - now.getTime(); // 항상 > 0
+
         els.nextScan.textContent = formatTime(next);
 
         // 타이머 만료 시 checkAndRunAutoScan으로 위임
