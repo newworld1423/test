@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H 정배열 + 15m 롱꼬리 양봉 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #161821 0, #05060a 55%, #020309 100%);
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        .wrap {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+        }
+
+        .desc {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: var(--accent);
+            color: #000;
+            font-weight: 600;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status-line {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status-line span.label {
+            color: #fff;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        thead {
+            background: #181924;
+        }
+
+        th,
+        td {
+            padding: 6px 4px;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            background: #1f2933;
+            color: var(--muted);
+        }
+
+        .tag.green {
+            color: var(--good);
+        }
+
+        .footer-note {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 17px;
+            }
+
+            table {
+                font-size: 10px;
+            }
+
+            .wrap {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Binance Perp USDT — 4H 정배열 + 15m 롱꼬리 양봉 스캐너</h1>
+        <div class="desc">
+            4H 기준으로 <b>종가 &gt; 99MA</b>, <b>7MA &gt; 25MA &gt; 99MA</b> 정배열인 심볼만 선별한 뒤,<br>
+            그 심볼들 중 15m 직전봉이 <b>몸통보다 아래꼬리가 긴 양봉</b>이고 종가가 7MA 또는 25MA 위에 있는 경우만<br>
+            종가와 가장 가까운 MA(7/25)까지의 거리% 기준으로 오름차순 정렬합니다.
+        </div>
+
+        <div class="controls">
+            <button id="scanBtn">스캔 시작</button>
+            <span class="status-line">
+                <span class="label">상태:</span> <span id="statusText">대기 중</span>
+                &nbsp;|&nbsp;
+                <span class="label">마지막 스캔:</span> <span id="lastScanText">-</span>
+            </span>
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>심볼</th>
+                        <th>4H 종가</th>
+                        <th>4H 7 / 25 / 99</th>
+                        <th>15m O / H / L / C</th>
+                        <th>몸통 / 아래꼬리%</th>
+                        <th>15m 7 / 25</th>
+                        <th>가까운 MA</th>
+                        <th>MA까지 거리%</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                    <tr>
+                        <td colspan="8" style="text-align:center;padding:12px;">
+                            스캔 결과 없음
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-note">
+            ⚠️ 이 스캐너는 조건에 맞는 종목을 <b>찾아주는 도구</b>일 뿐이고,
+            수익·승률을 절대 보장하지 않습니다. 레버리지, 진입/손절 기준은 따로 꼭 정해서 사용하세요.
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ 이 코드는 단순 스캐너일 뿐이며, 실제 매매 리스크는 전부 본인 책임입니다.
+        const API_BASE = "https://fapi.binance.com";
+
+        let usdtPerpSymbols = null;
+        let isScanning = false;
+        let autoScanStarted = false;
+        let autoScanTimer = null;
+
+        const scanBtn = document.getElementById("scanBtn");
+        const statusText = document.getElementById("statusText");
+        const lastScanText = document.getElementById("lastScanText");
+        const resultBody = document.getElementById("resultBody");
+
+        function setStatus(msg) {
+            statusText.textContent = msg;
+        }
+
+        function formatDate(d) {
+            const pad = (n) => String(n).padStart(2, "0");
+            return (
+                d.getFullYear() + "-" +
+                pad(d.getMonth() + 1) + "-" +
+                pad(d.getDate()) + " " +
+                pad(d.getHours()) + ":" +
+                pad(d.getMinutes()) + ":" +
+                pad(d.getSeconds())
+            );
+        }
+
+        function toFixedSafe(num, decimals) {
+            if (num === null || num === undefined || Number.isNaN(num)) return "-";
+            return num.toFixed(decimals);
+        }
+
+        async function loadSymbols() {
+            if (usdtPerpSymbols) return usdtPerpSymbols;
+            setStatus("심볼 목록 로딩 중...");
+            const url = API_BASE + "/fapi/v1/exchangeInfo";
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error("exchangeInfo 에러: " + res.status);
+            }
+            const data = await res.json();
+            usdtPerpSymbols = data.symbols
+                .filter((s) =>
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT" &&
+                    s.status === "TRADING"
+                )
+                .map((s) => s.symbol);
+            return usdtPerpSymbols;
+        }
+
+        async function fetchKlines(symbol, interval, limit) {
+            const url =
+                API_BASE +
+                "/fapi/v1/klines?symbol=" +
+                symbol +
+                "&interval=" +
+                interval +
+                "&limit=" +
+                limit;
+
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(
+                    "klines 에러: " + res.status + " · " + symbol + " · " + interval
+                );
+            }
+            return await res.json();
+        }
+
+        function calcSMA(closes, period, idx) {
+            if (idx + 1 < period) return null;
+            let sum = 0;
+            for (let i = idx - period + 1; i <= idx; i++) {
+                sum += closes[i];
+            }
+            return sum / period;
+        }
+
+        async function promisePool(items, handler, concurrency) {
+            const results = new Array(items.length);
+            let current = 0;
+
+            async function worker() {
+                while (true) {
+                    const idx = current++;
+                    if (idx >= items.length) break;
+                    const item = items[idx];
+                    try {
+                        results[idx] = await handler(item, idx);
+                    } catch (err) {
+                        console.error("handler 에러:", item, err);
+                        results[idx] = null;
+                    }
+                }
+            }
+
+            const workers = [];
+            const poolSize = Math.max(1, concurrency || 5);
+            for (let i = 0; i < poolSize; i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+            return results;
+        }
+
+        // 4H 필터: 종가 > 99MA && 7MA > 25MA > 99MA
+        async function analyze4H(symbol) {
+            const klines = await fetchKlines(symbol, "4h", 120);
+            if (!Array.isArray(klines) || klines.length < 100) return null;
+
+            const closes = klines.map((k) => parseFloat(k[4]));
+            const idx = closes.length - 2; // 직전 4H 봉
+
+            const ma7 = calcSMA(closes, 7, idx);
+            const ma25 = calcSMA(closes, 25, idx);
+            const ma99 = calcSMA(closes, 99, idx);
+            if (ma7 === null || ma25 === null || ma99 === null) return null;
+
+            const close = closes[idx];
+
+            // 4H 조건: 종가 > 99MA, 7 > 25 > 99 (정배열)
+            if (!(close > ma99 && ma7 > ma25 && ma25 > ma99)) {
+                return null;
+            }
+
+            return {
+                symbol,
+                close4h: close,
+                ma7_4h: ma7,
+                ma25_4h: ma25,
+                ma99_4h: ma99
+            };
+        }
+
+        // 15m 필터:
+        // - 직전봉 양봉
+        // - 아래꼬리 > 몸통
+        // - 종가가 7MA 또는 25MA 위
+        // - 종가와 더 가까운 MA(7/25)까지의 거리% 계산
+        async function analyze15m(item) {
+            if (!item) return null;
+            const symbol = item.symbol;
+
+            const klines = await fetchKlines(symbol, "15m", 120);
+            if (!Array.isArray(klines) || klines.length < 30) return null;
+
+            const closes = klines.map((k) => parseFloat(k[4]));
+            const idx = closes.length - 2; // 직전 15m 봉
+            const prev = klines[idx];
+
+            const open = parseFloat(prev[1]);
+            const high = parseFloat(prev[2]);
+            const low = parseFloat(prev[3]);
+            const close = parseFloat(prev[4]);
+
+            const body = close - open;
+            if (body <= 0) {
+                // 양봉 아님
+                return null;
+            }
+
+            const lowerWick = open - low;
+            if (lowerWick <= body) {
+                // 몸통보다 아래꼬리가 길지 않음
+                return null;
+            }
+
+            const range = high - low;
+            const bodyPct = range > 0 ? (body / range) * 100 : 0;
+            const lowerWickPct = range > 0 ? (lowerWick / range) * 100 : 0;
+
+            const ma7 = calcSMA(closes, 7, idx);
+            const ma25 = calcSMA(closes, 25, idx);
+            if (ma7 === null || ma25 === null) return null;
+
+            const above7 = close >= ma7;
+            const above25 = close >= ma25;
+            if (!(above7 || above25)) {
+                // 종가가 7MA 또는 25MA 위가 아님
+                return null;
+            }
+
+            const dist7 = Math.abs(close - ma7) / ma7 * 100;
+            const dist25 = Math.abs(close - ma25) / ma25 * 100;
+
+            let usedMA = null;
+            let distance = null;
+
+            if (above7 && above25) {
+                if (dist7 <= dist25) {
+                    usedMA = "7";
+                    distance = dist7;
+                } else {
+                    usedMA = "25";
+                    distance = dist25;
+                }
+            } else if (above7) {
+                usedMA = "7";
+                distance = dist7;
+            } else {
+                usedMA = "25";
+                distance = dist25;
+            }
+
+            return {
+                ...item,
+                open15: open,
+                high15: high,
+                low15: low,
+                close15: close,
+                body,
+                lowerWick,
+                bodyPct,
+                lowerWickPct,
+                ma7_15: ma7,
+                ma25_15: ma25,
+                distance,
+                usedMA
+            };
+        }
+
+        function renderResults(rows) {
+            resultBody.innerHTML = "";
+            if (!rows || rows.length === 0) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.colSpan = 8;
+                td.style.textAlign = "center";
+                td.style.padding = "12px";
+                td.textContent = "조건에 맞는 심볼이 없습니다.";
+                tr.appendChild(td);
+                resultBody.appendChild(tr);
+                return;
+            }
+
+            rows.forEach((row) => {
+                const tr = document.createElement("tr");
+
+                const tdSymbol = document.createElement("td");
+                tdSymbol.textContent = row.symbol;
+                tr.appendChild(tdSymbol);
+
+                const td4hClose = document.createElement("td");
+                td4hClose.textContent = toFixedSafe(row.close4h, 4);
+                tr.appendChild(td4hClose);
+
+                const td4hMA = document.createElement("td");
+                td4hMA.innerHTML =
+                    toFixedSafe(row.ma7_4h, 4) +
+                    " / " +
+                    toFixedSafe(row.ma25_4h, 4) +
+                    " / " +
+                    toFixedSafe(row.ma99_4h, 4);
+                tr.appendChild(td4hMA);
+
+                const td15ohlc = document.createElement("td");
+                td15ohlc.innerHTML =
+                    toFixedSafe(row.open15, 4) +
+                    " / " +
+                    toFixedSafe(row.high15, 4) +
+                    " / " +
+                    toFixedSafe(row.low15, 4) +
+                    " / " +
+                    toFixedSafe(row.close15, 4);
+                tr.appendChild(td15ohlc);
+
+                const tdBodyWick = document.createElement("td");
+                tdBodyWick.innerHTML =
+                    toFixedSafe(row.bodyPct, 2) +
+                    "% / " +
+                    toFixedSafe(row.lowerWickPct, 2) +
+                    "%";
+                tr.appendChild(tdBodyWick);
+
+                const td15ma = document.createElement("td");
+                td15ma.innerHTML =
+                    toFixedSafe(row.ma7_15, 4) +
+                    " / " +
+                    toFixedSafe(row.ma25_15, 4);
+                tr.appendChild(td15ma);
+
+                const tdUsed = document.createElement("td");
+                const span = document.createElement("span");
+                span.className = "tag green";
+                span.textContent = row.usedMA + "MA";
+                tdUsed.appendChild(span);
+                tr.appendChild(tdUsed);
+
+                const tdDist = document.createElement("td");
+                tdDist.textContent = toFixedSafe(row.distance, 3) + "%";
+                tr.appendChild(tdDist);
+
+                resultBody.appendChild(tr);
+            });
+        }
+
+        // 00 / 15 / 30 / 45 분 자동 스캔 (중복 실행 방지)
+        function scheduleNextAutoScan() {
+            if (!autoScanStarted) return;
+            if (autoScanTimer) {
+                clearTimeout(autoScanTimer);
+                autoScanTimer = null;
+            }
+
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const quarters = [0, 15, 30, 45];
+            let targetMinute = quarters.find((m) => m > minutes);
+            const next = new Date(now);
+
+            if (targetMinute === undefined) {
+                // 다음 시간의 00분
+                next.setHours(now.getHours() + 1, 0, 0, 0);
+            } else {
+                next.setMinutes(targetMinute, 0, 0);
+            }
+
+            const delay = next.getTime() - now.getTime();
+            console.log("다음 자동 스캔 예약:", delay / 1000, "초 후");
+
+            autoScanTimer = setTimeout(async () => {
+                await startScan("auto");
+                scheduleNextAutoScan();
+            }, delay);
+        }
+
+        async function startScan(trigger) {
+            if (isScanning) {
+                console.log("이미 스캔 중이라", trigger, "요청은 무시합니다.");
+                return;
+            }
+            isScanning = true;
+            scanBtn.disabled = true;
+
+            try {
+                const startedAt = new Date();
+                setStatus("심볼 로딩 중...");
+                const symbols = await loadSymbols();
+
+                setStatus("4H 필터링 중... (총 " + symbols.length + "개 심볼)");
+                const fourHResults = await promisePool(symbols, analyze4H, 5);
+                const filtered4H = fourHResults.filter((x) => x !== null);
+
+                setStatus(
+                    "4H 통과 심볼: " +
+                        filtered4H.length +
+                        "개 · 15m 분석 중..."
+                );
+                const fifteenResults = await promisePool(filtered4H, analyze15m, 5);
+                const finalRows = fifteenResults.filter((x) => x !== null);
+
+                finalRows.sort((a, b) => a.distance - b.distance);
+
+                renderResults(finalRows);
+
+                const finishedAt = new Date();
+                lastScanText.textContent = formatDate(finishedAt);
+
+                setStatus(
+                    (trigger === "auto" ? "[자동]" : "[수동]") +
+                        " 스캔 완료 · 결과 " +
+                        finalRows.length +
+                        "개 · " +
+                        ((finishedAt - startedAt) / 1000).toFixed(1) +
+                        "초 소요"
+                );
+
+                if (trigger === "manual" && !autoScanStarted) {
+                    autoScanStarted = true;
+                    scheduleNextAutoScan();
+                }
+            } catch (err) {
+                console.error(err);
+                setStatus("에러: " + err.message);
+            } finally {
+                isScanning = false;
+                scanBtn.disabled = false;
+            }
+        }
+
+        scanBtn.addEventListener("click", () => {
+            startScan("manual");
+        });
+    </script>
+</body>
+</html>
