@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 15m 2→1봉 99MA 근접도 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #151821 0, #050609 55%, #020308 100%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 6px;
+        }
+
+        .desc {
+            margin: 0 0 12px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #1c1e27;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover {
+            background: #252735;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .status {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .meta span.label {
+            color: var(--muted);
+            margin-right: 4px;
+        }
+
+        .table-wrap {
+            margin-top: 8px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--card);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            background: #181924;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        th, td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: center;
+        }
+
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        th {
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        .rank {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .sym {
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .delta-strong {
+            color: var(--good);
+            font-weight: 600;
+        }
+
+        .log {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #0a0b10;
+            border: 1px solid var(--border);
+            font-size: 11px;
+            max-height: 140px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 768px) {
+            .app {
+                padding: 12px;
+            }
+            table {
+                font-size: 11px;
+            }
+            th, td {
+                padding: 4px 6px;
+            }
+            h1 {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <h1>Binance Perp USDT — 15m 2→1봉 99MA 근접도 스캐너</h1>
+        <p class="desc">
+            15분봉 기준으로 <strong>2봉전 종가와 99MA</strong> 사이 거리보다
+            <strong>1봉전 종가와 99MA</strong> 사이 거리가 더 짧아진 USDT 페어들을 찾고,<br>
+            거리 감소폭(2봉전 거리 − 1봉전 거리, % 기준)이 큰 순서대로 정렬합니다.
+        </p>
+
+        <div class="controls">
+            <button id="startScanBtn">스캔 시작 + 자동스캔 On</button>
+            <button id="stopScanBtn">자동스캔 중지</button>
+            <span id="statusText" class="status">심볼 목록 준비 중...</span>
+        </div>
+
+        <div class="meta">
+            <div>
+                <span class="label">심볼 수:</span>
+                <span id="symbolCount">-</span>
+            </div>
+            <div>
+                <span class="label">진행 상황:</span>
+                <span id="progressText">-</span>
+            </div>
+            <div>
+                <span class="label">최근 스캔 시각:</span>
+                <span id="lastScanText">-</span>
+            </div>
+            <div>
+                <span class="label">다음 자동 스캔 예정:</span>
+                <span id="nextScanText">-</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>심볼</th>
+                        <th>2봉전 종가</th>
+                        <th>2봉전 99MA</th>
+                        <th>2봉전 거리(%)</th>
+                        <th>1봉전 종가</th>
+                        <th>1봉전 99MA</th>
+                        <th>1봉전 거리(%)</th>
+                        <th>거리 감소폭(%)</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                </tbody>
+            </table>
+        </div>
+
+        <pre id="logArea" class="log"></pre>
+    </div>
+
+    <script>
+        (function () {
+            const API_BASE = "https://fapi.binance.com";
+
+            let allSymbols = [];
+            let symbolsLoaded = false;
+            let isLoadingSymbols = false;
+            let isScanning = false;
+            let autoEnabled = false;
+            let autoTimer = null;
+
+            const startBtn = document.getElementById("startScanBtn");
+            const stopBtn = document.getElementById("stopScanBtn");
+            const statusText = document.getElementById("statusText");
+            const symbolCountEl = document.getElementById("symbolCount");
+            const progressText = document.getElementById("progressText");
+            const lastScanText = document.getElementById("lastScanText");
+            const nextScanText = document.getElementById("nextScanText");
+            const resultBody = document.getElementById("resultBody");
+            const logArea = document.getElementById("logArea");
+
+            function log(msg) {
+                const now = new Date();
+                const t = now.toTimeString().slice(0, 8);
+                logArea.textContent = `[${t}] ${msg}\n` + logArea.textContent;
+            }
+
+            function formatKoreanTime(date) {
+                if (!date) {
+                    return "-";
+                }
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, "0");
+                const d = String(date.getDate()).padStart(2, "0");
+                const hh = String(date.getHours()).padStart(2, "0");
+                const mm = String(date.getMinutes()).padStart(2, "0");
+                const ss = String(date.getSeconds()).padStart(2, "0");
+                return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+            }
+
+            async function loadSymbols() {
+                if (symbolsLoaded || isLoadingSymbols) {
+                    return;
+                }
+                isLoadingSymbols = true;
+                statusText.textContent = "심볼 목록 불러오는 중...";
+                log("exchangeInfo 로딩 시작");
+
+                try {
+                    const res = await fetch(`${API_BASE}/fapi/v1/exchangeInfo`);
+                    if (!res.ok) {
+                        throw new Error("exchangeInfo 에러: " + res.status);
+                    }
+                    const data = await res.json();
+                    const symbols = data.symbols || [];
+                    allSymbols = symbols
+                        .filter(function (s) {
+                            return s.contractType === "PERPETUAL" &&
+                                s.quoteAsset === "USDT" &&
+                                s.status === "TRADING";
+                        })
+                        .map(function (s) {
+                            return s.symbol;
+                        })
+                        .sort();
+
+                    symbolsLoaded = true;
+                    symbolCountEl.textContent = String(allSymbols.length);
+                    statusText.textContent = "심볼 목록 준비 완료 (" + allSymbols.length + "개)";
+                    log("심볼 " + allSymbols.length + "개 로딩 완료");
+                } catch (err) {
+                    console.error(err);
+                    statusText.textContent = "심볼 목록 로딩 실패 (콘솔 확인)";
+                    log("심볼 목록 로딩 실패: " + err.message);
+                } finally {
+                    isLoadingSymbols = false;
+                }
+            }
+
+            function renderResults(rows) {
+                resultBody.innerHTML = "";
+                if (!rows.length) {
+                    const tr = document.createElement("tr");
+                    const td = document.createElement("td");
+                    td.colSpan = 9;
+                    td.textContent = "조건에 맞는 종목이 없습니다.";
+                    tr.appendChild(td);
+                    resultBody.appendChild(tr);
+                    return;
+                }
+
+                rows.forEach(function (row, idx) {
+                    const tr = document.createElement("tr");
+
+                    function addCell(text, cls) {
+                        const td = document.createElement("td");
+                        td.textContent = text;
+                        if (cls) {
+                            td.className = cls;
+                        }
+                        tr.appendChild(td);
+                    }
+
+                    addCell(String(idx + 1), "rank");
+                    addCell(row.symbol, "sym");
+                    addCell(row.close2.toFixed(4));
+                    addCell(row.ma2.toFixed(4));
+                    addCell(row.dist2Pct.toFixed(4));
+                    addCell(row.close1.toFixed(4));
+                    addCell(row.ma1.toFixed(4));
+                    addCell(row.dist1Pct.toFixed(4));
+                    addCell(row.deltaPct.toFixed(4), "delta-strong");
+
+                    resultBody.appendChild(tr);
+                });
+            }
+
+            // 개별 심볼 스캔: 15m, 100개 캔들로 99MA 계산
+            async function scanSymbol(symbol) {
+                const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`;
+                const res = await fetch(url);
+                if (!res.ok) {
+                    // 레이트리밋 등은 여기서 그냥 무시하고 다음 심볼로
+                    return null;
+                }
+                const data = await res.json();
+                if (!Array.isArray(data) || data.length < 100) {
+                    return null;
+                }
+
+                const closes = data.map(function (k) {
+                    return parseFloat(k[4]);
+                });
+                const n = closes.length;
+
+                // 1봉전 = 최근 종가, 2봉전 = 그 이전 종가
+                const close1 = closes[n - 1];
+                const close2 = closes[n - 2];
+
+                // 99MA (거리 기준은 %)
+                // 1봉전 99MA: 최근 99개 (index 1..99 => slice(n-99))
+                // 2봉전 99MA: 그 바로 이전 99개 (index 0..98 => slice(n-100, n-1))
+                const window1 = closes.slice(n - 99);
+                const window2 = closes.slice(n - 100, n - 1);
+
+                const sum1 = window1.reduce(function (acc, v) {
+                    return acc + v;
+                }, 0);
+                const sum2 = window2.reduce(function (acc, v) {
+                    return acc + v;
+                }, 0);
+
+                const ma1 = sum1 / 99;
+                const ma2 = sum2 / 99;
+
+                const dist1 = Math.abs(close1 - ma1);
+                const dist2 = Math.abs(close2 - ma2);
+
+                // 거리(%) = |종가 - 99MA| / 99MA * 100
+                const dist1Pct = (dist1 / ma1) * 100;
+                const dist2Pct = (dist2 / ma2) * 100;
+
+                // 조건: 1봉전이 2봉전보다 99MA에 더 가까워져야 함 (거리1 < 거리2)
+                if (dist1Pct >= dist2Pct) {
+                    return null;
+                }
+
+                // 거리 감소폭(%) = 2봉전 거리 − 1봉전 거리
+                const deltaPct = dist2Pct - dist1Pct;
+
+                return {
+                    symbol: symbol,
+                    close2: close2,
+                    ma2: ma2,
+                    dist2Pct: dist2Pct,
+                    close1: close1,
+                    ma1: ma1,
+                    dist1Pct: dist1Pct,
+                    deltaPct: deltaPct
+                };
+            }
+
+            async function runScanOnce() {
+                await loadSymbols();
+                if (!symbolsLoaded || !allSymbols.length) {
+                    statusText.textContent = "심볼 목록이 없어 스캔을 진행할 수 없습니다.";
+                    return;
+                }
+                if (isScanning) {
+                    log("이미 스캔 중이어서 이번 요청은 무시합니다.");
+                    return;
+                }
+
+                isScanning = true;
+                statusText.textContent = "스캔 중...";
+                progressText.textContent = "0 / " + allSymbols.length;
+                log("15m 2→1봉 99MA 근접도 스캔 시작");
+
+                const results = [];
+                const total = allSymbols.length;
+                let processed = 0;
+                const maxConcurrent = 3;  // 레이트리밋 고려해서 너무 높게 올리지 않는 게 안전
+                let index = 0;
+
+                async function worker(workerId) {
+                    while (true) {
+                        const currentIndex = index;
+                        if (currentIndex >= total) {
+                            break;
+                        }
+                        index += 1;
+                        const sym = allSymbols[currentIndex];
+
+                        try {
+                            const row = await scanSymbol(sym);
+                            if (row) {
+                                results.push(row);
+                            }
+                        } catch (err) {
+                            console.error("scanSymbol error", sym, err);
+                        } finally {
+                            processed += 1;
+                            progressText.textContent = processed + " / " + total;
+                        }
+                    }
+                }
+
+                const workers = [];
+                for (let i = 0; i < maxConcurrent; i += 1) {
+                    workers.push(worker(i));
+                }
+                await Promise.all(workers);
+
+                results.sort(function (a, b) {
+                    return b.deltaPct - a.deltaPct;
+                });
+                renderResults(results);
+
+                const now = new Date();
+                lastScanText.textContent = formatKoreanTime(now);
+                statusText.textContent = "스캔 완료 (매치 " + results.length + "개)";
+                log("스캔 완료: 조건 매치 " + results.length + "개");
+
+                isScanning = false;
+            }
+
+            function computeNextQuarterHour(from) {
+                const base = from ? new Date(from.getTime()) : new Date();
+                const m = base.getMinutes();
+                const s = base.getSeconds();
+                const ms = base.getMilliseconds();
+                const quarters = [0, 15, 30, 45];
+
+                for (let i = 0; i < quarters.length; i += 1) {
+                    const q = quarters[i];
+                    if (m < q || (m === q && (s > 0 || ms > 0))) {
+                        base.setMinutes(q);
+                        base.setSeconds(0);
+                        base.setMilliseconds(0);
+                        return base;
+                    }
+                }
+
+                // 다음 시각 00분
+                base.setHours(base.getHours() + 1);
+                base.setMinutes(0);
+                base.setSeconds(0);
+                base.setMilliseconds(0);
+                return base;
+            }
+
+            function scheduleNextScan() {
+                if (!autoEnabled) {
+                    nextScanText.textContent = "-";
+                    return;
+                }
+                const now = new Date();
+                const next = computeNextQuarterHour(now);
+                const delay = next.getTime() - now.getTime();
+
+                nextScanText.textContent = formatKoreanTime(next);
+                log("다음 자동 스캔 예약: " + formatKoreanTime(next) +
+                    " (약 " + (delay / 1000).toFixed(0) + "초 후)");
+
+                if (autoTimer) {
+                    clearTimeout(autoTimer);
+                }
+
+                autoTimer = setTimeout(async function () {
+                    if (!autoEnabled) {
+                        return;
+                    }
+                    await runScanOnce();
+                    scheduleNextScan();
+                }, delay);
+            }
+
+            async function startAutoScan() {
+                if (autoEnabled) {
+                    log("이미 자동 스캔이 활성화되어 있습니다.");
+                    return;
+                }
+                autoEnabled = true;
+                log("자동 스캔 시작 (첫 스캔 즉시 실행)");
+                await runScanOnce();
+                scheduleNextScan();
+            }
+
+            function stopAutoScan() {
+                if (!autoEnabled) {
+                    log("자동 스캔이 이미 꺼져 있습니다.");
+                    return;
+                }
+                autoEnabled = false;
+                if (autoTimer) {
+                    clearTimeout(autoTimer);
+                    autoTimer = null;
+                }
+                nextScanText.textContent = "-";
+                statusText.textContent = "자동 스캔 중지됨";
+                log("자동 스캔 중지");
+            }
+
+            startBtn.addEventListener("click", function () {
+                startAutoScan();
+            });
+
+            stopBtn.addEventListener("click", function () {
+                stopAutoScan();
+            });
+
+            // 페이지 로드시 심볼 목록만 미리 로딩
+            loadSymbols();
+        })();
+    </script>
+</body>
+</html>
