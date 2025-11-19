@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 추세 최강 코인 스캐너</title>
+    <title>Binance Perp USDT — 15m 추세 최강 코인 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -221,14 +221,16 @@
 </head>
 <body>
 <div class="page">
-    <h1>Binance Perp USDT — 4H 추세 최강 코인 스캐너</h1>
+    <h1>Binance Perp USDT — 15m 추세 최강 코인 스캐너</h1>
     <div class="sub">
         바이낸스 무기한 선물 USDT 페어 전체를 스캔해서<br>
-        최근 60개 4시간봉 기준으로 상승·하락 추세가 가장 강한 코인 1개를 찾습니다.
+        최근 96개 15분봉(약 24시간) 기준으로 상승·하락 추세가 가장 강한 코인 1개를 찾습니다.<br>
+        롱/숏 시그널 기준: 기울기 방향 + |R| &gt; 0.7 + 전체 수익률 |2%| 이상.
     </div>
 
     <div class="control-row">
-        <button id="scanBtn">스캔 시작</button>
+        <button id="scanBtn">지금 스캔 (1회)</button>
+        <button id="autoBtn">자동 스캔 시작</button>
         <div id="statusPill" class="pill">대기 중</div>
     </div>
 
@@ -236,7 +238,7 @@
 
     <div class="card">
         <div class="card-header">
-            <div class="card-title">가장 강한 추세 코인 (4h, 최근 60캔들)</div>
+            <div class="card-title">가장 강한 추세 코인 (15m, 최근 96캔들)</div>
             <div class="badge">추세점수 = |기울기| × |상관계수|</div>
         </div>
         <div id="bestSymbol" class="best-symbol num-muted">아직 스캔 전입니다.</div>
@@ -249,6 +251,7 @@
             <th>#</th>
             <th>심볼</th>
             <th>방향</th>
+            <th>롱/숏</th>
             <th>추세점수</th>
             <th>전체 수익률%</th>
             <th>마지막 종가</th>
@@ -264,12 +267,15 @@
     const API_BASE = "https://fapi.binance.com";
     const logEl = document.getElementById("log");
     const scanBtn = document.getElementById("scanBtn");
+    const autoBtn = document.getElementById("autoBtn");
     const statusPill = document.getElementById("statusPill");
     const bestSymbolEl = document.getElementById("bestSymbol");
     const bestMetaEl = document.getElementById("bestMeta");
     const resultBody = document.getElementById("resultBody");
 
     let isScanning = false;
+    let isAuto = false;
+    let autoTimeoutId = null;
 
     function addLog(msg) {
         const now = new Date();
@@ -284,6 +290,14 @@
     function setStatus(text, color) {
         statusPill.textContent = text;
         statusPill.style.color = color || "var(--muted)";
+    }
+
+    function updateAutoButton() {
+        if (isAuto) {
+            autoBtn.textContent = "자동 스캔 중지";
+        } else {
+            autoBtn.textContent = "자동 스캔 시작";
+        }
     }
 
     function sleep(ms) {
@@ -309,7 +323,7 @@
     }
 
     async function loadKlines(symbol) {
-        const url = API_BASE + "/fapi/v1/klines?symbol=" + symbol + "&interval=4h&limit=60";
+        const url = API_BASE + "/fapi/v1/klines?symbol=" + symbol + "&interval=15m&limit=96";
         const res = await fetch(url);
         if (!res.ok) {
             throw new Error("klines 에러 " + symbol + ": " + res.status + " " + res.statusText);
@@ -352,7 +366,7 @@
         }
 
         const slope = num / denomX; // 로그 가격 기울기 (캔들당)
-        const corr = num / Math.sqrt(denomX * denomY); // 상관계수 -1 ~ 1 사이
+        const corr = num / Math.sqrt(denomX * denomY); // 상관계수 -1 ~ 1
         const trendScore = Math.abs(slope) * Math.abs(corr);
 
         const first = closes[0];
@@ -361,13 +375,22 @@
 
         const dir = slope > 0 ? "UP" : "DOWN";
 
+        // 롱/숏 시그널 기준
+        let signal = "NONE";
+        if (dir === "UP" && corr > 0.7 && changePct > 2) {
+            signal = "LONG";
+        } else if (dir === "DOWN" && corr < -0.7 && changePct < -2) {
+            signal = "SHORT";
+        }
+
         return {
             slope,
             corr,
             trendScore,
             changePct,
             lastClose: last,
-            dir
+            dir,
+            signal
         };
     }
 
@@ -387,14 +410,24 @@
             return;
         }
 
-        // 추세점수 내림차순 정렬
-        results.sort((a, b) => b.trendScore - a.trendScore);
+        // 전체 결과 추세점수 내림차순 정렬
+        const sortedAll = [...results].sort((a, b) => b.trendScore - a.trendScore);
+        const signalResults = sortedAll.filter(r => r.signal === "LONG" || r.signal === "SHORT");
+        const best = signalResults.length > 0 ? signalResults[0] : sortedAll[0];
 
-        const best = results[0];
         const dirText = best.dir === "UP" ? "상승 추세" : "하락 추세";
         const dirClass = best.dir === "UP" ? "trend-up" : "trend-down";
 
-        bestSymbolEl.textContent = `${best.symbol} (${dirText})`;
+        let sideText;
+        if (best.signal === "LONG") {
+            sideText = "LONG (롱)";
+        } else if (best.signal === "SHORT") {
+            sideText = "SHORT (숏)";
+        } else {
+            sideText = "시그널 없음";
+        }
+
+        bestSymbolEl.textContent = `${best.symbol} — ${sideText}, ${dirText}`;
         bestSymbolEl.className = "best-symbol " + dirClass;
 
         bestMetaEl.style.display = "flex";
@@ -405,19 +438,30 @@
             <span>상관계수 R: ${formatNumber(best.corr, 3)}</span>
         `;
 
-        const maxRows = Math.min(results.length, 80);
+        const maxRows = Math.min(sortedAll.length, 80);
         for (let i = 0; i < maxRows; i++) {
-            const r = results[i];
+            const r = sortedAll[i];
             const tr = document.createElement("tr");
 
             const isUp = r.dir === "UP";
             const dirLabel = isUp ? "상승" : "하락";
             const dirClassCell = isUp ? "num-up" : "num-down";
 
+            let signalLabel = "-";
+            let signalClass = "num-muted";
+            if (r.signal === "LONG") {
+                signalLabel = "롱";
+                signalClass = "num-up";
+            } else if (r.signal === "SHORT") {
+                signalLabel = "숏";
+                signalClass = "num-down";
+            }
+
             tr.innerHTML = `
                 <td class="rank">${i + 1}</td>
                 <td>${r.symbol}</td>
                 <td class="${dirClassCell}">${dirLabel}</td>
+                <td class="${signalClass}">${signalLabel}</td>
                 <td>${formatNumber(r.trendScore, 6)}</td>
                 <td class="${r.changePct >= 0 ? "num-up" : "num-down"}">${formatNumber(r.changePct, 2)}%</td>
                 <td>${formatNumber(r.lastClose, 4)}</td>
@@ -427,12 +471,23 @@
         }
     }
 
-    async function scanOnce() {
-        if (isScanning) return;
+    async function scanOnce(mode = "manual") {
+        if (isScanning) {
+            addLog("이미 스캔 중이어서 요청이 무시되었습니다.");
+            return;
+        }
         isScanning = true;
         scanBtn.disabled = true;
-        setStatus("스캔 중...", "var(--accent)");
-        addLog("========== 스캔 시작 ==========");
+        autoBtn.disabled = true;
+
+        const isAutoMode = mode === "auto";
+        setStatus(isAutoMode ? "자동 스캔 중..." : "수동 스캔 중...", "var(--accent)");
+        addLog(`========== ${isAutoMode ? "자동" : "수동"} 스캔 시작 ==========`);
+
+        // 롱/숏 조건 설명 한 번 더 로그로 남김
+        if (!isAutoMode) {
+            addLog("롱 조건: slope > 0, R > 0.7, 수익률 > 2% / 숏 조건: slope < 0, R < -0.7, 수익률 < -2%");
+        }
 
         try {
             const symbols = await loadSymbols();
@@ -453,7 +508,6 @@
                             ...trend
                         };
                     } catch (e) {
-                        // 레이트리밋 / 기타 에러는 로그만 남기고 넘어감
                         addLog(`에러: ${symbol} → ${e.message}`);
                         return null;
                     }
@@ -472,7 +526,7 @@
 
             addLog(`스캔 완료. 유효 데이터 심볼: ${allResults.length}개.`);
             renderResults(allResults);
-            setStatus("스캔 완료", "var(--good)");
+            setStatus(isAutoMode ? "자동 대기 중" : "대기 중", isAutoMode ? "var(--accent)" : "var(--muted)");
         } catch (e) {
             addLog("치명적 에러: " + e.message);
             setStatus("에러 발생", "var(--bad)");
@@ -483,11 +537,95 @@
         } finally {
             isScanning = false;
             scanBtn.disabled = false;
+            autoBtn.disabled = false;
             addLog("========== 스캔 종료 ==========\n");
         }
     }
 
-    scanBtn.addEventListener("click", scanOnce);
+    function scheduleNextAutoScan() {
+        if (!isAuto) return;
+
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+            autoTimeoutId = null;
+        }
+
+        const now = new Date();
+        const currentMinutes = now.getMinutes();
+        const currentMs = now.getSeconds() * 1000 + now.getMilliseconds();
+
+        // 다음 00/15/30/45분 계산
+        const quarter = Math.floor(currentMinutes / 15);
+        let nextQuarter = (quarter + 1) * 15;
+        const next = new Date(now.getTime());
+
+        if (nextQuarter >= 60) {
+            next.setHours(now.getHours() + 1);
+            next.setMinutes(0, 0, 0);
+        } else {
+            next.setMinutes(nextQuarter, 0, 0);
+        }
+
+        const delay = next.getTime() - now.getTime();
+        const hh = String(next.getHours()).padStart(2, "0");
+        const mm = String(next.getMinutes()).padStart(2, "0");
+        addLog(`다음 자동 스캔 예약: ${hh}:${mm} (약 ${(delay / 1000).toFixed(0)}초 후)`);
+
+        autoTimeoutId = setTimeout(autoScanTick, delay);
+    }
+
+    async function autoScanTick() {
+        if (!isAuto) return;
+
+        if (isScanning) {
+            addLog("자동 스캔 시점이지만 이전 스캔이 아직 진행 중 → 이번 라운드는 건너뜀.");
+        } else {
+            addLog("자동 스캔 실행 (매시 00/15/30/45분).");
+            await scanOnce("auto");
+        }
+
+        if (isAuto) {
+            scheduleNextAutoScan();
+        }
+    }
+
+    function startAutoScan() {
+        if (isAuto) return;
+        isAuto = true;
+        updateAutoButton();
+        addLog("자동 스캔 시작: 매시 00/15/30/45분에 실행.");
+        setStatus("자동 대기 중", "var(--accent)");
+        scheduleNextAutoScan();
+    }
+
+    function stopAutoScan() {
+        if (!isAuto) return;
+        isAuto = false;
+        updateAutoButton();
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+            autoTimeoutId = null;
+        }
+        addLog("자동 스캔 중지.");
+        if (!isScanning) {
+            setStatus("대기 중", "var(--muted)");
+        }
+    }
+
+    scanBtn.addEventListener("click", () => {
+        scanOnce("manual");
+    });
+
+    autoBtn.addEventListener("click", () => {
+        if (isAuto) {
+            stopAutoScan();
+        } else {
+            startAutoScan();
+        }
+    });
+
+    // 초기 상태 버튼 텍스트 설정
+    updateAutoButton();
 </script>
 </body>
 </html>
