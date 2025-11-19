@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H 추세 + 15m 눌림/반등 신호 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #151821 0, #050609 55%, #020308 100%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        }
+
+        .app {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-sub {
+            font-size: 12px;
+            color: var(--muted);
+            max-width: 480px;
+            line-height: 1.5;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: rgba(18, 19, 26, 0.9);
+            border: 1px solid var(--border);
+            margin-bottom: 16px;
+        }
+
+        .controls-left {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        button {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 500;
+            background: var(--accent);
+            color: #000;
+            transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.1s ease;
+            box-shadow: 0 0 0 1px rgba(62, 166, 255, 0.2),
+                        0 8px 18px rgba(0, 0, 0, 0.8);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 0 1px rgba(62, 166, 255, 0.3),
+                        0 10px 24px rgba(0, 0, 0, 0.9);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 0 0 1px rgba(62, 166, 255, 0.4),
+                        0 4px 12px rgba(0, 0, 0, 0.8);
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .checkbox-row input {
+            width: 14px;
+            height: 14px;
+        }
+
+        .status-text {
+            font-size: 12px;
+            color: var(--muted);
+            margin-left: auto;
+            min-height: 16px;
+        }
+
+        .top-pick {
+            margin-bottom: 16px;
+        }
+
+        .placeholder {
+            padding: 24px 16px;
+            border-radius: 12px;
+            background: rgba(18, 19, 26, 0.7);
+            border: 1px dashed var(--border);
+            font-size: 13px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .top-card {
+            border-radius: 14px;
+            padding: 14px 16px 12px;
+            background: linear-gradient(
+                135deg,
+                rgba(62, 166, 255, 0.16),
+                rgba(18, 19, 26, 0.98)
+            );
+            border: 1px solid rgba(62, 166, 255, 0.6);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+        }
+
+        .top-card.side-long {
+            border-color: rgba(0, 200, 83, 0.6);
+            background: linear-gradient(
+                135deg,
+                rgba(0, 200, 83, 0.16),
+                rgba(18, 19, 26, 0.98)
+            );
+        }
+
+        .top-card.side-short {
+            border-color: rgba(255, 82, 82, 0.6);
+            background: linear-gradient(
+                135deg,
+                rgba(255, 82, 82, 0.16),
+                rgba(18, 19, 26, 0.98)
+            );
+        }
+
+        .top-main {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .top-main .symbol {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .top-main .side-label {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .top-main .side-label.long {
+            color: var(--good);
+            border: 1px solid rgba(0, 200, 83, 0.6);
+        }
+
+        .top-main .side-label.short {
+            color: var(--bad);
+            border: 1px solid rgba(255, 82, 82, 0.6);
+        }
+
+        .top-main .price {
+            font-size: 13px;
+            color: var(--muted);
+            margin-left: auto;
+        }
+
+        .top-main .price strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .top-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 6px 12px;
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+
+        .top-meta div {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .top-meta span {
+            color: var(--muted);
+        }
+
+        .top-meta strong {
+            font-weight: 500;
+        }
+
+        .top-note {
+            font-size: 11px;
+            color: var(--muted);
+            margin: 4px 0 0;
+            line-height: 1.4;
+        }
+
+        .list-section {
+            border-radius: 12px;
+            background: rgba(18, 19, 26, 0.9);
+            border: 1px solid var(--border);
+            padding: 10px 12px 12px;
+        }
+
+        .list-section h2 {
+            font-size: 13px;
+            margin: 0 0 8px;
+            color: var(--muted);
+        }
+
+        .table-wrap {
+            max-height: 420px;
+            overflow: auto;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            background: var(--card);
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #181924;
+            z-index: 1;
+        }
+
+        th, td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        th {
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        tr.is-top {
+            background: rgba(62, 166, 255, 0.10);
+        }
+
+        .side-cell {
+            font-weight: 600;
+        }
+
+        .side-cell.long {
+            color: var(--good);
+        }
+
+        .side-cell.short {
+            color: var(--bad);
+        }
+
+        @media (max-width: 720px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .status-text {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div>
+                <div class="header-title">Binance Perp USDT — 4H 추세 + 15m 눌림/반등 스캐너</div>
+                <div class="header-sub">
+                    4시간봉 EMA(34/89)로 큰 추세를 보고, 15분봉에서 추세 방향으로 나오는
+                    긴 꼬리 + EMA20 근처 눌림/반등 패턴만 골라서 후보를 만든 뒤,
+                    점수화해서 상위 1개 심볼만 강조해서 보여준다.
+                </div>
+            </div>
+        </header>
+
+        <section class="controls">
+            <div class="controls-left">
+                <button id="scan-now">지금 스캔</button>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="auto-scan-toggle">
+                    <span>매시 00 / 15 / 30 / 45 자동 스캔</span>
+                </label>
+            </div>
+            <div id="status-text" class="status-text">초기화 중...</div>
+        </section>
+
+        <section class="top-pick" id="top-pick">
+            <div class="placeholder">
+                아직 스캔 결과가 없습니다. 상단의 <strong>지금 스캔</strong> 버튼을 눌러 주세요.
+            </div>
+        </section>
+
+        <section class="list-section">
+            <h2>후보 리스트 (점수 상위 일부만 표시, 1번 행이 가장 높은 점수)</h2>
+            <div class="table-wrap">
+                <table id="candidate-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>심볼</th>
+                            <th>방향</th>
+                            <th>15m 종가</th>
+                            <th>RSI(14)</th>
+                            <th>꼬리 비율</th>
+                            <th>24h 거래대금(USDT)</th>
+                            <th>점수(상대값)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 동적으로 채워짐 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            "use strict";
+
+            const API_BASE = "https://fapi.binance.com";
+
+            const state = {
+                symbols: [],
+                ticker24hMap: {},
+                initialized: false,
+                initializing: false,
+                isScanning: false,
+                autoScanTimer: null,
+                lastAutoSlotKey: null
+            };
+
+            function $(id) {
+                return document.getElementById(id);
+            }
+
+            function setStatus(text) {
+                const el = $("status-text");
+                if (el) {
+                    el.textContent = text;
+                }
+            }
+
+            function sleep(ms) {
+                return new Promise(function (resolve) {
+                    setTimeout(resolve, ms);
+                });
+            }
+
+            async function fetchJSON(url) {
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error("HTTP " + res.status + " " + res.statusText + " - " + text);
+                }
+                return res.json();
+            }
+
+            async function initSymbols() {
+                if (state.initialized || state.initializing) {
+                    return;
+                }
+                state.initializing = true;
+                setStatus("심볼 / 24h 티커 정보를 불러오는 중...");
+
+                try {
+                    const [info, tickers] = await Promise.all([
+                        fetchJSON(API_BASE + "/fapi/v1/exchangeInfo"),
+                        fetchJSON(API_BASE + "/fapi/v1/ticker/24hr")
+                    ]);
+
+                    const perpetualSymbols = info.symbols
+                        .filter(function (s) {
+                            return s.contractType === "PERPETUAL" &&
+                                   s.quoteAsset === "USDT" &&
+                                   s.status === "TRADING";
+                        })
+                        .map(function (s) { return s.symbol; });
+
+                    const symbolSet = new Set(perpetualSymbols);
+                    const tickerMap = {};
+                    tickers.forEach(function (t) {
+                        if (symbolSet.has(t.symbol)) {
+                            tickerMap[t.symbol] = t;
+                        }
+                    });
+
+                    state.symbols = perpetualSymbols;
+                    state.ticker24hMap = tickerMap;
+                    state.initialized = true;
+
+                    setStatus("USDT 무기한 심볼 " + perpetualSymbols.length + "개 로딩 완료.");
+                } catch (e) {
+                    console.error(e);
+                    setStatus("심볼 / 티커 로딩 실패. 콘솔을 확인해 주세요.");
+                } finally {
+                    state.initializing = false;
+                }
+            }
+
+            async function fetchKlines(symbol, interval, limit) {
+                const url = API_BASE +
+                    "/fapi/v1/klines?symbol=" + symbol +
+                    "&interval=" + interval +
+                    "&limit=" + limit;
+                return fetchJSON(url);
+            }
+
+            function calcEMA(values, period) {
+                if (!values || values.length === 0) {
+                    return NaN;
+                }
+                const k = 2 / (period + 1);
+                let ema = values[0];
+                for (let i = 1; i < values.length; i++) {
+                    ema = values[i] * k + ema * (1 - k);
+                }
+                return ema;
+            }
+
+            function calcRSI(values, period) {
+                if (!values || values.length <= period) {
+                    return NaN;
+                }
+                let gains = 0;
+                let losses = 0;
+                for (let i = 1; i <= period; i++) {
+                    const diff = values[i] - values[i - 1];
+                    if (diff >= 0) {
+                        gains += diff;
+                    } else {
+                        losses -= diff;
+                    }
+                }
+                let avgGain = gains / period;
+                let avgLoss = losses / period;
+
+                for (let i = period + 1; i < values.length; i++) {
+                    const diff = values[i] - values[i - 1];
+                    let gain = 0;
+                    let loss = 0;
+                    if (diff >= 0) {
+                        gain = diff;
+                    } else {
+                        loss = -diff;
+                    }
+                    avgGain = (avgGain * (period - 1) + gain) / period;
+                    avgLoss = (avgLoss * (period - 1) + loss) / period;
+                }
+
+                if (avgLoss === 0) {
+                    return 100;
+                }
+                const rs = avgGain / avgLoss;
+                const rsi = 100 - (100 / (1 + rs));
+                return rsi;
+            }
+
+            function formatNumber(value, decimals) {
+                if (value === null || value === undefined || !isFinite(value)) {
+                    return "-";
+                }
+                return Number(value).toLocaleString("en-US", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: decimals
+                });
+            }
+
+            function formatPercent(value, decimals) {
+                if (!isFinite(value)) {
+                    return "-";
+                }
+                return value.toFixed(decimals) + "%";
+            }
+
+            function formatDateTime(ms) {
+                if (!ms && ms !== 0) {
+                    return "-";
+                }
+                const d = new Date(ms);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const day = String(d.getDate()).padStart(2, "0");
+                const hh = String(d.getHours()).padStart(2, "0");
+                const mm = String(d.getMinutes()).padStart(2, "0");
+                return y + "-" + m + "-" + day + " " + hh + ":" + mm;
+            }
+
+            async function buildCandidate(symbol) {
+                const ticker = state.ticker24hMap[symbol];
+                if (!ticker) {
+                    return null;
+                }
+
+                const [kl4h, kl15m] = await Promise.all([
+                    fetchKlines(symbol, "4h", 120),
+                    fetchKlines(symbol, "15m", 120)
+                ]);
+
+                if (!Array.isArray(kl4h) || kl4h.length < 90 ||
+                    !Array.isArray(kl15m) || kl15m.length < 50) {
+                    return null;
+                }
+
+                const closes4h = kl4h.map(function (k) {
+                    return parseFloat(k[4]);
+                });
+
+                const last4hIndex = kl4h.length - 2;
+                if (last4hIndex < 0) {
+                    return null;
+                }
+                const last4hClose = parseFloat(kl4h[last4hIndex][4]);
+
+                const closes4hTail = closes4h.slice(-90);
+                const emaFast4h = calcEMA(closes4hTail, 34);
+                const emaSlow4h = calcEMA(closes4hTail, 89);
+
+                let trendSide = null;
+                const ratio = emaFast4h / emaSlow4h;
+
+                if (last4hClose > emaFast4h &&
+                    emaFast4h > emaSlow4h &&
+                    ratio > 1.01) {
+                    trendSide = "LONG";
+                } else if (last4hClose < emaFast4h &&
+                           emaFast4h < emaSlow4h &&
+                           ratio < 0.99) {
+                    trendSide = "SHORT";
+                } else {
+                    return null;
+                }
+
+                const last15mIndex = kl15m.length - 2;
+                if (last15mIndex <= 0) {
+                    return null;
+                }
+
+                const c = kl15m[last15mIndex];
+                const open = parseFloat(c[1]);
+                const high = parseFloat(c[2]);
+                const low = parseFloat(c[3]);
+                const close = parseFloat(c[4]);
+                const closeTime = c[6];
+
+                const range = high - low;
+                if (range <= 0 || !isFinite(range)) {
+                    return null;
+                }
+
+                const upperBody = Math.max(open, close);
+                const lowerBody = Math.min(open, close);
+                const upperWick = high - upperBody;
+                const lowerWick = lowerBody - low;
+                const upperWickPct = upperWick / range;
+                const lowerWickPct = lowerWick / range;
+
+                const closes15m = kl15m
+                    .slice(0, last15mIndex + 1)
+                    .map(function (k) { return parseFloat(k[4]); });
+
+                const closes15mTail = closes15m.slice(-60);
+                const ema20_15m = calcEMA(closes15mTail, 20);
+                const ema50_15m = calcEMA(closes15mTail, 50);
+                const rsi = calcRSI(closes15m, 14);
+
+                if (!isFinite(ema20_15m) || !isFinite(ema50_15m) || !isFinite(rsi)) {
+                    return null;
+                }
+
+                const emaProximity = 1 - Math.abs(close - ema20_15m) / close;
+
+                let isSetup = false;
+                let side = null;
+
+                if (trendSide === "LONG") {
+                    if (close > open &&
+                        lowerWickPct >= 0.40 &&
+                        emaProximity > 0.995 &&
+                        rsi >= 35 && rsi <= 60 &&
+                        close > ema50_15m) {
+                        isSetup = true;
+                        side = "LONG";
+                    }
+                } else if (trendSide === "SHORT") {
+                    if (close < open &&
+                        upperWickPct >= 0.40 &&
+                        emaProximity > 0.995 &&
+                        rsi >= 40 && rsi <= 65 &&
+                        close < ema50_15m) {
+                        isSetup = true;
+                        side = "SHORT";
+                    }
+                }
+
+                if (!isSetup || !side) {
+                    return null;
+                }
+
+                const quoteVolume = parseFloat(ticker.quoteVolume || "0");
+                const vol = Math.max(quoteVolume, 1);
+                const volumeScore = Math.log(vol) / Math.LN10;
+
+                const wickScore = side === "LONG" ? lowerWickPct : upperWickPct;
+                const rsiScore = 1 - Math.min(Math.abs(rsi - 50), 50) / 50;
+                const emaScore = Math.max(emaProximity, 0);
+
+                const score =
+                    volumeScore * 0.4 +
+                    emaScore * 100 * 0.3 +
+                    wickScore * 0.2 +
+                    rsiScore * 0.1;
+
+                return {
+                    symbol: symbol,
+                    side: side,
+                    score: score,
+                    rsi: rsi,
+                    lowerWickPct: lowerWickPct,
+                    upperWickPct: upperWickPct,
+                    ema20_15m: ema20_15m,
+                    ema50_15m: ema50_15m,
+                    close: close,
+                    quoteVolume: quoteVolume,
+                    trendSide: trendSide,
+                    emaFast4h: emaFast4h,
+                    emaSlow4h: emaSlow4h,
+                    last4hClose: last4hClose,
+                    closeTime: closeTime
+                };
+            }
+
+            function renderTopPick(candidate) {
+                const container = $("top-pick");
+                if (!container) {
+                    return;
+                }
+
+                if (!candidate) {
+                    container.innerHTML =
+                        '<div class="placeholder">조건을 만족하는 심볼이 없습니다. ' +
+                        '조건을 완화하거나 룰을 수정해서 백테스트해 보는 것도 좋습니다.</div>';
+                    return;
+                }
+
+                const sideClass = candidate.side === "LONG" ? "side-long" : "side-short";
+                const sideText = candidate.side === "LONG" ? "롱 후보" : "숏 후보";
+                const tailPct = candidate.side === "LONG"
+                    ? candidate.lowerWickPct * 100
+                    : candidate.upperWickPct * 100;
+
+                const html =
+                    '<div class="top-card ' + (candidate.side === "LONG" ? "side-long" : "side-short") + '">' +
+                        '<div class="top-main">' +
+                            '<div class="symbol">' + candidate.symbol + '</div>' +
+                            '<div class="side-label ' + (candidate.side === "LONG" ? "long" : "short") + '">' +
+                                sideText +
+                            '</div>' +
+                            '<div class="price">15m 종가: <strong>' +
+                                formatNumber(candidate.close, 4) +
+                            '</strong></div>' +
+                        '</div>' +
+                        '<div class="top-meta">' +
+                            '<div><span>4H 추세</span><strong>' +
+                                (candidate.trendSide === "LONG" ? "상승(롱 우세)" : "하락(숏 우세)") +
+                            '</strong></div>' +
+                            '<div><span>4H EMA 34 / 89</span><strong>' +
+                                formatNumber(candidate.emaFast4h, 4) +
+                                " / " +
+                                formatNumber(candidate.emaSlow4h, 4) +
+                            '</strong></div>' +
+                            '<div><span>15m EMA 20 / 50</span><strong>' +
+                                formatNumber(candidate.ema20_15m, 4) +
+                                " / " +
+                                formatNumber(candidate.ema50_15m, 4) +
+                            '</strong></div>' +
+                            '<div><span>RSI(14)</span><strong>' +
+                                formatNumber(candidate.rsi, 1) +
+                            '</strong></div>' +
+                            '<div><span>' +
+                                (candidate.side === "LONG" ? "아랫꼬리 비율" : "윗꼬리 비율") +
+                            '</span><strong>' +
+                                formatPercent(tailPct, 1) +
+                            '</strong></div>' +
+                            '<div><span>24h 거래대금(USDT)</span><strong>' +
+                                formatNumber(candidate.quoteVolume, 0) +
+                            '</strong></div>' +
+                            '<div><span>신호 봉 마감 시간</span><strong>' +
+                                formatDateTime(candidate.closeTime) +
+                            '</strong></div>' +
+                            '<div><span>스코어 (상대값)</span><strong>' +
+                                formatNumber(candidate.score, 3) +
+                            '</strong></div>' +
+                        '</div>' +
+                        '<p class="top-note">' +
+                            '※ 이 신호는 과거 가격 데이터로 만든 단순 기술적 패턴 후보일 뿐이며, ' +
+                            '실제 수익을 보장하지 않습니다. 진입 전 반드시 직접 차트를 확인하고, ' +
+                            '레버리지 · 포지션 크기 · 손절 라인은 스스로 정해서 사용하세요.' +
+                        '</p>' +
+                    '</div>';
+
+                container.innerHTML = html;
+            }
+
+            function renderCandidateTable(list) {
+                const table = $("candidate-table");
+                if (!table) {
+                    return;
+                }
+                const tbody = table.querySelector("tbody");
+                if (!tbody) {
+                    return;
+                }
+
+                if (!list || list.length === 0) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="8" style="text-align:center; color: var(--muted); padding: 10px 0;">' +
+                        '표시할 후보가 없습니다.' +
+                        '</td></tr>';
+                    return;
+                }
+
+                const rows = list.map(function (c, idx) {
+                    const tailPct = c.side === "LONG"
+                        ? c.lowerWickPct * 100
+                        : c.upperWickPct * 100;
+
+                    return '' +
+                        '<tr class="' + (idx === 0 ? "is-top" : "") + '">' +
+                            '<td>' + (idx + 1) + '</td>' +
+                            '<td>' + c.symbol + '</td>' +
+                            '<td class="side-cell ' + (c.side === "LONG" ? "long" : "short") + '">' +
+                                c.side +
+                            '</td>' +
+                            '<td>' + formatNumber(c.close, 4) + '</td>' +
+                            '<td>' + formatNumber(c.rsi, 1) + '</td>' +
+                            '<td>' + formatPercent(tailPct, 1) + '</td>' +
+                            '<td>' + formatNumber(c.quoteVolume, 0) + '</td>' +
+                            '<td>' + formatNumber(c.score, 3) + '</td>' +
+                        '</tr>';
+                });
+
+                tbody.innerHTML = rows.join("");
+            }
+
+            async function runScan(isManual) {
+                if (state.isScanning) {
+                    setStatus("이미 스캔 중입니다. 잠깐만 끝날 때까지 기다려 주세요.");
+                    return;
+                }
+
+                try {
+                    if (!state.initialized) {
+                        await initSymbols();
+                    }
+                    if (!state.symbols || state.symbols.length === 0) {
+                        setStatus("USDT 무기한 심볼이 없습니다. Binance API 상태를 확인해 보세요.");
+                        return;
+                    }
+
+                    state.isScanning = true;
+                    const startedAt = Date.now();
+
+                    const symbols = state.symbols.slice();
+                    const total = symbols.length;
+                    const batchSize = 5;   // 동시에 처리할 심볼 수
+                    const delayMs = 200;   // 배치 사이 딜레이
+
+                    const candidates = [];
+                    let processed = 0;
+
+                    for (let i = 0; i < symbols.length; i += batchSize) {
+                        const batch = symbols.slice(i, i + batchSize);
+                        const results = await Promise.all(batch.map(async function (sym) {
+                            try {
+                                return await buildCandidate(sym);
+                            } catch (e) {
+                                console.warn("symbol error:", sym, e.message || e);
+                                return null;
+                            } finally {
+                                processed++;
+                            }
+                        }));
+
+                        results.forEach(function (c) {
+                            if (c) {
+                                candidates.push(c);
+                            }
+                        });
+
+                        setStatus(
+                            "스캔 중... " + processed + " / " + total +
+                            " (조건 만족 후보: " + candidates.length + "개)"
+                        );
+
+                        if (i + batchSize < symbols.length) {
+                            await sleep(delayMs);
+                        }
+                    }
+
+                    candidates.sort(function (a, b) {
+                        return b.score - a.score;
+                    });
+
+                    const durationSec = (Date.now() - startedAt) / 1000;
+
+                    if (candidates.length === 0) {
+                        setStatus(
+                            "스캔 완료 (" + durationSec.toFixed(1) + "s) — 조건을 만족하는 후보가 없습니다."
+                        );
+                        renderTopPick(null);
+                        renderCandidateTable([]);
+                    } else {
+                        const top = candidates[0];
+                        const shown = Math.min(candidates.length, 30);
+
+                        setStatus(
+                            "스캔 완료 (" + durationSec.toFixed(1) + "s) — 후보 " +
+                            candidates.length + "개 중 상위 " + shown + "개 표시 (1위 카드 강조)"
+                        );
+
+                        renderTopPick(top);
+                        renderCandidateTable(candidates.slice(0, shown));
+                    }
+                } catch (e) {
+                    console.error(e);
+                    setStatus("스캔 중 오류가 발생했습니다. 콘솔을 확인해 주세요.");
+                } finally {
+                    state.isScanning = false;
+                }
+            }
+
+            function startAutoScan() {
+                if (state.autoScanTimer) {
+                    clearInterval(state.autoScanTimer);
+                }
+
+                state.autoScanTimer = setInterval(function () {
+                    if (state.isScanning) {
+                        return;
+                    }
+                    const now = new Date();
+                    const m = now.getMinutes();
+                    const s = now.getSeconds();
+
+                    const validMinutes = [0, 15, 30, 45];
+                    if (validMinutes.indexOf(m) === -1) {
+                        return;
+                    }
+                    if (s > 15) {
+                        return;
+                    }
+
+                    const key =
+                        now.getFullYear() + "-" +
+                        (now.getMonth() + 1) + "-" +
+                        now.getDate() + " " +
+                        now.getHours() + ":" + m;
+
+                    if (state.lastAutoSlotKey === key) {
+                        return;
+                    }
+                    state.lastAutoSlotKey = key;
+
+                    runScan(false);
+                }, 5000);
+            }
+
+            function stopAutoScan() {
+                if (state.autoScanTimer) {
+                    clearInterval(state.autoScanTimer);
+                    state.autoScanTimer = null;
+                }
+            }
+
+            function initApp() {
+                const btnScan = $("scan-now");
+                const autoToggle = $("auto-scan-toggle");
+
+                if (btnScan) {
+                    btnScan.addEventListener("click", function () {
+                        runScan(true);
+                    });
+                }
+
+                if (autoToggle) {
+                    autoToggle.addEventListener("change", function () {
+                        if (autoToggle.checked) {
+                            startAutoScan();
+                            setStatus("자동 스캔 ON — 매시 00 / 15 / 30 / 45 분 근처에서 자동 스캔.");
+                        } else {
+                            stopAutoScan();
+                            setStatus("자동 스캔 OFF.");
+                        }
+                    });
+                }
+
+                setStatus("심볼 정보를 초기화하는 중입니다...");
+                initSymbols();
+            }
+
+            window.addEventListener("load", initApp);
+        })();
+    </script>
+</body>
+</html>
