@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H 추세 최강 코인 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #181a25 0, #05060a 55%, #020308 100%);
+            color: var(--text);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 8px;
+        }
+
+        .sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--accent);
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--muted);
+        }
+
+        .log {
+            font-size: 11px;
+            color: var(--muted);
+            max-height: 80px;
+            overflow-y: auto;
+            padding: 8px 10px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            margin-bottom: 12px;
+            white-space: pre-line;
+        }
+
+        .card {
+            background: radial-gradient(circle at top left, #20263a 0, #11131b 38%, #080910 100%);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.4);
+            color: var(--muted);
+        }
+
+        .best-symbol {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .trend-up {
+            color: var(--good);
+        }
+
+        .trend-down {
+            color: var(--bad);
+        }
+
+        .best-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .best-meta span {
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        thead {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        th, td {
+            padding: 6px 8px;
+            text-align: right;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        tbody tr:first-child {
+            border-top: 1px solid var(--border);
+        }
+
+        .rank {
+            opacity: 0.7;
+        }
+
+        .num-up {
+            color: var(--good);
+        }
+
+        .num-down {
+            color: var(--bad);
+        }
+
+        .num-muted {
+            color: var(--muted);
+        }
+
+        @media (max-width: 768px) {
+            .page {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 17px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <h1>Binance Perp USDT — 4H 추세 최강 코인 스캐너</h1>
+    <div class="sub">
+        바이낸스 무기한 선물 USDT 페어 전체를 스캔해서<br>
+        최근 60개 4시간봉 기준으로 상승·하락 추세가 가장 강한 코인 1개를 찾습니다.
+    </div>
+
+    <div class="control-row">
+        <button id="scanBtn">스캔 시작</button>
+        <div id="statusPill" class="pill">대기 중</div>
+    </div>
+
+    <div id="log" class="log"></div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">가장 강한 추세 코인 (4h, 최근 60캔들)</div>
+            <div class="badge">추세점수 = |기울기| × |상관계수|</div>
+        </div>
+        <div id="bestSymbol" class="best-symbol num-muted">아직 스캔 전입니다.</div>
+        <div id="bestMeta" class="best-meta" style="display:none;"></div>
+    </div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>심볼</th>
+            <th>방향</th>
+            <th>추세점수</th>
+            <th>전체 수익률%</th>
+            <th>마지막 종가</th>
+            <th>R (상관계수)</th>
+        </tr>
+        </thead>
+        <tbody id="resultBody">
+        </tbody>
+    </table>
+</div>
+
+<script>
+    const API_BASE = "https://fapi.binance.com";
+    const logEl = document.getElementById("log");
+    const scanBtn = document.getElementById("scanBtn");
+    const statusPill = document.getElementById("statusPill");
+    const bestSymbolEl = document.getElementById("bestSymbol");
+    const bestMetaEl = document.getElementById("bestMeta");
+    const resultBody = document.getElementById("resultBody");
+
+    let isScanning = false;
+
+    function addLog(msg) {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+        const line = `[${hh}:${mm}:${ss}] ${msg}\n`;
+        logEl.textContent += line;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(text, color) {
+        statusPill.textContent = text;
+        statusPill.style.color = color || "var(--muted)";
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function loadSymbols() {
+        addLog("USDT 무기한 심볼 목록 불러오는 중...");
+        const res = await fetch(API_BASE + "/fapi/v1/exchangeInfo");
+        if (!res.ok) {
+            throw new Error("exchangeInfo 에러: " + res.status + " " + res.statusText);
+        }
+        const data = await res.json();
+        const all = data.symbols || [];
+        const perpUsdt = all.filter(s =>
+            s.contractType === "PERPETUAL" &&
+            s.quoteAsset === "USDT" &&
+            s.status === "TRADING"
+        ).map(s => s.symbol);
+
+        addLog(`USDT 무기한 심볼 ${perpUsdt.length}개 탐색 대상.`);
+        return perpUsdt;
+    }
+
+    async function loadKlines(symbol) {
+        const url = API_BASE + "/fapi/v1/klines?symbol=" + symbol + "&interval=4h&limit=60";
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error("klines 에러 " + symbol + ": " + res.status + " " + res.statusText);
+        }
+        return await res.json();
+    }
+
+    function computeTrendFromKlines(klines) {
+        // klines: [ [openTime, open, high, low, close, volume, ...], ... ]
+        if (!klines || klines.length < 20) {
+            return null;
+        }
+
+        const closes = klines.map(k => parseFloat(k[4]));
+        const n = closes.length;
+        const xs = [];
+        const ys = [];
+        for (let i = 0; i < n; i++) {
+            xs.push(i);
+            ys.push(Math.log(closes[i]));
+        }
+
+        const meanX = xs.reduce((a, b) => a + b, 0) / n;
+        const meanY = ys.reduce((a, b) => a + b, 0) / n;
+
+        let num = 0;
+        let denomX = 0;
+        let denomY = 0;
+
+        for (let i = 0; i < n; i++) {
+            const dx = xs[i] - meanX;
+            const dy = ys[i] - meanY;
+            num += dx * dy;
+            denomX += dx * dx;
+            denomY += dy * dy;
+        }
+
+        if (denomX === 0 || denomY === 0) {
+            return null;
+        }
+
+        const slope = num / denomX; // 로그 가격 기울기 (캔들당)
+        const corr = num / Math.sqrt(denomX * denomY); // 상관계수 -1 ~ 1 사이
+        const trendScore = Math.abs(slope) * Math.abs(corr);
+
+        const first = closes[0];
+        const last = closes[closes.length - 1];
+        const changePct = (last / first - 1) * 100;
+
+        const dir = slope > 0 ? "UP" : "DOWN";
+
+        return {
+            slope,
+            corr,
+            trendScore,
+            changePct,
+            lastClose: last,
+            dir
+        };
+    }
+
+    function formatNumber(value, digits) {
+        if (!isFinite(value)) return "-";
+        return value.toFixed(digits);
+    }
+
+    function renderResults(results) {
+        resultBody.innerHTML = "";
+
+        if (!results || results.length === 0) {
+            bestSymbolEl.textContent = "결과 없음 (데이터 부족 또는 에러)";
+            bestSymbolEl.className = "best-symbol num-muted";
+            bestMetaEl.style.display = "none";
+            bestMetaEl.innerHTML = "";
+            return;
+        }
+
+        // 추세점수 내림차순 정렬
+        results.sort((a, b) => b.trendScore - a.trendScore);
+
+        const best = results[0];
+        const dirText = best.dir === "UP" ? "상승 추세" : "하락 추세";
+        const dirClass = best.dir === "UP" ? "trend-up" : "trend-down";
+
+        bestSymbolEl.textContent = `${best.symbol} (${dirText})`;
+        bestSymbolEl.className = "best-symbol " + dirClass;
+
+        bestMetaEl.style.display = "flex";
+        bestMetaEl.innerHTML = `
+            <span>추세점수: ${formatNumber(best.trendScore, 6)}</span>
+            <span>전체 수익률: ${formatNumber(best.changePct, 2)}%</span>
+            <span>마지막 종가: ${formatNumber(best.lastClose, 4)}</span>
+            <span>상관계수 R: ${formatNumber(best.corr, 3)}</span>
+        `;
+
+        const maxRows = Math.min(results.length, 80);
+        for (let i = 0; i < maxRows; i++) {
+            const r = results[i];
+            const tr = document.createElement("tr");
+
+            const isUp = r.dir === "UP";
+            const dirLabel = isUp ? "상승" : "하락";
+            const dirClassCell = isUp ? "num-up" : "num-down";
+
+            tr.innerHTML = `
+                <td class="rank">${i + 1}</td>
+                <td>${r.symbol}</td>
+                <td class="${dirClassCell}">${dirLabel}</td>
+                <td>${formatNumber(r.trendScore, 6)}</td>
+                <td class="${r.changePct >= 0 ? "num-up" : "num-down"}">${formatNumber(r.changePct, 2)}%</td>
+                <td>${formatNumber(r.lastClose, 4)}</td>
+                <td>${formatNumber(r.corr, 3)}</td>
+            `;
+            resultBody.appendChild(tr);
+        }
+    }
+
+    async function scanOnce() {
+        if (isScanning) return;
+        isScanning = true;
+        scanBtn.disabled = true;
+        setStatus("스캔 중...", "var(--accent)");
+        addLog("========== 스캔 시작 ==========");
+
+        try {
+            const symbols = await loadSymbols();
+            const batchSize = 8;
+            const allResults = [];
+
+            for (let i = 0; i < symbols.length; i += batchSize) {
+                const batch = symbols.slice(i, i + batchSize);
+                addLog(`캔들 조회: ${i + 1} ~ ${i + batch.length} / ${symbols.length}`);
+
+                const batchPromises = batch.map(async (symbol) => {
+                    try {
+                        const klines = await loadKlines(symbol);
+                        const trend = computeTrendFromKlines(klines);
+                        if (!trend) return null;
+                        return {
+                            symbol,
+                            ...trend
+                        };
+                    } catch (e) {
+                        // 레이트리밋 / 기타 에러는 로그만 남기고 넘어감
+                        addLog(`에러: ${symbol} → ${e.message}`);
+                        return null;
+                    }
+                });
+
+                const batchResults = await Promise.all(batchPromises);
+                for (const r of batchResults) {
+                    if (r) {
+                        allResults.push(r);
+                    }
+                }
+
+                // 바이낸스 레이트리밋 완화를 위해 딜레이
+                await sleep(250);
+            }
+
+            addLog(`스캔 완료. 유효 데이터 심볼: ${allResults.length}개.`);
+            renderResults(allResults);
+            setStatus("스캔 완료", "var(--good)");
+        } catch (e) {
+            addLog("치명적 에러: " + e.message);
+            setStatus("에러 발생", "var(--bad)");
+            bestSymbolEl.textContent = "에러 발생 (로그 확인)";
+            bestSymbolEl.className = "best-symbol trend-down";
+            bestMetaEl.style.display = "none";
+            bestMetaEl.innerHTML = "";
+        } finally {
+            isScanning = false;
+            scanBtn.disabled = false;
+            addLog("========== 스캔 종료 ==========\n");
+        }
+    }
+
+    scanBtn.addEventListener("click", scanOnce);
+</script>
+</body>
+</html>
