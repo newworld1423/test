@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 직전봉 99MA 근접도 + 추세 스캐너</title>
+    <title>Binance Perp USDT — 15m 7/99MA vs 종가 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -204,7 +204,7 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 12px;
-            min-width: 720px;
+            min-width: 820px;
         }
 
         thead {
@@ -261,21 +261,6 @@
             font-weight: 500;
         }
 
-        td.trend-up {
-            color: var(--good);
-            font-weight: 500;
-        }
-
-        td.trend-down {
-            color: var(--bad);
-            font-weight: 500;
-        }
-
-        td.trend-mix {
-            color: var(--muted);
-            font-weight: 500;
-        }
-
         .log {
             font-size: 11px;
             color: var(--muted);
@@ -293,12 +278,12 @@
 <body>
 <div class="app">
     <header>
-        <h1>Binance Perp USDT — 4H 직전봉 99MA 근접도 + 추세 스캐너</h1>
+        <h1>Binance Perp USDT — 15m 7/99MA vs 종가 스캐너</h1>
         <p>
             바이낸스 무기한 선물 USDT 페어 전체를 스캔해서<br>
-            <strong>4시간봉 직전봉 종가가 99MA에 가장 가까운 순서</strong>로 정렬하고,<br>
-            <strong>4시간봉 7·25·99MA 배열 기준 현재 추세</strong>를 함께 표시합니다.<br>
-            한국 시간 기준 <strong>01:00 / 05:00 / 09:00 / 13:00 / 17:00 / 21:00</strong>에 자동 스캔.
+            <strong>15분봉 직전봉 기준 7MA·99MA·종가 관계</strong>를 계산하고,<br>
+            <strong>(7MA와 99MA 거리 − 종가와 99MA 거리)</strong>가 큰 순서대로 정렬합니다.<br>
+            로컬 시간 기준 <strong>매 시 00 / 15 / 30 / 45분</strong>에 자동 스캔.
         </p>
     </header>
 
@@ -331,12 +316,9 @@
         </div>
         <div class="panel-right">
             <div class="info-text">
-                • 스캔 기준: <strong>4h 직전봉 종가 vs 99MA</strong> (직전봉 포함 99개의 종가로 99MA 계산)<br>
-                • 추세 판단: <strong>4h 7 / 25 / 99MA 배열</strong><br>
-                &nbsp;&nbsp;- 7 &gt; 25 &gt; 99 → 상승 (정배열)<br>
-                &nbsp;&nbsp;- 7 &lt; 25 &lt; 99 → 하락 (역배열)<br>
-                &nbsp;&nbsp;- 그 외 → 중립/혼조<br>
-                • 정렬 기준: <strong>|종가 − 99MA| / 99MA (%)</strong> 오름차순<br>
+                • 타임프레임: <strong>15분봉 (15m)</strong>, 직전봉 기준으로 계산<br>
+                • 거리 정의(퍼센트): <strong>|값 − 99MA| / 99MA × 100</strong><br>
+                • 정렬 기준: <strong>(|7MA−99MA| − |종가−99MA|)</strong> 퍼센트 값이 큰 순<br>
                 • USDT 무기한 선물(Perpetual) 페어만 대상, TRADING 상태만 포함<br>
                 <span style="color:#f5c26b;">
                     ※ 이 스캐너는 보조 지표일 뿐이고, 손익은 전적으로 본인 책임입니다.
@@ -360,10 +342,12 @@
                     <th>#</th>
                     <th>심볼</th>
                     <th>직전봉 종가</th>
-                    <th>99MA (직전봉 기준)</th>
-                    <th>거리 (%)</th>
-                    <th>위/아래</th>
-                    <th>추세 (4h 7/25/99)</th>
+                    <th>7MA</th>
+                    <th>99MA</th>
+                    <th>|종가−99MA|%</th>
+                    <th>|7MA−99MA|%</th>
+                    <th>(7−99) − (종−99)%</th>
+                    <th>종가 위치</th>
                     <th>직전봉 종가 시간</th>
                 </tr>
                 </thead>
@@ -377,20 +361,17 @@
 
 <script>
     const BASE_URL = "https://fapi.binance.com";
-    const KLINE_INTERVAL = "4h";
-    const KLINE_LIMIT = 150; // 4h * 150 = 600h (99MA + 추세 계산용으로 충분)
+    const KLINE_INTERVAL = "15m";
+    const KLINE_LIMIT = 150; // 15m * 150 = 37.5h (99MA 계산용으로 충분)
     const CONCURRENCY = 5;
 
-    // 한국시간 기준 자동 스캔 시각 (local time이 KST라고 가정)
-    const AUTO_HOURS = [1, 5, 9, 13, 17, 21];
-    const AUTO_MINUTE = 0;
+    // 자동스캔: 매 시 00 / 15 / 30 / 45분
+    let autoEnabled = false;
+    let autoTimerId = null;
 
     let usdtPerpSymbols = [];
     let symbolsLoaded = false;
-
     let isScanning = false;
-    let autoEnabled = false;
-    let autoTimerId = null;
 
     const $btnStart = document.getElementById("btn-start");
     const $btnScanOnce = document.getElementById("btn-scan-once");
@@ -465,10 +446,10 @@
         log("USDT 무기한 심볼 수: " + usdtPerpSymbols.length + "개");
     }
 
-    function computeInfoWithTrend(symbol, klines) {
+    function computeInfo(symbol, klines) {
         const len = klines.length;
         if (len < 100) {
-            return null; // 99MA 및 추세 계산 불가
+            return null; // 99MA 계산 불가
         }
 
         const prevIndex = len - 2; // 직전봉 인덱스
@@ -478,9 +459,7 @@
         let sum99 = 0;
         for (let i = start99; i <= prevIndex; i++) {
             const close = parseFloat(klines[i][4]);
-            if (!isFinite(close)) {
-                return null;
-            }
+            if (!isFinite(close)) return null;
             sum99 += close;
         }
         const ma99 = sum99 / 99.0;
@@ -490,55 +469,30 @@
         let sum7 = 0;
         for (let i = start7; i <= prevIndex; i++) {
             const close = parseFloat(klines[i][4]);
-            if (!isFinite(close)) {
-                return null;
-            }
+            if (!isFinite(close)) return null;
             sum7 += close;
         }
         const ma7 = sum7 / 7.0;
 
-        // 25MA: 직전봉 포함 25개
-        const start25 = prevIndex - 24;
-        let sum25 = 0;
-        for (let i = start25; i <= prevIndex; i++) {
-            const close = parseFloat(klines[i][4]);
-            if (!isFinite(close)) {
-                return null;
-            }
-            sum25 += close;
-        }
-        const ma25 = sum25 / 25.0;
-
         const prevClose = parseFloat(klines[prevIndex][4]);
-        if (!isFinite(prevClose) || !isFinite(ma99) || ma99 === 0) {
-            return null;
-        }
+        if (!isFinite(prevClose) || !isFinite(ma99) || ma99 === 0) return null;
 
-        const distancePct = Math.abs(prevClose - ma99) / ma99 * 100.0;
+        const distClosePct = Math.abs(prevClose - ma99) / ma99 * 100.0;
+        const dist7Pct = Math.abs(ma7 - ma99) / ma99 * 100.0;
+        const score = dist7Pct - distClosePct; // 정렬 기준
+
         const closeTimeMs = klines[prevIndex][6];
-
-        // 추세 판별 (4h 7/25/99 배열)
-        let trendLabel = "중립/혼조";
-        let trendCode = 0;
-        if (ma7 > ma25 && ma25 > ma99) {
-            trendLabel = "상승 (정배열)";
-            trendCode = 1;
-        } else if (ma7 < ma25 && ma25 < ma99) {
-            trendLabel = "하락 (역배열)";
-            trendCode = -1;
-        }
 
         return {
             symbol: symbol,
             prevClose: prevClose,
-            ma99: ma99,
             ma7: ma7,
-            ma25: ma25,
-            distancePct: distancePct,
+            ma99: ma99,
+            distClosePct: distClosePct,
+            dist7Pct: dist7Pct,
+            score: score,
             isAbove: prevClose >= ma99,
-            prevCloseTime: closeTimeMs,
-            trendLabel: trendLabel,
-            trendCode: trendCode
+            prevCloseTime: closeTimeMs
         };
     }
 
@@ -550,12 +504,11 @@
 
         const res = await fetch(url);
         if (!res.ok) {
-            // 에러 로그만 남기고 해당 심볼은 스킵
             log(symbol + " klines HTTP " + res.status + " (스킵)");
             return null;
         }
         const data = await res.json();
-        return computeInfoWithTrend(symbol, data);
+        return computeInfo(symbol, data);
     }
 
     async function asyncPool(poolLimit, array, iteratorFn) {
@@ -570,9 +523,7 @@
             if (poolLimit <= array.length) {
                 const e = p.then(function () {
                     const idx = executing.indexOf(e);
-                    if (idx >= 0) {
-                        executing.splice(idx, 1);
-                    }
+                    if (idx >= 0) executing.splice(idx, 1);
                 });
                 executing.push(e);
                 if (executing.length >= poolLimit) {
@@ -588,7 +539,7 @@
         if (!list || list.length === 0) {
             const tr = document.createElement("tr");
             const td = document.createElement("td");
-            td.colSpan = 8;
+            td.colSpan = 10;
             td.textContent = "표시할 데이터가 없습니다.";
             td.style.textAlign = "center";
             tr.appendChild(td);
@@ -613,29 +564,30 @@
             tdPrevClose.textContent = formatNumber(row.prevClose);
             tr.appendChild(tdPrevClose);
 
-            const tdMa = document.createElement("td");
-            tdMa.textContent = formatNumber(row.ma99);
-            tr.appendChild(tdMa);
+            const tdMa7 = document.createElement("td");
+            tdMa7.textContent = formatNumber(row.ma7);
+            tr.appendChild(tdMa7);
 
-            const tdDist = document.createElement("td");
-            tdDist.textContent = formatPercent(row.distancePct);
-            tr.appendChild(tdDist);
+            const tdMa99 = document.createElement("td");
+            tdMa99.textContent = formatNumber(row.ma99);
+            tr.appendChild(tdMa99);
+
+            const tdDistClose = document.createElement("td");
+            tdDistClose.textContent = formatPercent(row.distClosePct);
+            tr.appendChild(tdDistClose);
+
+            const tdDist7 = document.createElement("td");
+            tdDist7.textContent = formatPercent(row.dist7Pct);
+            tr.appendChild(tdDist7);
+
+            const tdScore = document.createElement("td");
+            tdScore.textContent = formatPercent(row.score);
+            tr.appendChild(tdScore);
 
             const tdSide = document.createElement("td");
             tdSide.textContent = row.isAbove ? "위 (종가 > 99MA)" : "아래 (종가 < 99MA)";
             tdSide.className = row.isAbove ? "side-above" : "side-below";
             tr.appendChild(tdSide);
-
-            const tdTrend = document.createElement("td");
-            tdTrend.textContent = row.trendLabel || "-";
-            if (row.trendCode === 1) {
-                tdTrend.className = "trend-up";
-            } else if (row.trendCode === -1) {
-                tdTrend.className = "trend-down";
-            } else {
-                tdTrend.className = "trend-mix";
-            }
-            tr.appendChild(tdTrend);
 
             const tdTime = document.createElement("td");
             tdTime.textContent = formatDateTime(row.prevCloseTime);
@@ -654,7 +606,7 @@
             return;
         }
 
-        $summaryText.textContent = "4시간봉 직전봉 기준 99MA 근접도 + 추세 스캔 완료.";
+        $summaryText.textContent = "15분봉 직전봉 기준 7/99MA vs 종가 스캔 완료.";
         $summaryCount.textContent = "심볼 수: " + resultCount + "개";
         $summaryDuration.textContent = "소요 시간: " + (durationMs / 1000).toFixed(1) + "초";
         $summaryType.textContent = "트리거: " + typeLabel;
@@ -687,6 +639,7 @@
         }
     }
 
+    // 다음 00/15/30/45분 타임 포인트로 예약
     function scheduleNextAutoScan() {
         if (!autoEnabled) return;
 
@@ -697,32 +650,29 @@
 
         const now = new Date();
         const nowMs = now.getTime();
-        const nowHour = now.getHours();
-        const nowMinute = now.getMinutes();
 
-        let targetHour = null;
-        let targetDate = new Date(now);
+        const curMin = now.getMinutes();
+        const curHour = now.getHours();
 
-        for (let i = 0; i < AUTO_HOURS.length; i++) {
-            const h = AUTO_HOURS[i];
-            if (h > nowHour || (h === nowHour && nowMinute < AUTO_MINUTE)) {
-                targetHour = h;
-                break;
+        const quarter = Math.floor(curMin / 15);
+        let nextMin = (quarter + 1) * 15;
+        let nextHour = curHour;
+        const next = new Date(now);
+
+        if (nextMin >= 60) {
+            nextMin = 0;
+            nextHour = (curHour + 1) % 24;
+            if (curHour === 23) {
+                next.setDate(next.getDate() + 1);
             }
         }
 
-        if (targetHour === null) {
-            // 오늘 시각을 다 지나갔으면 내일 첫 타임으로
-            targetDate.setDate(targetDate.getDate() + 1);
-            targetHour = AUTO_HOURS[0];
-        }
-
-        targetDate.setHours(targetHour, AUTO_MINUTE, 5, 0); // +5초 여유
-        const delay = targetDate.getTime() - nowMs;
+        next.setHours(nextHour, nextMin, 5, 0); // +5초 여유
+        const delay = next.getTime() - nowMs;
 
         $nextAuto.textContent =
             "다음 자동스캔: " +
-            targetDate.toLocaleString("ko-KR", {
+            next.toLocaleString("ko-KR", {
                 hour12: false,
                 month: "2-digit",
                 day: "2-digit",
@@ -730,7 +680,7 @@
                 minute: "2-digit"
             });
 
-        log("다음 자동스캔 예약: " + targetDate.toLocaleString("ko-KR", {
+        log("다음 자동스캔 예약: " + next.toLocaleString("ko-KR", {
             hour12: false,
             month: "2-digit",
             day: "2-digit",
@@ -765,12 +715,12 @@
 
             const results = await asyncPool(CONCURRENCY, usdtPerpSymbols, fetchKlinesForSymbol);
             const valid = results.filter(function (r) {
-                return r && isFinite(r.distancePct);
+                return r && isFinite(r.score);
             });
 
-            // 99MA 근접도 기준 정렬
+            // score (dist7Pct - distClosePct) 기준 내림차순 정렬
             valid.sort(function (a, b) {
-                return a.distancePct - b.distancePct;
+                return b.score - a.score;
             });
 
             const t1 = performance.now();
@@ -794,13 +744,13 @@
 
     function startAutoWithInitialScan() {
         if (autoEnabled) {
-            log("자동스캔은 이미 ON 상태입니다. 처음부터 다시 시작하지 않습니다.");
+            log("이미 자동스캔이 ON 상태입니다. 처음부터 다시 시작하지 않습니다.");
             return;
         }
         autoEnabled = true;
         updateAutoUi();
 
-        // 1회 즉시 스캔 후 스케줄 설정
+        // 1회 즉시 스캔 후 다음 00/15/30/45 예약
         runScan("수동 + 자동 시작").then(function () {
             scheduleNextAutoScan();
         });
@@ -835,7 +785,7 @@
         updateSummary(null, null, "");
         updateAutoUi();
         log("페이지 로드 완료. 필요 시 [스캔 시작] 또는 [한 번만 스캔] 버튼을 눌러주세요.");
-        log("자동스캔 시각 (한국시간 기준): 01:00 / 05:00 / 09:00 / 13:00 / 17:00 / 21:00");
+        log("자동스캔 시각: 매 시 00 / 15 / 30 / 45분 (로컬 시간 기준)");
     })();
 </script>
 </body>
