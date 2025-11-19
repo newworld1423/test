@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 추세 + 15m 눌림/반등 신호 스캐너</title>
+    <title>Binance Perp USDT — 4H 추세 + 15m 눌림/반등 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -332,6 +332,7 @@
                     4시간봉 EMA(34/89)로 큰 추세를 보고, 15분봉에서 추세 방향으로 나오는
                     긴 꼬리 + EMA20 근처 눌림/반등 패턴만 골라서 후보를 만든 뒤,
                     점수화해서 상위 1개 심볼만 강조해서 보여준다.
+                    자동스캔은 매시 <strong>00 / 15 / 30 / 45분</strong>에만 딱 한 번씩 실행된다.
                 </div>
             </div>
         </header>
@@ -390,7 +391,7 @@
                 initializing: false,
                 isScanning: false,
                 autoScanTimer: null,
-                lastAutoSlotKey: null
+                lastAutoSlotKey: null   // 15분 단위 슬롯 숫자
             };
 
             function $(id) {
@@ -706,7 +707,6 @@
                     return;
                 }
 
-                const sideClass = candidate.side === "LONG" ? "side-long" : "side-short";
                 const sideText = candidate.side === "LONG" ? "롱 후보" : "숏 후보";
                 const tailPct = candidate.side === "LONG"
                     ? candidate.lowerWickPct * 100
@@ -808,7 +808,7 @@
 
             async function runScan(isManual) {
                 if (state.isScanning) {
-                    setStatus("이미 스캔 중입니다. 잠깐만 끝날 때까지 기다려 주세요.");
+                    setStatus("이미 스캔 중입니다.");
                     return;
                 }
 
@@ -826,8 +826,8 @@
 
                     const symbols = state.symbols.slice();
                     const total = symbols.length;
-                    const batchSize = 5;   // 동시에 처리할 심볼 수
-                    const delayMs = 200;   // 배치 사이 딜레이
+                    const batchSize = 5;
+                    const delayMs = 200;
 
                     const candidates = [];
                     let processed = 0;
@@ -893,40 +893,42 @@
                 }
             }
 
+            // 15분 단위 자동스캔: 매시 00 / 15 / 30 / 45 딱 한 번씩
             function startAutoScan() {
                 if (state.autoScanTimer) {
                     clearInterval(state.autoScanTimer);
                 }
 
+                state.lastAutoSlotKey = null;
+
                 state.autoScanTimer = setInterval(function () {
                     if (state.isScanning) {
                         return;
                     }
+
                     const now = new Date();
-                    const m = now.getMinutes();
-                    const s = now.getSeconds();
+                    const minute = now.getMinutes();
 
-                    const validMinutes = [0, 15, 30, 45];
-                    if (validMinutes.indexOf(m) === -1) {
-                        return;
-                    }
-                    if (s > 15) {
+                    // 0 / 15 / 30 / 45 분이 아니면 패스
+                    if (minute % 15 !== 0) {
                         return;
                     }
 
-                    const key =
-                        now.getFullYear() + "-" +
-                        (now.getMonth() + 1) + "-" +
-                        now.getDate() + " " +
-                        now.getHours() + ":" + m;
+                    // 15분(900,000ms) 단위 슬롯 키
+                    const slotKey = Math.floor(now.getTime() / (15 * 60 * 1000));
 
-                    if (state.lastAutoSlotKey === key) {
+                    // 이미 이 슬롯에서 한 번 돌렸으면 패스
+                    if (state.lastAutoSlotKey === slotKey) {
                         return;
                     }
-                    state.lastAutoSlotKey = key;
+                    state.lastAutoSlotKey = slotKey;
+
+                    const hh = String(now.getHours()).padStart(2, "0");
+                    const mm = String(now.getMinutes()).padStart(2, "0");
+                    setStatus("자동 스캔 실행 (" + hh + ":" + mm + ")");
 
                     runScan(false);
-                }, 5000);
+                }, 1000); // 1초마다 체크
             }
 
             function stopAutoScan() {
@@ -934,6 +936,7 @@
                     clearInterval(state.autoScanTimer);
                     state.autoScanTimer = null;
                 }
+                state.lastAutoSlotKey = null;
             }
 
             function initApp() {
@@ -950,7 +953,7 @@
                     autoToggle.addEventListener("change", function () {
                         if (autoToggle.checked) {
                             startAutoScan();
-                            setStatus("자동 스캔 ON — 매시 00 / 15 / 30 / 45 분 근처에서 자동 스캔.");
+                            setStatus("자동 스캔 ON — 매시 00 / 15 / 30 / 45 분에 자동으로 한 번씩 스캔합니다.");
                         } else {
                             stopAutoScan();
                             setStatus("자동 스캔 OFF.");
