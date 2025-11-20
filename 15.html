@@ -155,7 +155,10 @@
         <h1>Binance Perp USDT — 4H 정배열 + 15m 롱꼬리 양봉 스캐너</h1>
         <div class="desc">
             4H 기준으로 <b>종가 &gt; 99MA</b>, <b>7MA &gt; 25MA &gt; 99MA</b> 정배열인 심볼만 선별한 뒤,<br>
-            그 심볼들 중 15m 직전봉이 <b>몸통보다 아래꼬리가 긴 양봉</b>이고 종가가 7MA 또는 25MA 위에 있는 경우만<br>
+            그 심볼들 중 15m 기준으로
+            <b>7MA &gt; 25MA &gt; 99MA 정배열</b>이고
+            <b>직전봉이 몸통보다 아래꼬리가 긴 양봉</b>이며<br>
+            종가가 7MA 또는 25MA 위에 있는 경우만 골라서,<br>
             종가와 가장 가까운 MA(7/25)까지의 거리% 기준으로 오름차순 정렬합니다.
         </div>
 
@@ -177,7 +180,7 @@
                         <th>4H 7 / 25 / 99</th>
                         <th>15m O / H / L / C</th>
                         <th>몸통 / 아래꼬리%</th>
-                        <th>15m 7 / 25</th>
+                        <th>15m 7 / 25 / 99</th>
                         <th>가까운 MA</th>
                         <th>MA까지 거리%</th>
                     </tr>
@@ -337,6 +340,7 @@
         }
 
         // 15m 필터:
+        // - 7MA > 25MA > 99MA (정배열)
         // - 직전봉 양봉
         // - 아래꼬리 > 몸통
         // - 종가가 7MA 또는 25MA 위
@@ -346,7 +350,7 @@
             const symbol = item.symbol;
 
             const klines = await fetchKlines(symbol, "15m", 120);
-            if (!Array.isArray(klines) || klines.length < 30) return null;
+            if (!Array.isArray(klines) || klines.length < 100) return null;
 
             const closes = klines.map((k) => parseFloat(k[4]));
             const idx = closes.length - 2; // 직전 15m 봉
@@ -357,6 +361,18 @@
             const low = parseFloat(prev[3]);
             const close = parseFloat(prev[4]);
 
+            // 15m MA 계산
+            const ma7 = calcSMA(closes, 7, idx);
+            const ma25 = calcSMA(closes, 25, idx);
+            const ma99 = calcSMA(closes, 99, idx);
+            if (ma7 === null || ma25 === null || ma99 === null) return null;
+
+            // 15m 정배열 조건: 7 > 25 > 99
+            if (!(ma7 > ma25 && ma25 > ma99)) {
+                return null;
+            }
+
+            // 양봉 + 아래꼬리 > 몸통
             const body = close - open;
             if (body <= 0) {
                 // 양봉 아님
@@ -372,10 +388,6 @@
             const range = high - low;
             const bodyPct = range > 0 ? (body / range) * 100 : 0;
             const lowerWickPct = range > 0 ? (lowerWick / range) * 100 : 0;
-
-            const ma7 = calcSMA(closes, 7, idx);
-            const ma25 = calcSMA(closes, 25, idx);
-            if (ma7 === null || ma25 === null) return null;
 
             const above7 = close >= ma7;
             const above25 = close >= ma25;
@@ -418,6 +430,7 @@
                 lowerWickPct,
                 ma7_15: ma7,
                 ma25_15: ma25,
+                ma99_15: ma99,
                 distance,
                 usedMA
             };
@@ -480,7 +493,9 @@
                 td15ma.innerHTML =
                     toFixedSafe(row.ma7_15, 4) +
                     " / " +
-                    toFixedSafe(row.ma25_15, 4);
+                    toFixedSafe(row.ma25_15, 4) +
+                    " / " +
+                    toFixedSafe(row.ma99_15, 4);
                 tr.appendChild(td15ma);
 
                 const tdUsed = document.createElement("td");
