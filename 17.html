@@ -268,6 +268,9 @@
     let autoIntervalId = null;
     let lastAutoSlotKey = null;       // "YYYYMMDDHHmm(슬롯)" 형태
 
+    let rateLimitBlocked = false;     // 418/429 감지 시 true
+    let rateLimitMessage = "";        // 화면에 보여줄 레이트 리밋 메시지
+
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -291,26 +294,58 @@
         scanBtn.disabled = disabled;
     }
 
+    function stopAutoSchedule() {
+        if (autoIntervalId) {
+            clearInterval(autoIntervalId);
+            autoIntervalId = null;
+        }
+        autoSchedulingStarted = false;
+        if (autoInfoEl) {
+            autoInfoEl.textContent = "자동 스캔이 중지되었습니다. (레이트 리밋 또는 IP 차단 감지)";
+        }
+    }
+
     async function fetchWithRetry(url, retries = 2, backoffBaseMs = 600) {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 const res = await fetch(url);
+
                 if (res.ok) {
                     return res.json();
                 }
 
+                // 레이트 리밋 / IP 밴 처리
                 if (res.status === 429 || res.status === 418) {
-                    const wait = backoffBaseMs * (attempt + 1);
-                    console.warn("Rate limit or IP ban hint", res.status, url, "retry in", wait, "ms");
-                    await sleep(wait);
-                    continue;
+                    const retryAfter = res.headers.get("Retry-After");
+                    const sec = retryAfter ? parseInt(retryAfter, 10) : null;
+
+                    rateLimitBlocked = true;
+                    rateLimitMessage =
+                        res.status === 418
+                            ? `Binance API 418 (IP 임시 차단)${sec ? ` · 약 ${sec}초 후 다시 시도하세요.` : ""}`
+                            : `Binance API 429 (요청 한도 초과)${sec ? ` · 약 ${sec}초 후 다시 시도하세요.` : ""}`;
+
+                    console.warn("[RATE LIMIT]", res.status, rateLimitMessage);
+                    logStatus(`<span class="status-strong">자동 스캔 중지</span> · ${rateLimitMessage}`);
+
+                    // 자동 스캐줄 완전히 중지
+                    stopAutoSchedule();
+
+                    // 더 이상 재시도하지 않고 바로 에러
+                    throw new Error(rateLimitMessage);
                 }
 
                 console.warn("HTTP error", res.status, url);
                 return null;
             } catch (err) {
-                console.warn("fetch error", url, err);
+                // 레이트 리밋 에러면 바로 종료
+                if (rateLimitBlocked) {
+                    throw err;
+                }
+
+                // 네트워크 오류 등일 때만 재시도
                 if (attempt === retries) {
+                    console.warn("fetch error 최종 실패", url, err);
                     return null;
                 }
                 const wait = backoffBaseMs * (attempt + 1);
@@ -342,7 +377,14 @@
 
         logStatus("exchangeInfo 로딩 중...");
         const data = await fetchWithRetry(`${API_BASE}/fapi/v1/exchangeInfo`, 2, 700);
-        if (!data || !data.symbols) {
+
+        if (!data) {
+            console.error("[exchangeInfo] 응답이 null 입니다. (레이트리밋, 네트워크, CORS 가능성)");
+            throw new Error("exchangeInfo 로딩 실패");
+        }
+
+        if (!data.symbols) {
+            console.error("[exchangeInfo] 예상과 다른 응답:", data);
             throw new Error("exchangeInfo 로딩 실패");
         }
 
@@ -377,7 +419,7 @@
         return volumeMap;
     }
 
-    async function runInBatches(items, worker, concurrency = 10) {
+    async function runInBatches(items, worker, concurrency = 5) {
         const results = new Array(items.length);
         let index = 0;
 
@@ -460,6 +502,11 @@
 
     function startAutoScheduleIfNeeded() {
         if (autoSchedulingStarted) return;
+        if (rateLimitBlocked) {
+            logStatus(`<span class="status-strong">자동 스캔 불가</span> · ${rateLimitMessage || "Binance 레이트 리밋 감지됨"}`);
+            return;
+        }
+
         autoSchedulingStarted = true;
 
         if (autoInfoEl) {
@@ -467,6 +514,12 @@
         }
 
         autoIntervalId = setInterval(async () => {
+            if (rateLimitBlocked) {
+                // 레이트 리밋 감지 후에는 자동 스캔 완전히 중지
+                stopAutoSchedule();
+                return;
+            }
+
             const now = new Date();
             const m = now.getMinutes();
             const s = now.getSeconds();
@@ -498,6 +551,12 @@
     }
 
     async function runScan(trigger = "manual") {
+        // 레이트 리밋 상태면 바로 안내만 하고 리턴
+        if (rateLimitBlocked) {
+            logStatus(`<span class="status-strong">Binance 레이트 리밋 상태</span> · ${rateLimitMessage || "잠시 후 다시 시도해 주세요."}`);
+            return;
+        }
+
         if (isScanning) {
             logStatus(`<span class="status-strong">이미 스캔 중입니다.</span> 잠시만 기다려 주세요...`);
             return;
@@ -565,7 +624,7 @@
                         currentClose4h
                     };
                 },
-                10
+                5 // 동시 요청 5개로 줄여서 레이트 리밋 완화
             );
 
             const candidates = fourHResults.filter(Boolean);
@@ -574,8 +633,8 @@
             const finalResults = await runInBatches(
                 candidates,
                 async (item) => {
-                    // 15m: 120개 → 직전봉 기준 99MA까지 계산
-                    const klines15 = await fetchKlines(item.symbol, "15m", 120);
+                    // 15m: 100개 → 직전봉 기준 99MA까지 계산 가능
+                    const klines15 = await fetchKlines(item.symbol, "15m", 100);
                     if (!Array.isArray(klines15) || klines15.length < 100) return null;
 
                     const closes15Raw = klines15.map(k => parseFloat(k[4]));
@@ -625,7 +684,7 @@
                         ma99_15
                     };
                 },
-                10
+                5 // 동시 요청 5개
             );
 
             const rows = finalResults
@@ -639,7 +698,7 @@
 
         } catch (err) {
             console.error("runScan error", err);
-            logStatus(`<span class="status-strong">스캔 중 오류 발생</span> · 브라우저 콘솔을 확인해 주세요.`);
+            logStatus(`<span class="status-strong">스캔 중 오류</span> · ${err.message || "브라우저 콘솔을 확인해 주세요."}`);
         } finally {
             isScanning = false;
             setScanButtonDisabled(false);
