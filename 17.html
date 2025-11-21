@@ -217,7 +217,9 @@
         <div class="status" id="status-text">대기 중</div>
     </div>
 
-    <div class="info-line" id="auto-info">자동 스캔은 매시 00/15/30/45에 1회씩 동작합니다. (수동 스캔 버튼을 눌러 시작)</div>
+    <div class="info-line" id="auto-info">
+        자동 스캔은 매시 00/15/30/45분마다 슬롯당 1회 동작합니다. (처음 한 번 수동 스캔 버튼을 눌러 시작)
+    </div>
     <div class="info-line" id="last-scan-info">마지막 스캔: -</div>
 
     <div class="card">
@@ -263,10 +265,9 @@
     const scanBtn = document.getElementById("scan-btn");
 
     let symbolsCache = null;          // USDT PERPETUAL 심볼 캐시
-    let isScanning = false;           // 동시 스캔 방지 플래그
+    let isScanning = false;           // 동시 스캔 방지
     let autoSchedulingStarted = false;
-    let autoIntervalId = null;
-    let lastAutoSlotKey = null;       // "YYYYMMDDHHmm(슬롯)" 형태
+    let autoTimeoutId = null;         // 다음 자동 스캔 setTimeout ID
 
     let rateLimitBlocked = false;     // 418/429 감지 시 true
     let rateLimitMessage = "";        // 화면에 보여줄 레이트 리밋 메시지
@@ -295,9 +296,9 @@
     }
 
     function stopAutoSchedule() {
-        if (autoIntervalId) {
-            clearInterval(autoIntervalId);
-            autoIntervalId = null;
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+            autoTimeoutId = null;
         }
         autoSchedulingStarted = false;
         if (autoInfoEl) {
@@ -489,15 +490,78 @@
         lastScanInfoEl.textContent = `마지막 스캔: ${t} (${mode})`;
     }
 
-    // "YYYYMMDDHHmmSlot" 형태로 슬롯 키 생성 (예: 202511210930)
-    function getSlotKey(date) {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, "0");
-        const d = String(date.getDate()).padStart(2, "0");
-        const h = String(date.getHours()).padStart(2, "0");
-        const minute = date.getMinutes();
-        const slot = minute - (minute % 15); // 0, 15, 30, 45 중 하나
-        return `${y}${m}${d}${h}${String(slot).padStart(2, "0")}`;
+    // now 기준 다음 00/15/30/45 분 Date 객체 계산
+    function getNextSlotDate(now) {
+        const quarters = [0, 15, 30, 45];
+        const result = new Date(now.getTime());
+        const m = now.getMinutes();
+
+        let targetMinute = null;
+        for (const q of quarters) {
+            if (m < q) {
+                targetMinute = q;
+                break;
+            }
+        }
+
+        if (targetMinute === null) {
+            // 다음 시간 정각으로
+            result.setHours(result.getHours() + 1);
+            result.setMinutes(0, 0, 0);
+        } else {
+            result.setMinutes(targetMinute, 0, 0);
+        }
+
+        return result;
+    }
+
+    function scheduleNextAutoScan() {
+        if (rateLimitBlocked) {
+            stopAutoSchedule();
+            return;
+        }
+
+        const now = new Date();
+        const next = getNextSlotDate(now);
+        const delay = next.getTime() - now.getTime();
+
+        const hh = String(next.getHours()).padStart(2, "0");
+        const mm = String(next.getMinutes()).padStart(2, "0");
+
+        if (autoInfoEl) {
+            autoInfoEl.textContent =
+                `자동 스캔 활성화됨: 다음 자동 스캔 예정 ${hh}:${mm} (이후 매 15분 단위로 슬롯당 1회 실행)`;
+        }
+
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+        }
+
+        autoTimeoutId = setTimeout(async () => {
+            autoTimeoutId = null;
+
+            if (rateLimitBlocked) {
+                stopAutoSchedule();
+                return;
+            }
+
+            // 이 시점에 이미 스캔 중이면, 이번 슬롯은 스킵하고 다음 슬롯 예약
+            if (isScanning) {
+                console.log("[AUTO] 스캔 중이라 이 슬롯 스킵:", next.toString());
+                scheduleNextAutoScan();
+                return;
+            }
+
+            // 슬롯에서 딱 한 번 자동 스캔 실행
+            await runScan("auto");
+
+            // 레이트 리밋이 걸리지 않았다면 다음 슬롯 예약
+            if (!rateLimitBlocked) {
+                scheduleNextAutoScan();
+            } else {
+                stopAutoSchedule();
+            }
+        }, delay);
     }
 
     function startAutoScheduleIfNeeded() {
@@ -508,46 +572,7 @@
         }
 
         autoSchedulingStarted = true;
-
-        if (autoInfoEl) {
-            autoInfoEl.textContent = "자동 스캔 활성화됨: 매시 00/15/30/45에 1회 실행 (현재 탭 기준)";
-        }
-
-        autoIntervalId = setInterval(async () => {
-            if (rateLimitBlocked) {
-                // 레이트 리밋 감지 후에는 자동 스캔 완전히 중지
-                stopAutoSchedule();
-                return;
-            }
-
-            const now = new Date();
-            const m = now.getMinutes();
-            const s = now.getSeconds();
-
-            // 0, 15, 30, 45분 아니면 패스
-            if (m % 15 !== 0) return;
-
-            // 해당 분의 초가 0~5초 사이일 때만 스캔 시도 (브라우저 딜레이 고려한 여유)
-            if (s > 5) return;
-
-            const slotKey = getSlotKey(now);
-
-            // 이미 이 슬롯에서 자동스캔 했으면 패스
-            if (slotKey === lastAutoSlotKey) {
-                return;
-            }
-
-            // 이미 수동/자동 스캔이 돌고 있으면, 이번 슬롯은 건너뜀
-            if (isScanning) {
-                console.log("[AUTO] 스캔 중이라 이번 슬롯 건너뜀:", slotKey);
-                lastAutoSlotKey = slotKey; // 같은 슬롯에서 계속 시도하지 않도록 마킹
-                return;
-            }
-
-            // 여기까지 왔으면 이번 슬롯 첫 자동 스캔
-            lastAutoSlotKey = slotKey;
-            await runScan("auto");
-        }, 1000);
+        scheduleNextAutoScan();
     }
 
     async function runScan(trigger = "manual") {
@@ -624,7 +649,7 @@
                         currentClose4h
                     };
                 },
-                5 // 동시 요청 5개로 줄여서 레이트 리밋 완화
+                5 // 동시 요청 5개로 레이트 리밋 완화
             );
 
             const candidates = fourHResults.filter(Boolean);
@@ -640,8 +665,6 @@
                     const closes15Raw = klines15.map(k => parseFloat(k[4]));
                     if (closes15Raw.some(v => isNaN(v))) return null;
 
-                    // 현재 진행중 15m 봉
-                    const current15 = klines15[klines15.length - 1];
                     // 직전 완료 15m 봉
                     const prev15 = klines15[klines15.length - 2];
 
@@ -708,12 +731,13 @@
 
     if (scanBtn) {
         scanBtn.addEventListener("click", async () => {
-            startAutoScheduleIfNeeded(); // 첫 클릭 시 자동 스케줄 시작
+            // 처음 한 번만 자동 스케줄 시작
+            startAutoScheduleIfNeeded();
             await runScan("manual");
         });
     }
 
-    logStatus("대기 중 · 스캔 버튼을 누르면 즉시 스캔 후, 매시 00/15/30/45에 자동 스캔합니다.");
+    logStatus("대기 중 · 스캔 버튼을 누르면 즉시 스캔 후, 이후 매시 00/15/30/45분에 자동 스캔(슬롯당 1회) 됩니다.");
 </script>
 </body>
 </html>
