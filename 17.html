@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 7/25/99 + 15m 음봉 스캐너</title>
+    <title>Binance Perp USDT — 4H 7/25/99 + 4H 양봉 + 15m 음봉 스캐너</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <style>
@@ -207,9 +207,9 @@
 </head>
 <body>
 <div class="app">
-    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 종가 + 15m 직전봉 음봉 스캐너</h1>
+    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 종가 + 4H 양봉 + 15m 직전봉 음봉 스캐너</h1>
     <div class="subtitle">
-        Binance 무기한 선물 USDT 페어 대상 · 4H MA 조건 통과 + 15분 직전봉 음봉인 심볼만 표시 · 24h 거래대금 내림차순 정렬
+        Binance 무기한 선물 USDT 페어 대상 · 4H MA + 진행중 4H 양봉 + 15분 직전봉 음봉 · 24h 거래대금 내림차순 정렬
     </div>
 
     <div class="controls">
@@ -223,7 +223,7 @@
     <div class="card">
         <div class="card-header">
             <span id="summary-left">결과: 0개</span>
-            <span id="summary-right">4H 기준 7 &gt; 25 &gt; 99 &amp; close &gt; 99 + 15m 직전봉 음봉</span>
+            <span id="summary-right">4H 7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 진행중 4H 양봉 + 15m 직전봉 음봉</span>
         </div>
         <div class="table-wrap">
             <table>
@@ -508,7 +508,7 @@
 
             const volumeMap = await fetch24hTickers(symbols);
 
-            logStatus(`4H 조건(7&gt;25&gt;99 &amp; close&gt;99) 체크 중...`);
+            logStatus(`4H 조건(7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 진행중 4H 양봉) 체크 중...`);
 
             const fourHResults = await runInBatches(
                 symbols,
@@ -519,7 +519,18 @@
                     const closesRaw = klines4h.map(k => parseFloat(k[4]));
                     if (closesRaw.some(v => isNaN(v))) return null;
 
-                    // 마지막 진행중 봉 제외
+                    // 현재 진행중인 4H 봉
+                    const current = klines4h[klines4h.length - 1];
+                    const currentOpen4h = parseFloat(current[1]);
+                    const currentClose4h = parseFloat(current[4]);
+                    if (isNaN(currentOpen4h) || isNaN(currentClose4h)) return null;
+
+                    // 현재 진행중인 4H 봉이 양봉이어야 함
+                    if (!(currentClose4h > currentOpen4h)) {
+                        return null;
+                    }
+
+                    // 마지막 진행중 봉을 제외한 완료봉들로 MA 계산
                     const closes = closesRaw.slice(0, -1);
                     if (closes.length < 99) return null;
 
@@ -530,13 +541,22 @@
 
                     const close4h = closes[closes.length - 1];
 
+                    // 7MA > 25MA > 99MA, 직전 완료봉 종가 > 99MA
                     if (!(ma7 > ma25 && ma25 > ma99 && close4h > ma99)) {
                         return null;
                     }
 
-                    return { symbol, ma7, ma25, ma99, close4h };
+                    return {
+                        symbol,
+                        ma7,
+                        ma25,
+                        ma99,
+                        close4h,
+                        currentOpen4h,
+                        currentClose4h
+                    };
                 },
-                10 // 동시 요청 개수(레이트리밋 여유있게 조절)
+                10 // 동시 요청 개수
             );
 
             const candidates = fourHResults.filter(Boolean);
@@ -554,7 +574,7 @@
                     const close15 = parseFloat(lastCompleted[4]);
                     if (isNaN(open15) || isNaN(close15)) return null;
 
-                    // 직전봉이 음봉이어야 함
+                    // 직전 15m 봉이 음봉이어야 함
                     if (!(close15 < open15)) return null;
 
                     const vol24 = volumeMap[item.symbol] || 0;
@@ -566,6 +586,8 @@
                         ma7: item.ma7,
                         ma25: item.ma25,
                         ma99: item.ma99,
+                        currentOpen4h: item.currentOpen4h,
+                        currentClose4h: item.currentClose4h,
                         open15,
                         close15
                     };
