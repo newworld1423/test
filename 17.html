@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H 7/25/99 + 15m 음봉 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #111325 0, #05060a 55%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.5);
+            transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.2s;
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        button[disabled] {
+            opacity: 0.5;
+            cursor: default;
+            transform: none;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status-strong {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .info-line {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .card {
+            margin-top: 12px;
+            background: rgba(10, 11, 20, 0.94);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.7);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .card-header span {
+            color: var(--muted);
+        }
+
+        .table-wrap {
+            max-height: 70vh;
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #0b0c14;
+            z-index: 1;
+        }
+
+        th, td {
+            padding: 6px 8px;
+            text-align: right;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            white-space: nowrap;
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(24, 25, 36, 0.92);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(12, 13, 22, 0.92);
+        }
+
+        .symbol {
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        .vol {
+            font-feature-settings: "tnum";
+        }
+
+        .negative {
+            color: var(--bad);
+        }
+
+        .positive {
+            color: var(--good);
+        }
+
+        .empty {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 16px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .app {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .subtitle {
+                font-size: 11px;
+            }
+
+            th, td {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 종가 + 15m 직전봉 음봉 스캐너</h1>
+    <div class="subtitle">
+        Binance 무기한 선물 USDT 페어 대상 · 4H MA 조건 통과 + 15분 직전봉 음봉인 심볼만 표시 · 24h 거래대금 내림차순 정렬
+    </div>
+
+    <div class="controls">
+        <button id="scan-btn">지금 스캔하기</button>
+        <div class="status" id="status-text">대기 중</div>
+    </div>
+
+    <div class="info-line" id="auto-info">자동 스캔은 매시 00/15/30/45에 1회씩 동작합니다. (수동 스캔 버튼을 눌러 시작)</div>
+    <div class="info-line" id="last-scan-info">마지막 스캔: -</div>
+
+    <div class="card">
+        <div class="card-header">
+            <span id="summary-left">결과: 0개</span>
+            <span id="summary-right">4H 기준 7 &gt; 25 &gt; 99 &amp; close &gt; 99 + 15m 직전봉 음봉</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>심볼</th>
+                    <th>24h 거래대금 (USDT)</th>
+                    <th>4H 종가</th>
+                    <th>4H 7MA</th>
+                    <th>4H 25MA</th>
+                    <th>4H 99MA</th>
+                    <th>15m 직전봉 시가</th>
+                    <th>15m 직전봉 종가</th>
+                </tr>
+                </thead>
+                <tbody id="result-body">
+                <tr><td colspan="8" class="empty">아직 스캔 결과가 없습니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "https://fapi.binance.com";
+
+    const statusTextEl = document.getElementById("status-text");
+    const autoInfoEl = document.getElementById("auto-info");
+    const lastScanInfoEl = document.getElementById("last-scan-info");
+    const summaryLeftEl = document.getElementById("summary-left");
+    const resultBodyEl = document.getElementById("result-body");
+    const scanBtn = document.getElementById("scan-btn");
+
+    let symbolsCache = null;          // USDT PERPETUAL 심볼 캐시
+    let isScanning = false;           // 동시 스캔 방지 플래그
+    let autoSchedulingStarted = false;
+    let autoTimeoutId = null;
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function formatTime(date) {
+        const h = String(date.getHours()).padStart(2, "0");
+        const m = String(date.getMinutes()).padStart(2, "0");
+        const s = String(date.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+    }
+
+    function logStatus(msg) {
+        if (statusTextEl) {
+            statusTextEl.innerHTML = msg;
+        }
+        console.log("[SCAN STATUS]", msg);
+    }
+
+    function setScanButtonDisabled(disabled) {
+        if (!scanBtn) return;
+        scanBtn.disabled = disabled;
+    }
+
+    async function fetchWithRetry(url, retries = 2, backoffBaseMs = 600) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    return res.json();
+                }
+
+                // 레이트 리밋 / 밴 상태일 가능성
+                if (res.status === 429 || res.status === 418) {
+                    const wait = backoffBaseMs * (attempt + 1);
+                    console.warn("Rate limit or IP ban hint", res.status, url, "retry in", wait, "ms");
+                    await sleep(wait);
+                    continue;
+                }
+
+                console.warn("HTTP error", res.status, url);
+                return null;
+            } catch (err) {
+                console.warn("fetch error", url, err);
+                if (attempt === retries) {
+                    return null;
+                }
+                const wait = backoffBaseMs * (attempt + 1);
+                await sleep(wait);
+            }
+        }
+        return null;
+    }
+
+    async function fetchKlines(symbol, interval, limit) {
+        const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        return fetchWithRetry(url, 1, 500);
+    }
+
+    function sma(values, length) {
+        if (!values || values.length < length) return null;
+        const slice = values.slice(-length);
+        let sum = 0;
+        for (let v of slice) {
+            sum += v;
+        }
+        return sum / length;
+    }
+
+    async function fetchUsdtPerpSymbols() {
+        if (symbolsCache && Array.isArray(symbolsCache) && symbolsCache.length > 0) {
+            return symbolsCache;
+        }
+
+        logStatus("exchangeInfo 로딩 중...");
+        const data = await fetchWithRetry(`${API_BASE}/fapi/v1/exchangeInfo`, 2, 700);
+        if (!data || !data.symbols) {
+            throw new Error("exchangeInfo 로딩 실패");
+        }
+
+        const list = data.symbols
+            .filter(s =>
+                s.contractType === "PERPETUAL" &&
+                s.quoteAsset === "USDT" &&
+                s.status === "TRADING"
+            )
+            .map(s => s.symbol)
+            .sort();
+
+        symbolsCache = list;
+        console.log("USDT PERPETUAL symbols:", list.length);
+        return list;
+    }
+
+    async function fetch24hTickers(symbolList) {
+        logStatus("24h ticker (거래대금) 로딩 중...");
+        const data = await fetchWithRetry(`${API_BASE}/fapi/v1/ticker/24hr`, 2, 700);
+        const volumeMap = {};
+
+        if (Array.isArray(data)) {
+            const symbolSet = new Set(symbolList);
+            for (const t of data) {
+                if (!t || !t.symbol || !symbolSet.has(t.symbol)) continue;
+                const qv = parseFloat(t.quoteVolume || t.volume || "0");
+                volumeMap[t.symbol] = isNaN(qv) ? 0 : qv;
+            }
+        }
+
+        return volumeMap;
+    }
+
+    async function runInBatches(items, worker, concurrency = 10) {
+        const results = new Array(items.length);
+        let index = 0;
+
+        async function workerLoop() {
+            while (true) {
+                const i = index++;
+                if (i >= items.length) break;
+                try {
+                    results[i] = await worker(items[i], i);
+                } catch (err) {
+                    console.warn("worker error", err);
+                    results[i] = null;
+                }
+            }
+        }
+
+        const workers = [];
+        const realConcurrency = Math.min(concurrency, items.length);
+        for (let i = 0; i < realConcurrency; i++) {
+            workers.push(workerLoop());
+        }
+        await Promise.all(workers);
+        return results;
+    }
+
+    function renderTable(rows) {
+        if (!resultBodyEl) return;
+
+        if (!rows || rows.length === 0) {
+            resultBodyEl.innerHTML = `<tr><td colspan="8" class="empty">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            summaryLeftEl.textContent = "결과: 0개";
+            return;
+        }
+
+        let html = "";
+        for (const row of rows) {
+            const vol = row.volume24 || 0;
+            const volFmt = vol >= 1_000_000
+                ? (vol / 1_000_000).toFixed(2) + "M"
+                : vol.toFixed(0);
+
+            html += `
+                <tr>
+                    <td class="symbol">${row.symbol}</td>
+                    <td class="vol">${volFmt}</td>
+                    <td>${row.close4h.toFixed(4)}</td>
+                    <td>${row.ma7.toFixed(4)}</td>
+                    <td>${row.ma25.toFixed(4)}</td>
+                    <td>${row.ma99.toFixed(4)}</td>
+                    <td>${row.open15.toFixed(4)}</td>
+                    <td class="negative">${row.close15.toFixed(4)}</td>
+                </tr>
+            `;
+        }
+
+        resultBodyEl.innerHTML = html;
+        summaryLeftEl.textContent = `결과: ${rows.length}개`;
+    }
+
+    function updateLastScanInfo(trigger) {
+        const now = new Date();
+        const t = formatTime(now);
+        const mode = trigger === "auto" ? "자동" : "수동";
+        lastScanInfoEl.textContent = `마지막 스캔: ${t} (${mode})`;
+    }
+
+    function scheduleNextAutoScan() {
+        const now = new Date();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        const ms = now.getMilliseconds();
+
+        const quarters = [0, 15, 30, 45];
+        let targetMinute = null;
+
+        for (const q of quarters) {
+            if (minutes < q || (minutes === q && (seconds > 0 || ms > 0))) {
+                targetMinute = q;
+                break;
+            }
+        }
+
+        const next = new Date(now);
+        if (targetMinute === null) {
+            // 다음 시간의 00분
+            next.setHours(next.getHours() + 1);
+            next.setMinutes(0, 0, 500);
+        } else {
+            next.setMinutes(targetMinute, 0, 500);
+        }
+
+        const delay = next.getTime() - now.getTime();
+        const hh = String(next.getHours()).padStart(2, "0");
+        const mm = String(next.getMinutes()).padStart(2, "0");
+
+        if (autoInfoEl) {
+            autoInfoEl.textContent = `다음 자동 스캔 예정: ${hh}:${mm} (로컬 시간 기준)`;
+        }
+
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+        }
+
+        autoTimeoutId = setTimeout(async () => {
+            await runScan("auto");
+            scheduleNextAutoScan();
+        }, delay);
+    }
+
+    function startAutoScheduleIfNeeded() {
+        if (autoSchedulingStarted) return;
+        autoSchedulingStarted = true;
+        scheduleNextAutoScan();
+    }
+
+    async function runScan(trigger = "manual") {
+        if (isScanning) {
+            logStatus(`<span class="status-strong">이미 스캔 중입니다.</span> 잠시만 기다려 주세요...`);
+            return;
+        }
+
+        isScanning = true;
+        setScanButtonDisabled(true);
+
+        const startedAt = new Date();
+        const modeLabel = trigger === "auto" ? "자동" : "수동";
+
+        try {
+            logStatus(`<span class="status-strong">${modeLabel} 스캔 시작...</span>`);
+
+            const symbols = await fetchUsdtPerpSymbols();
+            logStatus(`USDT 무기한 심볼 ${symbols.length}개 로딩 완료 · 24h 거래대금 불러오는 중...`);
+
+            const volumeMap = await fetch24hTickers(symbols);
+
+            logStatus(`4H 조건(7&gt;25&gt;99 &amp; close&gt;99) 체크 중...`);
+
+            const fourHResults = await runInBatches(
+                symbols,
+                async (symbol) => {
+                    const klines4h = await fetchKlines(symbol, "4h", 120);
+                    if (!Array.isArray(klines4h) || klines4h.length < 100) return null;
+
+                    const closesRaw = klines4h.map(k => parseFloat(k[4]));
+                    if (closesRaw.some(v => isNaN(v))) return null;
+
+                    // 마지막 진행중 봉 제외
+                    const closes = closesRaw.slice(0, -1);
+                    if (closes.length < 99) return null;
+
+                    const ma7 = sma(closes, 7);
+                    const ma25 = sma(closes, 25);
+                    const ma99 = sma(closes, 99);
+                    if (ma7 == null || ma25 == null || ma99 == null) return null;
+
+                    const close4h = closes[closes.length - 1];
+
+                    if (!(ma7 > ma25 && ma25 > ma99 && close4h > ma99)) {
+                        return null;
+                    }
+
+                    return { symbol, ma7, ma25, ma99, close4h };
+                },
+                10 // 동시 요청 개수(레이트리밋 여유있게 조절)
+            );
+
+            const candidates = fourHResults.filter(Boolean);
+            logStatus(`4H 조건 통과 심볼: ${candidates.length}개 · 15m 직전봉(음봉) 확인 중...`);
+
+            const finalResults = await runInBatches(
+                candidates,
+                async (item) => {
+                    const klines15 = await fetchKlines(item.symbol, "15m", 3);
+                    if (!Array.isArray(klines15) || klines15.length < 2) return null;
+
+                    // 마지막 배열 요소: 진행중 봉, 그 앞: 직전 완료봉
+                    const lastCompleted = klines15[klines15.length - 2];
+                    const open15 = parseFloat(lastCompleted[1]);
+                    const close15 = parseFloat(lastCompleted[4]);
+                    if (isNaN(open15) || isNaN(close15)) return null;
+
+                    // 직전봉이 음봉이어야 함
+                    if (!(close15 < open15)) return null;
+
+                    const vol24 = volumeMap[item.symbol] || 0;
+
+                    return {
+                        symbol: item.symbol,
+                        volume24: vol24,
+                        close4h: item.close4h,
+                        ma7: item.ma7,
+                        ma25: item.ma25,
+                        ma99: item.ma99,
+                        open15,
+                        close15
+                    };
+                },
+                10
+            );
+
+            const rows = finalResults
+                .filter(Boolean)
+                .sort((a, b) => (b.volume24 || 0) - (a.volume24 || 0));
+
+            renderTable(rows);
+
+            const elapsedSec = ((new Date()).getTime() - startedAt.getTime()) / 1000;
+            logStatus(`<span class="status-strong">${modeLabel} 스캔 완료</span> · 결과 ${rows.length}개 · 소요시간 ${elapsedSec.toFixed(1)}초`);
+
+        } catch (err) {
+            console.error("runScan error", err);
+            logStatus(`<span class="status-strong">스캔 중 오류 발생</span> · 브라우저 콘솔을 확인해 주세요.`);
+        } finally {
+            isScanning = false;
+            setScanButtonDisabled(false);
+            updateLastScanInfo(trigger);
+        }
+    }
+
+    if (scanBtn) {
+        scanBtn.addEventListener("click", async () => {
+            startAutoScheduleIfNeeded(); // 첫 클릭 시 자동 스케줄 시작
+            await runScan("manual");
+        });
+    }
+
+    logStatus("대기 중 · 스캔 버튼을 누르면 즉시 스캔 후, 매시 00/15/30/45에 자동 스캔합니다.");
+</script>
+</body>
+</html>
