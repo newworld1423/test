@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Binance Perp USDT — 4H 7/25/99 + 4H 양봉 + 15m 7/25/99 &amp; 음봉 스캐너</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --bg: #05060a;
+            --card: #12131a;
+            --muted: #9aa0a6;
+            --text: #e8eaed;
+            --accent: #3ea6ff;
+            --good: #00c853;
+            --bad: #ff5252;
+            --border: #2a2e36;
+            --row-alt: #181924;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #111325 0, #05060a 55%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.5);
+            transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.2s;
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        button[disabled] {
+            opacity: 0.5;
+            cursor: default;
+            transform: none;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status-strong {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .info-line {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .card {
+            margin-top: 12px;
+            background: rgba(10, 11, 20, 0.94);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.7);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .card-header span {
+            color: var(--muted);
+        }
+
+        .table-wrap {
+            max-height: 70vh;
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #0b0c14;
+            z-index: 1;
+        }
+
+        th, td {
+            padding: 6px 8px;
+            text-align: right;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            white-space: nowrap;
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: rgba(24, 25, 36, 0.92);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(12, 13, 22, 0.92);
+        }
+
+        .symbol {
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        .vol {
+            font-feature-settings: "tnum";
+        }
+
+        .negative {
+            color: var(--bad);
+        }
+
+        .positive {
+            color: var(--good);
+        }
+
+        .empty {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 16px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .app {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            .subtitle {
+                font-size: 11px;
+            }
+
+            th, td {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 + 4H 양봉 + 15m 7&gt;25&gt;99 &amp; 직전봉 음봉 스캐너</h1>
+    <div class="subtitle">
+        Binance 무기한 선물 USDT 페어 대상 · 4H MA + 진행중 4H 양봉 · 15m 직전봉 음봉 &amp; 7&gt;25&gt;99 · 24h 거래대금 내림차순 정렬
+    </div>
+
+    <div class="controls">
+        <button id="scan-btn">지금 스캔하기</button>
+        <div class="status" id="status-text">대기 중</div>
+    </div>
+
+    <div class="info-line" id="auto-info">
+        자동 스캔은 매시 00/15/30/45분마다 슬롯당 1회 동작합니다. (처음 한 번 수동 스캔 버튼을 눌러 시작)
+    </div>
+    <div class="info-line" id="last-scan-info">마지막 스캔: -</div>
+
+    <!-- 결과1 카드 (기존 조건) -->
+    <div class="card">
+        <div class="card-header">
+            <span id="summary-left">결과1: 0개</span>
+            <span id="summary-right">
+                결과1 · 4H: 7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 진행중 4H 양봉 · 15m: 직전봉 음봉 &amp; 7&gt;25&gt;99
+            </span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>심볼</th>
+                    <th>24h 거래대금 (USDT)</th>
+                    <th>4H 종가</th>
+                    <th>4H 7MA</th>
+                    <th>4H 25MA</th>
+                    <th>4H 99MA</th>
+                    <th>15m 직전 시가</th>
+                    <th>15m 직전 종가</th>
+                    <th>15m 7MA</th>
+                    <th>15m 25MA</th>
+                    <th>15m 99MA</th>
+                </tr>
+                </thead>
+                <tbody id="result-body">
+                <tr><td colspan="11" class="empty">아직 스캔 결과가 없습니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 결과2 카드 (새 조건) -->
+    <div class="card">
+        <div class="card-header">
+            <span id="summary2-left">결과2: 0개</span>
+            <span id="summary2-right">
+                결과2 · 4H: 7&lt;25&lt;99 &amp; 진행중 4H 양봉 &amp; 현재가&gt;99MA · 괴리율 내림차순
+            </span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>심볼</th>
+                    <th>24h 거래대금 (USDT)</th>
+                    <th>4H 종가(직전)</th>
+                    <th>4H 현재가</th>
+                    <th>4H 7MA</th>
+                    <th>4H 25MA</th>
+                    <th>4H 99MA</th>
+                    <th>괴리율 (%)</th>
+                </tr>
+                </thead>
+                <tbody id="result2-body">
+                <tr><td colspan="8" class="empty">아직 스캔 결과가 없습니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "https://fapi.binance.com";
+
+    const statusTextEl = document.getElementById("status-text");
+    const autoInfoEl = document.getElementById("auto-info");
+    const lastScanInfoEl = document.getElementById("last-scan-info");
+    const summaryLeftEl = document.getElementById("summary-left");
+    const resultBodyEl = document.getElementById("result-body");
+    const scanBtn = document.getElementById("scan-btn");
+
+    // 결과2 DOM 참조
+    const result2BodyEl = document.getElementById("result2-body");
+    const summary2LeftEl = document.getElementById("summary2-left");
+
+    let symbolsCache = null;          // USDT PERPETUAL 심볼 캐시
+    let isScanning = false;           // 동시 스캔 방지
+    let autoSchedulingStarted = false;
+    let autoTimeoutId = null;         // 다음 자동 스캔 setTimeout ID
+
+    let rateLimitBlocked = false;     // 418/429 감지 시 true
+    let rateLimitMessage = "";        // 화면에 보여줄 레이트 리밋 메시지
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function formatTime(date) {
+        const h = String(date.getHours()).padStart(2, "0");
+        const m = String(date.getMinutes()).padStart(2, "0");
+        const s = String(date.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+    }
+
+    function logStatus(msg) {
+        if (statusTextEl) {
+            statusTextEl.innerHTML = msg;
+        }
+        console.log("[SCAN STATUS]", msg);
+    }
+
+    function setScanButtonDisabled(disabled) {
+        if (!scanBtn) return;
+        scanBtn.disabled = disabled;
+    }
+
+    function stopAutoSchedule() {
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+            autoTimeoutId = null;
+        }
+        autoSchedulingStarted = false;
+        if (autoInfoEl) {
+            autoInfoEl.textContent = "자동 스캔이 중지되었습니다. (레이트 리밋 또는 IP 차단 감지)";
+        }
+    }
+
+    async function fetchWithRetry(url, retries = 2, backoffBaseMs = 600) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const res = await fetch(url);
+
+                if (res.ok) {
+                    return res.json();
+                }
+
+                // 레이트 리밋 / IP 밴 처리
+                if (res.status === 429 || res.status === 418) {
+                    const retryAfter = res.headers.get("Retry-After");
+                    const sec = retryAfter ? parseInt(retryAfter, 10) : null;
+
+                    rateLimitBlocked = true;
+                    rateLimitMessage =
+                        res.status === 418
+                            ? `Binance API 418 (IP 임시 차단)${sec ? ` · 약 ${sec}초 후 다시 시도하세요.` : ""}`
+                            : `Binance API 429 (요청 한도 초과)${sec ? ` · 약 ${sec}초 후 다시 시도하세요.` : ""}`;
+
+                    console.warn("[RATE LIMIT]", res.status, rateLimitMessage);
+                    logStatus(`<span class="status-strong">자동 스캔 중지</span> · ${rateLimitMessage}`);
+
+                    // 자동 스캐줄 완전히 중지
+                    stopAutoSchedule();
+
+                    // 더 이상 재시도하지 않고 바로 에러
+                    throw new Error(rateLimitMessage);
+                }
+
+                console.warn("HTTP error", res.status, url);
+                return null;
+            } catch (err) {
+                // 레이트 리밋 에러면 바로 종료
+                if (rateLimitBlocked) {
+                    throw err;
+                }
+
+                // 네트워크 오류 등일 때만 재시도
+                if (attempt === retries) {
+                    console.warn("fetch error 최종 실패", url, err);
+                    return null;
+                }
+                const wait = backoffBaseMs * (attempt + 1);
+                await sleep(wait);
+            }
+        }
+        return null;
+    }
+
+    async function fetchKlines(symbol, interval, limit) {
+        const url = `${API_BASE}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        return fetchWithRetry(url, 1, 500);
+    }
+
+    function sma(values, length) {
+        if (!values || values.length < length) return null;
+        const slice = values.slice(-length);
+        let sum = 0;
+        for (let v of slice) {
+            sum += v;
+        }
+        return sum / length;
+    }
+
+    async function fetchUsdtPerpSymbols() {
+        if (symbolsCache && Array.isArray(symbolsCache) && symbolsCache.length > 0) {
+            return symbolsCache;
+        }
+
+        logStatus("exchangeInfo 로딩 중...");
+        const data = await fetchWithRetry(`${API_BASE}/fapi/v1/exchangeInfo`, 2, 700);
+
+        if (!data) {
+            console.error("[exchangeInfo] 응답이 null 입니다. (레이트리밋, 네트워크, CORS 가능성)");
+            throw new Error("exchangeInfo 로딩 실패");
+        }
+
+        if (!data.symbols) {
+            console.error("[exchangeInfo] 예상과 다른 응답:", data);
+            throw new Error("exchangeInfo 로딩 실패");
+        }
+
+        const list = data.symbols
+            .filter(s =>
+                s.contractType === "PERPETUAL" &&
+                s.quoteAsset === "USDT" &&
+                s.status === "TRADING"
+            )
+            .map(s => s.symbol)
+            .sort();
+
+        symbolsCache = list;
+        console.log("USDT PERPETUAL symbols:", list.length);
+        return list;
+    }
+
+    async function fetch24hTickers(symbolList) {
+        logStatus("24h ticker (거래대금) 로딩 중...");
+        const data = await fetchWithRetry(`${API_BASE}/fapi/v1/ticker/24hr`, 2, 700);
+        const volumeMap = {};
+
+        if (Array.isArray(data)) {
+            const symbolSet = new Set(symbolList);
+            for (const t of data) {
+                if (!t || !t.symbol || !symbolSet.has(t.symbol)) continue;
+                const qv = parseFloat(t.quoteVolume || t.volume || "0");
+                volumeMap[t.symbol] = isNaN(qv) ? 0 : qv;
+            }
+        }
+
+        return volumeMap;
+    }
+
+    async function runInBatches(items, worker, concurrency = 5) {
+        const results = new Array(items.length);
+        let index = 0;
+
+        async function workerLoop() {
+            while (true) {
+                const i = index++;
+                if (i >= items.length) break;
+                try {
+                    results[i] = await worker(items[i], i);
+                } catch (err) {
+                    console.warn("worker error", err);
+                    results[i] = null;
+                }
+            }
+        }
+
+        const workers = [];
+        const realConcurrency = Math.min(concurrency, items.length);
+        for (let i = 0; i < realConcurrency; i++) {
+            workers.push(workerLoop());
+        }
+        await Promise.all(workers);
+        return results;
+    }
+
+    // 결과1 테이블 렌더
+    function renderTableResult1(rows) {
+        if (!resultBodyEl) return;
+
+        if (!rows || rows.length === 0) {
+            resultBodyEl.innerHTML = `<tr><td colspan="11" class="empty">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            summaryLeftEl.textContent = "결과1: 0개";
+            return;
+        }
+
+        let html = "";
+        for (const row of rows) {
+            const vol = row.volume24 || 0;
+            const volFmt = vol >= 1_000_000
+                ? (vol / 1_000_000).toFixed(2) + "M"
+                : vol.toFixed(0);
+
+            html += `
+                <tr>
+                    <td class="symbol">${row.symbol}</td>
+                    <td class="vol">${volFmt}</td>
+                    <td>${row.close4h.toFixed(4)}</td>
+                    <td>${row.ma7.toFixed(4)}</td>
+                    <td>${row.ma25.toFixed(4)}</td>
+                    <td>${row.ma99.toFixed(4)}</td>
+                    <td>${row.open15.toFixed(4)}</td>
+                    <td class="negative">${row.close15.toFixed(4)}</td>
+                    <td>${row.ma7_15.toFixed(4)}</td>
+                    <td>${row.ma25_15.toFixed(4)}</td>
+                    <td>${row.ma99_15.toFixed(4)}</td>
+                </tr>
+            `;
+        }
+
+        resultBodyEl.innerHTML = html;
+        summaryLeftEl.textContent = `결과1: ${rows.length}개`;
+    }
+
+    // 결과2 테이블 렌더 (새 조건)
+    function renderTableResult2(rows) {
+        if (!result2BodyEl) return;
+
+        if (!rows || rows.length === 0) {
+            result2BodyEl.innerHTML = `<tr><td colspan="8" class="empty">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            if (summary2LeftEl) summary2LeftEl.textContent = "결과2: 0개";
+            return;
+        }
+
+        let html = "";
+        for (const row of rows) {
+            const vol = row.volume24 || 0;
+            const volFmt = vol >= 1_000_000
+                ? (vol / 1_000_000).toFixed(2) + "M"
+                : vol.toFixed(0);
+
+            html += `
+                <tr>
+                    <td class="symbol">${row.symbol}</td>
+                    <td class="vol">${volFmt}</td>
+                    <td>${row.close4h.toFixed(4)}</td>
+                    <td>${row.currentClose4h.toFixed(4)}</td>
+                    <td>${row.ma7.toFixed(4)}</td>
+                    <td>${row.ma25.toFixed(4)}</td>
+                    <td>${row.ma99.toFixed(4)}</td>
+                    <td>${row.gapPct.toFixed(2)}</td>
+                </tr>
+            `;
+        }
+
+        result2BodyEl.innerHTML = html;
+        if (summary2LeftEl) summary2LeftEl.textContent = `결과2: ${rows.length}개`;
+    }
+
+    function updateLastScanInfo(trigger) {
+        const now = new Date();
+        const t = formatTime(now);
+        const mode = trigger === "auto" ? "자동" : "수동";
+        lastScanInfoEl.textContent = `마지막 스캔: ${t} (${mode})`;
+    }
+
+    // now 기준 다음 00/15/30/45 분 Date 객체 계산
+    function getNextSlotDate(now) {
+        const quarters = [0, 15, 30, 45];
+        const result = new Date(now.getTime());
+        const m = now.getMinutes();
+
+        let targetMinute = null;
+        for (const q of quarters) {
+            if (m < q) {
+                targetMinute = q;
+                break;
+            }
+        }
+
+        if (targetMinute === null) {
+            // 다음 시간 정각으로
+            result.setHours(result.getHours() + 1);
+            result.setMinutes(0, 0, 0);
+        } else {
+            result.setMinutes(targetMinute, 0, 0);
+        }
+
+        return result;
+    }
+
+    function scheduleNextAutoScan() {
+        if (rateLimitBlocked) {
+            stopAutoSchedule();
+            return;
+        }
+
+        const now = new Date();
+        const next = getNextSlotDate(now);
+        const delay = next.getTime() - now.getTime();
+
+        const hh = String(next.getHours()).padStart(2, "0");
+        const mm = String(next.getMinutes()).padStart(2, "0");
+
+        if (autoInfoEl) {
+            autoInfoEl.textContent =
+                `자동 스캔 활성화됨: 다음 자동 스캔 예정 ${hh}:${mm} (이후 매 15분 단위로 슬롯당 1회 실행)`;
+        }
+
+        if (autoTimeoutId) {
+            clearTimeout(autoTimeoutId);
+        }
+
+        autoTimeoutId = setTimeout(async () => {
+            autoTimeoutId = null;
+
+            if (rateLimitBlocked) {
+                stopAutoSchedule();
+                return;
+            }
+
+            // 이 시점에 이미 스캔 중이면, 이번 슬롯은 스킵하고 다음 슬롯 예약
+            if (isScanning) {
+                console.log("[AUTO] 스캔 중이라 이 슬롯 스킵:", next.toString());
+                scheduleNextAutoScan();
+                return;
+            }
+
+            // 슬롯에서 딱 한 번 자동 스캔 실행
+            await runScan("auto");
+
+            // 레이트 리밋이 걸리지 않았다면 다음 슬롯 예약
+            if (!rateLimitBlocked) {
+                scheduleNextAutoScan();
+            } else {
+                stopAutoSchedule();
+            }
+        }, delay);
+    }
+
+    function startAutoScheduleIfNeeded() {
+        if (autoSchedulingStarted) return;
+        if (rateLimitBlocked) {
+            logStatus(`<span class="status-strong">자동 스캔 불가</span> · ${rateLimitMessage || "Binance 레이트 리밋 감지됨"}`);
+            return;
+        }
+
+        autoSchedulingStarted = true;
+        scheduleNextAutoScan();
+    }
+
+    async function runScan(trigger = "manual") {
+        // 레이트 리밋 상태면 바로 안내만 하고 리턴
+        if (rateLimitBlocked) {
+            logStatus(`<span class="status-strong">Binance 레이트 리밋 상태</span> · ${rateLimitMessage || "잠시 후 다시 시도해 주세요."}`);
+            return;
+        }
+
+        if (isScanning) {
+            logStatus(`<span class="status-strong">이미 스캔 중입니다.</span> 잠시만 기다려 주세요...`);
+            return;
+        }
+
+        isScanning = true;
+        setScanButtonDisabled(true);
+
+        const startedAt = new Date();
+        const modeLabel = trigger === "auto" ? "자동" : "수동";
+
+        try {
+            logStatus(`<span class="status-strong">${modeLabel} 스캔 시작...</span>`);
+
+            const symbols = await fetchUsdtPerpSymbols();
+            logStatus(`USDT 무기한 심볼 ${symbols.length}개 로딩 완료 · 24h 거래대금 불러오는 중...`);
+
+            const volumeMap = await fetch24hTickers(symbols);
+
+            logStatus(`4H 조건(7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 진행중 4H 양봉 / 7&lt;25&lt;99 &amp; 현재가&gt;99MA) 체크 중...`);
+
+            // 결과2 후보 담을 배열
+            const result2Candidates = [];
+
+            const fourHResults = await runInBatches(
+                symbols,
+                async (symbol) => {
+                    const klines4h = await fetchKlines(symbol, "4h", 120);
+                    if (!Array.isArray(klines4h) || klines4h.length < 100) return null;
+
+                    const closesRaw = klines4h.map(k => parseFloat(k[4]));
+                    if (closesRaw.some(v => isNaN(v))) return null;
+
+                    // 진행중 4H 봉
+                    const current = klines4h[klines4h.length - 1];
+                    const currentOpen4h = parseFloat(current[1]);
+                    const currentClose4h = parseFloat(current[4]);
+                    if (isNaN(currentOpen4h) || isNaN(currentClose4h)) return null;
+
+                    // 진행중 4H 봉이 양봉이어야 함 (결과1, 결과2 모두 공통)
+                    if (!(currentClose4h > currentOpen4h)) {
+                        return null;
+                    }
+
+                    // 완료된 봉들(진행중 봉 제외)로 MA 계산
+                    const closes = closesRaw.slice(0, -1);
+                    if (closes.length < 99) return null;
+
+                    const ma7 = sma(closes, 7);
+                    const ma25 = sma(closes, 25);
+                    const ma99 = sma(closes, 99);
+                    if (ma7 == null || ma25 == null || ma99 == null) return null;
+
+                    const close4h = closes[closes.length - 1];
+
+                    // ===== 결과2 조건 체크 =====
+                    // 4H: 7MA < 25MA < 99MA, 현재봉 양봉(위에서 체크), 현재가 > 99MA
+                    const cond2 = (ma7 < ma25 && ma25 < ma99 && currentClose4h > ma99);
+                    if (cond2) {
+                        const vol24 = volumeMap[symbol] || 0;
+                        const gap = currentClose4h - ma99;
+                        const gapPct = ma99 !== 0 ? (gap / ma99) * 100 : 0;
+
+                        result2Candidates.push({
+                            symbol,
+                            volume24: vol24,
+                            close4h,
+                            currentClose4h,
+                            ma7,
+                            ma25,
+                            ma99,
+                            gap,
+                            gapPct
+                        });
+                    }
+
+                    // ===== 결과1(기존) 조건 체크 =====
+                    // 7MA > 25MA > 99MA, 직전 완료봉 종가 > 99MA
+                    const cond1 = (ma7 > ma25 && ma25 > ma99 && close4h > ma99);
+                    if (!cond1) {
+                        return null;
+                    }
+
+                    return {
+                        symbol,
+                        ma7,
+                        ma25,
+                        ma99,
+                        close4h,
+                        currentOpen4h,
+                        currentClose4h
+                    };
+                },
+                5 // 동시 요청 5개로 레이트 리밋 완화
+            );
+
+            const candidates = fourHResults.filter(Boolean);
+            logStatus(`4H 조건 통과 심볼(결과1 후보): ${candidates.length}개 · 15m 직전봉(음봉) + 7&gt;25&gt;99 체크 중...`);
+
+            // ===== 결과1용 15m 조건 체크 =====
+            const finalResults = await runInBatches(
+                candidates,
+                async (item) => {
+                    // 15m: 100개 → 직전봉 기준 99MA까지 계산 가능
+                    const klines15 = await fetchKlines(item.symbol, "15m", 100);
+                    if (!Array.isArray(klines15) || klines15.length < 100) return null;
+
+                    const closes15Raw = klines15.map(k => parseFloat(k[4]));
+                    if (closes15Raw.some(v => isNaN(v))) return null;
+
+                    // 직전 완료 15m 봉
+                    const prev15 = klines15[klines15.length - 2];
+
+                    const open15 = parseFloat(prev15[1]);
+                    const close15 = parseFloat(prev15[4]);
+                    if (isNaN(open15) || isNaN(close15)) return null;
+
+                    // 직전봉이 음봉이어야 함
+                    if (!(close15 < open15)) return null;
+
+                    // 직전봉까지의 종가들로 7/25/99MA 계산 (현재봉 제외)
+                    const closesUpToPrev = closes15Raw.slice(0, -1);
+                    if (closesUpToPrev.length < 99) return null;
+
+                    const ma7_15 = sma(closesUpToPrev, 7);
+                    const ma25_15 = sma(closesUpToPrev, 25);
+                    const ma99_15 = sma(closesUpToPrev, 99);
+                    if (ma7_15 == null || ma25_15 == null || ma99_15 == null) return null;
+
+                    // 직전봉 기준 7MA > 25MA > 99MA
+                    if (!(ma7_15 > ma25_15 && ma25_15 > ma99_15)) {
+                        return null;
+                    }
+
+                    const vol24 = volumeMap[item.symbol] || 0;
+
+                    return {
+                        symbol: item.symbol,
+                        volume24: vol24,
+                        close4h: item.close4h,
+                        ma7: item.ma7,
+                        ma25: item.ma25,
+                        ma99: item.ma99,
+                        currentOpen4h: item.currentOpen4h,
+                        currentClose4h: item.currentClose4h,
+                        open15,
+                        close15,
+                        ma7_15,
+                        ma25_15,
+                        ma99_15
+                    };
+                },
+                5 // 동시 요청 5개
+            );
+
+            // ===== 결과1 / 결과2 정렬 & 렌더 =====
+            const rows1 = finalResults
+                .filter(Boolean)
+                .sort((a, b) => (b.volume24 || 0) - (a.volume24 || 0));
+
+            // 결과2: 현재가와 99MA 괴리율(gapPct)이 큰 순으로 정렬
+            const rows2 = result2Candidates
+                .slice()
+                .sort((a, b) => (b.gapPct || 0) - (a.gapPct || 0));
+
+            renderTableResult1(rows1);
+            renderTableResult2(rows2);
+
+            const elapsedSec = ((new Date()).getTime() - startedAt.getTime()) / 1000;
+            logStatus(
+                `<span class="status-strong">${modeLabel} 스캔 완료</span>` +
+                ` · 결과1 ${rows1.length}개 · 결과2 ${rows2.length}개` +
+                ` · 소요시간 ${elapsedSec.toFixed(1)}초`
+            );
+
+        } catch (err) {
+            console.error("runScan error", err);
+            logStatus(`<span class="status-strong">스캔 중 오류</span> · ${err.message || "브라우저 콘솔을 확인해 주세요."}`);
+        } finally {
+            isScanning = false;
+            setScanButtonDisabled(false);
+            updateLastScanInfo(trigger);
+        }
+    }
+
+    if (scanBtn) {
+        scanBtn.addEventListener("click", async () => {
+            // 처음 한 번만 자동 스케줄 시작
+            startAutoScheduleIfNeeded();
+            await runScan("manual");
+        });
+    }
+
+    logStatus("대기 중 · 스캔 버튼을 누르면 즉시 스캔 후, 이후 매시 00/15/30/45분에 자동 스캔(슬롯당 1회) 됩니다.");
+</script>
+</body>
+</html>
