@@ -209,7 +209,7 @@
 <div class="app">
     <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 + 4H 양봉 + 15m 7&gt;25&gt;99 &amp; 직전봉 음봉 스캐너</h1>
     <div class="subtitle">
-        Binance 무기한 선물 USDT 페어 대상 · 4H MA + 진행중 4H 양봉 · 15m 직전봉 음봉 &amp; 7&gt;25&gt;99 · 24h 거래대금 내림차순 정렬
+        Binance 무기한 선물 USDT 페어 대상 · 4H MA + 진행중 4H 양봉 · 15m 직전봉 음봉 &amp; 7&gt;25&gt;99 · 4H 현재봉 증감률 내림차순 정렬
     </div>
 
     <div class="controls">
@@ -808,26 +808,29 @@
             );
 
             // ===== 결과1 / 결과2 정렬 & 렌더 =====
-            // 결과1: 4H 현재가 vs 4H 99MA "거리"(|가격 차이|) 큰 순서 + 보조정렬 24h 거래대금
+            // 결과1: 4H 현재봉 기준 증감률 ((현재가 - 직전종가) / 직전종가 * 100) 높은 순 + 보조정렬 24h 거래대금
             const rows1 = finalResults
                 .filter(Boolean)
                 .map(row => {
-                    const gap = row.currentClose4h - row.ma99;   // 가격 차이
-                    const gapAbs = Math.abs(gap);                // 거리(절대값)
+                    const base = row.close4h; // 직전 4H 종가
+                    const changePct =
+                        base !== 0
+                            ? ((row.currentClose4h - base) / base) * 100
+                            : 0;
                     return {
                         ...row,
-                        gapAbs
+                        changePct
                     };
                 })
                 .sort((a, b) => {
-                    const aGap = a.gapAbs || 0;
-                    const bGap = b.gapAbs || 0;
+                    const aPct = a.changePct || 0;
+                    const bPct = b.changePct || 0;
 
-                    if (bGap === aGap) {
-                        // 거리 같으면 24h 거래대금 큰 순
+                    if (bPct === aPct) {
+                        // 증감률 같으면 24h 거래대금 큰 순
                         return (b.volume24 || 0) - (a.volume24 || 0);
                     }
-                    return bGap - aGap;
+                    return bPct - aPct;
                 });
 
             // 결과2: 현재가와 99MA 괴리율(gapPct)이 큰 순으로 정렬
