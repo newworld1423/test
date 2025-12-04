@@ -222,7 +222,7 @@
     </div>
     <div class="info-line" id="last-scan-info">마지막 스캔: -</div>
 
-    <!-- 결과1 카드 (기존 조건) -->
+    <!-- 결과1 카드 -->
     <div class="card">
         <div class="card-header">
             <span id="summary-left">결과1: 0개</span>
@@ -260,7 +260,7 @@
         <div class="card-header">
             <span id="summary2-left">결과2: 0개</span>
             <span id="summary2-right">
-                결과2 · 4H: 7&lt;25&lt;99 &amp; 진행중 4H 양봉 &amp; 현재가&gt;99MA · 괴리율 내림차순
+                결과2 · 4H: 7&lt;25&lt;99 &amp; 직전 close&lt;99MA &amp; 진행중 4H 음봉 · 15m: 직전봉 양봉 &amp; 7&lt;25&lt;99
             </span>
         </div>
         <div class="table-wrap">
@@ -274,7 +274,7 @@
                     <th>4H 7MA</th>
                     <th>4H 25MA</th>
                     <th>4H 99MA</th>
-                    <th>괴리율 (%)</th>
+                    <th>4H 증감률 (%)</th>
                 </tr>
                 </thead>
                 <tbody id="result2-body">
@@ -540,6 +540,9 @@
                 ? (vol / 1_000_000).toFixed(2) + "M"
                 : vol.toFixed(0);
 
+            const changePct = typeof row.changePct === "number" ? row.changePct : 0;
+            const changeClass = changePct >= 0 ? "positive" : "negative";
+
             html += `
                 <tr>
                     <td class="symbol">${row.symbol}</td>
@@ -549,7 +552,7 @@
                     <td>${row.ma7.toFixed(4)}</td>
                     <td>${row.ma25.toFixed(4)}</td>
                     <td>${row.ma99.toFixed(4)}</td>
-                    <td>${row.gapPct.toFixed(2)}</td>
+                    <td class="${changeClass}">${changePct.toFixed(2)}</td>
                 </tr>
             `;
         }
@@ -597,7 +600,8 @@
         }
 
         const now = new Date();
-        const next = getNextSlotDate(now);
+        the_next = getNextSlotDate(now);
+        const next = the_next;
         const delay = next.getTime() - now.getTime();
 
         const hh = String(next.getHours()).padStart(2, "0");
@@ -676,10 +680,10 @@
 
             const volumeMap = await fetch24hTickers(symbols);
 
-            logStatus(`4H 조건(7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 진행중 4H 양봉 / 7&lt;25&lt;99 &amp; 현재가&gt;99MA) 체크 중...`);
+            logStatus(`4H 조건 체크 중... (결과1: 7&gt;25&gt;99 &amp; 직전 close&gt;99MA &amp; 양봉 / 결과2: 7&lt;25&lt;99 &amp; 직전 close&lt;99MA &amp; 음봉)`);
 
-            // 결과2 후보 담을 배열
-            const result2Candidates = [];
+            // 결과2의 4H 후보 담을 배열
+            const result2Candidates4h = [];
 
             const fourHResults = await runInBatches(
                 symbols,
@@ -696,11 +700,6 @@
                     const currentClose4h = parseFloat(current[4]);
                     if (isNaN(currentOpen4h) || isNaN(currentClose4h)) return null;
 
-                    // 진행중 4H 봉이 양봉이어야 함 (결과1, 결과2 모두 공통)
-                    if (!(currentClose4h > currentOpen4h)) {
-                        return null;
-                    }
-
                     // 완료된 봉들(진행중 봉 제외)로 MA 계산
                     const closes = closesRaw.slice(0, -1);
                     if (closes.length < 99) return null;
@@ -710,33 +709,39 @@
                     const ma99 = sma(closes, 99);
                     if (ma7 == null || ma25 == null || ma99 == null) return null;
 
+                    // 직전 4H 완료봉 종가
                     const close4h = closes[closes.length - 1];
 
-                    // ===== 결과2 조건 체크 =====
-                    // 4H: 7MA < 25MA < 99MA, 현재봉 양봉(위에서 체크), 현재가 > 99MA
-                    const cond2 = (ma7 < ma25 && ma25 < ma99 && currentClose4h > ma99);
+                    // ===== 결과2(새 조건) 4H 스텝 =====
+                    // 4H: 7MA < 25MA < 99MA & 직전 close < 99MA & 진행중 4H 음봉
+                    const cond2 =
+                        (ma7 < ma25 && ma25 < ma99) &&
+                        (close4h < ma99) &&
+                        (currentClose4h < currentOpen4h);
+
                     if (cond2) {
                         const vol24 = volumeMap[symbol] || 0;
-                        const gap = currentClose4h - ma99;
-                        const gapPct = ma99 !== 0 ? (gap / ma99) * 100 : 0;
-
-                        result2Candidates.push({
+                        result2Candidates4h.push({
                             symbol,
                             volume24: vol24,
                             close4h,
+                            currentOpen4h,
                             currentClose4h,
                             ma7,
                             ma25,
-                            ma99,
-                            gap,
-                            gapPct
+                            ma99
                         });
                     }
 
-                    // ===== 결과1(기존) 조건 체크 =====
-                    // 7MA > 25MA > 99MA, 직전 완료봉 종가 > 99MA
-                    const cond1 = (ma7 > ma25 && ma25 > ma99 && close4h > ma99);
+                    // ===== 결과1(기존) 4H 스텝 =====
+                    // 7MA > 25MA > 99MA & 직전 close > 99MA & 진행중 4H 양봉
+                    const cond1 =
+                        (ma7 > ma25 && ma25 > ma99) &&
+                        (close4h > ma99) &&
+                        (currentClose4h > currentOpen4h);
+
                     if (!cond1) {
+                        // 결과1에는 안 쓰이더라도, cond2 후보는 위에서 이미 push 해둔 상태
                         return null;
                     }
 
@@ -753,12 +758,12 @@
                 5 // 동시 요청 5개로 레이트 리밋 완화
             );
 
-            const candidates = fourHResults.filter(Boolean);
-            logStatus(`4H 조건 통과 심볼(결과1 후보): ${candidates.length}개 · 15m 직전봉(음봉) + 7&gt;25&gt;99 체크 중...`);
+            const candidates1 = fourHResults.filter(Boolean);
+            logStatus(`4H 조건 통과 심볼 · 결과1 후보: ${candidates1.length}개 · 결과2 4H 후보: ${result2Candidates4h.length}개 · 15m 조건 체크 중...`);
 
             // ===== 결과1용 15m 조건 체크 =====
-            const finalResults = await runInBatches(
-                candidates,
+            const finalResults1 = await runInBatches(
+                candidates1,
                 async (item) => {
                     // 15m: 100개 → 직전봉 기준 99MA까지 계산 가능
                     const klines15 = await fetchKlines(item.symbol, "15m", 100);
@@ -774,7 +779,7 @@
                     const close15 = parseFloat(prev15[4]);
                     if (isNaN(open15) || isNaN(close15)) return null;
 
-                    // 직전봉이 음봉이어야 함
+                    // 결과1: 직전봉이 "음봉"이어야 함
                     if (!(close15 < open15)) return null;
 
                     // 직전봉까지의 종가들로 7/25/99MA 계산 (현재봉 제외)
@@ -786,7 +791,7 @@
                     const ma99_15 = sma(closesUpToPrev, 99);
                     if (ma7_15 == null || ma25_15 == null || ma99_15 == null) return null;
 
-                    // 직전봉 기준 7MA > 25MA > 99MA
+                    // 결과1: 직전봉 기준 7MA > 25MA > 99MA
                     if (!(ma7_15 > ma25_15 && ma25_15 > ma99_15)) {
                         return null;
                     }
@@ -812,9 +817,68 @@
                 5 // 동시 요청 5개
             );
 
+            // ===== 결과2용 15m 조건 체크 (새 조건) =====
+            const finalResults2 = await runInBatches(
+                result2Candidates4h,
+                async (item) => {
+                    // 15m: 100개 → 직전봉 기준 99MA까지 계산 가능
+                    const klines15 = await fetchKlines(item.symbol, "15m", 100);
+                    if (!Array.isArray(klines15) || klines15.length < 100) return null;
+
+                    const closes15Raw = klines15.map(k => parseFloat(k[4]));
+                    if (closes15Raw.some(v => isNaN(v))) return null;
+
+                    // 직전 완료 15m 봉
+                    const prev15 = klines15[klines15.length - 2];
+
+                    const open15 = parseFloat(prev15[1]);
+                    const close15 = parseFloat(prev15[4]);
+                    if (isNaN(open15) || isNaN(close15)) return null;
+
+                    // 결과2: 직전봉이 "양봉"이어야 함
+                    if (!(close15 > open15)) return null;
+
+                    // 직전봉까지의 종가들로 7/25/99MA 계산 (현재봉 제외)
+                    const closesUpToPrev = closes15Raw.slice(0, -1);
+                    if (closesUpToPrev.length < 99) return null;
+
+                    const ma7_15 = sma(closesUpToPrev, 7);
+                    const ma25_15 = sma(closesUpToPrev, 25);
+                    const ma99_15 = sma(closesUpToPrev, 99);
+                    if (ma7_15 == null || ma25_15 == null || ma99_15 == null) return null;
+
+                    // 결과2: 직전봉 기준 7MA < 25MA < 99MA
+                    if (!(ma7_15 < ma25_15 && ma25_15 < ma99_15)) {
+                        return null;
+                    }
+
+                    const vol24 = item.volume24 != null
+                        ? item.volume24
+                        : (volumeMap[item.symbol] || 0);
+
+                    return {
+                        symbol: item.symbol,
+                        volume24: vol24,
+                        close4h: item.close4h,
+                        currentOpen4h: item.currentOpen4h,
+                        currentClose4h: item.currentClose4h,
+                        ma7: item.ma7,
+                        ma25: item.ma25,
+                        ma99: item.ma99,
+                        open15,
+                        close15,
+                        ma7_15,
+                        ma25_15,
+                        ma99_15
+                    };
+                },
+                5
+            );
+
             // ===== 결과1 / 결과2 정렬 & 렌더 =====
+
             // 결과1: 4H 현재봉 기준 증감률 ((현재가 - 직전종가) / 직전종가 * 100) 높은 순 + 보조정렬 24h 거래대금
-            const rows1 = finalResults
+            const rows1 = finalResults1
                 .filter(Boolean)
                 .map(row => {
                     const base = row.close4h; // 직전 4H 종가
@@ -838,10 +902,32 @@
                     return bPct - aPct;
                 });
 
-            // 결과2: 현재가와 99MA 괴리율(gapPct)이 큰 순으로 정렬
-            const rows2 = result2Candidates
-                .slice()
-                .sort((a, b) => (b.gapPct || 0) - (a.gapPct || 0));
+            // 결과2: 4H 현재봉 기준 증감률 ((현재가 - 직전종가) / 직전종가 * 100) "오름차순"
+            // → 가장 많이 떨어진(가장 음수인) 심볼이 위로 오도록 정렬
+            const rows2 = finalResults2
+                .filter(Boolean)
+                .map(row => {
+                    const base = row.close4h;
+                    const changePct =
+                        base !== 0
+                            ? ((row.currentClose4h - base) / base) * 100
+                            : 0;
+                    return {
+                        ...row,
+                        changePct
+                    };
+                })
+                .sort((a, b) => {
+                    const aPct = a.changePct || 0;
+                    const bPct = b.changePct || 0;
+
+                    if (aPct === bPct) {
+                        // 증감률 같으면 24h 거래대금 큰 순
+                        return (b.volume24 || 0) - (a.volume24 || 0);
+                    }
+                    // 오름차순: 더 음수(하락률 큰 것)가 먼저
+                    return aPct - bPct;
+                });
 
             renderTableResult1(rows1);
             renderTableResult2(rows2);
