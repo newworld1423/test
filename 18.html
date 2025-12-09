@@ -207,9 +207,9 @@
 </head>
 <body>
 <div class="app">
-    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 + 4H 양봉 + 15m 7&gt;25&gt;99 &amp; 직전봉 음봉 스캐너</h1>
+    <h1>4H 7&gt;25&gt;99 &amp; 99MA 위 / 7&lt;25&lt;99 &amp; 99MA 아래 / 4H 7MA↑99MA 골든크로스 스캐너</h1>
     <div class="subtitle">
-        Binance 무기한 선물 USDT 페어 대상 · 결과1: 4H 양봉 &amp; 15m 음봉 · 결과2: 4H 음봉 &amp; 15m 양봉 · 4H 현재봉 증감률 기준 정렬
+        Binance 무기한 선물 USDT 페어 대상 · 결과1: 4H 양봉 &amp; 15m 음봉 · 결과2: 4H 음봉 &amp; 15m 양봉 · 결과3: 4H 7MA↑99MA 골든크로스 · 결과1·2: 4H 현재봉 증감률 기준 정렬 · 결과3: 24h 거래대금 기준 정렬
     </div>
 
     <div class="controls">
@@ -246,7 +246,7 @@
         </div>
     </div>
 
-    <!-- 결과2 카드 (새 조건) -->
+    <!-- 결과2 카드 -->
     <div class="card">
         <div class="card-header">
             <span id="summary2-left">결과2: 0개</span>
@@ -269,6 +269,30 @@
             </table>
         </div>
     </div>
+
+    <!-- 결과3 카드 (새 조건: 2봉전 7MA &lt; 99MA, 1봉전 7MA &gt; 99MA) -->
+    <div class="card">
+        <div class="card-header">
+            <span id="summary3-left">결과3: 0개</span>
+            <span id="summary3-right">
+                결과3 · 4H: 2봉전 7MA &lt; 99MA &amp; 1봉전 7MA &gt; 99MA (7MA↑99MA 골든크로스)
+            </span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>심볼</th>
+                    <th>4H 증감률 (%)</th>
+                    <th>24h 거래대금 (USDT)</th>
+                </tr>
+                </thead>
+                <tbody id="result3-body">
+                <tr><td colspan="3" class="empty">아직 스캔 결과가 없습니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -284,6 +308,10 @@
     // 결과2 DOM 참조
     const result2BodyEl = document.getElementById("result2-body");
     const summary2LeftEl = document.getElementById("summary2-left");
+
+    // 결과3 DOM 참조
+    const result3BodyEl = document.getElementById("result3-body");
+    const summary3LeftEl = document.getElementById("summary3-left");
 
     let symbolsCache = null;          // USDT PERPETUAL 심볼 캐시
     let isScanning = false;           // 동시 스캔 방지
@@ -533,6 +561,39 @@
         if (summary2LeftEl) summary2LeftEl.textContent = `결과2: ${rows.length}개`;
     }
 
+    // 결과3 테이블 렌더 (심볼 + 4H 증감률 + 거래대금, 거래대금 순 정렬된 rows를 그대로 사용)
+    function renderTableResult3(rows) {
+        if (!result3BodyEl) return;
+
+        if (!rows || rows.length === 0) {
+            result3BodyEl.innerHTML = `<tr><td colspan="3" class="empty">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+            if (summary3LeftEl) summary3LeftEl.textContent = "결과3: 0개";
+            return;
+        }
+
+        let html = "";
+        for (const row of rows) {
+            const vol = row.volume24 || 0;
+            const volFmt = vol >= 1_000_000
+                ? (vol / 1_000_000).toFixed(2) + "M"
+                : vol.toFixed(0);
+
+            const changePct = typeof row.changePct === "number" ? row.changePct : 0;
+            const changeClass = changePct >= 0 ? "positive" : "negative";
+
+            html += `
+                <tr>
+                    <td class="symbol">${row.symbol}</td>
+                    <td class="${changeClass}">${changePct.toFixed(2)}</td>
+                    <td class="vol">${volFmt}</td>
+                </tr>
+            `;
+        }
+
+        result3BodyEl.innerHTML = html;
+        if (summary3LeftEl) summary3LeftEl.textContent = `결과3: ${rows.length}개`;
+    }
+
     function updateLastScanInfo(trigger) {
         const now = new Date();
         const t = formatTime(now);
@@ -651,10 +712,11 @@
 
             const volumeMap = await fetch24hTickers(symbols);
 
-            logStatus(`4H 조건 체크 중... (결과1: 7&gt;25&gt;99 양봉 / 결과2: 7&lt;25&lt;99 음봉)`);
+            logStatus(`4H 조건 체크 중... (결과1: 7&gt;25&gt;99 양봉 / 결과2: 7&lt;25&lt;99 음봉 / 결과3: 7MA↑99MA 골든크로스)`);
 
-            // 결과2의 4H 후보 담을 배열
+            // 결과2의 4H 후보, 결과3의 4H 결과 담을 배열
             const result2Candidates4h = [];
+            const result3From4h = [];
 
             const fourHResults = await runInBatches(
                 symbols,
@@ -673,15 +735,40 @@
 
                     // 완료된 봉들(진행중 봉 제외)로 MA 계산
                     const closes = closesRaw.slice(0, -1);
-                    if (closes.length < 99) return null;
+                    if (closes.length < 100) return null;
 
+                    // 1봉전(마지막 완료봉) 기준 MA
                     const ma7 = sma(closes, 7);
                     const ma25 = sma(closes, 25);
                     const ma99 = sma(closes, 99);
                     if (ma7 == null || ma25 == null || ma99 == null) return null;
 
-                    // 직전 4H 완료봉 종가
+                    // 1봉전 종가
                     const close4h = closes[closes.length - 1];
+
+                    // ===== 결과3(새 조건) 4H 스텝 =====
+                    // 4H: 2봉전 7MA < 99MA, 1봉전 7MA > 99MA  ⇒ 7MA가 99MA를 상향 돌파한 골든크로스
+
+                    const closesPrev2 = closes.slice(0, -1); // 2봉전까지 포함한 배열
+                    const ma7_prev2 = sma(closesPrev2, 7);
+                    const ma99_prev2 = sma(closesPrev2, 99);
+
+                    if (ma7_prev2 != null && ma99_prev2 != null && ma7 != null && ma99 != null) {
+                        const cond3 =
+                            (ma7_prev2 < ma99_prev2) && // 2봉전: 7MA < 99MA
+                            (ma7 > ma99);               // 1봉전: 7MA > 99MA
+
+                        if (cond3) {
+                            const vol24_3 = volumeMap[symbol] || 0;
+                            result3From4h.push({
+                                symbol,
+                                volume24: vol24_3,
+                                close4h,
+                                currentOpen4h,
+                                currentClose4h
+                            });
+                        }
+                    }
 
                     // ===== 결과2(새 조건) 4H 스텝 =====
                     // 4H: 7MA < 25MA < 99MA & 직전 close < 99MA & 진행중 4H 음봉
@@ -712,7 +799,7 @@
                         (currentClose4h > currentOpen4h);
 
                     if (!cond1) {
-                        // 결과1에는 안 쓰이더라도, cond2 후보는 위에서 이미 push 해둔 상태
+                        // 결과1에는 안 쓰이더라도, cond2/cond3 후보는 위에서 이미 처리
                         return null;
                     }
 
@@ -730,7 +817,9 @@
             );
 
             const candidates1 = fourHResults.filter(Boolean);
-            logStatus(`4H 조건 통과 심볼 · 결과1 후보: ${candidates1.length}개 · 결과2 4H 후보: ${result2Candidates4h.length}개 · 15m 조건 체크 중...`);
+            logStatus(
+                `4H 조건 통과 심볼 · 결과1 후보: ${candidates1.length}개 · 결과2 4H 후보: ${result2Candidates4h.length}개 · 결과3 후보: ${result3From4h.length}개 · 15m 조건 체크 중...`
+            );
 
             // ===== 결과1용 15m 조건 체크 =====
             const finalResults1 = await runInBatches(
@@ -846,7 +935,7 @@
                 5
             );
 
-            // ===== 결과1 / 결과2 정렬 & 렌더 =====
+            // ===== 결과1 / 결과2 / 결과3 정렬 & 렌더 =====
 
             // 결과1: 4H 현재봉 기준 증감률 ((현재가 - 직전종가) / 직전종가 * 100) 높은 순 + 보조정렬 24h 거래대금
             const rows1 = finalResults1
@@ -900,13 +989,34 @@
                     return aPct - bPct;
                 });
 
+            // 결과3: 4H 7MA 골든크로스 조건만 보는 케이스
+            // 정렬: 24h 거래대금 내림차순
+            const rows3 = result3From4h
+                .map(row => {
+                    const base = row.close4h;
+                    const changePct =
+                        base !== 0
+                            ? ((row.currentClose4h - base) / base) * 100
+                            : 0;
+                    return {
+                        ...row,
+                        changePct
+                    };
+                })
+                .sort((a, b) => {
+                    const aVol = a.volume24 || 0;
+                    const bVol = b.volume24 || 0;
+                    return bVol - aVol;
+                });
+
             renderTableResult1(rows1);
             renderTableResult2(rows2);
+            renderTableResult3(rows3);
 
             const elapsedSec = ((new Date()).getTime() - startedAt.getTime()) / 1000;
             logStatus(
                 `<span class="status-strong">${modeLabel} 스캔 완료</span>` +
-                ` · 결과1 ${rows1.length}개 · 결과2 ${rows2.length}개` +
+                ` · 결과1 ${rows1.length}개 · 결과2 ${rows2.length}개 · 결과3 ${rows3.length}개` +
                 ` · 소요시간 ${elapsedSec.toFixed(1)}초`
             );
 
