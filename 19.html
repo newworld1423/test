@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USDT PERP Funding Interval Scanner</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+        button { padding: 10px 12px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
+        th { background: #f7f7f7; text-align: left; }
+        .muted { color: #666; font-size: 12px; margin-top: 8px; }
+        .badge { display: inline-block; padding: 2px 6px; border: 1px solid #ccc; border-radius: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1 style="margin:0 0 8px;">Funding Interval 변경(4h → 1h) 스캐너</h1>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button id="runNow">지금 스캔</button>
+        <span class="badge" id="status">idle</span>
+    </div>
+    <div class="muted" id="meta"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>감지 시각(로컬)</th>
+                <th>심볼</th>
+                <th>이전 주기</th>
+                <th>현재 주기</th>
+            </tr>
+        </thead>
+        <tbody id="changesBody"></tbody>
+    </table>
+
+    <script>
+        const FAPI_BASE = "https://fapi.binance.com";
+
+        const SNAPSHOT_KEY = "funding_interval_snapshot_v1";
+        const EVENTS_KEY = "funding_interval_events_v1";
+
+        function loadJSON(key, fallback) {
+            try {
+                const v = localStorage.getItem(key);
+                return v ? JSON.parse(v) : fallback;
+            } catch {
+                return fallback;
+            }
+        }
+
+        function saveJSON(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function fmtLocal(ts) {
+            const d = new Date(ts);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const hh = String(d.getHours()).padStart(2, "0");
+            const mi = String(d.getMinutes()).padStart(2, "0");
+            const ss = String(d.getSeconds()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+        }
+
+        async function fetchJSON(path, params = {}, timeoutMs = 15000) {
+            const url = new URL(FAPI_BASE + path);
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null && v !== "") {
+                    url.searchParams.set(k, String(v));
+                }
+            });
+
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                const res = await fetch(url.toString(), {
+                    method: "GET",
+                    signal: controller.signal
+                });
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 200)}`);
+                }
+
+                return await res.json();
+            } finally {
+                clearTimeout(t);
+            }
+        }
+
+        async function getUsdtPerpSymbols() {
+            const data = await fetchJSON("/fapi/v1/exchangeInfo");
+            const symbols = (data.symbols || [])
+                .filter((s) =>
+                    s &&
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT" &&
+                    s.status === "TRADING"
+                )
+                .map((s) => s.symbol);
+
+            return symbols;
+        }
+
+        async function getFundingIntervalMap() {
+            const list = await fetchJSON("/fapi/v1/fundingInfo");
+            const map = new Map();
+
+            (list || []).forEach((row) => {
+                if (!row || !row.symbol) return;
+                map.set(row.symbol, Number(row.fundingIntervalHours));
+            });
+
+            return map;
+        }
+
+        function computeCurrentIntervals(usdtSymbols, fundingInfoMap) {
+            // fundingInfo에 없으면 기본 8시간으로 간주(바이낸스 기본 펀딩 주기 규칙)
+            const intervals = {};
+            usdtSymbols.forEach((sym) => {
+                intervals[sym] = fundingInfoMap.has(sym) ? fundingInfoMap.get(sym) : 8;
+            });
+            return intervals;
+        }
+
+        function detectChanges(prevIntervals, currIntervals) {
+            const events = [];
+            Object.keys(currIntervals).forEach((sym) => {
+                const prev = prevIntervals ? prevIntervals[sym] : undefined;
+                const curr = currIntervals[sym];
+
+                if (prev === 4 && curr === 1) {
+                    events.push({
+                        at: Date.now(),
+                        symbol: sym,
+                        from: prev,
+                        to: curr
+                    });
+                }
+            });
+            return events;
+        }
+
+        function renderEvents(events) {
+            const tbody = document.getElementById("changesBody");
+            if (!tbody) return;
+
+            tbody.innerHTML = "";
+            events.slice().reverse().forEach((ev) => {
+                const tr = document.createElement("tr");
+
+                const tdAt = document.createElement("td");
+                tdAt.textContent = fmtLocal(ev.at);
+
+                const tdSym = document.createElement("td");
+                tdSym.textContent = ev.symbol;
+
+                const tdFrom = document.createElement("td");
+                tdFrom.textContent = `${ev.from}h`;
+
+                const tdTo = document.createElement("td");
+                tdTo.textContent = `${ev.to}h`;
+
+                tr.appendChild(tdAt);
+                tr.appendChild(tdSym);
+                tr.appendChild(tdFrom);
+                tr.appendChild(tdTo);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function setStatus(text) {
+            const el = document.getElementById("status");
+            if (el) el.textContent = text;
+        }
+
+        function setMeta(text) {
+            const el = document.getElementById("meta");
+            if (el) el.textContent = text;
+        }
+
+        async function scanOnce() {
+            setStatus("scanning...");
+            try {
+                const t0 = Date.now();
+
+                const [usdtSymbols, fundingInfoMap] = await Promise.all([
+                    getUsdtPerpSymbols(),
+                    getFundingIntervalMap()
+                ]);
+
+                const currIntervals = computeCurrentIntervals(usdtSymbols, fundingInfoMap);
+
+                const prevSnapshot = loadJSON(SNAPSHOT_KEY, null);
+                const prevIntervals = prevSnapshot ? prevSnapshot.intervals : null;
+
+                const newEvents = detectChanges(prevIntervals, currIntervals);
+
+                const allEvents = loadJSON(EVENTS_KEY, []);
+                const merged = allEvents.concat(newEvents).slice(-500); // 최근 500개만 보관
+                saveJSON(EVENTS_KEY, merged);
+
+                saveJSON(SNAPSHOT_KEY, {
+                    at: Date.now(),
+                    intervals: currIntervals
+                });
+
+                renderEvents(merged);
+
+                const dt = Date.now() - t0;
+                setMeta(`스캔 완료: 심볼 ${usdtSymbols.length}개, fundingInfo 조정심볼 ${fundingInfoMap.size}개, 새 변경감지 ${newEvents.length}개, 소요 ${dt}ms`);
+                setStatus("ok");
+            } catch (err) {
+                console.error(err);
+                setStatus("error");
+                setMeta(String(err && err.message ? err.message : err));
+            }
+        }
+
+        function scheduleHourly() {
+            // 매 시각 정각+5초에 실행되게 맞춤
+            const now = new Date();
+            const next = new Date(now);
+            next.setMinutes(0, 5, 0); // hh:00:05
+            if (next.getTime() <= now.getTime()) {
+                next.setHours(next.getHours() + 1);
+            }
+            const delay = next.getTime() - now.getTime();
+
+            setTimeout(async () => {
+                await scanOnce();
+                scheduleHourly();
+            }, delay);
+        }
+
+        document.getElementById("runNow").addEventListener("click", scanOnce);
+
+        // 초기 렌더
+        renderEvents(loadJSON(EVENTS_KEY, []));
+        scheduleHourly();
+    </script>
+</body>
+</html>
