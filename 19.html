@@ -3,44 +3,141 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT PERP Funding Interval + NextFunding Scanner</title>
+    <title>Binance USDT PERP Funding Interval + NextFunding + Change Log</title>
     <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
-        h1 { margin: 0 0 10px; font-size: 18px; }
-        .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        button { padding: 10px 12px; cursor: pointer; }
-        .badge { display: inline-block; padding: 3px 8px; border: 1px solid #ccc; border-radius: 999px; font-size: 12px; }
-        .muted { color: #666; font-size: 12px; margin-top: 8px; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 14px; }
-        @media (min-width: 1100px) {
-            .grid { grid-template-columns: 1fr 1fr; }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            padding: 16px;
         }
-        .card { border: 1px solid #e6e6e6; border-radius: 10px; padding: 12px; }
-        .card h2 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
-        .count { font-size: 12px; color: #666; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border-top: 1px solid #eee; padding: 8px; font-size: 12px; vertical-align: middle; }
-        th { text-align: left; color: #444; background: #fafafa; border-top: none; }
-        .right { text-align: right; }
-        .neg { font-variant-numeric: tabular-nums; }
-        .neg.negative { color: #b00020; font-weight: 600; }
-        .neg.positive { color: #0b6b0b; font-weight: 600; }
-        .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .pill { padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; background: #fff; }
-        details { margin-top: 12px; }
-        summary { cursor: pointer; }
-        .warn { color: #8a4b00; }
+        h1 {
+            margin: 0 0 10px;
+            font-size: 18px;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border: 1px solid #ccc;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+        .muted {
+            color: #666;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-top: 14px;
+        }
+        @media (min-width: 1100px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .card {
+            border: 1px solid #e6e6e6;
+            border-radius: 10px;
+            padding: 12px;
+            background: #fff;
+        }
+        .card h2 {
+            margin: 0 0 8px;
+            font-size: 14px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card h2 .left {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .count {
+            font-size: 12px;
+            color: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border-top: 1px solid #eee;
+            padding: 8px;
+            font-size: 12px;
+            vertical-align: middle;
+        }
+        th {
+            text-align: left;
+            color: #444;
+            background: #fafafa;
+            border-top: none;
+        }
+        .right {
+            text-align: right;
+        }
+        .neg {
+            font-variant-numeric: tabular-nums;
+        }
+        .neg.negative {
+            color: #b00020;
+            font-weight: 700;
+        }
+        .neg.positive {
+            color: #0b6b0b;
+            font-weight: 700;
+        }
+        .mono {
+            font-variant-numeric: tabular-nums;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        .pill {
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #fff;
+        }
+        .span-2 {
+            grid-column: 1 / -1;
+        }
+        details {
+            margin-top: 12px;
+        }
+        summary {
+            cursor: pointer;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
-    <h1>USDT 무기한: 펀딩 주기(1h/4h/8h) 그룹 + nextFundingTime 표시 + 음수 우선 정렬</h1>
+    <h1>USDT 무기한: 펀딩 주기(1h/4h/8h) 그룹 + nextFundingTime(KST) + 4h→1h 변경 로그</h1>
 
     <div class="row">
         <button id="runNow">지금 스캔</button>
+        <button id="clearLog">변경 로그 초기화</button>
+
         <span class="badge" id="status">idle</span>
         <span class="badge" id="lastScan">lastScan: -</span>
         <span class="badge" id="totals">symbols: -</span>
         <span class="badge" id="negCount">negative: -</span>
+        <span class="badge" id="newEvents">new 4h→1h: -</span>
     </div>
 
     <div class="muted" id="meta"></div>
@@ -50,21 +147,36 @@
     <details>
         <summary class="muted">문제 발생 시(브라우저 CORS/차단) 안내</summary>
         <div class="muted">
-            일부 환경에서 fapi.binance.com이 브라우저에서 차단되면(또는 회사망/보안SW),
-            너의 서버(ASP/Node)에 간단 프록시를 두고 <span class="mono">FAPI_BASE</span>만 프록시 주소로 바꾸면 돼.
+            일부 환경에서 <span class="mono">https://fapi.binance.com</span> 호출이 브라우저에서 차단될 수 있어요.
+            그 경우 너의 서버(ASP/Node)에 프록시를 두고 <span class="mono">FAPI_BASE</span>를 프록시 주소로 바꾸면 해결됩니다.
         </div>
     </details>
 
     <script>
         const FAPI_BASE = "https://fapi.binance.com";
 
+        const SNAPSHOT_KEY = "funding_interval_snapshot_v2";
+        const EVENTS_KEY = "funding_interval_events_v2";
+
         function setText(id, text) {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
         }
 
+        function loadJSON(key, fallback) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch {
+                return fallback;
+            }
+        }
+
+        function saveJSON(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
         function fmtLocalKST(ts) {
-            // KST 고정 표기(사용자 PC 타임존과 무관)
             return new Date(ts).toLocaleString("ko-KR", {
                 timeZone: "Asia/Seoul",
                 year: "numeric",
@@ -82,6 +194,7 @@
             const h = Math.floor(s / 3600);
             const m = Math.floor((s % 3600) / 60);
             const sec = s % 60;
+
             if (h > 0) return `${h}h ${m}m`;
             if (m > 0) return `${m}m ${sec}s`;
             return `${sec}s`;
@@ -94,7 +207,6 @@
 
         function fmtRatePct(rate) {
             if (!Number.isFinite(rate)) return "-";
-            // lastFundingRate는 소수(예: 0.00038246) → % 변환
             const pct = rate * 100;
             const sign = pct > 0 ? "+" : "";
             return `${sign}${pct.toFixed(4)}%`;
@@ -136,13 +248,18 @@
         }
 
         async function getFundingIntervalMap() {
-            // 조정된 심볼만 내려옴. 없는 심볼은 기본 8h로 처리.
+            /*
+                fundingInfo는 "조정된 심볼"만 내려올 수 있음.
+                map에 없으면 기본 8h로 간주.
+            */
             const list = await fetchJSON("/fapi/v1/fundingInfo");
             const map = new Map();
+
             (list || []).forEach((row) => {
                 if (!row || !row.symbol) return;
                 map.set(row.symbol, toNumber(row.fundingIntervalHours, 8));
             });
+
             return map;
         }
 
@@ -150,20 +267,48 @@
             // symbol 없이 호출하면 배열로 전체 반환
             const list = await fetchJSON("/fapi/v1/premiumIndex");
             const map = new Map();
+
             (list || []).forEach((row) => {
                 if (!row || !row.symbol) return;
                 map.set(row.symbol, row);
             });
+
             return map;
         }
 
-        function buildRows(usdtSymbols, intervalMap, premiumMap) {
+        function computeCurrentIntervals(usdtSymbols, intervalMap) {
+            const intervals = {};
+            for (const sym of usdtSymbols) {
+                intervals[sym] = intervalMap.has(sym) ? intervalMap.get(sym) : 8;
+            }
+            return intervals;
+        }
+
+        function detect4hTo1h(prevIntervals, currIntervals) {
+            const events = [];
+            if (!prevIntervals) return events;
+
+            for (const [sym, curr] of Object.entries(currIntervals)) {
+                const prev = prevIntervals[sym];
+                if (prev === 4 && curr === 1) {
+                    events.push({
+                        at: Date.now(),
+                        symbol: sym,
+                        from: prev,
+                        to: curr
+                    });
+                }
+            }
+            return events;
+        }
+
+        function buildRows(usdtSymbols, intervals, premiumMap) {
             const rows = [];
 
             for (const sym of usdtSymbols) {
-                const interval = intervalMap.has(sym) ? intervalMap.get(sym) : 8;
-
+                const interval = intervals[sym] ?? 8;
                 const p = premiumMap.get(sym);
+
                 const fundingRate = p ? toNumber(p.lastFundingRate, NaN) : NaN;
                 const nextFundingTime = p ? toNumber(p.nextFundingTime, NaN) : NaN;
                 const markPrice = p ? p.markPrice : "";
@@ -184,17 +329,23 @@
             const groups = new Map();
             const keys = [1, 4, 8, "OTHER"];
 
-            keys.forEach((k) => groups.set(k, []));
+            for (const k of keys) {
+                groups.set(k, []);
+            }
 
-            rows.forEach((r) => {
+            for (const r of rows) {
                 if (r.intervalHours === 1) groups.get(1).push(r);
                 else if (r.intervalHours === 4) groups.get(4).push(r);
                 else if (r.intervalHours === 8) groups.get(8).push(r);
                 else groups.get("OTHER").push(r);
-            });
+            }
 
-            // 정렬: “펀딩비 음수가 높은 순서” = 더 마이너스가 위로 → fundingRate 오름차순
-            for (const [k, arr] of groups.entries()) {
+            /*
+                정렬: "펀딩률 음수가 높은 순서" = 더 마이너스가 위로
+                => fundingRate 오름차순(-0.5 < -0.1 < 0.1)
+                NaN/미존재는 맨 아래로
+            */
+            for (const [, arr] of groups.entries()) {
                 arr.sort((a, b) => {
                     const ar = Number.isFinite(a.fundingRate) ? a.fundingRate : Infinity;
                     const br = Number.isFinite(b.fundingRate) ? b.fundingRate : Infinity;
@@ -206,7 +357,7 @@
             return groups;
         }
 
-        function makeTableHTML(rows) {
+        function makeGroupTableHTML(rows) {
             const now = Date.now();
 
             const body = rows.map((r) => {
@@ -250,7 +401,36 @@
             `;
         }
 
-        function render(groups, totals) {
+        function makeEventsTableHTML(events) {
+            const body = (events || []).slice().reverse().map((ev) => {
+                return `
+                    <tr>
+                        <td class="mono">${fmtLocalKST(ev.at)}</td>
+                        <td class="mono">${ev.symbol}</td>
+                        <td class="right">${ev.from}h</td>
+                        <td class="right">${ev.to}h</td>
+                    </tr>
+                `;
+            }).join("");
+
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>감지 시각(KST)</th>
+                            <th>심볼</th>
+                            <th class="right">이전</th>
+                            <th class="right">현재</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${body || `<tr><td colspan="4" class="muted">아직 4h→1h 변경 감지 로그가 없습니다.</td></tr>`}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function render(groups, totals, events) {
             const cards = document.getElementById("cards");
             if (!cards) return;
 
@@ -262,20 +442,39 @@
                 "OTHER": "기타(예외 주기)"
             };
 
-            cards.innerHTML = order.map((k) => {
+            const groupCards = order.map((k) => {
                 const arr = groups.get(k) || [];
                 const neg = arr.filter((x) => Number.isFinite(x.fundingRate) && x.fundingRate < 0).length;
 
                 return `
                     <div class="card">
                         <h2>
-                            <span class="pill">${labels[k]}</span>
-                            <span class="count">총 ${arr.length}개 · 음수 ${neg}개</span>
+                            <span class="left">
+                                <span class="pill">${labels[k]}</span>
+                                <span class="count">총 ${arr.length}개 · 음수 ${neg}개</span>
+                            </span>
                         </h2>
-                        ${makeTableHTML(arr)}
+                        ${makeGroupTableHTML(arr)}
                     </div>
                 `;
             }).join("");
+
+            const eventsCard = `
+                <div class="card span-2">
+                    <h2>
+                        <span class="left">
+                            <span class="pill">4h → 1h 변경 감지 로그</span>
+                            <span class="count">누적 ${events.length}건</span>
+                        </span>
+                        <span class="actions">
+                            <span class="count">(localStorage 저장)</span>
+                        </span>
+                    </h2>
+                    ${makeEventsTableHTML(events)}
+                </div>
+            `;
+
+            cards.innerHTML = groupCards + eventsCard;
 
             setText("totals", `symbols: ${totals.symbols} / premiumIndex: ${totals.premium}`);
             setText("negCount", `negative: ${totals.negative}`);
@@ -292,7 +491,23 @@
                     getPremiumIndexMap()
                 ]);
 
-                const rows = buildRows(usdtSymbols, intervalMap, premiumMap);
+                const currIntervals = computeCurrentIntervals(usdtSymbols, intervalMap);
+
+                const prevSnapshot = loadJSON(SNAPSHOT_KEY, null);
+                const prevIntervals = prevSnapshot ? prevSnapshot.intervals : null;
+
+                const newEvents = detect4hTo1h(prevIntervals, currIntervals);
+
+                const existingEvents = loadJSON(EVENTS_KEY, []);
+                const mergedEvents = existingEvents.concat(newEvents).slice(-2000);  // 최대 2000건 보관
+                saveJSON(EVENTS_KEY, mergedEvents);
+
+                saveJSON(SNAPSHOT_KEY, {
+                    at: Date.now(),
+                    intervals: currIntervals
+                });
+
+                const rows = buildRows(usdtSymbols, currIntervals, premiumMap);
                 const groups = groupRows(rows);
 
                 const negative = rows.filter((r) => Number.isFinite(r.fundingRate) && r.fundingRate < 0).length;
@@ -301,10 +516,11 @@
                     symbols: usdtSymbols.length,
                     premium: premiumMap.size,
                     negative
-                });
+                }, mergedEvents);
 
+                setText("newEvents", `new 4h→1h: ${newEvents.length}`);
                 setText("lastScan", `lastScan: ${fmtLocalKST(Date.now())}`);
-                setText("meta", `스캔 완료: USDT PERP ${usdtSymbols.length}개 · 소요 ${Date.now() - t0}ms`);
+                setText("meta", `스캔 완료: USDT PERP ${usdtSymbols.length}개 · 신규 이벤트 ${newEvents.length}건 · 소요 ${Date.now() - t0}ms`);
                 setText("status", "ok");
             } catch (err) {
                 console.error(err);
@@ -314,11 +530,12 @@
         }
 
         function scheduleHourly() {
-            // 매 정각 + 5초에 실행
+            // 매 정각 + 5초에 실행되게 스케줄
             const now = new Date();
             const next = new Date(now);
             next.setMinutes(0, 0, 0);
             next.setHours(next.getHours() + 1);
+
             const delay = next.getTime() - now.getTime() + 5000;
 
             setTimeout(async () => {
@@ -327,11 +544,30 @@
             }, delay);
         }
 
-        document.getElementById("runNow").addEventListener("click", scanOnce);
+        function clearLog() {
+            saveJSON(EVENTS_KEY, []);
+            setText("newEvents", "new 4h→1h: 0");
+            setText("meta", "변경 로그를 초기화했습니다. (스냅샷은 유지됨)");
+            // 현재 화면 갱신을 위해 재렌더
+            const cards = document.getElementById("cards");
+            if (cards) {
+                // 다음 스캔 전까지는 기존 그룹 표가 남아있으니, 즉시 스캔해서 맞춰줌
+                scanOnce();
+            }
+        }
 
-        // 최초 1회 실행 + 이후 1시간마다 자동
-        scanOnce();
-        scheduleHourly();
+        document.getElementById("runNow").addEventListener("click", scanOnce);
+        document.getElementById("clearLog").addEventListener("click", clearLog);
+
+        // 초기 렌더: 로그만 먼저 보여주고(스캔 전), 곧바로 1회 스캔
+        (function init() {
+            const existingEvents = loadJSON(EVENTS_KEY, []);
+            setText("newEvents", "new 4h→1h: 0");
+
+            // 최초 1회 실행 + 이후 1시간마다 자동
+            scanOnce();
+            scheduleHourly();
+        })();
     </script>
 </body>
 </html>
