@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT PERP Funding Interval + NextFunding + Change Log</title>
+    <title>Binance USDT PERP Funding Interval + NextFunding + Change Log + Backfill</title>
     <style>
         body {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -23,6 +23,19 @@
             padding: 10px 12px;
             cursor: pointer;
         }
+        input {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        label {
+            font-size: 12px;
+            color: #444;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
         .badge {
             display: inline-block;
             padding: 3px 8px;
@@ -34,6 +47,11 @@
             color: #666;
             font-size: 12px;
             margin-top: 8px;
+        }
+        .note {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #666;
         }
         .grid {
             display: grid;
@@ -84,6 +102,9 @@
             color: #444;
             background: #fafafa;
             border-top: none;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
         .right {
             text-align: right;
@@ -110,6 +131,15 @@
             font-size: 12px;
             background: #fff;
         }
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border: 1px solid #ddd;
+            border-radius: 999px;
+            font-size: 11px;
+            color: #444;
+            margin-left: 6px;
+        }
         .span-2 {
             grid-column: 1 / -1;
         }
@@ -123,15 +153,17 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
         }
     </style>
 </head>
 <body>
-    <h1>USDT 무기한: 펀딩 주기(1h/4h/8h) 그룹 + nextFundingTime(KST) + 4h→1h 변경 로그</h1>
+    <h1>USDT 무기한: 펀딩 주기(1h/4h/8h) + nextFunding(KST) + 4h→1h 변경시각(감지/추정) + 로그</h1>
 
     <div class="row">
         <button id="runNow">지금 스캔</button>
         <button id="clearLog">변경 로그 초기화</button>
+        <button id="clearChangeAt">변경시각 데이터 초기화</button>
 
         <span class="badge" id="status">idle</span>
         <span class="badge" id="lastScan">lastScan: -</span>
@@ -140,7 +172,32 @@
         <span class="badge" id="newEvents">new 4h→1h: -</span>
     </div>
 
+    <div class="row" style="margin-top: 10px;">
+        <button id="backfill">백필(1h 심볼: 4h→1h 추정시각 채우기)</button>
+        <button id="stopBackfill">백필 중지</button>
+
+        <label>
+            한번에
+            <input id="bfMaxSymbols" type="number" min="1" max="500" value="30" style="width: 80px;" />
+            개 심볼
+        </label>
+
+        <label>
+            과거
+            <input id="bfLookbackDays" type="number" min="1" max="2000" value="365" style="width: 90px;" />
+            일 탐색
+        </label>
+
+        <span class="badge" id="backfillStatus">backfill: -</span>
+    </div>
+
     <div class="muted" id="meta"></div>
+    <div class="note">
+        * “변경시각”은 2가지가 있어요:
+        <span class="tag">감지</span> = 스캐너가 실시간으로 4h→1h 전환을 본 시각(정확도는 스캔주기 영향),
+        <span class="tag">추정</span> = fundingRate 히스토리에서 “4h 간격 → 1h 간격” 경계로 역추적한 시각(스캐너를 꺼둔 기간도 채울 수 있음).
+        <span class="tag">추정(확인)</span> = 추정값이 있는 상태에서 나중에 실시간 감지도 발생한 경우.
+    </div>
 
     <div class="grid" id="cards"></div>
 
@@ -155,8 +212,19 @@
     <script>
         const FAPI_BASE = "https://fapi.binance.com";
 
-        const SNAPSHOT_KEY = "funding_interval_snapshot_v2";
-        const EVENTS_KEY = "funding_interval_events_v2";
+        const SNAPSHOT_KEY = "funding_interval_snapshot_v4";
+        const EVENTS_KEY = "funding_interval_events_v4";
+
+        // 심볼별 변경시각(감지/추정) 저장
+        // { [symbol]: { at: number, method: "detected"|"estimated", confirmed: boolean } }
+        const CHANGE_AT_MAP_KEY = "funding_interval_changeAtMap_v2";
+
+        // 마지막 스캔 데이터(백필에서 사용)
+        let LAST_SCAN = null;
+
+        // 백필 제어
+        let BACKFILL_RUNNING = false;
+        let BACKFILL_CANCELLED = false;
 
         function setText(id, text) {
             const el = document.getElementById(id);
@@ -174,6 +242,10 @@
 
         function saveJSON(key, value) {
             localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         function fmtLocalKST(ts) {
@@ -212,6 +284,54 @@
             return `${sign}${pct.toFixed(4)}%`;
         }
 
+        function readChangeAtMap() {
+            const raw = loadJSON(CHANGE_AT_MAP_KEY, {});
+            const out = {};
+
+            // 마이그레이션: 과거에 number로 저장된 경우 -> detected로 간주
+            for (const [sym, v] of Object.entries(raw || {})) {
+                if (typeof v === "number" && Number.isFinite(v)) {
+                    out[sym] = { at: v, method: "detected", confirmed: true };
+                } else if (v && typeof v === "object" && Number.isFinite(v.at)) {
+                    out[sym] = {
+                        at: v.at,
+                        method: (v.method === "estimated" ? "estimated" : "detected"),
+                        confirmed: !!v.confirmed
+                    };
+                }
+            }
+
+            return out;
+        }
+
+        function writeChangeAtMap(map) {
+            saveJSON(CHANGE_AT_MAP_KEY, map || {});
+        }
+
+        function upsertDetectedChange(changeAtMap, ev) {
+            const sym = ev.symbol;
+            const at = ev.at;
+            if (!sym || !Number.isFinite(at)) return changeAtMap;
+
+            const cur = changeAtMap[sym];
+
+            // 없으면 detected로 저장
+            if (!cur || !Number.isFinite(cur.at)) {
+                changeAtMap[sym] = { at, method: "detected", confirmed: true };
+                return changeAtMap;
+            }
+
+            // 이미 estimated면: at은 더 이른 값을 유지(추정이 더 정확할 수 있음), confirmed만 true로
+            if (cur.method === "estimated") {
+                changeAtMap[sym] = { ...cur, confirmed: true };
+                return changeAtMap;
+            }
+
+            // detected끼리는 더 이른 값 유지
+            changeAtMap[sym] = { ...cur, at: Math.min(cur.at, at), confirmed: true };
+            return changeAtMap;
+        }
+
         async function fetchJSON(path, params = {}, timeoutMs = 15000) {
             const url = new URL(FAPI_BASE + path);
             Object.entries(params).forEach(([k, v]) => {
@@ -248,10 +368,7 @@
         }
 
         async function getFundingIntervalMap() {
-            /*
-                fundingInfo는 "조정된 심볼"만 내려올 수 있음.
-                map에 없으면 기본 8h로 간주.
-            */
+            // 조정된 심볼만 내려옴(없으면 기본 8h로 처리)
             const list = await fetchJSON("/fapi/v1/fundingInfo");
             const map = new Map();
 
@@ -302,7 +419,7 @@
             return events;
         }
 
-        function buildRows(usdtSymbols, intervals, premiumMap) {
+        function buildRows(usdtSymbols, intervals, premiumMap, changeAtMap) {
             const rows = [];
 
             for (const sym of usdtSymbols) {
@@ -313,12 +430,15 @@
                 const nextFundingTime = p ? toNumber(p.nextFundingTime, NaN) : NaN;
                 const markPrice = p ? p.markPrice : "";
 
+                const changeInfo = changeAtMap[sym] || null;
+
                 rows.push({
                     symbol: sym,
                     intervalHours: interval,
                     fundingRate,
                     nextFundingTime,
-                    markPrice
+                    markPrice,
+                    changeInfo
                 });
             }
 
@@ -340,11 +460,7 @@
                 else groups.get("OTHER").push(r);
             }
 
-            /*
-                정렬: "펀딩률 음수가 높은 순서" = 더 마이너스가 위로
-                => fundingRate 오름차순(-0.5 < -0.1 < 0.1)
-                NaN/미존재는 맨 아래로
-            */
+            // 정렬: 더 마이너스가 위로(오름차순). NaN은 아래.
             for (const [, arr] of groups.entries()) {
                 arr.sort((a, b) => {
                     const ar = Number.isFinite(a.fundingRate) ? a.fundingRate : Infinity;
@@ -357,8 +473,24 @@
             return groups;
         }
 
-        function makeGroupTableHTML(rows) {
+        function makeChangeLabel(changeInfo) {
+            if (!changeInfo || !Number.isFinite(changeInfo.at)) return "-";
+
+            const base = fmtLocalKST(changeInfo.at);
+            if (changeInfo.method === "detected") {
+                return `${base} (감지)`;
+            }
+
+            if (changeInfo.method === "estimated") {
+                return changeInfo.confirmed ? `${base} (추정·확인)` : `${base} (추정)`;
+            }
+
+            return base;
+        }
+
+        function makeGroupTableHTML(rows, opts = {}) {
             const now = Date.now();
+            const showChangeCol = !!opts.showChangeCol;
 
             const body = rows.map((r) => {
                 const rateClass = Number.isFinite(r.fundingRate)
@@ -370,6 +502,7 @@
                 const rateStr = fmtRatePct(r.fundingRate);
 
                 const mark = (r.markPrice !== undefined && r.markPrice !== null) ? String(r.markPrice) : "";
+                const changeStr = makeChangeLabel(r.changeInfo);
 
                 return `
                     <tr>
@@ -380,6 +513,7 @@
                             <div class="mono">${nextStr}</div>
                             <div class="muted">${remainStr} 후</div>
                         </td>
+                        ${showChangeCol ? `<td class="mono">${changeStr}</td>` : ""}
                     </tr>
                 `;
             }).join("");
@@ -392,10 +526,11 @@
                             <th class="right">펀딩률</th>
                             <th class="right">마크가격</th>
                             <th>다음 펀딩(KST)</th>
+                            ${showChangeCol ? `<th>4h→1h 시각</th>` : ""}
                         </tr>
                     </thead>
                     <tbody>
-                        ${body || `<tr><td colspan="4" class="muted">표시할 항목이 없습니다.</td></tr>`}
+                        ${body || `<tr><td colspan="${showChangeCol ? 5 : 4}" class="muted">표시할 항목이 없습니다.</td></tr>`}
                     </tbody>
                 </table>
             `;
@@ -446,6 +581,8 @@
                 const arr = groups.get(k) || [];
                 const neg = arr.filter((x) => Number.isFinite(x.fundingRate) && x.fundingRate < 0).length;
 
+                const showChangeCol = (k === 1);
+
                 return `
                     <div class="card">
                         <h2>
@@ -454,7 +591,7 @@
                                 <span class="count">총 ${arr.length}개 · 음수 ${neg}개</span>
                             </span>
                         </h2>
-                        ${makeGroupTableHTML(arr)}
+                        ${makeGroupTableHTML(arr, { showChangeCol })}
                     </div>
                 `;
             }).join("");
@@ -480,6 +617,90 @@
             setText("negCount", `negative: ${totals.negative}`);
         }
 
+        // --- 백필(추정) 로직: fundingRate 히스토리에서 4h→1h 경계 찾기 ---
+        function classifyIntervalHours(deltaMs) {
+            const min = 60 * 1000;
+
+            // 1h: 45~75분
+            if (deltaMs >= 45 * min && deltaMs <= 75 * min) return 1;
+
+            // 4h: 3.5~4.5시간
+            if (deltaMs >= 210 * min && deltaMs <= 270 * min) return 4;
+
+            // 8h: 7~9시간(참고용)
+            if (deltaMs >= 420 * min && deltaMs <= 540 * min) return 8;
+
+            return 0;
+        }
+
+        async function estimate4hTo1hChangeAtFromFundingRate(symbol, lookbackDays) {
+            const now = Date.now();
+            const oldest = now - (lookbackDays * 24 * 60 * 60 * 1000);
+
+            let startTime = oldest;
+            const endTime = now;
+
+            // fundingRate는 limit max 1000, ascending 반환. :contentReference[oaicite:4]{index=4}
+            const maxPages = 25; // 25k records까지(충분히 큼)
+            let pages = 0;
+
+            // 페이지 경계에서 패턴이 끊길 수 있어, 직전 2개 time을 carry
+            let carry = [];
+
+            while (startTime < endTime && pages < maxPages) {
+                const list = await fetchJSON("/fapi/v1/fundingRate", {
+                    symbol,
+                    startTime,
+                    endTime,
+                    limit: 1000
+                });
+
+                if (!Array.isArray(list) || list.length < 3) {
+                    return NaN;
+                }
+
+                const times = list
+                    .map((x) => toNumber(x.fundingTime, NaN))
+                    .filter((t) => Number.isFinite(t));
+
+                if (times.length < 3) {
+                    return NaN;
+                }
+
+                // carry + times 결합(중복 제거)
+                const merged = carry.concat(times);
+                const uniq = [];
+                for (const t of merged) {
+                    if (uniq.length === 0 || uniq[uniq.length - 1] !== t) {
+                        uniq.push(t);
+                    }
+                }
+
+                // 패턴: (이전 간격이 4h) && (다음 간격이 1h) 인 가운데 시각을 전환 시각으로
+                for (let i = 1; i < uniq.length - 1; i++) {
+                    const prevDelta = uniq[i] - uniq[i - 1];
+                    const nextDelta = uniq[i + 1] - uniq[i];
+
+                    if (classifyIntervalHours(prevDelta) === 4 && classifyIntervalHours(nextDelta) === 1) {
+                        return uniq[i];
+                    }
+                }
+
+                // 다음 페이지(더 최근 구간)로 startTime 이동
+                const last = times[times.length - 1];
+                if (!Number.isFinite(last) || last <= startTime) {
+                    return NaN;
+                }
+
+                startTime = last + 1;
+                carry = uniq.slice(-2);
+
+                pages += 1;
+            }
+
+            return NaN;
+        }
+
         async function scanOnce() {
             setText("status", "scanning...");
             try {
@@ -499,15 +720,23 @@
                 const newEvents = detect4hTo1h(prevIntervals, currIntervals);
 
                 const existingEvents = loadJSON(EVENTS_KEY, []);
-                const mergedEvents = existingEvents.concat(newEvents).slice(-2000);  // 최대 2000건 보관
+                const mergedEvents = existingEvents.concat(newEvents).slice(-3000);
                 saveJSON(EVENTS_KEY, mergedEvents);
 
+                // 스냅샷 저장
                 saveJSON(SNAPSHOT_KEY, {
                     at: Date.now(),
                     intervals: currIntervals
                 });
 
-                const rows = buildRows(usdtSymbols, currIntervals, premiumMap);
+                // 변경시각 맵 갱신(감지 이벤트 반영)
+                const changeAtMap = readChangeAtMap();
+                for (const ev of newEvents) {
+                    upsertDetectedChange(changeAtMap, ev);
+                }
+                writeChangeAtMap(changeAtMap);
+
+                const rows = buildRows(usdtSymbols, currIntervals, premiumMap, changeAtMap);
                 const groups = groupRows(rows);
 
                 const negative = rows.filter((r) => Number.isFinite(r.fundingRate) && r.fundingRate < 0).length;
@@ -517,6 +746,14 @@
                     premium: premiumMap.size,
                     negative
                 }, mergedEvents);
+
+                // LAST_SCAN 업데이트(백필에서 사용)
+                LAST_SCAN = {
+                    usdtSymbols,
+                    currIntervals,
+                    premiumMap,
+                    rows
+                };
 
                 setText("newEvents", `new 4h→1h: ${newEvents.length}`);
                 setText("lastScan", `lastScan: ${fmtLocalKST(Date.now())}`);
@@ -530,7 +767,7 @@
         }
 
         function scheduleHourly() {
-            // 매 정각 + 5초에 실행되게 스케줄
+            // 매 정각 + 5초
             const now = new Date();
             const next = new Date(now);
             next.setMinutes(0, 0, 0);
@@ -547,24 +784,125 @@
         function clearLog() {
             saveJSON(EVENTS_KEY, []);
             setText("newEvents", "new 4h→1h: 0");
-            setText("meta", "변경 로그를 초기화했습니다. (스냅샷은 유지됨)");
-            // 현재 화면 갱신을 위해 재렌더
-            const cards = document.getElementById("cards");
-            if (cards) {
-                // 다음 스캔 전까지는 기존 그룹 표가 남아있으니, 즉시 스캔해서 맞춰줌
-                scanOnce();
+            setText("meta", "변경 로그(EVENTS)를 초기화했습니다.");
+            scanOnce();
+        }
+
+        function clearChangeAt() {
+            saveJSON(CHANGE_AT_MAP_KEY, {});
+            setText("meta", "심볼별 변경시각(감지/추정) 데이터를 초기화했습니다.");
+            scanOnce();
+        }
+
+        async function runBackfill() {
+            if (BACKFILL_RUNNING) {
+                setText("meta", "백필이 이미 실행 중입니다.");
+                return;
             }
+
+            BACKFILL_RUNNING = true;
+            BACKFILL_CANCELLED = false;
+
+            try {
+                // 최신 스캔 데이터가 없으면 1회 스캔
+                if (!LAST_SCAN) {
+                    await scanOnce();
+                }
+                if (!LAST_SCAN) {
+                    setText("meta", "스캔 데이터가 없어 백필을 시작할 수 없습니다.");
+                    return;
+                }
+
+                const maxSymbols = Math.max(1, parseInt(document.getElementById("bfMaxSymbols").value, 10) || 30);
+                const lookbackDays = Math.max(1, parseInt(document.getElementById("bfLookbackDays").value, 10) || 365);
+
+                const changeAtMap = readChangeAtMap();
+
+                // 현재 1h 심볼 중 변경시각이 비어있는 것만
+                const symbols1h = Object.keys(LAST_SCAN.currIntervals)
+                    .filter((sym) => LAST_SCAN.currIntervals[sym] === 1);
+
+                const missing = symbols1h
+                    .filter((sym) => !(changeAtMap[sym] && Number.isFinite(changeAtMap[sym].at)));
+
+                const targets = missing.slice(0, maxSymbols);
+
+                if (targets.length === 0) {
+                    setText("backfillStatus", "backfill: 대상 없음");
+                    setText("meta", "백필 대상(현재 1h인데 변경시각 미표기)이 없습니다.");
+                    return;
+                }
+
+                let checked = 0;
+                let filled = 0;
+
+                setText("backfillStatus", `backfill: 0/${targets.length}`);
+
+                for (const sym of targets) {
+                    if (BACKFILL_CANCELLED) break;
+
+                    setText("backfillStatus", `backfill: ${checked}/${targets.length} (filled ${filled})`);
+                    setText("meta", `백필 중... ${sym} (과거 ${lookbackDays}일 탐색)`);
+
+                    // API 호출(부하 줄이기 위해 순차 처리)
+                    const est = await estimate4hTo1hChangeAtFromFundingRate(sym, lookbackDays);
+
+                    checked += 1;
+
+                    if (Number.isFinite(est)) {
+                        // 추정값 저장(이미 있으면 더 이른 값 유지)
+                        const cur = changeAtMap[sym];
+                        if (!cur || !Number.isFinite(cur.at)) {
+                            changeAtMap[sym] = { at: est, method: "estimated", confirmed: false };
+                            filled += 1;
+                        } else {
+                            changeAtMap[sym] = { ...cur, at: Math.min(cur.at, est) };
+                        }
+
+                        writeChangeAtMap(changeAtMap);
+                    }
+
+                    // 레이트리밋 여유를 위해 약간 쉬기
+                    await sleep(350);
+                }
+
+                if (BACKFILL_CANCELLED) {
+                    setText("meta", `백필 중지됨. 진행: ${checked}/${targets.length}, 채움: ${filled}`);
+                } else {
+                    setText("meta", `백필 완료. 진행: ${checked}/${targets.length}, 채움: ${filled}`);
+                }
+
+                setText("backfillStatus", `backfill: done (checked ${checked}, filled ${filled})`);
+
+                // 표시 갱신
+                await scanOnce();
+            } catch (err) {
+                console.error(err);
+                setText("meta", `백필 오류: ${String(err && err.message ? err.message : err)}`);
+            } finally {
+                BACKFILL_RUNNING = false;
+            }
+        }
+
+        function stopBackfill() {
+            if (!BACKFILL_RUNNING) {
+                setText("meta", "백필이 실행 중이 아닙니다.");
+                return;
+            }
+            BACKFILL_CANCELLED = true;
+            setText("meta", "백필 중지 요청됨(현재 심볼 처리 후 멈춥니다).");
         }
 
         document.getElementById("runNow").addEventListener("click", scanOnce);
         document.getElementById("clearLog").addEventListener("click", clearLog);
+        document.getElementById("clearChangeAt").addEventListener("click", clearChangeAt);
 
-        // 초기 렌더: 로그만 먼저 보여주고(스캔 전), 곧바로 1회 스캔
+        document.getElementById("backfill").addEventListener("click", runBackfill);
+        document.getElementById("stopBackfill").addEventListener("click", stopBackfill);
+
         (function init() {
-            const existingEvents = loadJSON(EVENTS_KEY, []);
             setText("newEvents", "new 4h→1h: 0");
-
-            // 최초 1회 실행 + 이후 1시간마다 자동
+            setText("backfillStatus", "backfill: -");
             scanOnce();
             scheduleHourly();
         })();
