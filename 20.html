@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Binance USDT Perp (1D) 매집 후보 스캐너</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+        .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 12px; }
+        .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+        label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
+        input { padding: 8px; border: 1px solid #ccc; border-radius: 8px; width: 160px; }
+        button { padding: 10px 14px; border: 1px solid #222; background: #222; color: #fff; border-radius: 10px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #status { white-space: pre-wrap; font-size: 12px; color: #444; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px 8px; font-size: 13px; text-align: right; }
+        th { text-align: right; position: sticky; top: 0; background: #fff; z-index: 1; }
+        th:first-child, td:first-child { text-align: left; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; }
+        .tag.long { border-color: #2a7; color: #2a7; }
+        .tag.short { border-color: #c44; color: #c44; }
+        .muted { color: #777; font-size: 12px; }
+        .link { color: #06c; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <h2>Binance USDT 무기한 (1D) 매집 후보 스캐너</h2>
+    <div class="muted">
+        ※ “매집”은 확정이 아니라 확률 판단입니다. (가격 박스 + OI 증가 + 과열 제외 조합)
+        <br>※ OI 히스토리는 “최근 1개월”만 제공이라 windowDays는 최대 30 권장. :contentReference[oaicite:5]{index=5}
+    </div>
+
+    <div class="row box">
+        <div>
+            <label>Window (일) (권장 14~21, 최대 30)</label>
+            <input id="windowDays" type="number" min="7" max="30" value="14" />
+        </div>
+        <div>
+            <label>최소 OI 증가율 % (window)</label>
+            <input id="minOiPct" type="number" min="0" step="1" value="10" />
+        </div>
+        <div>
+            <label>최대 박스 Range % (window)</label>
+            <input id="maxRangePct" type="number" min="1" step="1" value="12" />
+        </div>
+        <div>
+            <label>최대 추세 |변화율| % (window)</label>
+            <input id="maxTrendPct" type="number" min="1" step="1" value="8" />
+        </div>
+        <div>
+            <label>펀딩 절대값 상한 % (최근)</label>
+            <input id="maxFundingAbsPct" type="number" min="0" step="0.01" value="0.05" />
+        </div>
+        <div>
+            <label>24h 거래대금(USDT) 하한 (미리 필터)</label>
+            <input id="minQuoteVol24h" type="number" min="0" step="1000000" value="10000000" />
+        </div>
+        <div>
+            <label>동시 요청 수 (권장 4~8)</label>
+            <input id="concurrency" type="number" min="1" max="12" value="6" />
+        </div>
+        <div>
+            <button id="btnScan">스캔 시작</button>
+        </div>
+    </div>
+
+    <div class="box">
+        <div id="status">대기 중…</div>
+        <table id="tbl">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Type</th>
+                    <th>Score</th>
+                    <th>Range%</th>
+                    <th>Trend%</th>
+                    <th>OI%</th>
+                    <th>Avg Vol(USDT)</th>
+                    <th>TakerBuy%</th>
+                    <th>Funding%</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+<script>
+    const BASE = "https://fapi.binance.com";
+
+    function clamp01(x) {
+        if (x < 0) return 0;
+        if (x > 1) return 1;
+        return x;
+    }
+
+    function sleep(ms) {
+        return new Promise(function (r) { setTimeout(r, ms); });
+    }
+
+    async function fetchJsonWithRetry(url, opts) {
+        const retries = (opts && opts.retries) ? opts.retries : 4;
+        const timeoutMs = (opts && opts.timeoutMs) ? opts.timeoutMs : 15000;
+
+        for (let i = 0; i <= retries; i += 1) {
+            const controller = new AbortController();
+            const t = setTimeout(function () { controller.abort(); }, timeoutMs);
+
+            try {
+                const res = await fetch(url, {
+                    method: "GET",
+                    signal: controller.signal,
+                    headers: {
+                        "Accept": "application/json"
+                    }
+                });
+                clearTimeout(t);
+
+                if (res.status === 418 || res.status === 429) {
+                    const backoff = 800 * Math.pow(2, i);
+                    await sleep(backoff);
+                    continue;
+                }
+
+                if (!res.ok) {
+                    const text = await res.text().catch(function () { return ""; });
+                    throw new Error("HTTP " + res.status + " " + text.slice(0, 120));
+                }
+
+                return await res.json();
+            } catch (e) {
+                clearTimeout(t);
+                if (i === retries) throw e;
+                await sleep(500 * Math.pow(2, i));
+            }
+        }
+        throw new Error("unreachable");
+    }
+
+    async function mapPool(items, concurrency, fn, onProgress) {
+        const out = new Array(items.length);
+        let idx = 0;
+
+        async function worker() {
+            while (true) {
+                const cur = idx;
+                idx += 1;
+                if (cur >= items.length) break;
+
+                try {
+                    out[cur] = await fn(items[cur], cur);
+                } catch (e) {
+                    out[cur] = null;
+                }
+
+                if (typeof onProgress === "function") onProgress(cur + 1, items.length);
+            }
+        }
+
+        const workers = [];
+        for (let i = 0; i < concurrency; i += 1) {
+            workers.push(worker());
+        }
+        await Promise.all(workers);
+        return out;
+    }
+
+    async function getUsdtPerpSymbols() {
+        const info = await fetchJsonWithRetry(BASE + "/fapi/v1/exchangeInfo");
+        const syms = (info && info.symbols) ? info.symbols : [];
+        return syms
+            .filter(function (s) {
+                return s
+                    && s.status === "TRADING"
+                    && s.contractType === "PERPETUAL"
+                    && s.quoteAsset === "USDT";
+            })
+            .map(function (s) { return s.symbol; });
+    }
+
+    async function getTicker24hAll() {
+        return await fetchJsonWithRetry(BASE + "/fapi/v1/ticker/24hr");
+    }
+
+    async function getPremiumIndexAll() {
+        // 심볼 생략 시 전체 배열 반환 (weight 10) :contentReference[oaicite:6]{index=6}
+        const arr = await fetchJsonWithRetry(BASE + "/fapi/v1/premiumIndex");
+        const map = {};
+        (Array.isArray(arr) ? arr : []).forEach(function (x) {
+            if (!x || !x.symbol) return;
+            map[x.symbol] = x;
+        });
+        return map;
+    }
+
+    async function getDailyKlines(symbol, limit) {
+        const url = BASE + "/fapi/v1/klines?symbol=" + encodeURIComponent(symbol) + "&interval=1d&limit=" + String(limit);
+        return await fetchJsonWithRetry(url);
+    }
+
+    async function getOpenInterestHist1d(symbol, limit) {
+        const url = BASE + "/futures/data/openInterestHist?symbol=" + encodeURIComponent(symbol) + "&period=1d&limit=" + String(limit);
+        return await fetchJsonWithRetry(url);
+    }
+
+    function calcMetrics(symbol, klines, oiHist, premiumIndexRow, windowDays) {
+        if (!Array.isArray(klines) || klines.length < windowDays) return null;
+        if (!Array.isArray(oiHist) || oiHist.length < Math.min(7, windowDays)) return null;
+
+        const k = klines.slice(-windowDays);
+
+        let highMax = -Infinity;
+        let lowMin = Infinity;
+
+        let firstClose = parseFloat(k[0][4]);
+        let lastClose = parseFloat(k[k.length - 1][4]);
+
+        let sumQuoteVol = 0;
+        let sumTakerBuyRatio = 0;
+        let takerCnt = 0;
+
+        for (let i = 0; i < k.length; i += 1) {
+            const high = parseFloat(k[i][2]);
+            const low = parseFloat(k[i][3]);
+            const quoteVol = parseFloat(k[i][7]);
+            const takerBuyQuote = parseFloat(k[i][10]);
+
+            if (high > highMax) highMax = high;
+            if (low < lowMin) lowMin = low;
+
+            if (Number.isFinite(quoteVol)) sumQuoteVol += quoteVol;
+
+            if (quoteVol > 0 && Number.isFinite(takerBuyQuote)) {
+                sumTakerBuyRatio += (takerBuyQuote / quoteVol);
+                takerCnt += 1;
+            }
+        }
+
+        const rangePct = (lowMin > 0) ? ((highMax / lowMin) - 1) * 100 : NaN;
+        const trendPct = (firstClose > 0) ? ((lastClose / firstClose) - 1) * 100 : NaN;
+
+        const avgQuoteVol = sumQuoteVol / k.length;
+        const takerBuyPct = (takerCnt > 0) ? (sumTakerBuyRatio / takerCnt) * 100 : NaN;
+
+        // OI 히스토리는 timestamp 기준 정렬 보장 가정 X → 정렬
+        const oi = oiHist.slice().sort(function (a, b) {
+            return (a.timestamp || 0) - (b.timestamp || 0);
+        });
+
+        const firstOiVal = parseFloat(oi[0].sumOpenInterestValue);
+        const lastOiVal = parseFloat(oi[oi.length - 1].sumOpenInterestValue);
+        const oiPct = (firstOiVal > 0) ? ((lastOiVal / firstOiVal) - 1) * 100 : NaN;
+
+        const fr = premiumIndexRow && premiumIndexRow.lastFundingRate ? parseFloat(premiumIndexRow.lastFundingRate) : NaN;
+        const fundingPct = Number.isFinite(fr) ? (fr * 100) : NaN;
+
+        // 타입(롱/숏 성향) - takerBuy%로 간단 분류
+        const side = Number.isFinite(takerBuyPct) ? (takerBuyPct >= 50.5 ? "LONG" : "SHORT") : "N/A";
+
+        // 점수(단순 가중치): OI(0.45) + 박스(0.35) + 유동성(0.20)
+        const oiScore = clamp01((oiPct - 5) / 30);             // 5%~35% 구간을 0~1로
+        const boxScore = clamp01((15 - rangePct) / 15);        // range 15% 이하면 가점
+        const volScore = clamp01(avgQuoteVol / 50000000);      // 5천만 USDT/day 기준으로 0~1
+
+        const score = 100 * (0.45 * oiScore + 0.35 * boxScore + 0.20 * volScore);
+
+        return {
+            symbol: symbol,
+            side: side,
+            score: score,
+            rangePct: rangePct,
+            trendPct: trendPct,
+            oiPct: oiPct,
+            avgQuoteVol: avgQuoteVol,
+            takerBuyPct: takerBuyPct,
+            fundingPct: fundingPct
+        };
+    }
+
+    function fmt(n, digits) {
+        if (!Number.isFinite(n)) return "-";
+        return n.toFixed(digits);
+    }
+
+    function fmtInt(n) {
+        if (!Number.isFinite(n)) return "-";
+        return Math.round(n).toLocaleString("en-US");
+    }
+
+    function setStatus(msg) {
+        document.getElementById("status").textContent = msg;
+    }
+
+    function renderRows(rows) {
+        const tbody = document.querySelector("#tbl tbody");
+        tbody.innerHTML = "";
+
+        rows.forEach(function (r) {
+            const tr = document.createElement("tr");
+
+            const tdSym = document.createElement("td");
+            const a = document.createElement("a");
+            a.className = "link";
+            a.target = "_blank";
+            a.rel = "noreferrer";
+            a.href = "https://www.binance.com/en/futures/" + encodeURIComponent(r.symbol);
+            a.textContent = r.symbol;
+            tdSym.appendChild(a);
+
+            const tdType = document.createElement("td");
+            tdType.style.textAlign = "left";
+            const span = document.createElement("span");
+            span.className = "tag " + (r.side === "LONG" ? "long" : (r.side === "SHORT" ? "short" : ""));
+            span.textContent = r.side;
+            tdType.appendChild(span);
+
+            const tdScore = document.createElement("td");
+            tdScore.textContent = fmt(r.score, 1);
+
+            const tdRange = document.createElement("td");
+            tdRange.textContent = fmt(r.rangePct, 2);
+
+            const tdTrend = document.createElement("td");
+            tdTrend.textContent = fmt(r.trendPct, 2);
+
+            const tdOi = document.createElement("td");
+            tdOi.textContent = fmt(r.oiPct, 2);
+
+            const tdVol = document.createElement("td");
+            tdVol.textContent = fmtInt(r.avgQuoteVol);
+
+            const tdTaker = document.createElement("td");
+            tdTaker.textContent = fmt(r.takerBuyPct, 2);
+
+            const tdFunding = document.createElement("td");
+            tdFunding.textContent = fmt(r.fundingPct, 4);
+
+            tr.appendChild(tdSym);
+            tr.appendChild(tdType);
+            tr.appendChild(tdScore);
+            tr.appendChild(tdRange);
+            tr.appendChild(tdTrend);
+            tr.appendChild(tdOi);
+            tr.appendChild(tdVol);
+            tr.appendChild(tdTaker);
+            tr.appendChild(tdFunding);
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function runScan() {
+        const btn = document.getElementById("btnScan");
+        btn.disabled = true;
+
+        try {
+            const windowDays = Math.max(7, Math.min(30, parseInt(document.getElementById("windowDays").value, 10) || 14));
+            const minOiPct = parseFloat(document.getElementById("minOiPct").value) || 10;
+            const maxRangePct = parseFloat(document.getElementById("maxRangePct").value) || 12;
+            const maxTrendPct = parseFloat(document.getElementById("maxTrendPct").value) || 8;
+            const maxFundingAbsPct = parseFloat(document.getElementById("maxFundingAbsPct").value) || 0.05;
+            const minQuoteVol24h = parseFloat(document.getElementById("minQuoteVol24h").value) || 0;
+            const concurrency = Math.max(1, Math.min(12, parseInt(document.getElementById("concurrency").value, 10) || 6));
+
+            setStatus("심볼 로딩 중…");
+            const symbols = await getUsdtPerpSymbols(); // /fapi/v1/exchangeInfo :contentReference[oaicite:7]{index=7}
+
+            setStatus("24h 거래대금 로딩/필터 중…");
+            const tickers = await getTicker24hAll();    // /fapi/v1/ticker/24hr :contentReference[oaicite:8]{index=8}
+            const volMap = {};
+            (Array.isArray(tickers) ? tickers : []).forEach(function (t) {
+                if (!t || !t.symbol) return;
+                volMap[t.symbol] = parseFloat(t.quoteVolume);
+            });
+
+            const filtered = symbols.filter(function (sym) {
+                const qv = volMap[sym];
+                return Number.isFinite(qv) && qv >= minQuoteVol24h;
+            });
+
+            setStatus(
+                "대상 심볼: " + filtered.length.toLocaleString("en-US") + "개 (24h 거래대금 필터 적용)\n" +
+                "premiumIndex 전체 로딩 중…"
+            );
+
+            const premiumMap = await getPremiumIndexAll(); // /fapi/v1/premiumIndex :contentReference[oaicite:9]{index=9}
+
+            setStatus("스캔 중… (0/" + filtered.length + ")");
+            const results = await mapPool(
+                filtered,
+                concurrency,
+                async function (sym) {
+                    const klines = await getDailyKlines(sym, windowDays);            // /fapi/v1/klines :contentReference[oaicite:10]{index=10}
+                    const oiHist = await getOpenInterestHist1d(sym, windowDays);      // /futures/data/openInterestHist :contentReference[oaicite:11]{index=11}
+
+                    const metrics = calcMetrics(sym, klines, oiHist, premiumMap[sym], windowDays);
+                    if (!metrics) return null;
+
+                    // 필터 적용
+                    if (!Number.isFinite(metrics.oiPct) || metrics.oiPct < minOiPct) return null;
+                    if (!Number.isFinite(metrics.rangePct) || metrics.rangePct > maxRangePct) return null;
+                    if (!Number.isFinite(metrics.trendPct) || Math.abs(metrics.trendPct) > maxTrendPct) return null;
+                    if (Number.isFinite(metrics.fundingPct) && Math.abs(metrics.fundingPct) > maxFundingAbsPct) return null;
+
+                    return metrics;
+                },
+                function (done, total) {
+                    setStatus("스캔 중… (" + done + "/" + total + ")");
+                }
+            );
+
+            const rows = (results || []).filter(Boolean).sort(function (a, b) {
+                return (b.score || 0) - (a.score || 0);
+            });
+
+            renderRows(rows);
+
+            setStatus(
+                "완료!\n" +
+                "- 결과: " + rows.length.toLocaleString("en-US") + "개\n" +
+                "- 정렬: Score 내림차순\n\n" +
+                "Tip) Score 상위에서 Range% 낮고 OI% 높은 것부터 차트로 확인해봐."
+            );
+        } catch (e) {
+            setStatus("에러: " + (e && e.message ? e.message : String(e)));
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById("btnScan").addEventListener("click", function () {
+        runScan();
+    });
+</script>
+</body>
+</html>
