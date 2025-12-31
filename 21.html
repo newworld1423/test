@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT-PERP 15m Trend Pullback Scanner (v2)</title>
+    <title>Binance USDT-PERP 15m Trend Pullback Backtest (Date Picker)</title>
     <style>
         :root {
             --bg: #0b0f14;
@@ -23,7 +23,7 @@
             color: var(--text);
         }
         .wrap {
-            max-width: 1240px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 18px;
         }
@@ -57,8 +57,9 @@
         .btn:hover { opacity: 0.92; }
         .btn.good { background: #193a2a; }
         .btn.danger { background: #3a1c1c; }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-        .input {
+        .input, .select {
             background: #0e141d;
             border: 1px solid var(--line);
             color: var(--text);
@@ -66,6 +67,7 @@
             border-radius: 10px;
             outline: none;
         }
+
         .tag {
             display: inline-flex;
             align-items: center;
@@ -83,16 +85,15 @@
             border-radius: 50%;
             background: var(--warn);
         }
-        .tag.on .dot { background: var(--good); }
-        .tag.off .dot { background: var(--bad); }
 
         .kv {
             display: grid;
-            grid-template-columns: 130px 1fr;
+            grid-template-columns: 150px 1fr;
             gap: 6px 10px;
             align-items: center;
             font-size: 14px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -111,6 +112,7 @@
             background: #0e141d;
             z-index: 1;
         }
+
         .goodText { color: var(--good); font-weight: 800; }
         .badText { color: var(--bad); font-weight: 800; }
         .warnText { color: var(--warn); font-weight: 800; }
@@ -126,6 +128,7 @@
             white-space: pre-wrap;
             color: #cfe0f5;
         }
+
         .grid2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -139,106 +142,130 @@
 <body>
 <div class="wrap">
     <div class="row">
-        <div class="card" style="flex: 1 1 620px;">
-            <h2>15m 눌림목 + 1H 추세 스캐너 (v2, 롱/숏)</h2>
+        <div class="card" style="flex: 1 1 760px;">
+            <h2>날짜 선택 백테스트: 15m 눌림목 + 1H 추세 (롱/숏)</h2>
             <div class="muted small">
-                자동 스캔은 <b>매시 00/15/30/45분</b> 경계 직후(약 2.5초 지연)로 맞춰져 있어요.
-                (KST든 UTC든 “분” 기준은 동일하게 00/15/30/45로 동작)
+                선택한 날짜(하루) 동안 15분마다 조건을 만족한 시그널을 전부 찾고,
+                진입(EMA20 리테스트 지정가) 체결 후 TP/SL 먼저 닿았는지 판정합니다.
+            </div>
+
+            <div style="height: 12px;"></div>
+
+            <div class="row">
+                <label class="muted small">날짜:</label>
+                <input id="date" class="input" type="date" />
+
+                <label class="muted small">기준:</label>
+                <select id="tz" class="select">
+                    <option value="KST" selected>KST (한국시간 00:00~23:59)</option>
+                    <option value="UTC">UTC (00:00~23:59)</option>
+                </select>
+
+                <label class="muted small">모드:</label>
+                <select id="mode" class="select">
+                    <option value="single" selected>Single Symbol</option>
+                    <option value="top">TopN by 24h QuoteVolume</option>
+                </select>
+
+                <label class="muted small">Symbol:</label>
+                <input id="symbol" class="input" type="text" value="BTCUSDT" style="width: 140px;" />
+
+                <label class="muted small">TopN:</label>
+                <input id="topN" class="input" type="number" value="30" min="5" max="120" style="width: 90px;" />
+
+                <label class="muted small">min 24h QV:</label>
+                <input id="minQv" class="input" type="number" value="60000000" step="1000000" style="width: 150px;" />
+
+                <label class="muted small">Concur:</label>
+                <input id="concurrency" class="input" type="number" value="4" min="1" max="8" style="width: 80px;" />
             </div>
 
             <div style="height: 10px;"></div>
 
             <div class="row">
-                <button id="btnScan" class="btn good">Scan Now</button>
-                <button id="btnStart" class="btn">Start Auto Scan</button>
-                <button id="btnStop" class="btn danger" disabled>Stop</button>
-
-                <span id="autoState" class="tag off">
-                    <span class="dot"></span>
-                    <span>Auto: OFF</span>
-                </span>
-
-                <span class="tag">
-                    <span class="dot" style="background: var(--blue);"></span>
-                    <span id="lastRun">Last Run: -</span>
-                </span>
-            </div>
-
-            <div style="height: 12px;"></div>
-
-            <div class="row" style="align-items:center;">
-                <label class="muted small">Top N:</label>
-                <input id="topN" class="input" type="number" value="90" min="10" max="200" style="width: 110px;" />
-
-                <label class="muted small">min 24h QV(USDT):</label>
-                <input id="minQv" class="input" type="number" value="60000000" min="0" step="1000000" style="width: 170px;" />
-
-                <label class="muted small">RR (fallback):</label>
+                <label class="muted small">RR fallback:</label>
                 <input id="rr" class="input" type="number" value="1.8" min="0.8" max="5" step="0.1" style="width: 90px;" />
 
                 <label class="muted small">Vol x (15m):</label>
                 <input id="volMult" class="input" type="number" value="1.25" min="1" max="3" step="0.05" style="width: 90px;" />
 
                 <label class="muted small">Stop% (min~max):</label>
-                <input id="stopMin" class="input" type="number" value="0.25" min="0.05" max="3" step="0.05" style="width: 85px;" />
+                <input id="stopMin" class="input" type="number" value="0.25" min="0.05" max="5" step="0.05" style="width: 85px;" />
                 <span class="muted small">~</span>
-                <input id="stopMax" class="input" type="number" value="1.15" min="0.1" max="5" step="0.05" style="width: 85px;" />
+                <input id="stopMax" class="input" type="number" value="1.15" min="0.1" max="8" step="0.05" style="width: 85px;" />
 
                 <label class="muted small">Chase (ATRx):</label>
                 <input id="maxChaseAtr" class="input" type="number" value="0.75" min="0.2" max="2" step="0.05" style="width: 90px;" />
 
-                <label class="muted small">Concur:</label>
-                <input id="concurrency" class="input" type="number" value="6" min="1" max="10" style="width: 90px;" />
+                <label class="muted small">Entry window (bars):</label>
+                <input id="entryWindow" class="input" type="number" value="4" min="1" max="24" style="width: 80px;" />
+
+                <label class="muted small">Max hold (bars):</label>
+                <input id="maxHold" class="input" type="number" value="24" min="4" max="200" style="width: 80px;" />
+
+                <label class="muted small">TP/SL 동시터치:</label>
+                <select id="tieMode" class="select">
+                    <option value="SL_FIRST" selected>보수적(SL 우선)</option>
+                    <option value="TP_FIRST">낙관적(TP 우선)</option>
+                </select>
             </div>
 
-            <div style="height: 10px;"></div>
+            <div style="height: 12px;"></div>
+
+            <div class="row">
+                <button id="btnRun" class="btn good">Run Backtest</button>
+                <button id="btnCsv" class="btn" disabled>Export CSV</button>
+                <span class="tag">
+                    <span class="dot" style="background: var(--blue);"></span>
+                    <span id="status">Ready</span>
+                </span>
+            </div>
+
+            <div style="height: 8px;"></div>
             <div class="muted small">
-                ✅ Entry/TP/SL은 “신호봉 확정” 시점 기준 참고값. 실제 체결은 호가/슬리피지에 따라 달라질 수 있어요.
+                ⚠️ 캔들 데이터 기반 백테스트는 체결/순서/슬리피지/수수료를 완벽히 재현하지 못합니다.
+                특히 같은 15m 캔들에서 TP/SL이 같이 닿는 경우는 “동시터치 처리” 옵션에 따라 결과가 달라집니다.
             </div>
         </div>
 
-        <div class="card" style="flex: 1 1 560px;">
-            <h2>Top Pick (점수 1등)</h2>
-            <div id="topPick" class="kv">
-                <div class="muted">Symbol</div><div><b>-</b></div>
-                <div class="muted">Side</div><div><b>-</b></div>
-                <div class="muted">Score</div><div><b>-</b></div>
-                <div class="muted">Entry</div><div><b>-</b></div>
-                <div class="muted">TP</div><div><b>-</b></div>
-                <div class="muted">SL</div><div><b>-</b></div>
-                <div class="muted">Stop%</div><div><b>-</b></div>
-                <div class="muted">TP%</div><div><b>-</b></div>
-                <div class="muted">Signal</div><div><b>-</b></div>
-            </div>
-            <div style="height: 8px;"></div>
-            <div class="muted small">
-                TP는 <b>스윙 타겟 우선</b>으로 잡고, 부족하면 RR 기반 TP로 대체합니다.
+        <div class="card" style="flex: 1 1 480px;">
+            <h2>요약</h2>
+            <div id="summary" class="kv">
+                <div class="muted">Signals</div><div><b>-</b></div>
+                <div class="muted">Filled</div><div><b>-</b></div>
+                <div class="muted">No Fill</div><div><b>-</b></div>
+                <div class="muted">Wins (TP)</div><div><b>-</b></div>
+                <div class="muted">Losses (SL)</div><div><b>-</b></div>
+                <div class="muted">EOD/Timeout</div><div><b>-</b></div>
+                <div class="muted">Win Rate</div><div><b>-</b></div>
+                <div class="muted">Avg PnL%</div><div><b>-</b></div>
+                <div class="muted">Total PnL%</div><div><b>-</b></div>
             </div>
         </div>
     </div>
 
     <div class="grid2" style="margin-top: 12px;">
         <div class="card">
-            <h2>Results (상위 50)</h2>
-            <div style="overflow:auto; max-height: 560px; border-radius: 12px;">
+            <h2>Trades (해당 날짜 시그널 전부)</h2>
+            <div style="overflow:auto; max-height: 620px; border-radius: 12px;">
                 <table>
                     <thead>
                         <tr>
+                            <th>Time</th>
                             <th>Symbol</th>
                             <th>Side</th>
-                            <th>Score</th>
                             <th>Entry</th>
                             <th>TP</th>
                             <th>SL</th>
-                            <th>Stop%</th>
-                            <th>TP%</th>
-                            <th>1H Trend</th>
-                            <th>15m Signal</th>
-                            <th>24h QV</th>
+                            <th>Outcome</th>
+                            <th>PnL%</th>
+                            <th>Fill</th>
+                            <th>ExitTime</th>
+                            <th>Note</th>
                         </tr>
                     </thead>
                     <tbody id="tbody">
-                        <tr><td colspan="11" class="muted" style="text-align:center;">아직 스캔 전</td></tr>
+                        <tr><td colspan="11" class="muted" style="text-align:center;">아직 실행 전</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -263,13 +290,17 @@
     const EP_KLINES = BASE + "/fapi/v1/klines";
 
     // ----------------------------
-    // Utils
+    // Logger & helpers
     // ----------------------------
     function logLine(msg) {
         const el = document.getElementById("log");
         const stamp = new Date().toLocaleString();
         el.textContent += `[${stamp}] ${msg}\n`;
         el.scrollTop = el.scrollHeight;
+    }
+
+    function setStatus(s) {
+        document.getElementById("status").textContent = s;
     }
 
     function fmt(n, digits = 6) {
@@ -288,23 +319,51 @@
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async function fetchJson(url, opts = {}) {
-        const res = await fetch(url, opts);
-        if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 160)}`);
-        }
-        return res.json();
+    function pad2(x) {
+        return String(x).padStart(2, "0");
     }
 
-    // Binance klines last element is usually the currently forming candle.
-    function lastClosedIndex(klines) {
-        const now = Date.now();
-        for (let i = klines.length - 1; i >= 0; i -= 1) {
-            const closeTime = Number(klines[i][6]);
-            if (closeTime < now - 1000) return i;
+    function fmtTime(ms, tz) {
+        if (!isFinite(ms)) return "-";
+        if (tz === "KST") {
+            const d = new Date(ms + 9 * 3600 * 1000);
+            return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
         }
-        return Math.max(0, klines.length - 2);
+        const d = new Date(ms);
+        return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+    }
+
+    function getDayRangeMs(dateStr, tz) {
+        // dateStr: YYYY-MM-DD
+        if (!dateStr) return null;
+
+        if (tz === "KST") {
+            const start = new Date(`${dateStr}T00:00:00+09:00`).getTime();
+            const end = start + 24 * 3600 * 1000;
+            return { start, end };
+        }
+
+        const start = new Date(`${dateStr}T00:00:00Z`).getTime();
+        const end = start + 24 * 3600 * 1000;
+        return { start, end };
+    }
+
+    async function fetchJsonWithHeaders(url, opts = {}) {
+        const res = await fetch(url, opts);
+        const retryAfter = res.headers.get("Retry-After");
+        if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            const err = new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 160)}`);
+            err.httpStatus = res.status;
+            err.retryAfter = retryAfter ? Number(retryAfter) : null;
+            throw err;
+        }
+        const json = await res.json();
+        return { json, retryAfter: retryAfter ? Number(retryAfter) : null };
+    }
+
+    async function fetchJson(url) {
+        return (await fetchJsonWithHeaders(url)).json;
     }
 
     // ----------------------------
@@ -360,7 +419,6 @@
         return ema(tr, period);
     }
 
-    // Wilder RSI (classic)
     function rsi(close, period) {
         const out = new Array(close.length).fill(NaN);
         let gain = 0;
@@ -411,263 +469,30 @@
     }
 
     // ----------------------------
-    // Strategy v2 (Long + Short)
-    //  - 1H trend: EMA200 direction + EMA50 position + RSI
-    //  - 15m signal: EMA20 reclaim + break confirm + RSI 50 reclaim + volume expansion
-    //  - Entry: EMA20 retest limit (anti-chase) with small buffer
-    //  - SL: recent swing extreme +/- ATR buffer
-    //  - TP: swing target first, otherwise RR fallback
-    // ----------------------------
-    function evaluateSymbolV2(symbol, qv24h, kl15m, kl1h, params) {
-        const rr = params.rr;
-        const volMult = params.volMult;
-        const stopMin = params.stopMin;
-        const stopMax = params.stopMax;
-        const maxChaseAtr = params.maxChaseAtr;
-
-        const c15 = kl15m.map(k => Number(k[4]));
-        const o15 = kl15m.map(k => Number(k[1]));
-        const h15 = kl15m.map(k => Number(k[2]));
-        const l15 = kl15m.map(k => Number(k[3]));
-        const v15 = kl15m.map(k => Number(k[5]));
-
-        const c1h = kl1h.map(k => Number(k[4]));
-
-        const i15 = lastClosedIndex(kl15m);
-        const i1h = lastClosedIndex(kl1h);
-
-        if (i15 < 80 || i1h < 210) return null;
-
-        // 15m indicators
-        const ema20_15 = ema(c15, 20);
-        const ema50_15 = ema(c15, 50);
-        const atr14_15 = atr(h15, l15, c15, 14);
-        const rsi14_15 = rsi(c15, 14);
-        const volSma20_15 = sma(v15, 20);
-
-        // 1H indicators
-        const ema200_1h = ema(c1h, 200);
-        const ema50_1h = ema(c1h, 50);
-        const rsi14_1h = rsi(c1h, 14);
-
-        const close15 = c15[i15];
-        const close15_prev = c15[i15 - 1];
-
-        const high15_prev = h15[i15 - 1];
-        const low15_prev = l15[i15 - 1];
-
-        const e20 = ema20_15[i15];
-        const e20_prev = ema20_15[i15 - 1];
-        const e50 = ema50_15[i15];
-        const a14 = atr14_15[i15];
-
-        const r15 = rsi14_15[i15];
-        const r15_prev = rsi14_15[i15 - 1];
-
-        const vNow = v15[i15];
-        const vAvg = volSma20_15[i15];
-
-        const close1h = c1h[i1h];
-        const e200 = ema200_1h[i1h];
-        const e200_prev = ema200_1h[i1h - 1];
-        const e50_1h_now = ema50_1h[i1h];
-        const r1h = rsi14_1h[i1h];
-
-        if (![e20, e20_prev, e50, a14, r15, r15_prev, vAvg, e200, e200_prev, e50_1h_now, r1h].every(isFinite)) {
-            return null;
-        }
-
-        // Common filters
-        const volOk = vNow >= (vAvg * volMult);
-
-        // Anti-chase: signal candle should not be too far from EMA20
-        const distFromE20 = Math.abs(close15 - e20);
-        const chaseOk = distFromE20 <= (maxChaseAtr * a14);
-
-        if (!volOk || !chaseOk) return null;
-
-        // --------------------------------
-        // LONG conditions
-        // --------------------------------
-        const longTrendOk =
-            (close1h > e200) &&
-            (e50_1h_now > e200) &&
-            (e200 > e200_prev) &&
-            (r1h >= 52);
-
-        const longReclaim = (close15 > e20) && (close15_prev <= e20_prev);
-        const longBreakConfirm = (close15 > high15_prev);                  // stronger than just reclaim
-        const longRsiConfirm = (r15_prev <= 50) && (r15 > 50);             // 50 reclaim
-        const longAbove50 = (close15 > e50);
-        const longTouched = (l15[i15] <= (e20 * 1.0015));                  // touch near EMA20
-        const longSignalOk = longTrendOk && longReclaim && longBreakConfirm && longRsiConfirm && longAbove50 && longTouched;
-
-        // --------------------------------
-        // SHORT conditions
-        // --------------------------------
-        const shortTrendOk =
-            (close1h < e200) &&
-            (e50_1h_now < e200) &&
-            (e200 < e200_prev) &&
-            (r1h <= 48);
-
-        const shortReclaim = (close15 < e20) && (close15_prev >= e20_prev);
-        const shortBreakConfirm = (close15 < low15_prev);
-        const shortRsiConfirm = (r15_prev >= 50) && (r15 < 50);
-        const shortBelow50 = (close15 < e50);
-        const shortTouched = (h15[i15] >= (e20 * 0.9985));
-        const shortSignalOk = shortTrendOk && shortReclaim && shortBreakConfirm && shortRsiConfirm && shortBelow50 && shortTouched;
-
-        // Evaluate both sides, return best (or null)
-        const candidates = [];
-
-        // Helper for TP selection (swing-first)
-        function pickTpLong(entry, sl, risk) {
-            const rrTp = entry + rr * risk;
-
-            const lookback = 48;
-            const from = Math.max(0, i15 - lookback);
-            const swingHigh = maxRange(h15, from, i15);
-
-            if (isFinite(swingHigh) && swingHigh > entry) {
-                const swingTp = swingHigh - (0.10 * a14);
-                const swingRR = (swingTp - entry) / (risk + 1e-9);
-                if (swingRR >= 1.2) return { tp: swingTp, mode: "SWING" };
-            }
-
-            return { tp: rrTp, mode: "RR" };
-        }
-
-        function pickTpShort(entry, sl, risk) {
-            const rrTp = entry - rr * risk;
-
-            const lookback = 48;
-            const from = Math.max(0, i15 - lookback);
-            const swingLow = minRange(l15, from, i15);
-
-            if (isFinite(swingLow) && swingLow < entry) {
-                const swingTp = swingLow + (0.10 * a14);
-                const swingRR = (entry - swingTp) / (risk + 1e-9);
-                if (swingRR >= 1.2) return { tp: swingTp, mode: "SWING" };
-            }
-
-            return { tp: rrTp, mode: "RR" };
-        }
-
-        // LONG build
-        if (longSignalOk) {
-            const entry = e20 * 1.0002; // EMA20 retest limit (tiny buffer)
-            const swingLow = minRange(l15, Math.max(0, i15 - 12), i15);
-            const sl = swingLow - (0.35 * a14);
-            if (isFinite(entry) && isFinite(sl) && sl < entry) {
-                const risk = entry - sl;
-                const stopPct = (risk / entry) * 100;
-                if (stopPct >= stopMin && stopPct <= stopMax) {
-                    const tpPick = pickTpLong(entry, sl, risk);
-                    const tp = tpPick.tp;
-                    const tpPct = ((tp - entry) / entry) * 100;
-
-                    const trendStrength = ((close1h - e200) / e200) * 100;
-                    const trendSlope = ((e200 - e200_prev) / e200_prev) * 100;
-
-                    const reclaimStrength = ((close15 - e20) / e20) * 100;
-                    const volBoost = clamp((vNow / (vAvg + 1e-9)) - 1, 0, 3);
-
-                    let score = 0;
-                    score += trendStrength * 2.2;
-                    score += trendSlope * 140;
-                    score += (r1h - 50) * 0.7;
-                    score += reclaimStrength * 2.0;
-                    score += volBoost * 1.3;
-                    score -= clamp(stopPct / 1.2, 0, 3) * 2.0;
-                    score += tpPick.mode === "SWING" ? 1.2 : 0.6;
-
-                    candidates.push({
-                        symbol,
-                        side: "LONG",
-                        score,
-                        entry,
-                        tp,
-                        sl,
-                        stopPct,
-                        tpPct,
-                        trendOk: true,
-                        signalOk: true,
-                        qv24h,
-                        signalText: `1H↑(EMA200/50+RSI) + 15m EMA20 리클레임 + 전고 돌파 + RSI50↑ + Vol`,
-                        tpMode: tpPick.mode
-                    });
-                }
-            }
-        }
-
-        // SHORT build
-        if (shortSignalOk) {
-            const entry = e20 * 0.9998; // EMA20 retest limit (tiny buffer)
-            const swingHigh = maxRange(h15, Math.max(0, i15 - 12), i15);
-            const sl = swingHigh + (0.35 * a14);
-            if (isFinite(entry) && isFinite(sl) && sl > entry) {
-                const risk = sl - entry;
-                const stopPct = (risk / entry) * 100;
-                if (stopPct >= stopMin && stopPct <= stopMax) {
-                    const tpPick = pickTpShort(entry, sl, risk);
-                    const tp = tpPick.tp;
-                    const tpPct = ((entry - tp) / entry) * 100;
-
-                    const trendStrength = ((e200 - close1h) / e200) * 100;
-                    const trendSlope = ((e200_prev - e200) / e200_prev) * 100;
-
-                    const reclaimStrength = ((e20 - close15) / e20) * 100;
-                    const volBoost = clamp((vNow / (vAvg + 1e-9)) - 1, 0, 3);
-
-                    let score = 0;
-                    score += trendStrength * 2.2;
-                    score += trendSlope * 140;
-                    score += (50 - r1h) * 0.7;
-                    score += reclaimStrength * 2.0;
-                    score += volBoost * 1.3;
-                    score -= clamp(stopPct / 1.2, 0, 3) * 2.0;
-                    score += tpPick.mode === "SWING" ? 1.2 : 0.6;
-
-                    candidates.push({
-                        symbol,
-                        side: "SHORT",
-                        score,
-                        entry,
-                        tp,
-                        sl,
-                        stopPct,
-                        tpPct,
-                        trendOk: true,
-                        signalOk: true,
-                        qv24h,
-                        signalText: `1H↓(EMA200/50+RSI) + 15m EMA20 리클레임 + 전저 이탈 + RSI50↓ + Vol`,
-                        tpMode: tpPick.mode
-                    });
-                }
-            }
-        }
-
-        if (candidates.length === 0) return null;
-
-        candidates.sort((a, b) => b.score - a.score);
-        return candidates[0];
-    }
-
-    // ----------------------------
     // Market universe
     // ----------------------------
-    async function getUsdtPerpSymbols() {
+    async function getUsdtPerpSymbolsAndTickSize() {
         const info = await fetchJson(EP_EXCHANGE_INFO);
+        const mapTick = new Map();
+
         const syms = info.symbols
-            .filter(s =>
+            .filter((s) =>
                 s.contractType === "PERPETUAL" &&
                 s.quoteAsset === "USDT" &&
                 s.status === "TRADING" &&
                 s.symbol.endsWith("USDT")
             )
-            .map(s => s.symbol);
-        return syms;
+            .map((s) => {
+                let tickSize = null;
+                if (Array.isArray(s.filters)) {
+                    const pf = s.filters.find((f) => f.filterType === "PRICE_FILTER");
+                    if (pf && pf.tickSize) tickSize = Number(pf.tickSize);
+                }
+                if (tickSize && isFinite(tickSize) && tickSize > 0) mapTick.set(s.symbol, tickSize);
+                return s.symbol;
+            });
+
+        return { symbols: syms, tickSizeMap: mapTick };
     }
 
     async function get24hTickers() {
@@ -677,18 +502,23 @@
     function pickTopByQuoteVolume(allTickers, allowedSymbols, topN, minQv) {
         const set = new Set(allowedSymbols);
         return allTickers
-            .filter(t => set.has(t.symbol))
-            .map(t => ({
+            .filter((t) => set.has(t.symbol))
+            .map((t) => ({
                 symbol: t.symbol,
                 quoteVolume: Number(t.quoteVolume || 0)
             }))
-            .filter(x => x.quoteVolume >= minQv)
+            .filter((x) => x.quoteVolume >= minQv)
             .sort((a, b) => b.quoteVolume - a.quoteVolume)
             .slice(0, topN);
     }
 
-    async function getKlines(symbol, interval, limit) {
-        const url = `${EP_KLINES}?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+    async function getKlines(symbol, interval, startTime, endTime, limit) {
+        const url =
+            `${EP_KLINES}?symbol=${encodeURIComponent(symbol)}` +
+            `&interval=${encodeURIComponent(interval)}` +
+            `&startTime=${startTime}` +
+            `&endTime=${endTime}` +
+            `&limit=${limit}`;
         return fetchJson(url);
     }
 
@@ -710,133 +540,563 @@
         return out;
     }
 
+    function roundToTick(price, tickSize) {
+        if (!tickSize || !isFinite(tickSize) || tickSize <= 0) return price;
+        const inv = 1 / tickSize;
+        return Math.round(price * inv) / inv;
+    }
+
     // ----------------------------
-    // UI render
+    // Build signals + backtest
     // ----------------------------
-    function renderTopPick(best) {
-        const el = document.getElementById("topPick");
-        if (!best) {
-            el.innerHTML = `
-                <div class="muted">Symbol</div><div><b>-</b></div>
-                <div class="muted">Side</div><div><b>-</b></div>
-                <div class="muted">Score</div><div><b>-</b></div>
-                <div class="muted">Entry</div><div><b>-</b></div>
-                <div class="muted">TP</div><div><b>-</b></div>
-                <div class="muted">SL</div><div><b>-</b></div>
-                <div class="muted">Stop%</div><div><b>-</b></div>
-                <div class="muted">TP%</div><div><b>-</b></div>
-                <div class="muted">Signal</div><div><b>-</b></div>
-            `;
-            return;
+    function buildAndBacktestForSymbol(symbol, qv24h, kl15m, kl1h, tickSize, opts) {
+        const tz = opts.tz;
+        const dayStart = opts.dayStart;
+        const dayEnd = opts.dayEnd;
+
+        const rr = opts.rr;
+        const volMult = opts.volMult;
+        const stopMin = opts.stopMin;
+        const stopMax = opts.stopMax;
+        const maxChaseAtr = opts.maxChaseAtr;
+        const entryWindow = opts.entryWindow;
+        const maxHold = opts.maxHold;
+        const tieMode = opts.tieMode;
+
+        const o15 = kl15m.map((k) => Number(k[1]));
+        const h15 = kl15m.map((k) => Number(k[2]));
+        const l15 = kl15m.map((k) => Number(k[3]));
+        const c15 = kl15m.map((k) => Number(k[4]));
+        const v15 = kl15m.map((k) => Number(k[5]));
+        const t15 = kl15m.map((k) => Number(k[0])); // openTime
+        const ct15 = kl15m.map((k) => Number(k[6])); // closeTime
+
+        const c1h = kl1h.map((k) => Number(k[4]));
+        const t1h = kl1h.map((k) => Number(k[0]));
+        const ct1h = kl1h.map((k) => Number(k[6]));
+
+        const ema20_15 = ema(c15, 20);
+        const ema50_15 = ema(c15, 50);
+        const atr14_15 = atr(h15, l15, c15, 14);
+        const rsi14_15 = rsi(c15, 14);
+        const volSma20_15 = sma(v15, 20);
+
+        const ema200_1h = ema(c1h, 200);
+        const ema50_1h = ema(c1h, 50);
+        const rsi14_1h = rsi(c1h, 14);
+
+        // Map 15m closeTime -> last closed 1h index
+        let j1h = 0;
+        const trades = [];
+
+        for (let i = 0; i < kl15m.length; i += 1) {
+            const ot = t15[i];
+            const closeTime = ct15[i];
+
+            if (ot < dayStart || ot >= dayEnd) continue;
+            if (i < 60) continue;
+
+            // Move 1h pointer to last closed candle before this 15m close
+            while (j1h + 1 < kl1h.length && ct1h[j1h + 1] < closeTime - 1000) {
+                j1h += 1;
+            }
+
+            // Need stable 1h indicators
+            if (j1h < 205) continue;
+
+            const close15 = c15[i];
+            const close15_prev = c15[i - 1];
+            const high15_prev = h15[i - 1];
+            const low15_prev = l15[i - 1];
+
+            const e20 = ema20_15[i];
+            const e20_prev = ema20_15[i - 1];
+            const e50 = ema50_15[i];
+            const a14 = atr14_15[i];
+            const r15 = rsi14_15[i];
+            const r15_prev = rsi14_15[i - 1];
+
+            const vNow = v15[i];
+            const vAvg = volSma20_15[i];
+
+            const close1h = c1h[j1h];
+            const e200 = ema200_1h[j1h];
+            const e200_prev = ema200_1h[j1h - 1];
+            const e50_1h_now = ema50_1h[j1h];
+            const r1h = rsi14_1h[j1h];
+
+            if (![e20, e20_prev, e50, a14, r15, r15_prev, vAvg, close1h, e200, e200_prev, e50_1h_now, r1h].every(isFinite)) {
+                continue;
+            }
+
+            // Filters
+            const volOk = vNow >= (vAvg * volMult);
+            const distFromE20 = Math.abs(close15 - e20);
+            const chaseOk = distFromE20 <= (maxChaseAtr * a14);
+            if (!volOk || !chaseOk) continue;
+
+            // LONG signal
+            const longTrendOk =
+                (close1h > e200) &&
+                (e50_1h_now > e200) &&
+                (e200 > e200_prev) &&
+                (r1h >= 52);
+
+            const longReclaim = (close15 > e20) && (close15_prev <= e20_prev);
+            const longBreakConfirm = (close15 > high15_prev);
+            const longRsiConfirm = (r15_prev <= 50) && (r15 > 50);
+            const longAbove50 = (close15 > e50);
+            const longTouched = (l15[i] <= (e20 * 1.0015));
+            const longSignalOk = longTrendOk && longReclaim && longBreakConfirm && longRsiConfirm && longAbove50 && longTouched;
+
+            // SHORT signal
+            const shortTrendOk =
+                (close1h < e200) &&
+                (e50_1h_now < e200) &&
+                (e200 < e200_prev) &&
+                (r1h <= 48);
+
+            const shortReclaim = (close15 < e20) && (close15_prev >= e20_prev);
+            const shortBreakConfirm = (close15 < low15_prev);
+            const shortRsiConfirm = (r15_prev >= 50) && (r15 < 50);
+            const shortBelow50 = (close15 < e50);
+            const shortTouched = (h15[i] >= (e20 * 0.9985));
+            const shortSignalOk = shortTrendOk && shortReclaim && shortBreakConfirm && shortRsiConfirm && shortBelow50 && shortTouched;
+
+            // If no signal, continue
+            if (!longSignalOk && !shortSignalOk) continue;
+
+            // Build candidate trade (LONG or SHORT)
+            const side = longSignalOk ? "LONG" : "SHORT";
+            const signalTime = closeTime;
+
+            let entry;
+            let sl;
+            let tp;
+            let note = "";
+            let tpMode = "RR";
+
+            if (side === "LONG") {
+                entry = e20 * 1.0002;
+                const swingLow = minRange(l15, Math.max(0, i - 12), i);
+                sl = swingLow - (0.35 * a14);
+
+                const risk = entry - sl;
+                const stopPct = (risk / entry) * 100;
+                if (!(stopPct >= stopMin && stopPct <= stopMax)) continue;
+
+                // TP: swing high first
+                const lookback = 48;
+                const swingHigh = maxRange(h15, Math.max(0, i - lookback), i);
+                const rrTp = entry + rr * risk;
+
+                if (isFinite(swingHigh) && swingHigh > entry) {
+                    const swingTp = swingHigh - (0.10 * a14);
+                    const swingRR = (swingTp - entry) / (risk + 1e-9);
+                    if (swingRR >= 1.2) {
+                        tp = swingTp;
+                        tpMode = "SWING";
+                    } else {
+                        tp = rrTp;
+                        tpMode = "RR";
+                    }
+                } else {
+                    tp = rrTp;
+                    tpMode = "RR";
+                }
+
+                // Round
+                entry = roundToTick(entry, tickSize);
+                sl = roundToTick(sl, tickSize);
+                tp = roundToTick(tp, tickSize);
+
+            } else {
+                entry = e20 * 0.9998;
+                const swingHigh = maxRange(h15, Math.max(0, i - 12), i);
+                sl = swingHigh + (0.35 * a14);
+
+                const risk = sl - entry;
+                const stopPct = (risk / entry) * 100;
+                if (!(stopPct >= stopMin && stopPct <= stopMax)) continue;
+
+                const lookback = 48;
+                const swingLow = minRange(l15, Math.max(0, i - lookback), i);
+                const rrTp = entry - rr * risk;
+
+                if (isFinite(swingLow) && swingLow < entry) {
+                    const swingTp = swingLow + (0.10 * a14);
+                    const swingRR = (entry - swingTp) / (risk + 1e-9);
+                    if (swingRR >= 1.2) {
+                        tp = swingTp;
+                        tpMode = "SWING";
+                    } else {
+                        tp = rrTp;
+                        tpMode = "RR";
+                    }
+                } else {
+                    tp = rrTp;
+                    tpMode = "RR";
+                }
+
+                entry = roundToTick(entry, tickSize);
+                sl = roundToTick(sl, tickSize);
+                tp = roundToTick(tp, tickSize);
+            }
+
+            // Backtest: fill check in next entryWindow bars
+            let filled = false;
+            let fillIndex = null;
+
+            for (let k = i + 1; k <= Math.min(i + entryWindow, kl15m.length - 1); k += 1) {
+                const hi = h15[k];
+                const lo = l15[k];
+                if (lo <= entry && entry <= hi) {
+                    filled = true;
+                    fillIndex = k;
+                    break;
+                }
+            }
+
+            if (!filled) {
+                trades.push({
+                    time: signalTime,
+                    symbol,
+                    side,
+                    entry,
+                    tp,
+                    sl,
+                    outcome: "NO_FILL",
+                    pnlPct: 0,
+                    fill: "NO",
+                    exitTime: null,
+                    note: `entryWindow(${entryWindow}) 내 미체결 / TP:${tpMode}`
+                });
+                continue;
+            }
+
+            // After fill, simulate until maxHold or day end
+            const startK = fillIndex;
+            const endK = Math.min(startK + maxHold, kl15m.length - 1);
+
+            let outcome = "OPEN";
+            let exitPrice = null;
+            let exitTime = null;
+
+            for (let k = startK; k <= endK; k += 1) {
+                // stop at end of selected day
+                if (t15[k] >= dayEnd) break;
+
+                const hi = h15[k];
+                const lo = l15[k];
+
+                if (side === "LONG") {
+                    const hitSL = lo <= sl;
+                    const hitTP = hi >= tp;
+
+                    if (hitSL && hitTP) {
+                        if (tieMode === "SL_FIRST") {
+                            outcome = "SL";
+                            exitPrice = sl;
+                            exitTime = ct15[k];
+                        } else {
+                            outcome = "TP";
+                            exitPrice = tp;
+                            exitTime = ct15[k];
+                        }
+                        break;
+                    }
+                    if (hitSL) {
+                        outcome = "SL";
+                        exitPrice = sl;
+                        exitTime = ct15[k];
+                        break;
+                    }
+                    if (hitTP) {
+                        outcome = "TP";
+                        exitPrice = tp;
+                        exitTime = ct15[k];
+                        break;
+                    }
+                } else {
+                    const hitSL = hi >= sl;
+                    const hitTP = lo <= tp;
+
+                    if (hitSL && hitTP) {
+                        if (tieMode === "SL_FIRST") {
+                            outcome = "SL";
+                            exitPrice = sl;
+                            exitTime = ct15[k];
+                        } else {
+                            outcome = "TP";
+                            exitPrice = tp;
+                            exitTime = ct15[k];
+                        }
+                        break;
+                    }
+                    if (hitSL) {
+                        outcome = "SL";
+                        exitPrice = sl;
+                        exitTime = ct15[k];
+                        break;
+                    }
+                    if (hitTP) {
+                        outcome = "TP";
+                        exitPrice = tp;
+                        exitTime = ct15[k];
+                        break;
+                    }
+                }
+            }
+
+            if (outcome === "OPEN") {
+                // Exit at end-of-day (last close within day)
+                let lastIdx = startK;
+                for (let k = startK; k <= endK; k += 1) {
+                    if (t15[k] >= dayEnd) break;
+                    lastIdx = k;
+                }
+                outcome = "EOD";
+                exitPrice = c15[lastIdx];
+                exitTime = ct15[lastIdx];
+                note = `EOD exit / TP:${tpMode}`;
+            } else {
+                note = `TP:${tpMode}`;
+            }
+
+            // PnL %
+            let pnlPct;
+            if (side === "LONG") {
+                pnlPct = ((exitPrice - entry) / entry) * 100;
+            } else {
+                pnlPct = ((entry - exitPrice) / entry) * 100;
+            }
+
+            trades.push({
+                time: signalTime,
+                symbol,
+                side,
+                entry,
+                tp,
+                sl,
+                outcome,
+                pnlPct,
+                fill: "YES",
+                exitTime,
+                note
+            });
         }
 
-        const sideClass = best.side === "LONG" ? "goodText" : "badText";
+        return trades;
+    }
 
-        el.innerHTML = `
-            <div class="muted">Symbol</div><div><b class="goodText">${best.symbol}</b></div>
-            <div class="muted">Side</div><div><b class="${sideClass}">${best.side}</b></div>
-            <div class="muted">Score</div><div><b>${fmt(best.score, 2)}</b></div>
-            <div class="muted">Entry</div><div><b>${fmt(best.entry)}</b></div>
-            <div class="muted">TP (${best.tpMode})</div><div><b class="goodText">${fmt(best.tp)}</b></div>
-            <div class="muted">SL</div><div><b class="badText">${fmt(best.sl)}</b></div>
-            <div class="muted">Stop%</div><div><b>${fmt(best.stopPct, 2)}%</b></div>
-            <div class="muted">TP%</div><div><b>${fmt(best.tpPct, 2)}%</b></div>
-            <div class="muted">Signal</div><div><b class="small">${best.signalText}</b></div>
+    // ----------------------------
+    // Render
+    // ----------------------------
+    let LAST_TRADES = [];
+
+    function renderSummary(trades) {
+        const summaryEl = document.getElementById("summary");
+
+        const signals = trades.length;
+        const filled = trades.filter((t) => t.fill === "YES").length;
+        const noFill = trades.filter((t) => t.outcome === "NO_FILL").length;
+        const wins = trades.filter((t) => t.outcome === "TP").length;
+        const losses = trades.filter((t) => t.outcome === "SL").length;
+        const eod = trades.filter((t) => t.outcome === "EOD").length;
+
+        const filledTrades = trades.filter((t) => t.fill === "YES");
+        const avg = filledTrades.length ? (filledTrades.reduce((a, t) => a + t.pnlPct, 0) / filledTrades.length) : 0;
+        const total = filledTrades.reduce((a, t) => a + t.pnlPct, 0);
+        const winRate = filledTrades.length ? (wins / filledTrades.length) * 100 : 0;
+
+        summaryEl.innerHTML = `
+            <div class="muted">Signals</div><div><b>${signals}</b></div>
+            <div class="muted">Filled</div><div><b>${filled}</b></div>
+            <div class="muted">No Fill</div><div><b>${noFill}</b></div>
+            <div class="muted">Wins (TP)</div><div><b class="goodText">${wins}</b></div>
+            <div class="muted">Losses (SL)</div><div><b class="badText">${losses}</b></div>
+            <div class="muted">EOD/Timeout</div><div><b class="warnText">${eod}</b></div>
+            <div class="muted">Win Rate</div><div><b>${fmt(winRate, 2)}%</b></div>
+            <div class="muted">Avg PnL%</div><div><b>${fmt(avg, 3)}%</b></div>
+            <div class="muted">Total PnL%</div><div><b>${fmt(total, 3)}%</b></div>
         `;
     }
 
-    function renderTable(rows) {
+    function renderTrades(trades, tz) {
         const tb = document.getElementById("tbody");
-        if (!rows || rows.length === 0) {
-            tb.innerHTML = `<tr><td colspan="11" class="muted" style="text-align:center;">조건 충족 종목 없음</td></tr>`;
+        if (!trades || trades.length === 0) {
+            tb.innerHTML = `<tr><td colspan="11" class="muted" style="text-align:center;">해당 날짜 조건 충족 시그널 없음</td></tr>`;
             return;
         }
 
-        tb.innerHTML = rows.map((r) => {
-            const sideClass = r.side === "LONG" ? "goodText" : "badText";
+        tb.innerHTML = trades.map((t) => {
+            const sideClass = t.side === "LONG" ? "goodText" : "badText";
+            let outClass = "muted";
+            if (t.outcome === "TP") outClass = "goodText";
+            if (t.outcome === "SL") outClass = "badText";
+            if (t.outcome === "EOD") outClass = "warnText";
+            if (t.outcome === "NO_FILL") outClass = "muted";
+
+            const pnlClass = t.pnlPct > 0 ? "goodText" : (t.pnlPct < 0 ? "badText" : "muted");
+
             return `
                 <tr>
-                    <td><b>${r.symbol}</b></td>
-                    <td class="${sideClass}"><b>${r.side}</b></td>
-                    <td>${fmt(r.score, 2)}</td>
-                    <td>${fmt(r.entry)}</td>
-                    <td class="goodText">${fmt(r.tp)} <span class="muted small">(${r.tpMode})</span></td>
-                    <td class="badText">${fmt(r.sl)}</td>
-                    <td>${fmt(r.stopPct, 2)}%</td>
-                    <td>${fmt(r.tpPct, 2)}%</td>
-                    <td><span class="goodText">OK</span></td>
-                    <td><span class="goodText">YES</span></td>
-                    <td>${fmt(r.qv24h, 2)}</td>
+                    <td>${fmtTime(t.time, tz)}</td>
+                    <td><b>${t.symbol}</b></td>
+                    <td class="${sideClass}"><b>${t.side}</b></td>
+                    <td>${fmt(t.entry)}</td>
+                    <td class="goodText">${fmt(t.tp)}</td>
+                    <td class="badText">${fmt(t.sl)}</td>
+                    <td class="${outClass}"><b>${t.outcome}</b></td>
+                    <td class="${pnlClass}"><b>${fmt(t.pnlPct, 3)}%</b></td>
+                    <td>${t.fill}</td>
+                    <td>${t.exitTime ? fmtTime(t.exitTime, tz) : "-"}</td>
+                    <td class="muted small">${t.note || ""}</td>
                 </tr>
             `;
         }).join("");
     }
 
-    // ----------------------------
-    // Scan core
-    // ----------------------------
-    let scanning = false;
-    let autoTimer = null;
-    let autoArmed = false;
-
-    async function scanOnce() {
-        if (scanning) {
-            logLine("이미 스캔 중이라 이번 실행은 건너뜁니다.");
-            return;
+    function toCsv(trades, tz) {
+        const header = ["time", "symbol", "side", "entry", "tp", "sl", "outcome", "pnlPct", "fill", "exitTime", "note"];
+        const lines = [header.join(",")];
+        for (const t of trades) {
+            const row = [
+                fmtTime(t.time, tz),
+                t.symbol,
+                t.side,
+                String(t.entry),
+                String(t.tp),
+                String(t.sl),
+                t.outcome,
+                String(t.pnlPct),
+                t.fill,
+                t.exitTime ? fmtTime(t.exitTime, tz) : "",
+                (t.note || "").replaceAll(",", " ")
+            ];
+            lines.push(row.join(","));
         }
+        return lines.join("\n");
+    }
 
-        scanning = true;
-        document.getElementById("btnScan").disabled = true;
+    function downloadText(filename, text) {
+        const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    // ----------------------------
+    // Backtest runner
+    // ----------------------------
+    let RUNNING = false;
+
+    async function backtest() {
+        if (RUNNING) return;
+        RUNNING = true;
+
+        const btn = document.getElementById("btnRun");
+        btn.disabled = true;
+        document.getElementById("btnCsv").disabled = true;
 
         try {
-            const topN = clamp(Number(document.getElementById("topN").value || 90), 10, 200);
+            const dateStr = document.getElementById("date").value;
+            const tz = document.getElementById("tz").value;
+
+            const range = getDayRangeMs(dateStr, tz);
+            if (!range) {
+                alert("날짜를 선택하세요.");
+                return;
+            }
+
+            const mode = document.getElementById("mode").value;
+            const symbolIn = String(document.getElementById("symbol").value || "").trim().toUpperCase();
+
+            const topN = clamp(Number(document.getElementById("topN").value || 30), 5, 120);
             const minQv = Math.max(0, Number(document.getElementById("minQv").value || 0));
-            const rr = clamp(Number(document.getElementById("rr").value || 1.8), 0.8, 5);
-            const volMult = clamp(Number(document.getElementById("volMult").value || 1.25), 1, 3);
-            const stopMin = clamp(Number(document.getElementById("stopMin").value || 0.25), 0.05, 10);
-            const stopMax = clamp(Number(document.getElementById("stopMax").value || 1.15), 0.1, 10);
-            const maxChaseAtr = clamp(Number(document.getElementById("maxChaseAtr").value || 0.75), 0.2, 3);
-            const concurrency = clamp(Number(document.getElementById("concurrency").value || 6), 1, 10);
+            const concurrency = clamp(Number(document.getElementById("concurrency").value || 4), 1, 8);
 
-            const params = { rr, volMult, stopMin, stopMax, maxChaseAtr };
+            const opts = {
+                tz,
+                dayStart: range.start,
+                dayEnd: range.end,
+                rr: clamp(Number(document.getElementById("rr").value || 1.8), 0.8, 5),
+                volMult: clamp(Number(document.getElementById("volMult").value || 1.25), 1, 3),
+                stopMin: clamp(Number(document.getElementById("stopMin").value || 0.25), 0.05, 10),
+                stopMax: clamp(Number(document.getElementById("stopMax").value || 1.15), 0.1, 10),
+                maxChaseAtr: clamp(Number(document.getElementById("maxChaseAtr").value || 0.75), 0.2, 3),
+                entryWindow: clamp(Number(document.getElementById("entryWindow").value || 4), 1, 48),
+                maxHold: clamp(Number(document.getElementById("maxHold").value || 24), 4, 400),
+                tieMode: document.getElementById("tieMode").value
+            };
 
-            logLine(`스캔 시작: TopN=${topN}, minQv=${minQv}, RR=${rr}, Volx=${volMult}, Stop%=[${stopMin}~${stopMax}], ChaseATR=${maxChaseAtr}`);
+            logLine(`백테스트 시작: date=${dateStr} (${tz}), mode=${mode}, rr=${opts.rr}, volx=${opts.volMult}, stop=[${opts.stopMin}~${opts.stopMax}], entryWindow=${opts.entryWindow}, maxHold=${opts.maxHold}`);
+            setStatus("Running...");
 
-            const [symbols, tickers] = await Promise.all([
-                getUsdtPerpSymbols(),
-                get24hTickers()
-            ]);
+            // Lookback: 9 days before dayStart to build EMA200(1h) and 15m indicators
+            const lookbackMs = 9 * 24 * 3600 * 1000;
+            const startFetch = range.start - lookbackMs;
+            const endFetch = range.end;
 
-            const universe = pickTopByQuoteVolume(tickers, symbols, topN, minQv);
-            logLine(`대상 심볼 수: ${universe.length}개`);
+            const { symbols, tickSizeMap } = await getUsdtPerpSymbolsAndTickSize();
 
-            const results = [];
+            let universe = [];
+            if (mode === "single") {
+                if (!symbolIn) {
+                    alert("Symbol을 입력하세요. 예: BTCUSDT");
+                    return;
+                }
+                if (!symbols.includes(symbolIn)) {
+                    alert(`심볼이 유효하지 않거나 USDT 무기한이 아닐 수 있어요: ${symbolIn}`);
+                    return;
+                }
+                universe = [{ symbol: symbolIn, quoteVolume: 0 }];
+            } else {
+                const tickers = await get24hTickers();
+                universe = pickTopByQuoteVolume(tickers, symbols, topN, minQv);
+            }
+
+            logLine(`대상 심볼: ${universe.length}개`);
+            setStatus(`Fetching klines for ${universe.length} symbols...`);
+
+            const allTrades = [];
 
             const worker = async (row) => {
-                const symbol = row.symbol;
+                const sym = row.symbol;
+                const qv = row.quoteVolume || 0;
+                const tick = tickSizeMap.get(sym) || null;
 
-                await sleep(35);
+                // Throttle a bit
+                await sleep(40);
 
-                for (let attempt = 1; attempt <= 3; attempt += 1) {
+                for (let attempt = 1; attempt <= 4; attempt += 1) {
                     try {
+                        // 15m: limit 1000 (~10.4 days)
+                        // 1h:  limit 400  (~16.6 days) - safe
                         const [kl15m, kl1h] = await Promise.all([
-                            getKlines(symbol, "15m", 260),
-                            getKlines(symbol, "1h", 260)
+                            getKlines(sym, "15m", startFetch, endFetch, 1000),
+                            getKlines(sym, "1h", startFetch, endFetch, 400)
                         ]);
 
-                        const r = evaluateSymbolV2(symbol, row.quoteVolume, kl15m, kl1h, params);
-                        if (r) results.push(r);
+                        const trades = buildAndBacktestForSymbol(sym, qv, kl15m, kl1h, tick, opts);
+                        for (const t of trades) allTrades.push(t);
                         return;
+
                     } catch (e) {
-                        const msg = String(e && e.message ? e.message : e);
-                        const isRate = msg.indexOf("HTTP 429") > -1 || msg.indexOf("HTTP 418") > -1;
-                        if (isRate && attempt < 3) {
-                            const backoff = attempt * 900;
-                            logLine(`${symbol} rate-limit, ${backoff}ms 후 재시도 (${attempt}/3)`);
-                            await sleep(backoff);
+                        const status = e.httpStatus || 0;
+                        const isRate = status === 429 || status === 418;
+                        if (isRate && attempt < 4) {
+                            const ra = e.retryAfter ? e.retryAfter * 1000 : (attempt * 1200);
+                            logLine(`${sym} rate-limit(HTTP ${status}), ${Math.ceil(ra / 1000)}s 대기 후 재시도 (${attempt}/4)`);
+                            await sleep(ra);
                             continue;
                         }
-                        logLine(`${symbol} 실패: ${msg}`);
+                        logLine(`${sym} 실패: ${String(e && e.message ? e.message : e)}`);
                         return;
                     }
                 }
@@ -844,115 +1104,68 @@
 
             await mapPool(universe, worker, concurrency);
 
-            results.sort((a, b) => b.score - a.score);
+            // Sort by signal time
+            allTrades.sort((a, b) => a.time - b.time);
 
-            const best = results[0] || null;
-            renderTopPick(best);
-            renderTable(results.slice(0, 50));
+            LAST_TRADES = allTrades;
+            renderSummary(allTrades);
+            renderTrades(allTrades, tz);
 
-            document.getElementById("lastRun").textContent = `Last Run: ${new Date().toLocaleString()}`;
-            logLine(`스캔 완료: 조건충족 ${results.length}개, TopPick=${best ? (best.symbol + " " + best.side) : "-"}`);
+            document.getElementById("btnCsv").disabled = allTrades.length === 0;
 
-        } catch (e) {
-            logLine(`스캔 에러: ${String(e && e.message ? e.message : e)}`);
+            setStatus(`Done (${allTrades.length} signals)`);
+            logLine(`완료: 총 시그널 ${allTrades.length}개`);
+
         } finally {
-            scanning = false;
-            document.getElementById("btnScan").disabled = false;
+            RUNNING = false;
+            document.getElementById("btnRun").disabled = false;
         }
     }
 
     // ----------------------------
-    // Auto schedule: next local quarter-minute + delay
+    // Bind & init
     // ----------------------------
-    function msUntilNextQuarter(delayMs) {
-        const now = new Date();
-        const m = now.getMinutes();
-        const s = now.getSeconds();
-        const ms = now.getMilliseconds();
+    document.getElementById("btnRun").addEventListener("click", function () {
+        backtest();
+    });
 
-        const nextQuarter = (Math.floor(m / 15) + 1) * 15;
-        const next = new Date(now.getTime());
+    document.getElementById("btnCsv").addEventListener("click", function () {
+        const tz = document.getElementById("tz").value;
+        if (!LAST_TRADES || LAST_TRADES.length === 0) return;
+        const dateStr = document.getElementById("date").value || "backtest";
+        downloadText(`backtest_${dateStr}_${tz}.csv`, toCsv(LAST_TRADES, tz));
+    });
 
-        next.setSeconds(0);
-        next.setMilliseconds(0);
+    // Default date: today (local)
+    (function initDate() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = pad2(d.getMonth() + 1);
+        const dd = pad2(d.getDate());
+        document.getElementById("date").value = `${y}-${m}-${dd}`;
+    })();
 
-        if (nextQuarter >= 60) {
-            next.setMinutes(0);
-            next.setHours(next.getHours() + 1);
+    // Mode toggle
+    document.getElementById("mode").addEventListener("change", function () {
+        const mode = document.getElementById("mode").value;
+        const sym = document.getElementById("symbol");
+        const topN = document.getElementById("topN");
+        const minQv = document.getElementById("minQv");
+
+        if (mode === "single") {
+            sym.disabled = false;
+            topN.disabled = true;
+            minQv.disabled = true;
         } else {
-            next.setMinutes(nextQuarter);
+            sym.disabled = true;
+            topN.disabled = false;
+            minQv.disabled = false;
         }
-
-        const diff = next.getTime() - now.getTime();
-        const extra = delayMs || 2500;
-        return Math.max(0, diff - (s * 1000 + ms)) + extra;
-    }
-
-    function setAutoState(on) {
-        const el = document.getElementById("autoState");
-        if (on) {
-            el.classList.remove("off");
-            el.classList.add("on");
-            el.innerHTML = `<span class="dot"></span><span>Auto: ON</span>`;
-        } else {
-            el.classList.remove("on");
-            el.classList.add("off");
-            el.innerHTML = `<span class="dot"></span><span>Auto: OFF</span>`;
-        }
-    }
-
-    function startAuto() {
-        if (autoArmed) return;
-
-        autoArmed = true;
-        document.getElementById("btnStart").disabled = true;
-        document.getElementById("btnStop").disabled = false;
-        setAutoState(true);
-
-        logLine("Auto Scan ON: 다음 00/15/30/45 경계 직후 실행 예약");
-
-        const delay = msUntilNextQuarter(2500);
-        logLine(`다음 실행까지 대기: ${(delay / 1000).toFixed(1)}s`);
-
-        autoTimer = setTimeout(async function tick() {
-            if (!autoArmed) return;
-
-            await scanOnce();
-
-            const nextDelay = msUntilNextQuarter(2500);
-            logLine(`다음 실행 예약: ${(nextDelay / 1000).toFixed(1)}s`);
-            autoTimer = setTimeout(tick, nextDelay);
-        }, delay);
-    }
-
-    function stopAuto() {
-        autoArmed = false;
-        if (autoTimer) {
-            clearTimeout(autoTimer);
-            autoTimer = null;
-        }
-        document.getElementById("btnStart").disabled = false;
-        document.getElementById("btnStop").disabled = true;
-        setAutoState(false);
-        logLine("Auto Scan OFF");
-    }
-
-    // ----------------------------
-    // Bind UI
-    // ----------------------------
-    document.getElementById("btnScan").addEventListener("click", function () {
-        scanOnce();
     });
+    // trigger once
+    document.getElementById("mode").dispatchEvent(new Event("change"));
 
-    document.getElementById("btnStart").addEventListener("click", function () {
-        startAuto();
-    });
-
-    document.getElementById("btnStop").addEventListener("click", function () {
-        stopAuto();
-    });
-
-    logLine("준비 완료. Scan Now 또는 Start Auto Scan을 누르세요.");
+    logLine("준비 완료. 날짜 선택 후 Run Backtest를 누르세요.");
 </script>
 </body>
 </html>
