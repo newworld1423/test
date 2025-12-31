@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Binance USDT-PERP 15m/1D 이전봉 Range Top1 Scanner</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --panel: #111823;
+            --text: #e6edf3;
+            --muted: #9fb0c3;
+            --line: rgba(255,255,255,.08);
+            --good: #4ade80;
+            --bad: #fb7185;
+            --warn: #fbbf24;
+            --btn: #1f2a3a;
+            --btn2: #243245;
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+        }
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+        .title {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+        .title h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .2px;
+        }
+        .title .sub {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: var(--btn);
+            color: var(--text);
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        button:hover { background: var(--btn2); }
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        @media (min-width: 860px) {
+            .row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .kpi {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .kpi .box {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+        }
+        .kpi .label { color: var(--muted); font-size: 12px; }
+        .kpi .val { font-size: 18px; font-weight: 900; margin-top: 4px; }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .tag b { color: var(--text); }
+        .good { color: var(--good); }
+        .bad { color: var(--bad); }
+        .warn { color: var(--warn); }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 8px;
+            font-size: 13px;
+            text-align: left;
+        }
+        th { color: var(--muted); font-weight: 700; }
+        .small { font-size: 12px; color: var(--muted); }
+        .log {
+            white-space: pre-wrap;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+            max-height: 220px;
+            overflow: auto;
+        }
+        .progress {
+            height: 10px;
+            background: rgba(255,255,255,.06);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .bar {
+            height: 100%;
+            width: 0%;
+            background: rgba(255,255,255,.35);
+        }
+        .split {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .right {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .input {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 8px 10px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .input input {
+            width: 64px;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-weight: 800;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="title">
+            <h1>Binance USDT-PERP 15m / 1D 이전봉 Range Top1 스캐너</h1>
+            <div class="sub">
+                - “이전봉” = 최신 진행 중 봉이 아니라, <b>직전 마감된 봉</b>(limit=3 기준 -2번째)을 사용합니다.<br/>
+                - Range = High - Low, 정렬은 <b>Range%</b> ( (H-L)/L*100 ) 기준입니다.
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="split">
+                <div class="controls">
+                    <button id="btnScanBoth">15m + 1D 스캔</button>
+                    <button id="btnScan15m">15m만 스캔</button>
+                    <button id="btnScan1d">1D만 스캔</button>
+                    <button id="btnStop" disabled>중지</button>
+                </div>
+                <div class="right">
+                    <span class="input">
+                        동시요청(권장 6~10):
+                        <input id="concurrency" type="number" min="1" max="20" value="8" />
+                    </span>
+                    <span class="tag">상태: <b id="status">대기</b></span>
+                    <span class="tag">심볼수: <b id="symbolCount">-</b></span>
+                </div>
+            </div>
+            <div class="progress"><div class="bar" id="bar"></div></div>
+            <div class="small" style="margin-top: 8px;">
+                자동 대기: 429/418 발생 시 <span class="mono">Retry-After</span> 헤더 기반으로 대기 후 재시도합니다.
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="panel">
+                <div class="tag">결과: <b>15m 이전봉 Range Top1</b></div>
+                <div class="kpi">
+                    <div class="box">
+                        <div class="label">심볼</div>
+                        <div class="val mono" id="r15_symbol">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">방향</div>
+                        <div class="val" id="r15_dir">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">Range (H-L)</div>
+                        <div class="val mono" id="r15_rangeAbs">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">Range%</div>
+                        <div class="val mono" id="r15_rangePct">-</div>
+                    </div>
+                </div>
+                <table>
+                    <tbody>
+                        <tr>
+                            <th style="width: 140px;">이전봉 시간(KST)</th>
+                            <td class="mono" id="r15_time">-</td>
+                        </tr>
+                        <tr>
+                            <th>OHLC</th>
+                            <td class="mono" id="r15_ohlc">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="small">* “Top1만” 표시합니다.</div>
+            </div>
+
+            <div class="panel">
+                <div class="tag">결과: <b>1D 이전봉 Range Top1</b></div>
+                <div class="kpi">
+                    <div class="box">
+                        <div class="label">심볼</div>
+                        <div class="val mono" id="r1d_symbol">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">방향</div>
+                        <div class="val" id="r1d_dir">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">Range (H-L)</div>
+                        <div class="val mono" id="r1d_rangeAbs">-</div>
+                    </div>
+                    <div class="box">
+                        <div class="label">Range%</div>
+                        <div class="val mono" id="r1d_rangePct">-</div>
+                    </div>
+                </div>
+                <table>
+                    <tbody>
+                        <tr>
+                            <th style="width: 140px;">이전봉 시간(KST)</th>
+                            <td class="mono" id="r1d_time">-</td>
+                        </tr>
+                        <tr>
+                            <th>OHLC</th>
+                            <td class="mono" id="r1d_ohlc">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="small">* “Top1만” 표시합니다.</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="tag">로그</div>
+            <div class="log mono" id="log"></div>
+        </div>
+    </div>
+
+<script>
+(function () {
+    "use strict";
+
+    const BASE = "https://fapi.binance.com";
+
+    const $ = (id) => document.getElementById(id);
+
+    const el = {
+        btnScanBoth: $("btnScanBoth"),
+        btnScan15m: $("btnScan15m"),
+        btnScan1d: $("btnScan1d"),
+        btnStop: $("btnStop"),
+        concurrency: $("concurrency"),
+        status: $("status"),
+        symbolCount: $("symbolCount"),
+        bar: $("bar"),
+        log: $("log"),
+
+        r15_symbol: $("r15_symbol"),
+        r15_dir: $("r15_dir"),
+        r15_rangeAbs: $("r15_rangeAbs"),
+        r15_rangePct: $("r15_rangePct"),
+        r15_time: $("r15_time"),
+        r15_ohlc: $("r15_ohlc"),
+
+        r1d_symbol: $("r1d_symbol"),
+        r1d_dir: $("r1d_dir"),
+        r1d_rangeAbs: $("r1d_rangeAbs"),
+        r1d_rangePct: $("r1d_rangePct"),
+        r1d_time: $("r1d_time"),
+        r1d_ohlc: $("r1d_ohlc")
+    };
+
+    let controller = null;
+    let cachedSymbols = null;
+
+    function logLine(s) {
+        const t = new Date();
+        const ts = toKstString(t.getTime());
+        el.log.textContent = `[${ts}] ${s}\n` + el.log.textContent;
+    }
+
+    function setStatus(s) {
+        el.status.textContent = s;
+    }
+
+    function setRunningUI(running) {
+        el.btnScanBoth.disabled = running;
+        el.btnScan15m.disabled = running;
+        el.btnScan1d.disabled = running;
+        el.btnStop.disabled = !running;
+    }
+
+    function setProgress(done, total) {
+        const pct = total > 0 ? Math.max(0, Math.min(100, (done / total) * 100)) : 0;
+        el.bar.style.width = pct.toFixed(2) + "%";
+    }
+
+    function sleep(ms, signal) {
+        return new Promise((resolve, reject) => {
+            const t = setTimeout(resolve, ms);
+            if (signal) {
+                signal.addEventListener("abort", () => {
+                    clearTimeout(t);
+                    reject(new DOMException("Aborted", "AbortError"));
+                }, { once: true });
+            }
+        });
+    }
+
+    function toKstString(ms) {
+        const d = new Date(ms);
+        const kst = new Date(d.getTime() + (9 * 60 * 60 * 1000) - (d.getTimezoneOffset() * 60 * 1000));
+        const yyyy = kst.getFullYear();
+        const mm = String(kst.getMonth() + 1).padStart(2, "0");
+        const dd = String(kst.getDate()).padStart(2, "0");
+        const hh = String(kst.getHours()).padStart(2, "0");
+        const mi = String(kst.getMinutes()).padStart(2, "0");
+        const ss = String(kst.getSeconds()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    }
+
+    async function fetchJson(url, signal, maxRetry) {
+        const retry = (typeof maxRetry === "number") ? maxRetry : 5;
+
+        for (let attempt = 0; attempt <= retry; attempt += 1) {
+            if (signal && signal.aborted) {
+                throw new DOMException("Aborted", "AbortError");
+            }
+
+            let res;
+            try {
+                res = await fetch(url, { method: "GET", signal });
+            } catch (e) {
+                if (attempt >= retry) throw e;
+                const backoff = 300 + (attempt * attempt * 250);
+                logLine(`네트워크 오류 → ${backoff}ms 후 재시도 (${attempt + 1}/${retry})`);
+                await sleep(backoff, signal);
+                continue;
+            }
+
+            if (res.status === 429 || res.status === 418) {
+                const ra = Number(res.headers.get("Retry-After") || "1");
+                const waitMs = Math.max(1, ra) * 1000;
+                logLine(`레이트리밋/밴 감지(${res.status}) → Retry-After ${ra}s 대기 후 재시도 (${attempt + 1}/${retry})`);
+                await sleep(waitMs, signal);
+                continue;
+            }
+
+            if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                if (attempt >= retry) {
+                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 160)}`);
+                }
+                const backoff = 300 + (attempt * attempt * 250);
+                logLine(`HTTP ${res.status} → ${backoff}ms 후 재시도 (${attempt + 1}/${retry})`);
+                await sleep(backoff, signal);
+                continue;
+            }
+
+            return await res.json();
+        }
+
+        throw new Error("fetchJson retry exceeded");
+    }
+
+    async function loadUsdtPerpSymbols(signal) {
+        if (cachedSymbols && cachedSymbols.length > 0) {
+            return cachedSymbols;
+        }
+
+        const url = `${BASE}/fapi/v1/exchangeInfo`;
+        const json = await fetchJson(url, signal, 3);
+
+        const out = [];
+        const list = Array.isArray(json && json.symbols) ? json.symbols : [];
+
+        for (let i = 0; i < list.length; i += 1) {
+            const s = list[i];
+            if (!s) continue;
+
+            const quote = String(s.quoteAsset || "");
+            const contractType = String(s.contractType || "");
+            const status = String(s.status || "");
+
+            if (quote !== "USDT") continue;
+            if (contractType !== "PERPETUAL") continue;
+            if (status !== "TRADING") continue;
+
+            out.push(String(s.symbol));
+        }
+
+        cachedSymbols = out;
+        return out;
+    }
+
+    async function getPrevClosedKline(symbol, interval, signal) {
+        const limit = 3;
+        const url = `${BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+        const arr = await fetchJson(url, signal, 4);
+
+        if (!Array.isArray(arr) || arr.length < 2) {
+            throw new Error(`klines 부족: ${symbol} ${interval}`);
+        }
+
+        const k = arr[arr.length - 2];
+
+        const openTime = Number(k[0]);
+        const open = Number(k[1]);
+        const high = Number(k[2]);
+        const low = Number(k[3]);
+        const close = Number(k[4]);
+        const closeTime = Number(k[6]);
+
+        const rangeAbs = high - low;
+        const rangePct = (low > 0) ? (rangeAbs / low) * 100 : 0;
+
+        let dir = "도지";
+        if (close > open) dir = "양봉";
+        else if (close < open) dir = "음봉";
+
+        return {
+            symbol,
+            interval,
+            openTime,
+            closeTime,
+            open,
+            high,
+            low,
+            close,
+            rangeAbs,
+            rangePct,
+            dir
+        };
+    }
+
+    function formatNum(x, digits) {
+        const d = (typeof digits === "number") ? digits : 8;
+        if (!Number.isFinite(x)) return "-";
+        return x.toFixed(d).replace(/\.?0+$/, "");
+    }
+
+    function renderTopResult(prefix, r) {
+        if (!r) return;
+
+        const dirClass = (r.dir === "양봉") ? "good" : (r.dir === "음봉") ? "bad" : "warn";
+        el[`${prefix}_symbol`].textContent = r.symbol;
+        el[`${prefix}_dir`].innerHTML = `<span class="${dirClass}">${r.dir}</span>`;
+        el[`${prefix}_rangeAbs`].textContent = formatNum(r.rangeAbs, 10);
+        el[`${prefix}_rangePct`].textContent = formatNum(r.rangePct, 4) + "%";
+        el[`${prefix}_time`].textContent = `${toKstString(r.openTime)} ~ ${toKstString(r.closeTime)}`;
+        el[`${prefix}_ohlc`].textContent = `O ${formatNum(r.open, 10)} | H ${formatNum(r.high, 10)} | L ${formatNum(r.low, 10)} | C ${formatNum(r.close, 10)}`;
+    }
+
+    async function runPool(items, worker, concurrency, signal, onProgress) {
+        const total = items.length;
+        let done = 0;
+
+        const q = items.slice();
+        const runners = [];
+
+        async function runOne() {
+            while (q.length > 0) {
+                if (signal && signal.aborted) {
+                    throw new DOMException("Aborted", "AbortError");
+                }
+                const it = q.shift();
+                await worker(it);
+                done += 1;
+                if (typeof onProgress === "function") onProgress(done, total);
+            }
+        }
+
+        const c = Math.max(1, Math.min(20, Number(concurrency) || 8));
+        for (let i = 0; i < c; i += 1) {
+            runners.push(runOne());
+        }
+        await Promise.all(runners);
+    }
+
+    async function scan(mode) {
+        controller = new AbortController();
+        const signal = controller.signal;
+
+        setRunningUI(true);
+        setProgress(0, 1);
+        setStatus("심볼 로딩");
+
+        let symbols;
+        try {
+            symbols = await loadUsdtPerpSymbols(signal);
+        } catch (e) {
+            setRunningUI(false);
+            setStatus("실패");
+            logLine(`심볼 로딩 실패: ${e.message || e}`);
+            return;
+        }
+
+        el.symbolCount.textContent = String(symbols.length);
+        logLine(`심볼 ${symbols.length}개 (USDT / PERPETUAL / TRADING) 로드 완료`);
+
+        const want15 = (mode === "both" || mode === "15m");
+        const want1d = (mode === "both" || mode === "1d");
+
+        const best = {
+            "15m": null,
+            "1d": null
+        };
+
+        const conc = Number(el.concurrency.value) || 8;
+
+        const perItemCalls = (want15 ? 1 : 0) + (want1d ? 1 : 0);
+        const totalSteps = symbols.length * Math.max(1, perItemCalls);
+        let progressDone = 0;
+
+        function bumpProgress() {
+            progressDone += 1;
+            setProgress(progressDone, totalSteps);
+        }
+
+        setStatus("스캔 중");
+        logLine(`스캔 시작: ${want15 ? "15m " : ""}${want1d ? "1D" : ""} / 동시요청 ${conc}`);
+
+        const worker = async (sym) => {
+            if (want15 && want1d) {
+                const results = await Promise.all([
+                    getPrevClosedKline(sym, "15m", signal).catch(() => null),
+                    getPrevClosedKline(sym, "1d", signal).catch(() => null)
+                ]);
+
+                const r15 = results[0];
+                const r1d = results[1];
+
+                if (r15) {
+                    if (!best["15m"] || r15.rangePct > best["15m"].rangePct) best["15m"] = r15;
+                }
+                bumpProgress();
+
+                if (r1d) {
+                    if (!best["1d"] || r1d.rangePct > best["1d"].rangePct) best["1d"] = r1d;
+                }
+                bumpProgress();
+
+                return;
+            }
+
+            if (want15) {
+                const r = await getPrevClosedKline(sym, "15m", signal).catch(() => null);
+                if (r) {
+                    if (!best["15m"] || r.rangePct > best["15m"].rangePct) best["15m"] = r;
+                }
+                bumpProgress();
+            }
+
+            if (want1d) {
+                const r = await getPrevClosedKline(sym, "1d", signal).catch(() => null);
+                if (r) {
+                    if (!best["1d"] || r.rangePct > best["1d"].rangePct) best["1d"] = r;
+                }
+                bumpProgress();
+            }
+        };
+
+        try {
+            await runPool(symbols, worker, conc, signal, () => {});
+        } catch (e) {
+            if (e && e.name === "AbortError") {
+                setStatus("중지됨");
+                logLine("사용자에 의해 중지되었습니다.");
+            } else {
+                setStatus("실패");
+                logLine(`스캔 실패: ${e.message || e}`);
+            }
+            setRunningUI(false);
+            return;
+        }
+
+        if (want15) {
+            renderTopResult("r15", best["15m"]);
+            if (best["15m"]) {
+                logLine(`15m Top1: ${best["15m"].symbol} / Range% ${best["15m"].rangePct.toFixed(4)} / ${best["15m"].dir}`);
+            } else {
+                logLine("15m 결과 없음(전부 실패)");
+            }
+        }
+        if (want1d) {
+            renderTopResult("r1d", best["1d"]);
+            if (best["1d"]) {
+                logLine(`1D Top1: ${best["1d"].symbol} / Range% ${best["1d"].rangePct.toFixed(4)} / ${best["1d"].dir}`);
+            } else {
+                logLine("1D 결과 없음(전부 실패)");
+            }
+        }
+
+        setStatus("완료");
+        setRunningUI(false);
+    }
+
+    function stop() {
+        if (controller) {
+            controller.abort();
+        }
+    }
+
+    el.btnScanBoth.addEventListener("click", () => scan("both"));
+    el.btnScan15m.addEventListener("click", () => scan("15m"));
+    el.btnScan1d.addEventListener("click", () => scan("1d"));
+    el.btnStop.addEventListener("click", stop);
+
+    // 첫 화면 안내 로그
+    logLine("준비 완료. 버튼을 눌러 스캔을 시작하세요.");
+})();
+</script>
+</body>
+</html>
