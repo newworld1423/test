@@ -3,249 +3,65 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT PERP Funding Interval + NextFunding + Change Log + Backfill</title>
+    <title>Binance USDT PERP - 1h 심볼 중 최근 3일 내 1h 전환만 추출</title>
     <style>
-        body {
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-            padding: 16px;
-        }
-        h1 {
-            margin: 0 0 10px;
-            font-size: 18px;
-        }
-        .row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        button {
-            padding: 10px 12px;
-            cursor: pointer;
-        }
-        input {
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 12px;
-        }
-        label {
-            font-size: 12px;
-            color: #444;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border: 1px solid #ccc;
-            border-radius: 999px;
-            font-size: 12px;
-        }
-        .muted {
-            color: #666;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-        .note {
-            margin-top: 6px;
-            font-size: 12px;
-            color: #666;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 16px;
-            margin-top: 14px;
-        }
-        @media (min-width: 1100px) {
-            .grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-        .card {
-            border: 1px solid #e6e6e6;
-            border-radius: 10px;
-            padding: 12px;
-            background: #fff;
-        }
-        .card h2 {
-            margin: 0 0 8px;
-            font-size: 14px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .card h2 .left {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .count {
-            font-size: 12px;
-            color: #666;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            border-top: 1px solid #eee;
-            padding: 8px;
-            font-size: 12px;
-            vertical-align: middle;
-        }
-        th {
-            text-align: left;
-            color: #444;
-            background: #fafafa;
-            border-top: none;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-        .right {
-            text-align: right;
-        }
-        .neg {
-            font-variant-numeric: tabular-nums;
-        }
-        .neg.negative {
-            color: #b00020;
-            font-weight: 700;
-        }
-        .neg.positive {
-            color: #0b6b0b;
-            font-weight: 700;
-        }
-        .mono {
-            font-variant-numeric: tabular-nums;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-        .pill {
-            padding: 2px 8px;
-            border: 1px solid #ddd;
-            border-radius: 999px;
-            font-size: 12px;
-            background: #fff;
-        }
-        .tag {
-            display: inline-block;
-            padding: 2px 6px;
-            border: 1px solid #ddd;
-            border-radius: 999px;
-            font-size: 11px;
-            color: #444;
-            margin-left: 6px;
-        }
-        .span-2 {
-            grid-column: 1 / -1;
-        }
-        details {
-            margin-top: 12px;
-        }
-        summary {
-            cursor: pointer;
-        }
-        .actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+        h1 { margin: 0 0 10px; font-size: 18px; }
+        .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        button { padding: 10px 12px; cursor: pointer; }
+        input { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; }
+        .badge { display: inline-block; padding: 3px 8px; border: 1px solid #ccc; border-radius: 999px; font-size: 12px; }
+        .muted { color: #666; font-size: 12px; margin-top: 8px; white-space: pre-line; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border-top: 1px solid #eee; padding: 8px; font-size: 12px; vertical-align: middle; }
+        th { text-align: left; color: #444; background: #fafafa; border-top: none; position: sticky; top: 0; z-index: 1; }
+        .right { text-align: right; }
+        .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .warn { color: #b00020; }
     </style>
 </head>
 <body>
-    <h1>USDT 무기한: 펀딩 주기(1h/4h/8h) + nextFunding(KST) + 4h→1h 변경시각(감지/추정) + 로그</h1>
+    <h1>USDT 무기한(Perp): 현재 1h 펀딩 심볼 중 “최근 3일 내 (4h/8h → 1h)” 전환만 추출</h1>
 
     <div class="row">
-        <button id="runNow">지금 스캔</button>
-        <button id="clearLog">변경 로그 초기화</button>
-        <button id="clearChangeAt">변경시각 데이터 초기화</button>
+        <button id="run">스캔 시작</button>
+        <label class="badge">
+            최근
+            <input id="days" type="number" min="1" max="30" value="3" style="width: 70px; margin-left: 6px;" />
+            일
+        </label>
 
         <span class="badge" id="status">idle</span>
-        <span class="badge" id="lastScan">lastScan: -</span>
-        <span class="badge" id="totals">symbols: -</span>
-        <span class="badge" id="negCount">negative: -</span>
-        <span class="badge" id="newEvents">new 4h→1h: -</span>
-    </div>
-
-    <div class="row" style="margin-top: 10px;">
-        <button id="backfill">백필(1h 심볼: 4h→1h 추정시각 채우기)</button>
-        <button id="stopBackfill">백필 중지</button>
-
-        <label>
-            한번에
-            <input id="bfMaxSymbols" type="number" min="1" max="500" value="30" style="width: 80px;" />
-            개 심볼
-        </label>
-
-        <label>
-            과거
-            <input id="bfLookbackDays" type="number" min="1" max="2000" value="365" style="width: 90px;" />
-            일 탐색
-        </label>
-
-        <span class="badge" id="backfillStatus">backfill: -</span>
+        <span class="badge" id="progress">progress: -</span>
+        <span class="badge" id="count">found: -</span>
     </div>
 
     <div class="muted" id="meta"></div>
-    <div class="note">
-        * “변경시각”은 2가지가 있어요:
-        <span class="tag">감지</span> = 스캐너가 실시간으로 4h→1h 전환을 본 시각(정확도는 스캔주기 영향),
-        <span class="tag">추정</span> = fundingRate 히스토리에서 “4h 간격 → 1h 간격” 경계로 역추적한 시각(스캐너를 꺼둔 기간도 채울 수 있음).
-        <span class="tag">추정(확인)</span> = 추정값이 있는 상태에서 나중에 실시간 감지도 발생한 경우.
+
+    <table>
+        <thead>
+            <tr>
+                <th>심볼</th>
+                <th class="right">전환</th>
+                <th>전환 시각(KST)</th>
+            </tr>
+        </thead>
+        <tbody id="tbody">
+            <tr><td colspan="3" class="muted">스캔을 실행하면 결과가 표시됩니다.</td></tr>
+        </tbody>
+    </table>
+
+    <div class="muted">
+        * 브라우저에서 <span class="mono">https://fapi.binance.com</span> 호출이 막히는 환경(CORS/차단)이라면,
+        너의 서버(ASP/Node)에 프록시를 두고 아래 <span class="mono">FAPI_BASE</span>만 프록시 주소로 바꿔서 쓰면 됩니다.
     </div>
-
-    <div class="grid" id="cards"></div>
-
-    <details>
-        <summary class="muted">문제 발생 시(브라우저 CORS/차단) 안내</summary>
-        <div class="muted">
-            일부 환경에서 <span class="mono">https://fapi.binance.com</span> 호출이 브라우저에서 차단될 수 있어요.
-            그 경우 너의 서버(ASP/Node)에 프록시를 두고 <span class="mono">FAPI_BASE</span>를 프록시 주소로 바꾸면 해결됩니다.
-        </div>
-    </details>
 
     <script>
         const FAPI_BASE = "https://fapi.binance.com";
 
-        const SNAPSHOT_KEY = "funding_interval_snapshot_v4";
-        const EVENTS_KEY = "funding_interval_events_v4";
-
-        // 심볼별 변경시각(감지/추정) 저장
-        // { [symbol]: { at: number, method: "detected"|"estimated", confirmed: boolean } }
-        const CHANGE_AT_MAP_KEY = "funding_interval_changeAtMap_v2";
-
-        // 마지막 스캔 데이터(백필에서 사용)
-        let LAST_SCAN = null;
-
-        // 백필 제어
-        let BACKFILL_RUNNING = false;
-        let BACKFILL_CANCELLED = false;
-
         function setText(id, text) {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
-        }
-
-        function loadJSON(key, fallback) {
-            try {
-                const raw = localStorage.getItem(key);
-                return raw ? JSON.parse(raw) : fallback;
-            } catch {
-                return fallback;
-            }
-        }
-
-        function saveJSON(key, value) {
-            localStorage.setItem(key, JSON.stringify(value));
-        }
-
-        function sleep(ms) {
-            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         function fmtLocalKST(ts) {
@@ -260,76 +76,13 @@
             });
         }
 
-        function fmtRemaining(ms) {
-            if (!isFinite(ms)) return "-";
-            const s = Math.max(0, Math.floor(ms / 1000));
-            const h = Math.floor(s / 3600);
-            const m = Math.floor((s % 3600) / 60);
-            const sec = s % 60;
-
-            if (h > 0) return `${h}h ${m}m`;
-            if (m > 0) return `${m}m ${sec}s`;
-            return `${sec}s`;
-        }
-
         function toNumber(x, fallback = NaN) {
             const n = Number(x);
             return Number.isFinite(n) ? n : fallback;
         }
 
-        function fmtRatePct(rate) {
-            if (!Number.isFinite(rate)) return "-";
-            const pct = rate * 100;
-            const sign = pct > 0 ? "+" : "";
-            return `${sign}${pct.toFixed(4)}%`;
-        }
-
-        function readChangeAtMap() {
-            const raw = loadJSON(CHANGE_AT_MAP_KEY, {});
-            const out = {};
-
-            // 마이그레이션: 과거에 number로 저장된 경우 -> detected로 간주
-            for (const [sym, v] of Object.entries(raw || {})) {
-                if (typeof v === "number" && Number.isFinite(v)) {
-                    out[sym] = { at: v, method: "detected", confirmed: true };
-                } else if (v && typeof v === "object" && Number.isFinite(v.at)) {
-                    out[sym] = {
-                        at: v.at,
-                        method: (v.method === "estimated" ? "estimated" : "detected"),
-                        confirmed: !!v.confirmed
-                    };
-                }
-            }
-
-            return out;
-        }
-
-        function writeChangeAtMap(map) {
-            saveJSON(CHANGE_AT_MAP_KEY, map || {});
-        }
-
-        function upsertDetectedChange(changeAtMap, ev) {
-            const sym = ev.symbol;
-            const at = ev.at;
-            if (!sym || !Number.isFinite(at)) return changeAtMap;
-
-            const cur = changeAtMap[sym];
-
-            // 없으면 detected로 저장
-            if (!cur || !Number.isFinite(cur.at)) {
-                changeAtMap[sym] = { at, method: "detected", confirmed: true };
-                return changeAtMap;
-            }
-
-            // 이미 estimated면: at은 더 이른 값을 유지(추정이 더 정확할 수 있음), confirmed만 true로
-            if (cur.method === "estimated") {
-                changeAtMap[sym] = { ...cur, confirmed: true };
-                return changeAtMap;
-            }
-
-            // detected끼리는 더 이른 값 유지
-            changeAtMap[sym] = { ...cur, at: Math.min(cur.at, at), confirmed: true };
-            return changeAtMap;
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         async function fetchJSON(path, params = {}, timeoutMs = 15000) {
@@ -355,8 +108,25 @@
             }
         }
 
+        async function fetchJSONWithRetry(path, params = {}, timeoutMs = 15000, retries = 3) {
+            let attempt = 0;
+            while (true) {
+                try {
+                    return await fetchJSON(path, params, timeoutMs);
+                } catch (err) {
+                    const msg = String(err && err.message ? err.message : err);
+                    const isRateLimit = msg.includes("HTTP 429") || msg.includes("HTTP 418");
+                    if (!isRateLimit || attempt >= retries) {
+                        throw err;
+                    }
+                    await sleep(1200 * (attempt + 1));
+                    attempt += 1;
+                }
+            }
+        }
+
         async function getUsdtPerpSymbols() {
-            const data = await fetchJSON("/fapi/v1/exchangeInfo");
+            const data = await fetchJSONWithRetry("/fapi/v1/exchangeInfo");
             return (data.symbols || [])
                 .filter((s) =>
                     s &&
@@ -368,26 +138,13 @@
         }
 
         async function getFundingIntervalMap() {
-            // 조정된 심볼만 내려옴(없으면 기본 8h로 처리)
-            const list = await fetchJSON("/fapi/v1/fundingInfo");
+            // 조정된 심볼만 내려옴(없으면 기본 8h)
+            const list = await fetchJSONWithRetry("/fapi/v1/fundingInfo");
             const map = new Map();
 
             (list || []).forEach((row) => {
                 if (!row || !row.symbol) return;
                 map.set(row.symbol, toNumber(row.fundingIntervalHours, 8));
-            });
-
-            return map;
-        }
-
-        async function getPremiumIndexMap() {
-            // symbol 없이 호출하면 배열로 전체 반환
-            const list = await fetchJSON("/fapi/v1/premiumIndex");
-            const map = new Map();
-
-            (list || []).forEach((row) => {
-                if (!row || !row.symbol) return;
-                map.set(row.symbol, row);
             });
 
             return map;
@@ -401,223 +158,6 @@
             return intervals;
         }
 
-        function detect4hTo1h(prevIntervals, currIntervals) {
-            const events = [];
-            if (!prevIntervals) return events;
-
-            for (const [sym, curr] of Object.entries(currIntervals)) {
-                const prev = prevIntervals[sym];
-                if (prev === 4 && curr === 1) {
-                    events.push({
-                        at: Date.now(),
-                        symbol: sym,
-                        from: prev,
-                        to: curr
-                    });
-                }
-            }
-            return events;
-        }
-
-        function buildRows(usdtSymbols, intervals, premiumMap, changeAtMap) {
-            const rows = [];
-
-            for (const sym of usdtSymbols) {
-                const interval = intervals[sym] ?? 8;
-                const p = premiumMap.get(sym);
-
-                const fundingRate = p ? toNumber(p.lastFundingRate, NaN) : NaN;
-                const nextFundingTime = p ? toNumber(p.nextFundingTime, NaN) : NaN;
-                const markPrice = p ? p.markPrice : "";
-
-                const changeInfo = changeAtMap[sym] || null;
-
-                rows.push({
-                    symbol: sym,
-                    intervalHours: interval,
-                    fundingRate,
-                    nextFundingTime,
-                    markPrice,
-                    changeInfo
-                });
-            }
-
-            return rows;
-        }
-
-        function groupRows(rows) {
-            const groups = new Map();
-            const keys = [1, 4, 8, "OTHER"];
-
-            for (const k of keys) {
-                groups.set(k, []);
-            }
-
-            for (const r of rows) {
-                if (r.intervalHours === 1) groups.get(1).push(r);
-                else if (r.intervalHours === 4) groups.get(4).push(r);
-                else if (r.intervalHours === 8) groups.get(8).push(r);
-                else groups.get("OTHER").push(r);
-            }
-
-            // 정렬: 더 마이너스가 위로(오름차순). NaN은 아래.
-            for (const [, arr] of groups.entries()) {
-                arr.sort((a, b) => {
-                    const ar = Number.isFinite(a.fundingRate) ? a.fundingRate : Infinity;
-                    const br = Number.isFinite(b.fundingRate) ? b.fundingRate : Infinity;
-                    if (ar !== br) return ar - br;
-                    return a.symbol.localeCompare(b.symbol);
-                });
-            }
-
-            return groups;
-        }
-
-        function makeChangeLabel(changeInfo) {
-            if (!changeInfo || !Number.isFinite(changeInfo.at)) return "-";
-
-            const base = fmtLocalKST(changeInfo.at);
-            if (changeInfo.method === "detected") {
-                return `${base} (감지)`;
-            }
-
-            if (changeInfo.method === "estimated") {
-                return changeInfo.confirmed ? `${base} (추정·확인)` : `${base} (추정)`;
-            }
-
-            return base;
-        }
-
-        function makeGroupTableHTML(rows, opts = {}) {
-            const now = Date.now();
-            const showChangeCol = !!opts.showChangeCol;
-
-            const body = rows.map((r) => {
-                const rateClass = Number.isFinite(r.fundingRate)
-                    ? (r.fundingRate < 0 ? "negative" : (r.fundingRate > 0 ? "positive" : ""))
-                    : "";
-
-                const nextStr = Number.isFinite(r.nextFundingTime) ? fmtLocalKST(r.nextFundingTime) : "-";
-                const remainStr = Number.isFinite(r.nextFundingTime) ? fmtRemaining(r.nextFundingTime - now) : "-";
-                const rateStr = fmtRatePct(r.fundingRate);
-
-                const mark = (r.markPrice !== undefined && r.markPrice !== null) ? String(r.markPrice) : "";
-                const changeStr = makeChangeLabel(r.changeInfo);
-
-                return `
-                    <tr>
-                        <td class="mono">${r.symbol}</td>
-                        <td class="neg ${rateClass} right">${rateStr}</td>
-                        <td class="mono right">${mark || "-"}</td>
-                        <td>
-                            <div class="mono">${nextStr}</div>
-                            <div class="muted">${remainStr} 후</div>
-                        </td>
-                        ${showChangeCol ? `<td class="mono">${changeStr}</td>` : ""}
-                    </tr>
-                `;
-            }).join("");
-
-            return `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>심볼</th>
-                            <th class="right">펀딩률</th>
-                            <th class="right">마크가격</th>
-                            <th>다음 펀딩(KST)</th>
-                            ${showChangeCol ? `<th>4h→1h 시각</th>` : ""}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${body || `<tr><td colspan="${showChangeCol ? 5 : 4}" class="muted">표시할 항목이 없습니다.</td></tr>`}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        function makeEventsTableHTML(events) {
-            const body = (events || []).slice().reverse().map((ev) => {
-                return `
-                    <tr>
-                        <td class="mono">${fmtLocalKST(ev.at)}</td>
-                        <td class="mono">${ev.symbol}</td>
-                        <td class="right">${ev.from}h</td>
-                        <td class="right">${ev.to}h</td>
-                    </tr>
-                `;
-            }).join("");
-
-            return `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>감지 시각(KST)</th>
-                            <th>심볼</th>
-                            <th class="right">이전</th>
-                            <th class="right">현재</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${body || `<tr><td colspan="4" class="muted">아직 4h→1h 변경 감지 로그가 없습니다.</td></tr>`}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        function render(groups, totals, events) {
-            const cards = document.getElementById("cards");
-            if (!cards) return;
-
-            const order = [1, 4, 8, "OTHER"];
-            const labels = {
-                1: "1h 그룹",
-                4: "4h 그룹",
-                8: "8h 그룹",
-                "OTHER": "기타(예외 주기)"
-            };
-
-            const groupCards = order.map((k) => {
-                const arr = groups.get(k) || [];
-                const neg = arr.filter((x) => Number.isFinite(x.fundingRate) && x.fundingRate < 0).length;
-
-                const showChangeCol = (k === 1);
-
-                return `
-                    <div class="card">
-                        <h2>
-                            <span class="left">
-                                <span class="pill">${labels[k]}</span>
-                                <span class="count">총 ${arr.length}개 · 음수 ${neg}개</span>
-                            </span>
-                        </h2>
-                        ${makeGroupTableHTML(arr, { showChangeCol })}
-                    </div>
-                `;
-            }).join("");
-
-            const eventsCard = `
-                <div class="card span-2">
-                    <h2>
-                        <span class="left">
-                            <span class="pill">4h → 1h 변경 감지 로그</span>
-                            <span class="count">누적 ${events.length}건</span>
-                        </span>
-                        <span class="actions">
-                            <span class="count">(localStorage 저장)</span>
-                        </span>
-                    </h2>
-                    ${makeEventsTableHTML(events)}
-                </div>
-            `;
-
-            cards.innerHTML = groupCards + eventsCard;
-
-            setText("totals", `symbols: ${totals.symbols} / premiumIndex: ${totals.premium}`);
-            setText("negCount", `negative: ${totals.negative}`);
-        }
-
-        // --- 백필(추정) 로직: fundingRate 히스토리에서 4h→1h 경계 찾기 ---
         function classifyIntervalHours(deltaMs) {
             const min = 60 * 1000;
 
@@ -627,285 +167,198 @@
             // 4h: 3.5~4.5시간
             if (deltaMs >= 210 * min && deltaMs <= 270 * min) return 4;
 
-            // 8h: 7~9시간(참고용)
+            // 8h: 7~9시간
             if (deltaMs >= 420 * min && deltaMs <= 540 * min) return 8;
 
             return 0;
         }
 
-        async function estimate4hTo1hChangeAtFromFundingRate(symbol, lookbackDays) {
+        /**
+         * 현재 1h 심볼에 대해,
+         * 최근 N일 내 "4h/8h → 1h" 경계를 fundingTime 간격으로 탐지.
+         * - 발견 시: { ok:true, at, fromHours }
+         * - 없으면: { ok:false }
+         */
+        async function findRecentChangeTo1h(symbol, lookbackDays) {
             const now = Date.now();
-            const oldest = now - (lookbackDays * 24 * 60 * 60 * 1000);
+            const windowStart = now - (lookbackDays * 24 * 60 * 60 * 1000);
 
-            let startTime = oldest;
-            const endTime = now;
+            // 경계 판정은 "이전 간격(4/8)"이 필요하므로 약간 더 앞 구간을 포함
+            const fetchStart = windowStart - (12 * 60 * 60 * 1000);
 
-            // fundingRate는 limit max 1000, ascending 반환. :contentReference[oaicite:4]{index=4}
-            const maxPages = 25; // 25k records까지(충분히 큼)
-            let pages = 0;
+            const list = await fetchJSONWithRetry("/fapi/v1/fundingRate", {
+                symbol,
+                startTime: fetchStart,
+                endTime: now,
+                limit: 1000
+            });
 
-            // 페이지 경계에서 패턴이 끊길 수 있어, 직전 2개 time을 carry
-            let carry = [];
-
-            while (startTime < endTime && pages < maxPages) {
-                const list = await fetchJSON("/fapi/v1/fundingRate", {
-                    symbol,
-                    startTime,
-                    endTime,
-                    limit: 1000
-                });
-
-                if (!Array.isArray(list) || list.length < 3) {
-                    return NaN;
-                }
-
-                const times = list
-                    .map((x) => toNumber(x.fundingTime, NaN))
-                    .filter((t) => Number.isFinite(t));
-
-                if (times.length < 3) {
-                    return NaN;
-                }
-
-                // carry + times 결합(중복 제거)
-                const merged = carry.concat(times);
-                const uniq = [];
-                for (const t of merged) {
-                    if (uniq.length === 0 || uniq[uniq.length - 1] !== t) {
-                        uniq.push(t);
-                    }
-                }
-
-                // 패턴: (이전 간격이 4h) && (다음 간격이 1h) 인 가운데 시각을 전환 시각으로
-                for (let i = 1; i < uniq.length - 1; i++) {
-                    const prevDelta = uniq[i] - uniq[i - 1];
-                    const nextDelta = uniq[i + 1] - uniq[i];
-
-                    if (classifyIntervalHours(prevDelta) === 4 && classifyIntervalHours(nextDelta) === 1) {
-                        return uniq[i];
-                    }
-                }
-
-                // 다음 페이지(더 최근 구간)로 startTime 이동
-                const last = times[times.length - 1];
-                if (!Number.isFinite(last) || last <= startTime) {
-                    return NaN;
-                }
-
-                startTime = last + 1;
-                carry = uniq.slice(-2);
-
-                pages += 1;
+            if (!Array.isArray(list) || list.length < 3) {
+                return { ok: false };
             }
 
-            return NaN;
+            const times = list
+                .map((x) => toNumber(x.fundingTime, NaN))
+                .filter((t) => Number.isFinite(t))
+                .sort((a, b) => a - b);
+
+            if (times.length < 3) {
+                return { ok: false };
+            }
+
+            // uniq
+            const uniq = [];
+            for (const t of times) {
+                if (uniq.length === 0 || uniq[uniq.length - 1] !== t) {
+                    uniq.push(t);
+                }
+            }
+
+            let bestAt = NaN;
+            let bestFrom = 0;
+
+            for (let i = 1; i < uniq.length - 1; i += 1) {
+                const prevDelta = uniq[i] - uniq[i - 1];
+                const nextDelta = uniq[i + 1] - uniq[i];
+
+                const prevClass = classifyIntervalHours(prevDelta);
+                const nextClass = classifyIntervalHours(nextDelta);
+
+                // 핵심: (이전이 4h 또는 8h) && (다음이 1h)
+                if ((prevClass === 4 || prevClass === 8) && nextClass === 1) {
+                    // 신뢰도 보강: 1h가 한 번 더 연속이면 좋음(가능하면 확인)
+                    let ok = true;
+                    if (i + 2 < uniq.length) {
+                        const next2Delta = uniq[i + 2] - uniq[i + 1];
+                        const next2Class = classifyIntervalHours(next2Delta);
+                        if (next2Class !== 0 && next2Class !== 1) ok = false;
+                    }
+
+                    // 최근 N일 내 전환만
+                    if (ok && uniq[i] >= windowStart) {
+                        if (!Number.isFinite(bestAt) || uniq[i] > bestAt) {
+                            bestAt = uniq[i];
+                            bestFrom = prevClass;
+                        }
+                    }
+                }
+            }
+
+            if (Number.isFinite(bestAt)) {
+                return { ok: true, at: bestAt, fromHours: bestFrom };
+            }
+            return { ok: false };
         }
 
-        async function scanOnce() {
+        function renderRows(rows) {
+            const tbody = document.getElementById("tbody");
+            if (!tbody) return;
+
+            if (!rows || rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="muted">최근 조건(전환)으로 잡힌 심볼이 없습니다.</td></tr>`;
+                return;
+            }
+
+            const html = rows.map((r) => {
+                return `
+                    <tr>
+                        <td class="mono">${r.symbol}</td>
+                        <td class="right mono">${r.fromHours}h → 1h</td>
+                        <td class="mono">${fmtLocalKST(r.at)}</td>
+                    </tr>
+                `;
+            }).join("");
+
+            tbody.innerHTML = html;
+        }
+
+        async function runScan() {
+            const days = Math.max(1, parseInt(document.getElementById("days").value, 10) || 3);
+
             setText("status", "scanning...");
+            setText("progress", "progress: -");
+            setText("count", "found: -");
+            setText("meta", "");
+
             try {
                 const t0 = Date.now();
 
-                const [usdtSymbols, intervalMap, premiumMap] = await Promise.all([
+                const [symbols, intervalMap] = await Promise.all([
                     getUsdtPerpSymbols(),
-                    getFundingIntervalMap(),
-                    getPremiumIndexMap()
+                    getFundingIntervalMap()
                 ]);
 
-                const currIntervals = computeCurrentIntervals(usdtSymbols, intervalMap);
+                const currIntervals = computeCurrentIntervals(symbols, intervalMap);
+                const symbols1h = symbols.filter((s) => currIntervals[s] === 1);
 
-                const prevSnapshot = loadJSON(SNAPSHOT_KEY, null);
-                const prevIntervals = prevSnapshot ? prevSnapshot.intervals : null;
+                setText("meta", `현재 1h 펀딩 심볼: ${symbols1h.length}개\n최근 ${days}일 내 (4h/8h→1h) 전환 탐지 중...`);
+                setText("progress", `progress: 0/${symbols1h.length}`);
 
-                const newEvents = detect4hTo1h(prevIntervals, currIntervals);
+                // 너무 과한 동시 호출 방지: 동시 3개 워커로 처리
+                const concurrency = 3;
+                const queue = symbols1h.slice();
+                const found = [];
+                let done = 0;
 
-                const existingEvents = loadJSON(EVENTS_KEY, []);
-                const mergedEvents = existingEvents.concat(newEvents).slice(-3000);
-                saveJSON(EVENTS_KEY, mergedEvents);
+                async function worker(workerId) {
+                    while (queue.length > 0) {
+                        const sym = queue.shift();
+                        if (!sym) break;
 
-                // 스냅샷 저장
-                saveJSON(SNAPSHOT_KEY, {
-                    at: Date.now(),
-                    intervals: currIntervals
-                });
+                        try {
+                            const res = await findRecentChangeTo1h(sym, days);
+                            if (res && res.ok) {
+                                found.push({
+                                    symbol: sym,
+                                    at: res.at,
+                                    fromHours: res.fromHours
+                                });
+                            }
+                        } catch (err) {
+                            // 특정 심볼에서 실패해도 전체는 계속
+                            console.warn("[SYM ERROR]", sym, err);
+                        } finally {
+                            done += 1;
+                            setText("progress", `progress: ${done}/${symbols1h.length}`);
 
-                // 변경시각 맵 갱신(감지 이벤트 반영)
-                const changeAtMap = readChangeAtMap();
-                for (const ev of newEvents) {
-                    upsertDetectedChange(changeAtMap, ev);
+                            // 약간 텀(레이트리밋 완화)
+                            await sleep(120);
+                        }
+                    }
                 }
-                writeChangeAtMap(changeAtMap);
 
-                const rows = buildRows(usdtSymbols, currIntervals, premiumMap, changeAtMap);
-                const groups = groupRows(rows);
+                const workers = [];
+                for (let i = 0; i < concurrency; i += 1) {
+                    workers.push(worker(i));
+                }
+                await Promise.all(workers);
 
-                const negative = rows.filter((r) => Number.isFinite(r.fundingRate) && r.fundingRate < 0).length;
+                // 최신 전환이 위로 오도록
+                found.sort((a, b) => b.at - a.at);
 
-                render(groups, {
-                    symbols: usdtSymbols.length,
-                    premium: premiumMap.size,
-                    negative
-                }, mergedEvents);
+                renderRows(found);
+                setText("count", `found: ${found.length}`);
 
-                // LAST_SCAN 업데이트(백필에서 사용)
-                LAST_SCAN = {
-                    usdtSymbols,
-                    currIntervals,
-                    premiumMap,
-                    rows
-                };
-
-                setText("newEvents", `new 4h→1h: ${newEvents.length}`);
-                setText("lastScan", `lastScan: ${fmtLocalKST(Date.now())}`);
-                setText("meta", `스캔 완료: USDT PERP ${usdtSymbols.length}개 · 신규 이벤트 ${newEvents.length}건 · 소요 ${Date.now() - t0}ms`);
                 setText("status", "ok");
+                setText("meta",
+                    `완료\n` +
+                    `- 전체 USDT PERP: ${symbols.length}개\n` +
+                    `- 현재 1h: ${symbols1h.length}개\n` +
+                    `- 최근 ${days}일 내 (4h/8h→1h) 전환 발견: ${found.length}개\n` +
+                    `- 소요: ${Date.now() - t0}ms`
+                );
             } catch (err) {
                 console.error(err);
                 setText("status", "error");
                 setText("meta", `오류: ${String(err && err.message ? err.message : err)}`);
+                const tbody = document.getElementById("tbody");
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="muted warn">스캔 실패: 콘솔/메시지 확인</td></tr>`;
+                }
             }
         }
 
-        function scheduleHourly() {
-            // 매 정각 + 5초
-            const now = new Date();
-            const next = new Date(now);
-            next.setMinutes(0, 0, 0);
-            next.setHours(next.getHours() + 1);
-
-            const delay = next.getTime() - now.getTime() + 5000;
-
-            setTimeout(async () => {
-                await scanOnce();
-                scheduleHourly();
-            }, delay);
-        }
-
-        function clearLog() {
-            saveJSON(EVENTS_KEY, []);
-            setText("newEvents", "new 4h→1h: 0");
-            setText("meta", "변경 로그(EVENTS)를 초기화했습니다.");
-            scanOnce();
-        }
-
-        function clearChangeAt() {
-            saveJSON(CHANGE_AT_MAP_KEY, {});
-            setText("meta", "심볼별 변경시각(감지/추정) 데이터를 초기화했습니다.");
-            scanOnce();
-        }
-
-        async function runBackfill() {
-            if (BACKFILL_RUNNING) {
-                setText("meta", "백필이 이미 실행 중입니다.");
-                return;
-            }
-
-            BACKFILL_RUNNING = true;
-            BACKFILL_CANCELLED = false;
-
-            try {
-                // 최신 스캔 데이터가 없으면 1회 스캔
-                if (!LAST_SCAN) {
-                    await scanOnce();
-                }
-                if (!LAST_SCAN) {
-                    setText("meta", "스캔 데이터가 없어 백필을 시작할 수 없습니다.");
-                    return;
-                }
-
-                const maxSymbols = Math.max(1, parseInt(document.getElementById("bfMaxSymbols").value, 10) || 30);
-                const lookbackDays = Math.max(1, parseInt(document.getElementById("bfLookbackDays").value, 10) || 365);
-
-                const changeAtMap = readChangeAtMap();
-
-                // 현재 1h 심볼 중 변경시각이 비어있는 것만
-                const symbols1h = Object.keys(LAST_SCAN.currIntervals)
-                    .filter((sym) => LAST_SCAN.currIntervals[sym] === 1);
-
-                const missing = symbols1h
-                    .filter((sym) => !(changeAtMap[sym] && Number.isFinite(changeAtMap[sym].at)));
-
-                const targets = missing.slice(0, maxSymbols);
-
-                if (targets.length === 0) {
-                    setText("backfillStatus", "backfill: 대상 없음");
-                    setText("meta", "백필 대상(현재 1h인데 변경시각 미표기)이 없습니다.");
-                    return;
-                }
-
-                let checked = 0;
-                let filled = 0;
-
-                setText("backfillStatus", `backfill: 0/${targets.length}`);
-
-                for (const sym of targets) {
-                    if (BACKFILL_CANCELLED) break;
-
-                    setText("backfillStatus", `backfill: ${checked}/${targets.length} (filled ${filled})`);
-                    setText("meta", `백필 중... ${sym} (과거 ${lookbackDays}일 탐색)`);
-
-                    // API 호출(부하 줄이기 위해 순차 처리)
-                    const est = await estimate4hTo1hChangeAtFromFundingRate(sym, lookbackDays);
-
-                    checked += 1;
-
-                    if (Number.isFinite(est)) {
-                        // 추정값 저장(이미 있으면 더 이른 값 유지)
-                        const cur = changeAtMap[sym];
-                        if (!cur || !Number.isFinite(cur.at)) {
-                            changeAtMap[sym] = { at: est, method: "estimated", confirmed: false };
-                            filled += 1;
-                        } else {
-                            changeAtMap[sym] = { ...cur, at: Math.min(cur.at, est) };
-                        }
-
-                        writeChangeAtMap(changeAtMap);
-                    }
-
-                    // 레이트리밋 여유를 위해 약간 쉬기
-                    await sleep(350);
-                }
-
-                if (BACKFILL_CANCELLED) {
-                    setText("meta", `백필 중지됨. 진행: ${checked}/${targets.length}, 채움: ${filled}`);
-                } else {
-                    setText("meta", `백필 완료. 진행: ${checked}/${targets.length}, 채움: ${filled}`);
-                }
-
-                setText("backfillStatus", `backfill: done (checked ${checked}, filled ${filled})`);
-
-                // 표시 갱신
-                await scanOnce();
-            } catch (err) {
-                console.error(err);
-                setText("meta", `백필 오류: ${String(err && err.message ? err.message : err)}`);
-            } finally {
-                BACKFILL_RUNNING = false;
-            }
-        }
-
-        function stopBackfill() {
-            if (!BACKFILL_RUNNING) {
-                setText("meta", "백필이 실행 중이 아닙니다.");
-                return;
-            }
-            BACKFILL_CANCELLED = true;
-            setText("meta", "백필 중지 요청됨(현재 심볼 처리 후 멈춥니다).");
-        }
-
-        document.getElementById("runNow").addEventListener("click", scanOnce);
-        document.getElementById("clearLog").addEventListener("click", clearLog);
-        document.getElementById("clearChangeAt").addEventListener("click", clearChangeAt);
-
-        document.getElementById("backfill").addEventListener("click", runBackfill);
-        document.getElementById("stopBackfill").addEventListener("click", stopBackfill);
-
-        (function init() {
-            setText("newEvents", "new 4h→1h: 0");
-            setText("backfillStatus", "backfill: -");
-            scanOnce();
-            scheduleHourly();
-        })();
+        document.getElementById("run").addEventListener("click", runScan);
     </script>
 </body>
 </html>
