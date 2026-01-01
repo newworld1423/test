@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USDT-M Perp 1M ATH/ATL Scanner</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Arial, sans-serif;
+            margin: 16px;
+            color: #111;
+        }
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        button {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        input, select {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+        .meta {
+            font-size: 12px;
+            color: #666;
+        }
+        .progress {
+            width: 100%;
+            height: 10px;
+            background: #eee;
+            border-radius: 99px;
+            overflow: hidden;
+        }
+        .progress > div {
+            height: 100%;
+            width: 0%;
+            background: #111;
+            transition: width 0.15s ease;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+        th, td {
+            border-bottom: 1px solid #eee;
+            padding: 10px 8px;
+            text-align: right;
+            white-space: nowrap;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 1;
+            cursor: pointer;
+            text-align: right;
+        }
+        th:first-child, td:first-child {
+            text-align: left;
+        }
+        th:nth-child(2), td:nth-child(2) {
+            text-align: left;
+        }
+        .pill {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid #eee;
+            background: #fafafa;
+        }
+        .good { color: #0a7; }
+        .bad { color: #d33; }
+        .log {
+            width: 100%;
+            height: 140px;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 12px;
+            white-space: pre;
+            overflow: auto;
+        }
+        .muted {
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="margin: 0 0 8px;">Binance USDT-M 무기한(Perp) 1M ATH/ATL 스캐너</h2>
+    <div class="meta" style="margin-bottom: 12px;">
+        - 정렬 기본: <b>ATH 대비 현재가%</b> 높은 순(=ATH에 가까운 순)<br>
+        - 자동 스캔: 매시 <b>00/15/30/45</b> (KST 로컬시간 기준)
+    </div>
+
+    <div class="row">
+        <button id="btnScan">전체 스캔 시작</button>
+        <button id="btnUpdate" disabled>캐시로 빠른 업데이트</button>
+        <button id="btnAuto" disabled>자동스캔 시작(00/15/30/45)</button>
+        <button id="btnStop" disabled>중지</button>
+        <button id="btnClearCache">캐시 삭제</button>
+
+        <label class="pill">
+            동시요청
+            <input id="concurrency" type="number" min="1" max="8" value="3" style="width: 70px; margin-left: 8px;" />
+        </label>
+
+        <label class="pill">
+            limit
+            <select id="klineLimit" style="margin-left: 8px;">
+                <option value="500">500</option>
+                <option value="1000" selected>1000</option>
+                <option value="1500">1500</option>
+            </select>
+        </label>
+
+        <label class="pill">
+            검색
+            <input id="filter" type="text" placeholder="예: BTC, ETH, DOGE" style="width: 220px; margin-left: 8px;" />
+        </label>
+    </div>
+
+    <div class="row" style="margin-top: 6px;">
+        <div class="progress"><div id="bar"></div></div>
+        <div class="meta" id="status">대기 중</div>
+    </div>
+
+    <div id="summary" class="meta" style="margin: 6px 0 10px;"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th data-key="symbol">SYMBOL</th>
+                <th data-key="listedAt">LISTED(UTC)</th>
+                <th data-key="ath">ATH</th>
+                <th data-key="atl">ATL</th>
+                <th data-key="price">PRICE</th>
+                <th data-key="fromAtlPct">ATL→NOW %</th>
+                <th data-key="athNearPct">NOW/ATH %</th>
+                <th data-key="months">MONTHS</th>
+                <th data-key="updatedAt">UPDATED</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+
+    <h3 style="margin: 16px 0 8px;">로그</h3>
+    <div id="log" class="log"></div>
+
+<script>
+    const BASE_URL = "https://fapi.binance.com";
+    const CACHE_KEY = "BINANCE_USDT_PERP_1M_ATH_ATL_CACHE_V1";
+
+    const $ = (sel) => document.querySelector(sel);
+
+    const btnScan = $("#btnScan");
+    const btnUpdate = $("#btnUpdate");
+    const btnAuto = $("#btnAuto");
+    const btnStop = $("#btnStop");
+    const btnClearCache = $("#btnClearCache");
+
+    const elBar = $("#bar");
+    const elStatus = $("#status");
+    const elLog = $("#log");
+    const elTbody = $("#tbody");
+    const elSummary = $("#summary");
+    const elFilter = $("#filter");
+    const elConcurrency = $("#concurrency");
+    const elKlineLimit = $("#klineLimit");
+
+    let aborter = null;
+    let autoTimer = null;
+    let autoEnabled = false;
+
+    const fmtNum = (n, digits = 8) => {
+        if (!Number.isFinite(n)) return "-";
+        const abs = Math.abs(n);
+        const d = abs >= 1000 ? 2 : (abs >= 1 ? 6 : digits);
+        return new Intl.NumberFormat("en-US", { maximumFractionDigits: d }).format(n);
+    };
+
+    const fmtPct = (n, digits = 2) => {
+        if (!Number.isFinite(n)) return "-";
+        const cls = n >= 0 ? "good" : "bad";
+        return `<span class="${cls}">${n.toFixed(digits)}%</span>`;
+    };
+
+    const fmtPctPlain = (n, digits = 2) => {
+        if (!Number.isFinite(n)) return "-";
+        return `${n.toFixed(digits)}%`;
+    };
+
+    const fmtDateUTC = (ms) => {
+        if (!ms) return "-";
+        const d = new Date(ms);
+        const yyyy = d.getUTCFullYear();
+        const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(d.getUTCDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const nowIso = () => new Date().toISOString().replace("T", " ").slice(0, 19) + "Z";
+
+    function logLine(s) {
+        elLog.textContent += s + "\n";
+        elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    function setBusy(busy) {
+        btnScan.disabled = busy;
+        btnUpdate.disabled = busy || !hasCache();
+        btnAuto.disabled = busy;
+        btnStop.disabled = !busy;
+    }
+
+    function setProgress(done, total) {
+        const pct = total > 0 ? (done / total) * 100 : 0;
+        elBar.style.width = `${pct.toFixed(2)}%`;
+        elStatus.textContent = `진행: ${done}/${total} (${pct.toFixed(1)}%)`;
+    }
+
+    function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+    }
+
+    async function fetchJson(url, opts = {}) {
+        const {
+            signal,
+            retries = 6,
+            backoffMs = 600
+        } = opts;
+
+        for (let attempt = 0; attempt <= retries; attempt += 1) {
+            try {
+                const res = await fetch(url, { signal });
+                if (res.status === 429 || res.status === 418) {
+                    const wait = backoffMs * Math.pow(2, attempt);
+                    logLine(`[RATE LIMIT] ${res.status} → ${wait}ms 대기 후 재시도: ${url}`);
+                    await sleep(wait);
+                    continue;
+                }
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${txt.slice(0, 120)}`);
+                }
+                return await res.json();
+            } catch (err) {
+                if (signal && signal.aborted) throw err;
+                if (attempt >= retries) throw err;
+                const wait = backoffMs * Math.pow(2, attempt);
+                logLine(`[ERR] ${String(err).slice(0, 140)} → ${wait}ms 후 재시도`);
+                await sleep(wait);
+            }
+        }
+        throw new Error("fetchJson unreachable");
+    }
+
+    async function getUsdtPerpSymbols(signal) {
+        const url = `${BASE_URL}/fapi/v1/exchangeInfo`;
+        const data = await fetchJson(url, { signal });
+
+        const list = Array.isArray(data.symbols) ? data.symbols : [];
+        const out = list
+            .filter((s) => s && s.status === "TRADING")
+            .filter((s) => s.contractType === "PERPETUAL")
+            .filter((s) => s.quoteAsset === "USDT")
+            .map((s) => s.symbol);
+
+        return out;
+    }
+
+    async function getAllPrices(signal) {
+        const url = `${BASE_URL}/fapi/v1/ticker/price`;
+        const arr = await fetchJson(url, { signal });
+
+        const map = new Map();
+        if (Array.isArray(arr)) {
+            arr.forEach((x) => {
+                if (x && x.symbol && x.price) {
+                    map.set(String(x.symbol), Number(x.price));
+                }
+            });
+        } else if (arr && arr.symbol && arr.price) {
+            map.set(String(arr.symbol), Number(arr.price));
+        }
+        return map;
+    }
+
+    async function getMonthlyKlines(symbol, limit, signal) {
+        const params = new URLSearchParams();
+        params.set("symbol", symbol);
+        params.set("interval", "1M");
+        params.set("startTime", "0");
+        params.set("limit", String(limit));
+
+        const url = `${BASE_URL}/fapi/v1/klines?${params.toString()}`;
+        const rows = await fetchJson(url, { signal });
+        return Array.isArray(rows) ? rows : [];
+    }
+
+    function computeAthAtlFromKlines(rows) {
+        let ath = -Infinity;
+        let atl = Infinity;
+
+        for (let i = 0; i < rows.length; i += 1) {
+            const r = rows[i];
+            const high = Number(r[2]);
+            const low = Number(r[3]);
+            if (Number.isFinite(high)) ath = Math.max(ath, high);
+            if (Number.isFinite(low)) atl = Math.min(atl, low);
+        }
+
+        const listedAt = rows.length > 0 ? Number(rows[0][0]) : 0;
+        return {
+            ath: Number.isFinite(ath) ? ath : NaN,
+            atl: Number.isFinite(atl) ? atl : NaN,
+            listedAt,
+            months: rows.length
+        };
+    }
+
+    function hasCache() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (!raw) return false;
+            const obj = JSON.parse(raw);
+            return obj && typeof obj === "object" && obj.data;
+        } catch {
+            return false;
+        }
+    }
+
+    function loadCache() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (!raw) return { updatedAt: 0, data: {} };
+            const obj = JSON.parse(raw);
+            if (!obj || typeof obj !== "object") return { updatedAt: 0, data: {} };
+            if (!obj.data || typeof obj.data !== "object") obj.data = {};
+            return obj;
+        } catch {
+            return { updatedAt: 0, data: {} };
+        }
+    }
+
+    function saveCache(cacheObj) {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheObj));
+    }
+
+    function clearCache() {
+        localStorage.removeItem(CACHE_KEY);
+    }
+
+    function makeQueue(concurrency) {
+        const q = [];
+        let running = 0;
+
+        const runNext = () => {
+            if (running >= concurrency) return;
+            const job = q.shift();
+            if (!job) return;
+
+            running += 1;
+            Promise.resolve()
+                .then(job.fn)
+                .then(job.resolve, job.reject)
+                .finally(() => {
+                    running -= 1;
+                    runNext();
+                });
+
+            runNext();
+        };
+
+        const push = (fn) => new Promise((resolve, reject) => {
+            q.push({ fn, resolve, reject });
+            runNext();
+        });
+
+        return { push };
+    }
+
+    function buildRowsView(rows) {
+        const keyword = (elFilter.value || "").trim().toUpperCase();
+        const filtered = keyword
+            ? rows.filter((r) => r.symbol.includes(keyword))
+            : rows.slice();
+
+        elTbody.innerHTML = filtered.map((r) => {
+            return `
+                <tr>
+                    <td>${r.symbol}</td>
+                    <td>${fmtDateUTC(r.listedAt)}</td>
+                    <td>${fmtNum(r.ath)}</td>
+                    <td>${fmtNum(r.atl)}</td>
+                    <td>${fmtNum(r.price)}</td>
+                    <td>${fmtPct(r.fromAtlPct)}</td>
+                    <td>${fmtPctPlain(r.athNearPct, 2)}</td>
+                    <td class="muted">${r.months}</td>
+                    <td class="muted">${r.updatedAt}</td>
+                </tr>
+            `;
+        }).join("");
+
+        elSummary.textContent = `표시: ${filtered.length}개 / 전체: ${rows.length}개`;
+    }
+
+    function computeFinalRows(symbols, priceMap, cacheData) {
+        const out = [];
+
+        for (let i = 0; i < symbols.length; i += 1) {
+            const symbol = symbols[i];
+            const price = priceMap.get(symbol);
+
+            const c = cacheData[symbol];
+            if (!c) continue;
+
+            const ath = Number(c.ath);
+            const atl = Number(c.atl);
+            const listedAt = Number(c.listedAt || 0);
+            const months = Number(c.months || 0);
+
+            const fromAtlPct = (Number.isFinite(price) && Number.isFinite(atl) && atl > 0)
+                ? ((price / atl) - 1) * 100
+                : NaN;
+
+            const athNearPct = (Number.isFinite(price) && Number.isFinite(ath) && ath > 0)
+                ? (price / ath) * 100
+                : NaN;
+
+            out.push({
+                symbol,
+                listedAt,
+                ath,
+                atl,
+                price,
+                fromAtlPct,
+                athNearPct,
+                months,
+                updatedAt: c.updatedAt || "-"
+            });
+        }
+
+        return out;
+    }
+
+    // ✅ 기본 정렬: NOW/ATH % (ATH에 가까운 순) 내림차순
+    let lastSortKey = "athNearPct";
+    let lastSortDir = "desc";
+
+    function sortRows(rows, key, dir) {
+        const mul = dir === "asc" ? 1 : -1;
+        rows.sort((a, b) => {
+            const av = a[key];
+            const bv = b[key];
+
+            const an = Number.isFinite(av) ? av : -Infinity;
+            const bn = Number.isFinite(bv) ? bv : -Infinity;
+
+            if (an < bn) return -1 * mul;
+            if (an > bn) return 1 * mul;
+            return (a.symbol < b.symbol ? -1 : 1) * mul;
+        });
+        return rows;
+    }
+
+    async function fullScan() {
+        aborter = new AbortController();
+        const signal = aborter.signal;
+
+        const concurrency = Math.max(1, Math.min(8, Number(elConcurrency.value) || 3));
+        const limit = Number(elKlineLimit.value) || 1000;
+
+        setBusy(true);
+        elLog.textContent = "";
+        elBar.style.width = "0%";
+        elSummary.textContent = "";
+
+        logLine(`[START] ${nowIso()} full scan (concurrency=${concurrency}, limit=${limit})`);
+
+        const symbols = await getUsdtPerpSymbols(signal);
+        logLine(`[INFO] USDT PERP symbols: ${symbols.length}`);
+
+        const priceMap = await getAllPrices(signal);
+        logLine(`[INFO] price loaded: ${priceMap.size}`);
+
+        const cacheObj = { updatedAt: Date.now(), data: {} };
+        const q = makeQueue(concurrency);
+
+        let done = 0;
+        setProgress(done, symbols.length);
+
+        const tasks = symbols.map((symbol) => q.push(async () => {
+            if (signal.aborted) return;
+
+            const rows = await getMonthlyKlines(symbol, limit, signal);
+            const stat = computeAthAtlFromKlines(rows);
+
+            cacheObj.data[symbol] = {
+                ath: stat.ath,
+                atl: stat.atl,
+                listedAt: stat.listedAt,
+                months: stat.months,
+                updatedAt: nowIso()
+            };
+
+            done += 1;
+            setProgress(done, symbols.length);
+
+            if (done % 25 === 0) {
+                logLine(`[PROGRESS] ${done}/${symbols.length}`);
+                saveCache(cacheObj);
+                const view = computeFinalRows(symbols, priceMap, cacheObj.data);
+                sortRows(view, lastSortKey, lastSortDir);
+                buildRowsView(view);
+            }
+        }));
+
+        await Promise.allSettled(tasks);
+
+        saveCache(cacheObj);
+        logLine(`[DONE] ${nowIso()} saved cache`);
+
+        const finalRows = computeFinalRows(symbols, priceMap, cacheObj.data);
+        sortRows(finalRows, lastSortKey, lastSortDir);
+        buildRowsView(finalRows);
+
+        setBusy(false);
+        btnUpdate.disabled = !hasCache();
+        btnAuto.disabled = false;
+    }
+
+    async function quickUpdateFromCache() {
+        aborter = new AbortController();
+        const signal = aborter.signal;
+
+        setBusy(true);
+        elLog.textContent = "";
+        elBar.style.width = "0%";
+
+        logLine(`[START] ${nowIso()} quick update (price only)`);
+
+        const cacheObj = loadCache();
+        const cacheData = cacheObj.data || {};
+        const symbols = Object.keys(cacheData).sort();
+        logLine(`[INFO] cached symbols: ${symbols.length}`);
+
+        const priceMap = await getAllPrices(signal);
+        logLine(`[INFO] price loaded: ${priceMap.size}`);
+
+        const rows = computeFinalRows(symbols, priceMap, cacheData);
+        sortRows(rows, lastSortKey, lastSortDir);
+        buildRowsView(rows);
+
+        elStatus.textContent = `완료: 캐시 기반 업데이트 (${symbols.length}개)`;
+        setBusy(false);
+    }
+
+    function stopRunning() {
+        if (aborter) {
+            aborter.abort();
+            logLine("[STOP] aborted by user");
+        }
+        setBusy(false);
+    }
+
+    function getMsToNextQuarterHour(now) {
+        const d = now ? new Date(now) : new Date();
+
+        const m = d.getMinutes();
+        const nextM = m < 15 ? 15 : (m < 30 ? 30 : (m < 45 ? 45 : 60));
+
+        const next = new Date(d);
+        if (nextM === 60) {
+            next.setHours(d.getHours() + 1);
+            next.setMinutes(0);
+        } else {
+            next.setMinutes(nextM);
+        }
+        next.setSeconds(0);
+        next.setMilliseconds(0);
+
+        return next.getTime() - d.getTime();
+    }
+
+    function fmtLocalTime(d) {
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+    }
+
+    async function runScheduledScan() {
+        if (!autoEnabled) return;
+
+        if (btnStop.disabled === false) {
+            logLine(`[AUTO] skip (busy)`);
+            return;
+        }
+
+        if (!hasCache()) {
+            logLine(`[AUTO] cache 없음 → full scan 실행`);
+            await fullScan();
+            return;
+        }
+
+        logLine(`[AUTO] quick update 실행`);
+        await quickUpdateFromCache();
+    }
+
+    function scheduleAuto() {
+        if (!autoEnabled) return;
+
+        const ms = getMsToNextQuarterHour();
+        const next = new Date(Date.now() + ms);
+        elStatus.textContent = `자동스캔 대기 중… 다음 실행: ${fmtLocalTime(next)} (00/15/30/45)`;
+
+        if (autoTimer) clearTimeout(autoTimer);
+
+        autoTimer = setTimeout(async () => {
+            if (!autoEnabled) return;
+
+            try {
+                await runScheduledScan();
+            } catch (e) {
+                logLine(`[AUTO ERROR] ${String(e)}`);
+            } finally {
+                scheduleAuto();
+            }
+        }, ms);
+    }
+
+    function startAuto() {
+        autoEnabled = true;
+        btnAuto.textContent = "자동스캔 중지";
+        logLine(`[AUTO] enabled`);
+        scheduleAuto();
+    }
+
+    function stopAuto() {
+        autoEnabled = false;
+        btnAuto.textContent = "자동스캔 시작(00/15/30/45)";
+        if (autoTimer) clearTimeout(autoTimer);
+        autoTimer = null;
+        logLine(`[AUTO] disabled`);
+        elStatus.textContent = "대기 중";
+    }
+
+    btnScan.addEventListener("click", () => {
+        fullScan().catch((e) => {
+            logLine(`[FATAL] ${String(e)}`);
+            setBusy(false);
+        });
+    });
+
+    btnUpdate.addEventListener("click", () => {
+        quickUpdateFromCache().catch((e) => {
+            logLine(`[FATAL] ${String(e)}`);
+            setBusy(false);
+        });
+    });
+
+    btnAuto.addEventListener("click", () => {
+        if (!autoEnabled) {
+            startAuto();
+        } else {
+            stopAuto();
+        }
+    });
+
+    btnStop.addEventListener("click", () => {
+        stopRunning();
+    });
+
+    btnClearCache.addEventListener("click", () => {
+        clearCache();
+        logLine("[CACHE] cleared");
+        btnUpdate.disabled = true;
+    });
+
+    elFilter.addEventListener("input", () => {
+        const cacheObj = loadCache();
+        const cacheData = cacheObj.data || {};
+        const symbols = Object.keys(cacheData).sort();
+
+        getAllPrices(new AbortController().signal)
+            .then((priceMap) => {
+                const rows = computeFinalRows(symbols, priceMap, cacheData);
+                sortRows(rows, lastSortKey, lastSortDir);
+                buildRowsView(rows);
+            })
+            .catch(() => {
+                // ignore
+            });
+    });
+
+    document.querySelectorAll("th[data-key]").forEach((th) => {
+        th.addEventListener("click", () => {
+            const key = th.getAttribute("data-key");
+            if (!key) return;
+
+            if (lastSortKey === key) {
+                lastSortDir = lastSortDir === "asc" ? "desc" : "asc";
+            } else {
+                lastSortKey = key;
+                lastSortDir = "desc";
+            }
+
+            const cacheObj = loadCache();
+            const cacheData = cacheObj.data || {};
+            const symbols = Object.keys(cacheData).sort();
+
+            getAllPrices(new AbortController().signal)
+                .then((priceMap) => {
+                    const rows = computeFinalRows(symbols, priceMap, cacheData);
+                    sortRows(rows, lastSortKey, lastSortDir);
+                    buildRowsView(rows);
+                })
+                .catch(() => {
+                    // ignore
+                });
+        });
+    });
+
+    // init
+    btnUpdate.disabled = !hasCache();
+    btnAuto.disabled = false;
+    elStatus.textContent = hasCache() ? "대기 중 (캐시 있음)" : "대기 중 (캐시 없음)";
+</script>
+</body>
+</html>
