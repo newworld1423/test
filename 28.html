@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USDT PERP — 1D 현재봉 Range 스캐너</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --panel: #121a2a;
+            --panel2: #0f1626;
+            --text: #e8eefc;
+            --muted: #9fb0d0;
+            --line: rgba(255,255,255,0.08);
+            --good: #4ade80;
+            --bad: #fb7185;
+            --warn: #fbbf24;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", AppleSDGothicNeo, "Malgun Gothic", sans-serif;
+            background: radial-gradient(1200px 700px at 20% 0%, rgba(99,102,241,0.25), transparent 55%),
+                        radial-gradient(900px 600px at 80% 10%, rgba(34,197,94,0.18), transparent 55%),
+                        var(--bg);
+            color: var(--text);
+        }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            background: rgba(11,15,25,0.65);
+            border-bottom: 1px solid var(--line);
+        }
+        .wrap {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 14px 16px;
+        }
+        h1 {
+            font-size: 16px;
+            margin: 0 0 10px 0;
+            font-weight: 800;
+            letter-spacing: -0.2px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1.2fr 0.9fr 0.9fr 0.9fr auto auto;
+            gap: 10px;
+            align-items: center;
+        }
+        @media (max-width: 980px) {
+            .controls {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .box {
+            background: rgba(18,26,42,0.75);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            background: rgba(15,22,38,0.9);
+            border: 1px solid var(--line);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 10px 10px;
+            outline: none;
+        }
+        input[type="number"] { appearance: textfield; }
+        button {
+            background: linear-gradient(180deg, rgba(99,102,241,0.95), rgba(79,70,229,0.95));
+            border: 0;
+            color: white;
+            border-radius: 12px;
+            padding: 11px 14px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(79,70,229,0.22);
+        }
+        button.secondary {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--line);
+            box-shadow: none;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .status {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(18,26,42,0.55);
+        }
+        .table-wrap {
+            max-width: 1200px;
+            margin: 14px auto 40px auto;
+            padding: 0 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(18,26,42,0.55);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        thead th {
+            position: sticky;
+            top: 86px; /* header 높이에 맞춰 대충 */
+            background: rgba(18,26,42,0.95);
+            border-bottom: 1px solid var(--line);
+            font-size: 12px;
+            color: var(--muted);
+            text-align: left;
+            padding: 10px 10px;
+            white-space: nowrap;
+        }
+        tbody td {
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 13px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        tbody tr:hover {
+            background: rgba(255,255,255,0.04);
+        }
+        .sym {
+            font-weight: 900;
+            letter-spacing: 0.2px;
+        }
+        .muted { color: var(--muted); }
+        .pos { color: var(--good); font-weight: 800; }
+        .neg { color: var(--bad); font-weight: 800; }
+        .zero { color: var(--muted); font-weight: 800; }
+        .warn { color: var(--warn); font-weight: 800; }
+        .right { text-align: right; }
+        .footnote {
+            max-width: 1200px;
+            margin: 0 auto 40px auto;
+            padding: 0 16px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .small {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .kbd {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            padding: 1px 6px;
+            border-radius: 7px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div class="wrap">
+        <h1>Binance USDT PERP — 1D 현재봉 Range(High-Low) 스캐너</h1>
+
+        <div class="controls">
+            <div class="box">
+                <label>심볼 필터 (부분검색)</label>
+                <input id="q" type="text" placeholder="예) BTC, ETH, DOGE ..." />
+            </div>
+
+            <div class="box">
+                <label>정렬/비교 기준 (Range 계산 방식)</label>
+                <select id="mode">
+                    <option value="pct_open" selected>%(Open) = (H-L)/O * 100</option>
+                    <option value="pct_close">%(Close) = (H-L)/C * 100</option>
+                    <option value="pct_low">%(Low) = (H-L)/L * 100</option>
+                    <option value="pct_mid">%(Mid) = (H-L)/((H+L)/2) * 100</option>
+                    <option value="abs">절대값(Price) = (H-L)</option>
+                </select>
+                <div class="small">※ 스냅샷 비교도 이 기준으로 계산됩니다.</div>
+            </div>
+
+            <div class="box">
+                <label>표시 개수 (Top N)</label>
+                <input id="topN" type="number" min="10" step="10" value="120" />
+            </div>
+
+            <div class="box">
+                <label>동시 요청 수 (너무 높이면 429 가능)</label>
+                <input id="concurrency" type="number" min="3" max="30" step="1" value="10" />
+            </div>
+
+            <button id="btnScan">스캔</button>
+            <button id="btnReset" class="secondary">스냅샷 초기화</button>
+        </div>
+
+        <div class="status">
+            <div class="row">
+                <span class="pill">상태: <span id="statusText" class="mono">대기</span></span>
+                <span class="pill">진행: <span id="progressText" class="mono">0 / 0</span></span>
+                <span class="pill">현재 1D 시작(KST): <span id="klineOpenText" class="mono">-</span></span>
+            </div>
+            <div class="row">
+                <span class="pill">마지막 스냅샷: <span id="snapText" class="mono">없음</span></span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>Symbol</th>
+            <th class="right">Open</th>
+            <th class="right">High</th>
+            <th class="right">Low</th>
+            <th class="right">Close(현재)</th>
+            <th class="right">Range(H-L)</th>
+            <th class="right">Range(기준)</th>
+            <th class="right">Δ vs 이전스캔</th>
+            <th class="right">전일 Range(기준)</th>
+            <th class="right">Δ vs 전일</th>
+            <th class="right">업데이트</th>
+            <th>비고</th>
+        </tr>
+        </thead>
+        <tbody id="tbody">
+        <tr><td colspan="13" class="muted">스캔을 실행하세요.</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="footnote">
+    <div class="box" style="margin: 0 auto; max-width: 1200px;">
+        <div style="font-weight: 800; margin-bottom: 6px;">사용 방법</div>
+        <ol style="margin: 0; padding-left: 18px;">
+            <li><span class="kbd">스캔</span>을 누르면 USDT 무기한 선물(Perpetual) 전체를 불러와서 1D 현재봉 range를 계산합니다.</li>
+            <li>첫 스캔 후에는 자동으로 <b>스냅샷(로컬스토리지)</b>이 저장됩니다.</li>
+            <li>두 번째 스캔부터는 <b>Δ vs 이전스캔</b> 컬럼에 이전 스냅샷 대비 변화량(±)이 표시됩니다.</li>
+            <li><b>전일 Range(기준)</b> / <b>Δ vs 전일</b>은 “이전봉(전일 확정봉)”과의 비교입니다.</li>
+        </ol>
+        <div class="small" style="margin-top: 8px;">
+            ※ Binance 1D는 UTC 기준이므로 KST 기준으론 매일 09:00에 새로운 일봉이 시작됩니다. <br />
+            ※ 이 스캐너는 정보 제공용이며 투자 손익에 대한 책임은 사용자에게 있습니다.
+        </div>
+    </div>
+</div>
+
+<script>
+    const BINANCE_FAPI = "https://fapi.binance.com";
+    const SNAP_KEY = "range_scanner_snapshot_v1";
+
+    function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function safeNum(x) {
+        const n = Number(x);
+        return Number.isFinite(n) ? n : NaN;
+    }
+
+    function fmtNum(n, maxFrac) {
+        if (!Number.isFinite(n)) return "-";
+        return new Intl.NumberFormat("en-US", {
+            maximumFractionDigits: maxFrac,
+            minimumFractionDigits: 0
+        }).format(n);
+    }
+
+    function fmtPrice(n) {
+        if (!Number.isFinite(n)) return "-";
+        const abs = Math.abs(n);
+        if (abs >= 1000) return fmtNum(n, 2);
+        if (abs >= 1) return fmtNum(n, 6);
+        return fmtNum(n, 10);
+    }
+
+    function fmtPct(n) {
+        if (!Number.isFinite(n)) return "-";
+        return fmtNum(n, 3) + "%";
+    }
+
+    function fmtDelta(n, mode) {
+        if (!Number.isFinite(n)) return "-";
+        const isAbs = mode === "abs";
+        const text = isAbs ? fmtPrice(n) : fmtPct(n);
+        if (Math.abs(n) < 1e-12) return `<span class="zero">${text}</span>`;
+        if (n > 0) return `<span class="pos">+${text}</span>`;
+        return `<span class="neg">${text}</span>`;
+    }
+
+    function fmtRangeValue(n, mode) {
+        if (!Number.isFinite(n)) return "-";
+        return mode === "abs" ? fmtPrice(n) : fmtPct(n);
+    }
+
+    function toKstString(ms) {
+        if (!Number.isFinite(ms)) return "-";
+        const d = new Date(ms);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mi = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    }
+
+    function calcRangeAbs(c) {
+        const high = safeNum(c.high);
+        const low = safeNum(c.low);
+        if (!Number.isFinite(high) || !Number.isFinite(low)) return NaN;
+        return high - low;
+    }
+
+    function calcRangeValue(c, mode) {
+        const high = safeNum(c.high);
+        const low = safeNum(c.low);
+        const open = safeNum(c.open);
+        const close = safeNum(c.close);
+
+        if (!Number.isFinite(high) || !Number.isFinite(low)) return NaN;
+
+        const rangeAbs = high - low;
+        if (mode === "abs") return rangeAbs;
+
+        let denom = NaN;
+        if (mode === "pct_open") denom = open;
+        if (mode === "pct_close") denom = close;
+        if (mode === "pct_low") denom = low;
+        if (mode === "pct_mid") denom = (high + low) / 2;
+
+        if (!Number.isFinite(denom) || denom === 0) return NaN;
+        return (rangeAbs / denom) * 100;
+    }
+
+    function loadSnapshot() {
+        try {
+            const raw = localStorage.getItem(SNAP_KEY);
+            if (!raw) return null;
+            const obj = JSON.parse(raw);
+            if (!obj || obj.v !== 1 || typeof obj !== "object") return null;
+            if (!obj.data || typeof obj.data !== "object") return null;
+            return obj;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveSnapshot(mode, map) {
+        const payload = {
+            v: 1,
+            mode: mode,
+            ts: Date.now(),
+            data: map
+        };
+        localStorage.setItem(SNAP_KEY, JSON.stringify(payload));
+        return payload;
+    }
+
+    function clearSnapshot() {
+        localStorage.removeItem(SNAP_KEY);
+    }
+
+    async function fetchJson(url, retryMax = 5) {
+        let lastErr = null;
+        for (let i = 0; i <= retryMax; i += 1) {
+            try {
+                const res = await fetch(url, { cache: "no-store" });
+
+                if (res.status === 429 || res.status === 418) {
+                    const backoff = Math.min(20000, 600 * Math.pow(2, i)) + Math.floor(Math.random() * 250);
+                    await sleep(backoff);
+                    continue;
+                }
+
+                if (!res.ok) {
+                    lastErr = new Error(`HTTP ${res.status}`);
+                    const backoff = Math.min(8000, 400 * Math.pow(2, i));
+                    await sleep(backoff);
+                    continue;
+                }
+
+                return await res.json();
+            } catch (e) {
+                lastErr = e;
+                const backoff = Math.min(8000, 400 * Math.pow(2, i)) + Math.floor(Math.random() * 200);
+                await sleep(backoff);
+            }
+        }
+        throw lastErr || new Error("fetch failed");
+    }
+
+    async function getUsdtPerpSymbols() {
+        const url = `${BINANCE_FAPI}/fapi/v1/exchangeInfo`;
+        const json = await fetchJson(url);
+        const list = Array.isArray(json.symbols) ? json.symbols : [];
+
+        return list
+            .filter((s) => s && s.contractType === "PERPETUAL")
+            .filter((s) => s.quoteAsset === "USDT")
+            .filter((s) => s.status === "TRADING")
+            .map((s) => String(s.symbol))
+            .sort();
+    }
+
+    async function getKlines1d2(symbol) {
+        const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=2`;
+        const arr = await fetchJson(url);
+
+        if (!Array.isArray(arr) || arr.length < 2) {
+            return null;
+        }
+
+        const prev = arr[arr.length - 2];
+        const cur = arr[arr.length - 1];
+
+        // Binance kline:
+        // [ openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, ...]
+        return {
+            openTime: safeNum(cur[0]),
+            prev: {
+                openTime: safeNum(prev[0]),
+                open: safeNum(prev[1]),
+                high: safeNum(prev[2]),
+                low: safeNum(prev[3]),
+                close: safeNum(prev[4])
+            },
+            cur: {
+                openTime: safeNum(cur[0]),
+                open: safeNum(cur[1]),
+                high: safeNum(cur[2]),
+                low: safeNum(cur[3]),
+                close: safeNum(cur[4])
+            }
+        };
+    }
+
+    function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(text);
+    }
+
+    function renderSnapshotMeta() {
+        const snap = loadSnapshot();
+        const snapEl = document.getElementById("snapText");
+        if (!snapEl) return;
+
+        if (!snap) {
+            snapEl.textContent = "없음";
+            return;
+        }
+        snapEl.textContent = `${toKstString(snap.ts)} (mode=${snap.mode})`;
+    }
+
+    function renderTable(rows, mode, topN, q) {
+        const tbody = document.getElementById("tbody");
+        if (!tbody) return;
+
+        const keyword = String(q || "").trim().toUpperCase();
+        let filtered = rows;
+
+        if (keyword) {
+            filtered = filtered.filter((r) => r.symbol.includes(keyword));
+        }
+
+        filtered = filtered.slice(0, Math.max(10, topN || 120));
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="13" class="muted">조건에 맞는 결과가 없습니다.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map((r, idx) => {
+            const note = r.note ? r.note : "";
+            const updated = toKstString(r.updatedAt);
+            const deltaScanHtml = r.deltaVsScan == null ? `<span class="muted">-</span>` : fmtDelta(r.deltaVsScan, mode);
+            const prevDayHtml = Number.isFinite(r.prevDayRangeValue) ? fmtRangeValue(r.prevDayRangeValue, mode) : "-";
+            const deltaPrevDayHtml = Number.isFinite(r.deltaVsPrevDay) ? fmtDelta(r.deltaVsPrevDay, mode) : "-";
+
+            return `
+                <tr>
+                    <td class="muted">${idx + 1}</td>
+                    <td class="sym">${r.symbol}</td>
+                    <td class="right mono">${fmtPrice(r.open)}</td>
+                    <td class="right mono">${fmtPrice(r.high)}</td>
+                    <td class="right mono">${fmtPrice(r.low)}</td>
+                    <td class="right mono">${fmtPrice(r.close)}</td>
+                    <td class="right mono">${fmtPrice(r.rangeAbs)}</td>
+                    <td class="right mono" style="font-weight:900;">${fmtRangeValue(r.rangeValue, mode)}</td>
+                    <td class="right mono">${deltaScanHtml}</td>
+                    <td class="right mono">${prevDayHtml}</td>
+                    <td class="right mono">${deltaPrevDayHtml}</td>
+                    <td class="right mono muted">${updated}</td>
+                    <td class="muted">${note}</td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    async function runScan() {
+        const btnScan = document.getElementById("btnScan");
+        const btnReset = document.getElementById("btnReset");
+        const q = (document.getElementById("q") || {}).value || "";
+        const mode = (document.getElementById("mode") || {}).value || "pct_open";
+        const topN = safeNum((document.getElementById("topN") || {}).value);
+        const concurrency = Math.max(3, Math.min(30, safeNum((document.getElementById("concurrency") || {}).value) || 10));
+
+        if (btnScan) btnScan.disabled = true;
+        if (btnReset) btnReset.disabled = true;
+
+        setText("statusText", "심볼 불러오는 중...");
+        setText("progressText", "0 / 0");
+
+        const prevSnap = loadSnapshot();
+        renderSnapshotMeta();
+
+        let symbols = [];
+        try {
+            symbols = await getUsdtPerpSymbols();
+        } catch (e) {
+            setText("statusText", "심볼 로드 실패");
+            const tbody = document.getElementById("tbody");
+            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="warn">exchangeInfo 로드 실패: ${String(e && e.message ? e.message : e)}</td></tr>`;
+            if (btnScan) btnScan.disabled = false;
+            if (btnReset) btnReset.disabled = false;
+            return;
+        }
+
+        setText("statusText", `1D klines 스캔 중... (동시 ${concurrency})`);
+        setText("progressText", `0 / ${symbols.length}`);
+
+        const queue = symbols.slice();
+        const results = [];
+        let done = 0;
+
+        // 스냅샷 비교: mode가 다르면 비교값 무효 처리(혼동 방지)
+        const prevMap = (prevSnap && prevSnap.mode === mode) ? prevSnap.data : null;
+
+        let firstOpenTime = null;
+
+        async function worker() {
+            while (queue.length > 0) {
+                const symbol = queue.shift();
+                if (!symbol) continue;
+
+                try {
+                    const k = await getKlines1d2(symbol);
+                    if (!k) {
+                        results.push({
+                            symbol: symbol,
+                            open: NaN, high: NaN, low: NaN, close: NaN,
+                            rangeAbs: NaN,
+                            rangeValue: NaN,
+                            prevDayRangeValue: NaN,
+                            deltaVsPrevDay: NaN,
+                            deltaVsScan: null,
+                            updatedAt: Date.now(),
+                            note: "kline 없음"
+                        });
+                        done += 1;
+                        setText("progressText", `${done} / ${symbols.length}`);
+                        continue;
+                    }
+
+                    if (!firstOpenTime && Number.isFinite(k.openTime)) {
+                        firstOpenTime = k.openTime;
+                        setText("klineOpenText", toKstString(firstOpenTime));
+                    }
+
+                    const cur = k.cur;
+                    const prev = k.prev;
+
+                    const rangeAbs = calcRangeAbs(cur);
+                    const rangeValue = calcRangeValue(cur, mode);
+                    const prevDayRangeValue = calcRangeValue(prev, mode);
+
+                    const deltaVsPrevDay = (Number.isFinite(rangeValue) && Number.isFinite(prevDayRangeValue))
+                        ? (rangeValue - prevDayRangeValue)
+                        : NaN;
+
+                    let deltaVsScan = null;
+                    if (prevMap && Object.prototype.hasOwnProperty.call(prevMap, symbol)) {
+                        const prevVal = safeNum(prevMap[symbol]);
+                        if (Number.isFinite(prevVal) && Number.isFinite(rangeValue)) {
+                            deltaVsScan = rangeValue - prevVal;
+                        } else {
+                            deltaVsScan = null;
+                        }
+                    }
+
+                    results.push({
+                        symbol: symbol,
+                        open: cur.open,
+                        high: cur.high,
+                        low: cur.low,
+                        close: cur.close,
+                        rangeAbs: rangeAbs,
+                        rangeValue: rangeValue,
+                        prevDayRangeValue: prevDayRangeValue,
+                        deltaVsPrevDay: deltaVsPrevDay,
+                        deltaVsScan: deltaVsScan,
+                        updatedAt: Date.now(),
+                        note: ""
+                    });
+                } catch (e) {
+                    results.push({
+                        symbol: symbol,
+                        open: NaN, high: NaN, low: NaN, close: NaN,
+                        rangeAbs: NaN,
+                        rangeValue: NaN,
+                        prevDayRangeValue: NaN,
+                        deltaVsPrevDay: NaN,
+                        deltaVsScan: null,
+                        updatedAt: Date.now(),
+                        note: `에러: ${String(e && e.message ? e.message : e)}`
+                    });
+                } finally {
+                    done += 1;
+                    setText("progressText", `${done} / ${symbols.length}`);
+                }
+            }
+        }
+
+        const workers = [];
+        for (let i = 0; i < concurrency; i += 1) {
+            workers.push(worker());
+            // 살짝 분산(요청 순간 폭발 방지)
+            await sleep(25);
+        }
+
+        await Promise.all(workers);
+
+        // 정렬: NaN은 뒤로
+        results.sort((a, b) => {
+            const av = a.rangeValue;
+            const bv = b.rangeValue;
+            const aOk = Number.isFinite(av);
+            const bOk = Number.isFinite(bv);
+            if (aOk && bOk) return bv - av;
+            if (aOk && !bOk) return -1;
+            if (!aOk && bOk) return 1;
+            return 0;
+        });
+
+        // 스냅샷 저장(다음 스캔 비교용)
+        const map = {};
+        for (const r of results) {
+            if (Number.isFinite(r.rangeValue)) {
+                map[r.symbol] = r.rangeValue;
+            }
+        }
+        saveSnapshot(mode, map);
+        renderSnapshotMeta();
+
+        setText("statusText", "완료");
+        renderTable(results, mode, topN, q);
+
+        if (btnScan) btnScan.disabled = false;
+        if (btnReset) btnReset.disabled = false;
+    }
+
+    function bind() {
+        const btnScan = document.getElementById("btnScan");
+        const btnReset = document.getElementById("btnReset");
+        const q = document.getElementById("q");
+        const mode = document.getElementById("mode");
+        const topN = document.getElementById("topN");
+
+        if (btnScan) btnScan.addEventListener("click", runScan);
+
+        if (btnReset) {
+            btnReset.addEventListener("click", () => {
+                clearSnapshot();
+                renderSnapshotMeta();
+                setText("statusText", "스냅샷 초기화됨");
+            });
+        }
+
+        // Enter로 스캔
+        if (q) {
+            q.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") runScan();
+            });
+        }
+
+        // mode 바꾸면 스냅샷 비교가 달라질 수 있으니 메타 갱신
+        if (mode) {
+            mode.addEventListener("change", () => {
+                renderSnapshotMeta();
+            });
+        }
+
+        if (topN) {
+            topN.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") runScan();
+            });
+        }
+
+        renderSnapshotMeta();
+    }
+
+    bind();
+</script>
+</body>
+</html>
