@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USD-M: 1h → 4h/8h Funding Interval Change Scanner (Last 30 Days)</title>
+    <style>
+        :root { color-scheme: dark; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", sans-serif;
+            background: #0b0f17;
+            color: #e6e9f2;
+        }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 18px; }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+        }
+        h1 { font-size: 18px; margin: 0 0 10px; }
+        .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+        .field { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; color: rgba(230,233,242,0.8); }
+        input[type="number"], input[type="text"], select {
+            height: 38px;
+            padding: 0 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.06);
+            color: #e6e9f2;
+            outline: none;
+        }
+        input[type="checkbox"] { transform: translateY(1px); }
+        .btn {
+            height: 38px;
+            padding: 0 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.10);
+            color: #e6e9f2;
+            cursor: pointer;
+        }
+        .btn.primary { background: rgba(70,130,255,0.25); border-color: rgba(70,130,255,0.55); }
+        .btn.danger { background: rgba(255,70,70,0.18); border-color: rgba(255,70,70,0.55); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .meta { margin-top: 10px; font-size: 12px; color: rgba(230,233,242,0.75); line-height: 1.45; }
+        .progress {
+            margin-top: 12px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.10);
+        }
+        .bar { height: 100%; width: 0%; background: rgba(70,130,255,0.75); transition: width 0.2s ease; }
+        .log {
+            margin-top: 12px;
+            height: 140px;
+            overflow: auto;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(0,0,0,0.25);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            line-height: 1.35;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background: rgba(10,14,22,0.95);
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+            text-align: left;
+            font-size: 12px;
+            padding: 10px;
+            color: rgba(230,233,242,0.85);
+        }
+        tbody td {
+            border-top: 1px solid rgba(255,255,255,0.07);
+            font-size: 12px;
+            padding: 10px;
+            vertical-align: top;
+        }
+        .pill {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            font-size: 12px;
+        }
+        .muted { color: rgba(230,233,242,0.7); }
+        .right { text-align: right; }
+        a { color: #9bb8ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footerActions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        <h1>Binance 무기한(USDⓈ-M) — 최근 N일 “1h → 4h/8h” 펀딩 간격 변경 스캐너</h1>
+
+        <div class="row">
+            <div class="field" style="min-width: 130px;">
+                <label>최근 며칠 (N)</label>
+                <input id="days" type="number" min="1" max="60" value="30" />
+            </div>
+
+            <div class="field" style="min-width: 140px;">
+                <label>버퍼(일) (변경 직전 1h 구간 잡기)</label>
+                <input id="bufferDays" type="number" min="0" max="10" value="3" />
+            </div>
+
+            <div class="field" style="min-width: 140px;">
+                <label>안정 구간 최소 연속(Δ)</label>
+                <input id="minStable" type="number" min="2" max="10" value="3" />
+            </div>
+
+            <div class="field" style="min-width: 170px;">
+                <label>요청 간 딜레이(ms) (429 방지)</label>
+                <input id="delayMs" type="number" min="200" max="3000" value="850" />
+            </div>
+
+            <div class="field" style="min-width: 150px;">
+                <label>동시 처리(Concurrency)</label>
+                <input id="concurrency" type="number" min="1" max="8" value="3" />
+            </div>
+
+            <div class="field" style="min-width: 220px;">
+                <label>사전 필터 (fundingInfo 사용)</label>
+                <div class="pill">
+                    <input id="useFundingInfo" type="checkbox" checked />
+                    <span class="muted">조정 이력 있는 심볼만 스캔</span>
+                </div>
+            </div>
+
+            <div class="field" style="min-width: 260px;">
+                <label>Base URL (기본 fapi.binance.com)</label>
+                <input id="baseUrl" type="text" value="https://fapi.binance.com" />
+            </div>
+
+            <button id="startBtn" class="btn primary">스캔 시작</button>
+            <button id="stopBtn" class="btn danger" disabled>중지</button>
+        </div>
+
+        <div class="meta" id="metaText">
+            - 결과는 KST(UTC+9) 기준으로 표시합니다.<br/>
+            - /fapi/v1/fundingRate는 IP당 5분 500 가중치 제한을 공유합니다. 딜레이를 충분히 주세요. :contentReference[oaicite:3]{index=3}
+        </div>
+
+        <div class="progress"><div id="bar" class="bar"></div></div>
+        <div id="log" class="log"></div>
+
+        <div class="footerActions">
+            <button id="copyBtn" class="btn" disabled>결과 심볼만 복사</button>
+            <button id="csvBtn" class="btn" disabled>CSV 다운로드</button>
+            <button id="clearBtn" class="btn">로그/결과 초기화</button>
+        </div>
+
+        <table>
+            <thead>
+            <tr>
+                <th style="width: 110px;">Symbol</th>
+                <th style="width: 150px;">변경 (From → To)</th>
+                <th style="width: 170px;">변경 시각(KST)</th>
+                <th style="width: 160px;">현재 간격(추정/정보)</th>
+                <th>증거(연속 Δ 개수 / 메모)</th>
+                <th style="width: 120px;" class="right">바이낸스 링크</th>
+            </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const $ = (id) => document.getElementById(id);
+
+    const elDays = $("days");
+    const elBufferDays = $("bufferDays");
+    const elMinStable = $("minStable");
+    const elDelayMs = $("delayMs");
+    const elConcurrency = $("concurrency");
+    const elUseFundingInfo = $("useFundingInfo");
+    const elBaseUrl = $("baseUrl");
+
+    const elStartBtn = $("startBtn");
+    const elStopBtn = $("stopBtn");
+    const elCopyBtn = $("copyBtn");
+    const elCsvBtn = $("csvBtn");
+    const elClearBtn = $("clearBtn");
+
+    const elBar = $("bar");
+    const elLog = $("log");
+    const elTbody = $("tbody");
+
+    let stopRequested = false;
+    let controllers = [];
+    let results = [];
+
+    function log(line) {
+        const t = new Date();
+        const ts = t.toLocaleTimeString("ko-KR", { hour12: false });
+        elLog.textContent += `[${ts}] ${line}\n`;
+        elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    function setProgress(done, total) {
+        const p = total > 0 ? Math.round((done / total) * 100) : 0;
+        elBar.style.width = `${p}%`;
+    }
+
+    function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    // KST 표시
+    function toKstString(ms) {
+        const d = new Date(ms);
+        const kst = new Date(d.getTime() + (9 * 60 * 60 * 1000));
+        const yyyy = kst.getUTCFullYear();
+        const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(kst.getUTCDate()).padStart(2, "0");
+        const HH = String(kst.getUTCHours()).padStart(2, "0");
+        const MI = String(kst.getUTCMinutes()).padStart(2, "0");
+        const SS = String(kst.getUTCSeconds()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd} ${HH}:${MI}:${SS}`;
+    }
+
+    // 전역 요청 간격 제한(동시성 있어도 요청은 spacing)
+    const limiter = {
+        nextAt: 0,
+        async waitTurn(delayMs) {
+            const now = Date.now();
+            const wait = Math.max(0, this.nextAt - now);
+            if (wait > 0) await sleep(wait);
+            this.nextAt = Math.max(this.nextAt, now) + delayMs;
+        }
+    };
+
+    async function fetchJson(url, timeoutMs, delayMs) {
+        await limiter.waitTurn(delayMs);
+
+        const ac = new AbortController();
+        controllers.push(ac);
+
+        const timer = setTimeout(() => ac.abort(), timeoutMs);
+
+        try {
+            const res = await fetch(url, { signal: ac.signal, cache: "no-store" });
+            if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? ("| " + text.slice(0, 120)) : ""}`);
+            }
+            return await res.json();
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    function classifyDeltaHours(deltaMs) {
+        const h = deltaMs / 3600000;
+        // 허용 오차(서버/정렬/경계로 미세한 오차가 있을 수 있어 완화)
+        if (Math.abs(h - 1) <= 0.25) return 1;
+        if (Math.abs(h - 4) <= 0.35) return 4;
+        if (Math.abs(h - 8) <= 0.45) return 8;
+        return null;
+    }
+
+    function buildRuns(times, minStable) {
+        // times: ascending fundingTime(ms)
+        const deltas = [];
+        for (let i = 1; i < times.length; i += 1) {
+            const d = times[i] - times[i - 1];
+            const cls = classifyDeltaHours(d);
+            deltas.push({ i, cls, d });
+        }
+
+        // run-length encoding on cls (only 1/4/8), break on null/gaps
+        const runs = [];
+        let cur = null;
+
+        for (const x of deltas) {
+            if (x.cls == null) {
+                if (cur) {
+                    runs.push(cur);
+                    cur = null;
+                }
+                continue;
+            }
+            if (!cur || cur.cls !== x.cls) {
+                if (cur) runs.push(cur);
+                cur = { cls: x.cls, startDeltaIndex: x.i, endDeltaIndex: x.i, count: 1 };
+            } else {
+                cur.endDeltaIndex = x.i;
+                cur.count += 1;
+            }
+        }
+        if (cur) runs.push(cur);
+
+        // 안정 run만 남기되, 이후 판단용으로 원본도 같이 반환
+        const stableRuns = runs.filter((r) => r.count >= minStable);
+
+        return { runs, stableRuns };
+    }
+
+    function detectLatest1to48Change(times, stableRuns, windowStartMs) {
+        // stableRuns run의 startDeltaIndex/endDeltaIndex는 'i' (times[i]-times[i-1]) 기준
+        // change time = times[startDeltaIndex] (새 interval의 첫 fundingTime)
+        // 조건: prev.cls==1 && next.cls in {4,8}, 그리고 change time이 windowStartMs 이후
+        let best = null;
+
+        for (let k = 0; k < stableRuns.length - 1; k += 1) {
+            const prev = stableRuns[k];
+            const next = stableRuns[k + 1];
+
+            if (prev.cls !== 1) continue;
+            if (next.cls !== 4 && next.cls !== 8) continue;
+
+            const changeTime = times[next.startDeltaIndex];
+            if (!changeTime || changeTime < windowStartMs) continue;
+
+            // 최신(가장 큰 changeTime)만 선택
+            if (!best || changeTime > best.changeTime) {
+                best = {
+                    from: 1,
+                    to: next.cls,
+                    changeTime,
+                    prevCount: prev.count,
+                    nextCount: next.count,
+                    prev,
+                    next
+                };
+            }
+        }
+        return best;
+    }
+
+    function estimateCurrentInterval(times) {
+        // 마지막 8개 delta 중 (1/4/8) mode
+        const clsList = [];
+        for (let i = Math.max(1, times.length - 9); i < times.length; i += 1) {
+            const cls = classifyDeltaHours(times[i] - times[i - 1]);
+            if (cls != null) clsList.push(cls);
+        }
+        if (clsList.length === 0) return null;
+        const cnt = new Map();
+        for (const v of clsList) cnt.set(v, (cnt.get(v) || 0) + 1);
+        let best = null;
+        for (const [k, v] of cnt.entries()) {
+            if (!best || v > best.v) best = { k, v };
+        }
+        return best ? best.k : null;
+    }
+
+    function renderRow(item) {
+        const tr = document.createElement("tr");
+
+        const symbolCell = document.createElement("td");
+        symbolCell.innerHTML = `<span class="pill">${item.symbol}</span>`;
+        tr.appendChild(symbolCell);
+
+        const changeCell = document.createElement("td");
+        changeCell.innerHTML = `<span class="pill">${item.from}h → ${item.to}h</span>`;
+        tr.appendChild(changeCell);
+
+        const timeCell = document.createElement("td");
+        timeCell.textContent = toKstString(item.changeTime);
+        tr.appendChild(timeCell);
+
+        const curCell = document.createElement("td");
+        const info = [];
+        if (item.currentFromInfo != null) info.push(`fundingInfo: ${item.currentFromInfo}h`);
+        if (item.currentEstimated != null) info.push(`추정: ${item.currentEstimated}h`);
+        curCell.innerHTML = info.length ? info.map((x) => `<div class="muted">${x}</div>`).join("") : `<span class="muted">-</span>`;
+        tr.appendChild(curCell);
+
+        const evidenceCell = document.createElement("td");
+        evidenceCell.innerHTML =
+            `<div>연속 Δ: <b>${item.prevCount}</b> (1h) → <b>${item.nextCount}</b> (${item.to}h)</div>` +
+            (item.note ? `<div class="muted">${item.note}</div>` : "");
+        tr.appendChild(evidenceCell);
+
+        const linkCell = document.createElement("td");
+        linkCell.className = "right";
+        const href = `https://www.binance.com/en/futures/${encodeURIComponent(item.symbol)}`;
+        linkCell.innerHTML = `<a href="${href}" target="_blank" rel="noreferrer">열기</a>`;
+        tr.appendChild(linkCell);
+
+        elTbody.appendChild(tr);
+    }
+
+    function enableActions() {
+        elCopyBtn.disabled = results.length === 0;
+        elCsvBtn.disabled = results.length === 0;
+    }
+
+    function clearAll() {
+        elLog.textContent = "";
+        elTbody.innerHTML = "";
+        results = [];
+        setProgress(0, 0);
+        enableActions();
+    }
+
+    async function getExchangeInfoSymbols(baseUrl, delayMs) {
+        const url = `${baseUrl}/fapi/v1/exchangeInfo`;
+        const data = await fetchJson(url, 15000, delayMs);
+        const symbols = (data && data.symbols) ? data.symbols : [];
+        // USDT Perpetual만
+        return symbols
+            .filter((s) => s && s.status === "TRADING" && s.contractType === "PERPETUAL" && s.quoteAsset === "USDT")
+            .map((s) => s.symbol);
+    }
+
+    async function getFundingInfoMap(baseUrl, delayMs) {
+        const url = `${baseUrl}/fapi/v1/fundingInfo`;
+        const arr = await fetchJson(url, 15000, delayMs);
+        const map = new Map();
+        if (Array.isArray(arr)) {
+            for (const it of arr) {
+                if (!it || !it.symbol) continue;
+                map.set(String(it.symbol), Number(it.fundingIntervalHours));
+            }
+        }
+        return map;
+    }
+
+    async function scanSymbol(baseUrl, symbol, nowMs, days, bufferDays, minStable, delayMs, fundingInfoMap) {
+        const windowStartMs = nowMs - (days * 24 * 60 * 60 * 1000);
+        const startMs = nowMs - ((days + bufferDays) * 24 * 60 * 60 * 1000);
+
+        const url = `${baseUrl}/fapi/v1/fundingRate?symbol=${encodeURIComponent(symbol)}&startTime=${startMs}&endTime=${nowMs}&limit=1000`;
+        const rows = await fetchJson(url, 20000, delayMs);
+
+        if (!Array.isArray(rows) || rows.length < 10) return null;
+
+        const times = rows
+            .map((r) => Number(r && r.fundingTime))
+            .filter((x) => Number.isFinite(x))
+            .sort((a, b) => a - b);
+
+        // 중복 제거
+        const uniq = [];
+        for (const t of times) {
+            if (uniq.length === 0 || uniq[uniq.length - 1] !== t) uniq.push(t);
+        }
+        if (uniq.length < 10) return null;
+
+        const { stableRuns } = buildRuns(uniq, minStable);
+        if (stableRuns.length < 2) return null;
+
+        const best = detectLatest1to48Change(uniq, stableRuns, windowStartMs);
+        if (!best) return null;
+
+        const currentEstimated = estimateCurrentInterval(uniq);
+        const currentFromInfo = fundingInfoMap ? (fundingInfoMap.get(symbol) ?? null) : null;
+
+        return {
+            symbol,
+            from: best.from,
+            to: best.to,
+            changeTime: best.changeTime,
+            prevCount: best.prevCount,
+            nextCount: best.nextCount,
+            currentEstimated,
+            currentFromInfo,
+            note: ""
+        };
+    }
+
+    async function runPool(items, worker, concurrency) {
+        let idx = 0;
+        const out = [];
+        const runners = new Array(concurrency).fill(0).map(async () => {
+            while (idx < items.length && !stopRequested) {
+                const my = idx;
+                idx += 1;
+                const item = items[my];
+                const r = await worker(item).catch((e) => ({ __error: true, error: e, item }));
+                out.push(r);
+            }
+        });
+        await Promise.all(runners);
+        return out;
+    }
+
+    function abortAllControllers() {
+        for (const c of controllers) {
+            try { c.abort(); } catch (e) {}
+        }
+        controllers = [];
+    }
+
+    elClearBtn.addEventListener("click", () => clearAll());
+
+    elCopyBtn.addEventListener("click", async () => {
+        const text = results.map((r) => r.symbol).join(", ");
+        try {
+            await navigator.clipboard.writeText(text);
+            log(`클립보드 복사 완료 (${results.length}개)`);
+        } catch (e) {
+            log("클립보드 복사 실패: " + String(e && e.message ? e.message : e));
+        }
+    });
+
+    elCsvBtn.addEventListener("click", () => {
+        const header = ["symbol", "from_h", "to_h", "changeTimeKST", "currentInfo_h", "currentEstimated_h", "prevCount", "nextCount"];
+        const lines = [header.join(",")];
+
+        for (const r of results) {
+            const row = [
+                r.symbol,
+                r.from,
+                r.to,
+                toKstString(r.changeTime),
+                (r.currentFromInfo == null ? "" : r.currentFromInfo),
+                (r.currentEstimated == null ? "" : r.currentEstimated),
+                r.prevCount,
+                r.nextCount
+            ];
+            lines.push(row.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","));
+        }
+
+        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `funding_interval_changes_${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        log("CSV 다운로드 생성 완료");
+    });
+
+    elStopBtn.addEventListener("click", () => {
+        stopRequested = true;
+        abortAllControllers();
+        log("중지 요청됨. 진행 중 fetch는 abort 처리했습니다.");
+        elStopBtn.disabled = true;
+    });
+
+    elStartBtn.addEventListener("click", async () => {
+        clearAll();
+
+        stopRequested = false;
+        abortAllControllers();
+
+        elStartBtn.disabled = true;
+        elStopBtn.disabled = false;
+
+        const days = Math.max(1, Math.min(60, Number(elDays.value) || 30));
+        const bufferDays = Math.max(0, Math.min(10, Number(elBufferDays.value) || 3));
+        const minStable = Math.max(2, Math.min(10, Number(elMinStable.value) || 3));
+        const delayMs = Math.max(200, Math.min(3000, Number(elDelayMs.value) || 850));
+        const concurrency = Math.max(1, Math.min(8, Number(elConcurrency.value) || 3));
+        const useFundingInfo = !!elUseFundingInfo.checked;
+        const baseUrl = String(elBaseUrl.value || "https://fapi.binance.com").replace(/\/+$/, "");
+
+        limiter.nextAt = 0;
+
+        const nowMs = Date.now();
+        const windowStartMs = nowMs - (days * 24 * 60 * 60 * 1000);
+
+        log(`설정: 최근 ${days}일 / 버퍼 ${bufferDays}일 / 안정연속 ${minStable} / 딜레이 ${delayMs}ms / 동시 ${concurrency}`);
+        log(`기간(대략): KST ${toKstString(windowStartMs)} ~ ${toKstString(nowMs)}`);
+
+        try {
+            log("exchangeInfo 로딩...");
+            const allUsdtPerps = await getExchangeInfoSymbols(baseUrl, delayMs);
+            log(`USDT 무기한(TRADING) 심볼: ${allUsdtPerps.length}개`);
+
+            let fundingInfoMap = null;
+            let targets = allUsdtPerps;
+
+            if (useFundingInfo) {
+                log("fundingInfo 로딩(조정 이력 심볼만)...");
+                fundingInfoMap = await getFundingInfoMap(baseUrl, delayMs);
+                const filtered = allUsdtPerps.filter((s) => fundingInfoMap.has(s));
+                log(`fundingInfo 포함 심볼: ${filtered.length}개 (스캔 대상 축소)`);
+                targets = filtered;
+            } else {
+                log("사전 필터 OFF: 전체 USDT 무기한 심볼 스캔");
+            }
+
+            if (targets.length === 0) {
+                log("스캔 대상이 0개입니다.");
+                return;
+            }
+
+            let done = 0;
+            setProgress(0, targets.length);
+
+            const scanned = await runPool(targets, async (symbol) => {
+                if (stopRequested) return null;
+
+                const r = await scanSymbol(
+                    baseUrl,
+                    symbol,
+                    nowMs,
+                    days,
+                    bufferDays,
+                    minStable,
+                    delayMs,
+                    fundingInfoMap
+                );
+
+                done += 1;
+                setProgress(done, targets.length);
+
+                if (r) {
+                    results.push(r);
+                    renderRow(r);
+                    log(`HIT: ${symbol} (${r.from}h→${r.to}h) @KST ${toKstString(r.changeTime)}`);
+                } else {
+                    if (done % 30 === 0) log(`진행: ${done}/${targets.length}`);
+                }
+
+                return r;
+            }, concurrency);
+
+            const errors = scanned.filter((x) => x && x.__error);
+            if (errors.length) {
+                log(`에러 ${errors.length}건 (429/네트워크 가능). 딜레이를 늘려 재시도하세요.`);
+                // 일부만 로그
+                for (const e of errors.slice(0, 6)) {
+                    log(`ERR ${e.item}: ${String(e.error && e.error.message ? e.error.message : e.error)}`);
+                }
+            }
+
+            log(`완료. 결과: ${results.length}개`);
+            enableActions();
+        } catch (e) {
+            log("치명적 오류: " + String(e && e.message ? e.message : e));
+        } finally {
+            elStartBtn.disabled = false;
+            elStopBtn.disabled = true;
+            abortAllControllers();
+        }
+    });
+
+})();
+</script>
+</body>
+</html>
