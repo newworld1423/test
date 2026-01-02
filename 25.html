@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USDT-M Perp 15m MA 정배열 + 저가(25~99) 스캐너</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --panel: #121a2a;
+            --text: #e7ecff;
+            --muted: #98a2c7;
+            --line: rgba(255,255,255,0.10);
+            --good: #22c55e;
+            --bad: #ef4444;
+            --warn: #f59e0b;
+            --btn: #2b3a62;
+        }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, "Noto Sans KR", Arial, sans-serif;
+        }
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+        h1 {
+            font-size: 18px;
+            margin: 0 0 10px;
+            font-weight: 700;
+        }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .row + .row {
+            margin-top: 10px;
+        }
+        label {
+            font-size: 12px;
+            color: var(--muted);
+            display: block;
+            margin-bottom: 6px;
+        }
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        input, select, button {
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            padding: 10px 12px;
+            outline: none;
+        }
+        input::placeholder {
+            color: rgba(231,236,255,0.35);
+        }
+        button {
+            background: var(--btn);
+            cursor: pointer;
+            font-weight: 700;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.04);
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .badge b {
+            color: var(--text);
+        }
+        .tableWrap {
+            margin-top: 12px;
+            overflow: auto;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 980px;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background: rgba(18,26,42,0.95);
+            backdrop-filter: blur(8px);
+            text-align: left;
+            font-size: 12px;
+            color: var(--muted);
+            padding: 10px 10px;
+            border-bottom: 1px solid var(--line);
+        }
+        tbody td {
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 13px;
+        }
+        tbody tr:hover {
+            background: rgba(255,255,255,0.03);
+        }
+        .good { color: var(--good); font-weight: 700; }
+        .bad { color: var(--bad); font-weight: 700; }
+        .warn { color: var(--warn); font-weight: 700; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+        .hint {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .linkBtn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Binance USDT-M Perp (15m) — 이전봉 7MA&gt;25MA&gt;99MA + 저가(25~99) 스캐너</h1>
+
+    <div class="panel">
+        <div class="row">
+            <div class="field" style="min-width: 180px;">
+                <label>기준</label>
+                <div class="badge">
+                    Interval <b class="mono" id="intervalLabel">15m</b>
+                    · Candle <b>이전봉(완성봉)</b>
+                </div>
+            </div>
+
+            <div class="field" style="min-width: 160px;">
+                <label>동시요청(권장 5~10)</label>
+                <input id="concurrency" type="number" min="1" max="20" value="8" />
+            </div>
+
+            <div class="field" style="min-width: 160px;">
+                <label>요청 타임아웃(ms)</label>
+                <input id="timeoutMs" type="number" min="2000" max="30000" value="12000" />
+            </div>
+
+            <div class="field" style="min-width: 200px; flex: 1;">
+                <label>심볼 필터(선택)</label>
+                <input id="symbolFilter" placeholder="예: BTC, ETH, SOL (포함 검색)" />
+            </div>
+
+            <div class="field" style="min-width: 210px;">
+                <label>실행</label>
+                <div class="row" style="gap: 8px;">
+                    <button id="btnScan">전체 스캔</button>
+                    <button id="btnStop" class="linkBtn" disabled>중지</button>
+                    <button id="btnExport" class="linkBtn" disabled>CSV 내보내기</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="margin-top: 10px;">
+            <span class="badge">대상 심볼 <b id="symTotal">-</b></span>
+            <span class="badge">진행 <b id="symDone">0</b></span>
+            <span class="badge">조건충족 <b id="symHit">0</b></span>
+            <span class="badge">에러 <b id="symErr">0</b></span>
+        </div>
+
+        <div class="row" style="margin-top: 10px;">
+            <div class="status" id="status">대기 중…</div>
+        </div>
+
+        <div class="tableWrap">
+            <table>
+                <thead>
+                <tr>
+                    <th style="width: 120px;">Symbol</th>
+                    <th style="width: 160px;">이전봉 시간(UTC)</th>
+                    <th style="width: 90px;">Low</th>
+                    <th style="width: 90px;">Close</th>
+                    <th style="width: 90px;">MA7</th>
+                    <th style="width: 90px;">MA25</th>
+                    <th style="width: 90px;">MA99</th>
+                    <th style="width: 120px;">Low ∈ [MA99, MA25]</th>
+                    <th style="width: 120px;">정배열(7&gt;25&gt;99)</th>
+                    <th style="width: 120px;">메모</th>
+                </tr>
+                </thead>
+                <tbody id="tbody">
+                <tr><td colspan="10" style="color: var(--muted); padding: 14px;">스캔 결과가 여기에 표시됩니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="hint">
+            - MA는 <b>종가(close) 기준 SMA</b>입니다.<br />
+            - “이전봉”은 항상 <b>현재 진행 중인 캔들</b>을 제외한 <b>직전 완성봉</b>으로 계산합니다.<br />
+            - API 제한에 걸리면 자동으로 백오프(대기) 후 재시도합니다(429/418 대응).<br />
+            - 투자 판단 책임은 본인에게 있으며, 본 도구는 신호를 “찾아주는” 스캐너입니다.
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        "use strict";
+
+        const BASE_URL = "https://fapi.binance.com";
+        const INTERVAL = "15m";
+        const KLINE_LIMIT = 200; // MA99 계산 안전 마진
+
+        let isRunning = false;
+        let stopRequested = false;
+
+        let lastResults = [];
+
+        const $ = (id) => document.getElementById(id);
+
+        function nowIso() {
+            return new Date().toISOString();
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async function fetchJson(url, timeoutMs) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                const res = await fetch(url, {
+                    method: "GET",
+                    signal: controller.signal,
+                    cache: "no-store"
+                });
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    const err = new Error("HTTP " + res.status + " " + res.statusText);
+                    err.status = res.status;
+                    err.body = text;
+                    err.retryAfter = res.headers.get("retry-after");
+                    throw err;
+                }
+
+                return await res.json();
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        function fmtNum(x, digits) {
+            if (x === null || x === undefined || Number.isNaN(x)) return "-";
+            const d = (digits === undefined) ? 6 : digits;
+            return Number(x).toFixed(d);
+        }
+
+        function toUtcString(ms) {
+            const d = new Date(ms);
+            const yyyy = d.getUTCFullYear();
+            const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+            const dd = String(d.getUTCDate()).padStart(2, "0");
+            const hh = String(d.getUTCHours()).padStart(2, "0");
+            const mi = String(d.getUTCMinutes()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        }
+
+        function sma(closes, endIdx, period) {
+            const start = endIdx - period + 1;
+            if (start < 0) return null;
+            let sum = 0;
+            for (let i = start; i <= endIdx; i += 1) {
+                sum += closes[i];
+            }
+            return sum / period;
+        }
+
+        function normalizeSymbols(exchangeInfo, symbolFilter) {
+            const list = (exchangeInfo && exchangeInfo.symbols) ? exchangeInfo.symbols : [];
+            const filter = String(symbolFilter || "").trim().toUpperCase();
+
+            const out = list
+                .filter((s) => s && s.status === "TRADING")
+                .filter((s) => s.contractType === "PERPETUAL")
+                .filter((s) => s.quoteAsset === "USDT")
+                .map((s) => s.symbol)
+                .filter(Boolean);
+
+            if (!filter) return out;
+
+            return out.filter((sym) => sym.indexOf(filter) > -1);
+        }
+
+        async function fetchExchangeInfo(timeoutMs) {
+            const url = `${BASE_URL}/fapi/v1/exchangeInfo`;
+            return await fetchJson(url, timeoutMs);
+        }
+
+        async function fetchKlines(symbol, timeoutMs) {
+            const url = `${BASE_URL}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`;
+            return await fetchJson(url, timeoutMs);
+        }
+
+        function evaluateSymbol(symbol, klines) {
+            if (!Array.isArray(klines) || klines.length < 120) {
+                return { ok: false, reason: "캔들 부족" };
+            }
+
+            // ✅ 마지막은 진행중일 수 있으니 제외하고 "완성봉"만 사용
+            const closed = klines.slice(0, -1);
+            if (closed.length < 100) {
+                return { ok: false, reason: "완성봉 부족" };
+            }
+
+            const closes = closed.map((k) => Number(k[4]));
+            const prevIdx = closed.length - 1; // closed의 마지막 = 직전 완성봉
+            const prev = closed[prevIdx];
+
+            const prevTime = Number(prev[0]);
+            const prevLow = Number(prev[3]);
+            const prevClose = Number(prev[4]);
+
+            const ma7 = sma(closes, prevIdx, 7);
+            const ma25 = sma(closes, prevIdx, 25);
+            const ma99 = sma(closes, prevIdx, 99);
+
+            if (ma7 === null || ma25 === null || ma99 === null) {
+                return { ok: false, reason: "MA 계산 불가" };
+            }
+
+            const bullishStack = (ma7 > ma25) && (ma25 > ma99);
+
+            const hi = Math.max(ma25, ma99);
+            const lo = Math.min(ma25, ma99);
+            const lowBetween = (prevLow >= lo) && (prevLow <= hi);
+
+            const hit = bullishStack && lowBetween;
+
+            return {
+                ok: hit,
+                data: {
+                    symbol,
+                    prevTime,
+                    prevLow,
+                    prevClose,
+                    ma7,
+                    ma25,
+                    ma99,
+                    lowBetween,
+                    bullishStack
+                },
+                reason: hit ? "" : (!bullishStack ? "정배열 아님" : "저가 범위 밖")
+            };
+        }
+
+        function setStatus(text) {
+            $("status").textContent = text;
+        }
+
+        function setCounts(total, done, hit, err) {
+            $("symTotal").textContent = String(total);
+            $("symDone").textContent = String(done);
+            $("symHit").textContent = String(hit);
+            $("symErr").textContent = String(err);
+        }
+
+        function clearTable() {
+            const tbody = $("tbody");
+            tbody.innerHTML = "";
+        }
+
+        function addRow(item) {
+            const tbody = $("tbody");
+
+            const tr = document.createElement("tr");
+
+            const lowIn = item.lowBetween ? "YES" : "NO";
+            const stack = item.bullishStack ? "YES" : "NO";
+
+            tr.innerHTML = `
+                <td class="mono"><b>${item.symbol}</b></td>
+                <td class="mono">${toUtcString(item.prevTime)}</td>
+                <td class="mono">${fmtNum(item.prevLow, 6)}</td>
+                <td class="mono">${fmtNum(item.prevClose, 6)}</td>
+                <td class="mono">${fmtNum(item.ma7, 6)}</td>
+                <td class="mono">${fmtNum(item.ma25, 6)}</td>
+                <td class="mono">${fmtNum(item.ma99, 6)}</td>
+                <td class="${item.lowBetween ? "good" : "bad"}">${lowIn}</td>
+                <td class="${item.bullishStack ? "good" : "bad"}">${stack}</td>
+                <td class="mono">조건충족</td>
+            `;
+
+            tbody.appendChild(tr);
+        }
+
+        function addErrorRow(symbol, msg) {
+            const tbody = $("tbody");
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="mono"><b>${symbol}</b></td>
+                <td colspan="9" class="warn">에러: ${escapeHtml(msg)}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function escapeHtml(s) {
+            return String(s || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        async function withRetry(fn, opts) {
+            const maxTry = opts.maxTry || 4;
+            const baseDelay = opts.baseDelay || 400;
+            let attempt = 0;
+
+            while (attempt < maxTry) {
+                if (stopRequested) throw new Error("STOP_REQUESTED");
+
+                try {
+                    return await fn();
+                } catch (e) {
+                    attempt += 1;
+
+                    const status = e && e.status;
+                    const isRateLimit = (status === 429 || status === 418);
+                    const isTimeout = (e && e.name === "AbortError");
+
+                    if (attempt >= maxTry) throw e;
+
+                    let waitMs = baseDelay * Math.pow(2, attempt - 1);
+
+                    if (isRateLimit) {
+                        const ra = Number(e.retryAfter);
+                        if (!Number.isNaN(ra) && ra > 0) {
+                            waitMs = Math.max(waitMs, ra * 1000);
+                        } else {
+                            waitMs = Math.max(waitMs, 1200);
+                        }
+                    } else if (isTimeout) {
+                        waitMs = Math.max(waitMs, 900);
+                    } else {
+                        waitMs = Math.max(waitMs, 500);
+                    }
+
+                    setStatus(`[${nowIso()}] 재시도(${attempt}/${maxTry})… (${status || e.name || "ERR"}) ${Math.round(waitMs)}ms 대기`);
+                    await sleep(waitMs);
+                }
+            }
+
+            throw new Error("UNREACHABLE");
+        }
+
+        async function runPool(items, worker, concurrency) {
+            const results = [];
+            let idx = 0;
+
+            async function runner() {
+                while (true) {
+                    if (stopRequested) break;
+
+                    const cur = idx;
+                    idx += 1;
+                    if (cur >= items.length) break;
+
+                    const item = items[cur];
+                    const r = await worker(item, cur);
+                    results.push(r);
+                }
+            }
+
+            const runners = [];
+            const n = Math.max(1, Math.min(concurrency, 50));
+            for (let i = 0; i < n; i += 1) {
+                runners.push(runner());
+            }
+            await Promise.allSettled(runners);
+
+            return results;
+        }
+
+        function toCsv(rows) {
+            const header = [
+                "symbol",
+                "prevTimeUtc",
+                "low",
+                "close",
+                "ma7",
+                "ma25",
+                "ma99",
+                "lowBetween",
+                "bullishStack"
+            ];
+
+            const lines = [header.join(",")];
+
+            rows.forEach((r) => {
+                const line = [
+                    r.symbol,
+                    toUtcString(r.prevTime),
+                    r.prevLow,
+                    r.prevClose,
+                    r.ma7,
+                    r.ma25,
+                    r.ma99,
+                    r.lowBetween ? "YES" : "NO",
+                    r.bullishStack ? "YES" : "NO"
+                ].join(",");
+                lines.push(line);
+            });
+
+            return lines.join("\n");
+        }
+
+        function downloadText(filename, text) {
+            const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        async function scanAll() {
+            if (isRunning) return;
+
+            isRunning = true;
+            stopRequested = false;
+            lastResults = [];
+
+            $("btnScan").disabled = true;
+            $("btnStop").disabled = false;
+            $("btnExport").disabled = true;
+
+            clearTable();
+            setStatus(`[${nowIso()}] exchangeInfo 불러오는 중…`);
+
+            const timeoutMs = Math.max(2000, Number($("timeoutMs").value) || 12000);
+            const concurrency = Math.max(1, Math.min(20, Number($("concurrency").value) || 8));
+            const symbolFilter = $("symbolFilter").value;
+
+            let exchangeInfo;
+            try {
+                exchangeInfo = await withRetry(() => fetchExchangeInfo(timeoutMs), { maxTry: 4, baseDelay: 500 });
+            } catch (e) {
+                setStatus(`[${nowIso()}] exchangeInfo 실패: ${e.message || e}`);
+                isRunning = false;
+                $("btnScan").disabled = false;
+                $("btnStop").disabled = true;
+                return;
+            }
+
+            const symbols = normalizeSymbols(exchangeInfo, symbolFilter);
+
+            let done = 0;
+            let hit = 0;
+            let err = 0;
+
+            setCounts(symbols.length, done, hit, err);
+            setStatus(`[${nowIso()}] 대상 ${symbols.length}개 심볼 스캔 시작 (concurrency=${concurrency})…`);
+
+            if (symbols.length === 0) {
+                setStatus(`[${nowIso()}] 대상 심볼이 없습니다. 필터를 확인하세요.`);
+                isRunning = false;
+                $("btnScan").disabled = false;
+                $("btnStop").disabled = true;
+                return;
+            }
+
+            // 첫 결과 안내 문구 제거
+            $("tbody").innerHTML = "";
+
+            const worker = async (symbol) => {
+                if (stopRequested) return null;
+
+                try {
+                    const klines = await withRetry(() => fetchKlines(symbol, timeoutMs), { maxTry: 4, baseDelay: 450 });
+                    const ev = evaluateSymbol(symbol, klines);
+
+                    if (ev.ok) {
+                        hit += 1;
+                        lastResults.push(ev.data);
+                        addRow(ev.data);
+                    }
+
+                } catch (e) {
+                    if (String(e.message || "").indexOf("STOP_REQUESTED") > -1) {
+                        return null;
+                    }
+                    err += 1;
+                    addErrorRow(symbol, (e && (e.message || e.status || e.name)) ? (e.message || e.status || e.name) : "UNKNOWN");
+                } finally {
+                    done += 1;
+                    setCounts(symbols.length, done, hit, err);
+                    if (done % 10 === 0 || done === symbols.length) {
+                        setStatus(`[${nowIso()}] 진행 ${done}/${symbols.length} · 조건충족 ${hit} · 에러 ${err}`);
+                    }
+                }
+
+                return null;
+            };
+
+            await runPool(symbols, worker, concurrency);
+
+            // 정렬: MA7-MA25 갭 큰 순(원하면 바꿔도 됨)
+            lastResults.sort((a, b) => (b.ma7 - b.ma25) - (a.ma7 - a.ma25));
+
+            // 표를 정렬 반영해서 다시 렌더 (조건충족만)
+            if (!stopRequested) {
+                $("tbody").innerHTML = "";
+                if (lastResults.length === 0) {
+                    $("tbody").innerHTML = `<tr><td colspan="10" style="color: var(--muted); padding: 14px;">조건을 만족한 심볼이 없습니다.</td></tr>`;
+                } else {
+                    lastResults.forEach(addRow);
+                }
+            }
+
+            $("btnExport").disabled = (lastResults.length === 0);
+
+            if (stopRequested) {
+                setStatus(`[${nowIso()}] 중지됨. (진행 ${done}/${symbols.length} · 조건충족 ${hit} · 에러 ${err})`);
+            } else {
+                setStatus(`[${nowIso()}] 완료. (총 ${symbols.length} · 조건충족 ${hit} · 에러 ${err})`);
+            }
+
+            isRunning = false;
+            $("btnScan").disabled = false;
+            $("btnStop").disabled = true;
+        }
+
+        function stopScan() {
+            if (!isRunning) return;
+            stopRequested = true;
+            setStatus(`[${nowIso()}] 중지 요청됨…`);
+        }
+
+        function exportCsv() {
+            if (!lastResults || lastResults.length === 0) return;
+            const csv = toCsv(lastResults);
+            const name = `binance_futures_15m_maStack_lowBetween_${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.csv`;
+            downloadText(name, csv);
+        }
+
+        $("intervalLabel").textContent = INTERVAL;
+
+        $("btnScan").addEventListener("click", () => scanAll());
+        $("btnStop").addEventListener("click", () => stopScan());
+        $("btnExport").addEventListener("click", () => exportCsv());
+
+        // 엔터로 스캔
+        $("symbolFilter").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                scanAll();
+            }
+        });
+    })();
+</script>
+</body>
+</html>
