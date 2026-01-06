@@ -127,9 +127,11 @@
 <body>
     <h2 style="margin: 0 0 8px;">Binance USDT-M Perp 15m “이전봉” 꼬리/몸통 + MA(7/25/99) 스캐너</h2>
     <div class="muted">
-        - 결과 1: 밑꼬리 &gt; 몸통 AND 7MA &lt; 25MA &lt; 99MA AND C &lt; MA7, (밑꼬리/몸통) 내림차순<br/>
-        - 결과 2: 윗꼬리 &gt; 몸통 AND 7MA &gt; 25MA &gt; 99MA AND C &gt; MA7, (윗꼬리/몸통) 내림차순<br/>
+        - 결과 1: 밑꼬리 &gt; 몸통 AND 7MA &lt; 25MA &lt; 99MA AND C &lt; MA7<br/>
+        - 결과 2: 윗꼬리 &gt; 몸통 AND 7MA &gt; 25MA &gt; 99MA AND C &gt; MA7<br/>
         - 기준 봉: 15분봉 “이전 봉”(마감된 마지막 봉, 진행중 봉 제외)<br/>
+        - 정렬: <span class="mono">이전봉 range(High-Low)</span> 큰 순 (결과1/2 동일)<br/>
+        - TOP PICK: 결과1 1등 vs 결과2 1등 중 <span class="mono">range</span>가 더 큰 1개만 표시<br/>
         - 자동 스캔: 매시 <span class="mono">00/15/30/45</span>분 (스캔 중이면 자동 트리거는 스킵)
     </div>
 
@@ -177,7 +179,7 @@
     <div id="topPickCard" class="card" style="display:none;">
         <div class="top-pick">
             <div class="title">
-                <div class="big">TOP PICK — 결과1 1등 vs 결과2 1등</div>
+                <div class="big">TOP PICK — 결과1 1등 vs 결과2 1등 (range 비교)</div>
                 <div class="muted" id="topPickWhen"></div>
             </div>
             <div id="topPickBody"></div>
@@ -188,13 +190,14 @@
         <div class="card">
             <h3 style="margin: 0 0 8px;">결과 1 — 밑꼬리 &gt; 몸통 &amp; 7MA&lt;25MA&lt;99MA &amp; C&lt;MA7</h3>
             <div class="muted" style="margin-bottom: 8px;">
-                정렬: <span class="mono">(밑꼬리 / 몸통)</span> 큰 순
+                정렬: <span class="mono">Prev Range(High-Low)</span> 큰 순
             </div>
             <table>
                 <thead>
                     <tr>
                         <th>#</th>
                         <th>Symbol</th>
+                        <th class="mono">Range</th>
                         <th class="mono">Lower/Body</th>
                         <th class="mono">Lower</th>
                         <th class="mono">Body</th>
@@ -209,13 +212,14 @@
         <div class="card">
             <h3 style="margin: 0 0 8px;">결과 2 — 윗꼬리 &gt; 몸통 &amp; 7MA&gt;25MA&gt;99MA &amp; C&gt;MA7</h3>
             <div class="muted" style="margin-bottom: 8px;">
-                정렬: <span class="mono">(윗꼬리 / 몸통)</span> 큰 순
+                정렬: <span class="mono">Prev Range(High-Low)</span> 큰 순
             </div>
             <table>
                 <thead>
                     <tr>
                         <th>#</th>
                         <th>Symbol</th>
+                        <th class="mono">Range</th>
                         <th class="mono">Upper/Body</th>
                         <th class="mono">Upper</th>
                         <th class="mono">Body</th>
@@ -362,8 +366,9 @@
             const body = Math.abs(c - o);
             const lowerWick = Math.min(o, c) - l;
             const upperWick = h - Math.max(o, c);
+            const range = h - l;
 
-            return { o, h, l, c, body, lowerWick, upperWick };
+            return { o, h, l, c, body, lowerWick, upperWick, range };
         }
 
         function isFiniteNumber(x) {
@@ -373,7 +378,6 @@
         function computeSignal(symbol, klines) {
             if (!Array.isArray(klines) || klines.length < 120) return null;
 
-            // "이전 봉" = 마감된 마지막 봉 (진행중 봉 제외)
             const prevIdx = klines.length - 2;
 
             const closes = klines.map((k) => Number(k[4]));
@@ -410,6 +414,7 @@
                     <tr>
                         <td>${i + 1}</td>
                         <td>${buildRowLink(symbol)}</td>
+                        <td class="mono">${fmt(prev.range, 8)}</td>
                         <td class="mono">${fmt(lowerRatio, 3)}</td>
                         <td class="mono">${fmt(prev.lowerWick, 8)}</td>
                         <td class="mono">${fmt(prev.body, 8)}</td>
@@ -425,6 +430,7 @@
                     <tr>
                         <td>${i + 1}</td>
                         <td>${buildRowLink(symbol)}</td>
+                        <td class="mono">${fmt(prev.range, 8)}</td>
                         <td class="mono">${fmt(upperRatio, 3)}</td>
                         <td class="mono">${fmt(prev.upperWick, 8)}</td>
                         <td class="mono">${fmt(prev.body, 8)}</td>
@@ -434,8 +440,8 @@
                 `;
             }).join("");
 
-            tb1.innerHTML = r1 || `<tr><td colspan="7" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
-            tb2.innerHTML = r2 || `<tr><td colspan="7" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
+            tb1.innerHTML = r1 || `<tr><td colspan="8" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
+            tb2.innerHTML = r2 || `<tr><td colspan="8" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
         }
 
         function pickTopPick(result1, result2) {
@@ -446,16 +452,18 @@
             if (top1 && !top2) return { which: 1, item: top1 };
             if (!top1 && top2) return { which: 2, item: top2 };
 
-            const r1 = top1.lowerRatio; // 결과1은 lowerRatio
-            const r2 = top2.upperRatio; // 결과2는 upperRatio
+            // ✅ 1차 기준: range 큰 쪽
+            const r1 = top1.prev.range;
+            const r2 = top2.prev.range;
 
             if (r1 > r2) return { which: 1, item: top1 };
             if (r2 > r1) return { which: 2, item: top2 };
 
-            // 비율 동률이면 꼬리 절대값으로
-            const w1 = top1.prev.lowerWick;
-            const w2 = top2.prev.upperWick;
-            if (w1 >= w2) return { which: 1, item: top1 };
+            // 동률이면 2차 기준: 꼬리/몸통 비율(해당 결과 기준)
+            const ratio1 = top1.lowerRatio;
+            const ratio2 = top2.upperRatio;
+
+            if (ratio1 >= ratio2) return { which: 1, item: top1 };
             return { which: 2, item: top2 };
         }
 
@@ -476,8 +484,9 @@
             const ratio = isResult1 ? item.lowerRatio : item.upperRatio;
             const wick = isResult1 ? prev.lowerWick : prev.upperWick;
 
-            const badge = isResult1 ? `<span class="tag"><span class="ok">●</span> ${sideLabel}</span>`
-                                    : `<span class="tag"><span class="warn">●</span> ${sideLabel}</span>`;
+            const badge = isResult1
+                ? `<span class="tag"><span class="ok">●</span> ${sideLabel}</span>`
+                : `<span class="tag"><span class="warn">●</span> ${sideLabel}</span>`;
 
             const url = `https://www.binance.com/en/futures/${item.symbol}`;
 
@@ -485,6 +494,7 @@
                 <div class="meta">
                     ${badge}
                     <span class="tag">Symbol: <a href="${url}" target="_blank" rel="noreferrer" class="mono">${item.symbol}</a></span>
+                    <span class="tag">Range(H-L): <span class="mono">${fmt(prev.range, 8)}</span></span>
                     <span class="tag">Wick/Body: <span class="mono">${fmt(ratio, 3)}</span></span>
                     <span class="tag">Wick: <span class="mono">${fmt(wick, 8)}</span></span>
                     <span class="tag">Body: <span class="mono">${fmt(prev.body, 8)}</span></span>
@@ -628,13 +638,16 @@
                     }
                 );
 
-                // 정렬
+                // ✅ 정렬: 이전봉 range(High-Low) 큰 순 (결과1/2 동일)
+                // 동률이면 (각 결과 기준) 꼬리/몸통 비율로 2차 정렬
                 result1.sort((a, b) => {
+                    if (b.prev.range !== a.prev.range) return b.prev.range - a.prev.range;
                     if (b.lowerRatio !== a.lowerRatio) return b.lowerRatio - a.lowerRatio;
                     return b.prev.lowerWick - a.prev.lowerWick;
                 });
 
                 result2.sort((a, b) => {
+                    if (b.prev.range !== a.prev.range) return b.prev.range - a.prev.range;
                     if (b.upperRatio !== a.upperRatio) return b.upperRatio - a.upperRatio;
                     return b.prev.upperWick - a.prev.upperWick;
                 });
@@ -705,7 +718,6 @@
             const waitMs = Math.max(0, next.getTime() - now.getTime());
 
             autoTimer = setTimeout(async () => {
-                // 스캔 중이면 이번 턴은 스킵하고 다음 스케줄로
                 if (!isScanning) {
                     await scan("auto@00/15/30/45");
                 } else {
@@ -715,10 +727,9 @@
             }, waitMs);
         }
 
-        // 페이지 로드 직후: 다음 자동 시간 표시 + 스케줄링
         scheduleAutoScan();
 
-        // (선택) 페이지 처음 열었을 때 바로 한번 돌리고 싶으면 아래 주석 해제
+        // 원하면 페이지 진입 즉시 1회 실행: 아래 주석 해제
         // scan("auto@initial").catch(console.error);
     </script>
 </body>
