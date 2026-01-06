@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance USDT Perp 15m Wick + MA Scanner</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Pretendard, Apple SD Gothic Neo, sans-serif;
+            margin: 16px;
+            background: #0b0f19;
+            color: #e7eaf0;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 12px;
+            padding: 12px;
+            margin: 12px 0;
+        }
+        input, select, button {
+            background: rgba(255,255,255,0.08);
+            color: #e7eaf0;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 10px;
+            padding: 10px 12px;
+            outline: none;
+        }
+        button {
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .muted {
+            color: rgba(231,234,240,0.70);
+            font-size: 13px;
+        }
+        .ok {
+            color: #8ef0a6;
+        }
+        .warn {
+            color: #ffce6a;
+        }
+        .bad {
+            color: #ff7a7a;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            background: #0f1629;
+            z-index: 1;
+        }
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        @media (min-width: 1100px) {
+            .grid2 {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        a {
+            color: #9bd1ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            font-size: 12px;
+        }
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        .progress {
+            width: 260px;
+            height: 10px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.10);
+        }
+        .bar {
+            height: 100%;
+            width: 0%;
+            background: rgba(155, 209, 255, 0.85);
+        }
+    </style>
+</head>
+<body>
+    <h2 style="margin: 0 0 8px;">Binance USDT-M Perp 15m “이전봉” 꼬리/몸통 + MA(7/25/99) 스캐너</h2>
+    <div class="muted">
+        - 결과 1: 밑꼬리 &gt; 몸통 AND 7MA &lt; 25MA &lt; 99MA, (밑꼬리/몸통) 내림차순<br/>
+        - 결과 2: 윗꼬리 &gt; 몸통 AND 7MA &gt; 25MA &gt; 99MA, (윗꼬리/몸통) 내림차순<br/>
+        - 기준 봉: 15분봉 “이전 봉”(마감된 마지막 봉, 진행중 봉 제외)
+    </div>
+
+    <div class="card">
+        <div class="row">
+            <button id="btnScan">스캔 시작</button>
+            <button id="btnStop" disabled>중지</button>
+
+            <span class="pill">Interval: <span class="mono">15m</span></span>
+            <span class="pill">MA: <span class="mono">7 / 25 / 99</span></span>
+
+            <label class="row" style="margin: 0;">
+                <span class="muted">동시요청</span>
+                <input id="inpConc" type="number" min="1" max="20" step="1" value="6" style="width: 90px;" />
+            </label>
+
+            <label class="row" style="margin: 0;">
+                <span class="muted">요청 딜레이(ms)</span>
+                <input id="inpDelay" type="number" min="0" max="2000" step="10" value="120" style="width: 110px;" />
+            </label>
+
+            <label class="row" style="margin: 0;">
+                <input id="chkTopN" type="checkbox" />
+                <span class="muted">거래대금 상위 N개만</span>
+                <input id="inpTopN" type="number" min="10" max="800" step="10" value="250" style="width: 110px;" />
+            </label>
+        </div>
+
+        <div class="row" style="justify-content: space-between;">
+            <div class="row" style="margin: 0;">
+                <div class="progress"><div id="progBar" class="bar"></div></div>
+                <span id="txtProg" class="muted">대기중</span>
+            </div>
+            <div class="row" style="margin: 0;">
+                <span class="muted">업데이트:</span>
+                <span id="txtTime" class="mono">-</span>
+            </div>
+        </div>
+
+        <div id="txtStatus" class="muted" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="grid2">
+        <div class="card">
+            <h3 style="margin: 0 0 8px;">결과 1 — 밑꼬리 &gt; 몸통 &amp; 7MA&lt;25MA&lt;99MA</h3>
+            <div class="muted" style="margin-bottom: 8px;">
+                정렬: <span class="mono">(밑꼬리 / 몸통)</span> 큰 순
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Symbol</th>
+                        <th class="mono">Lower/Body</th>
+                        <th class="mono">Lower</th>
+                        <th class="mono">Body</th>
+                        <th class="mono">MA7/25/99</th>
+                        <th class="mono">Prev O/H/L/C</th>
+                    </tr>
+                </thead>
+                <tbody id="tb1"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3 style="margin: 0 0 8px;">결과 2 — 윗꼬리 &gt; 몸통 &amp; 7MA&gt;25MA&gt;99MA</h3>
+            <div class="muted" style="margin-bottom: 8px;">
+                정렬: <span class="mono">(윗꼬리 / 몸통)</span> 큰 순
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Symbol</th>
+                        <th class="mono">Upper/Body</th>
+                        <th class="mono">Upper</th>
+                        <th class="mono">Body</th>
+                        <th class="mono">MA7/25/99</th>
+                        <th class="mono">Prev O/H/L/C</th>
+                    </tr>
+                </thead>
+                <tbody id="tb2"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+
+        const $ = (sel) => document.querySelector(sel);
+
+        const btnScan = $("#btnScan");
+        const btnStop = $("#btnStop");
+        const inpConc = $("#inpConc");
+        const inpDelay = $("#inpDelay");
+        const chkTopN = $("#chkTopN");
+        const inpTopN = $("#inpTopN");
+        const tb1 = $("#tb1");
+        const tb2 = $("#tb2");
+        const txtStatus = $("#txtStatus");
+        const txtProg = $("#txtProg");
+        const txtTime = $("#txtTime");
+        const progBar = $("#progBar");
+
+        let stopFlag = false;
+
+        function sleep(ms) {
+            return new Promise((r) => setTimeout(r, ms));
+        }
+
+        function fmt(n, d = 6) {
+            if (!isFinite(n)) return "-";
+            const abs = Math.abs(n);
+            if (abs >= 1000) return n.toFixed(2);
+            if (abs >= 1) return n.toFixed(4);
+            return n.toFixed(d);
+        }
+
+        function setProgress(done, total) {
+            const p = total > 0 ? (done / total) * 100 : 0;
+            progBar.style.width = `${Math.max(0, Math.min(100, p))}%`;
+            txtProg.textContent = `${done}/${total}`;
+        }
+
+        function setTimeNow() {
+            const d = new Date();
+            txtTime.textContent = d.toLocaleString();
+        }
+
+        async function safeFetch(url, options = {}) {
+            const res = await fetch(url, options);
+
+            // Binance 과호출 대응(429/418)
+            if (res.status === 429 || res.status === 418) {
+                const retryAfter = Number(res.headers.get("retry-after") || "0");
+                const waitMs = retryAfter > 0 ? retryAfter * 1000 : 30000;
+                throw new Error(`RATE_LIMIT:${res.status}:${waitMs}`);
+            }
+
+            if (!res.ok) {
+                const t = await res.text().catch(() => "");
+                throw new Error(`HTTP_${res.status}:${t.slice(0, 200)}`);
+            }
+
+            return res;
+        }
+
+        async function getUsdtPerpSymbols() {
+            const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+            const res = await safeFetch(url);
+            const data = await res.json();
+
+            // USDT-M Perpetual + TRADING
+            const syms = (data.symbols || [])
+                .filter((s) =>
+                    s &&
+                    s.contractType === "PERPETUAL" &&
+                    s.quoteAsset === "USDT" &&
+                    s.status === "TRADING"
+                )
+                .map((s) => s.symbol);
+
+            return syms;
+        }
+
+        async function getTopSymbolsByQuoteVolume(limit) {
+            const url = `${API_BASE}/fapi/v1/ticker/24hr`;
+            const res = await safeFetch(url);
+            const data = await res.json();
+
+            const rows = (data || [])
+                .filter((r) => r && String(r.symbol || "").endsWith("USDT"))
+                .map((r) => ({
+                    symbol: r.symbol,
+                    quoteVolume: Number(r.quoteVolume || 0)
+                }))
+                .sort((a, b) => b.quoteVolume - a.quoteVolume)
+                .slice(0, Math.max(1, limit | 0));
+
+            return rows.map((r) => r.symbol);
+        }
+
+        async function fetchKlines(symbol, interval = "15m", limit = 200) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+            const res = await safeFetch(url);
+            return await res.json();
+        }
+
+        function sma(closes, endIndex, period) {
+            const start = endIndex - period + 1;
+            if (start < 0) return null;
+            let sum = 0;
+            for (let i = start; i <= endIndex; i++) {
+                sum += closes[i];
+            }
+            return sum / period;
+        }
+
+        function buildRowLink(symbol) {
+            const url = `https://www.binance.com/en/futures/${symbol}`;
+            return `<a href="${url}" target="_blank" rel="noreferrer">${symbol}</a>`;
+        }
+
+        function parseCandle(k) {
+            // kline: [ openTime, open, high, low, close, volume, closeTime, quoteVol, trades, ...]
+            const o = Number(k[1]);
+            const h = Number(k[2]);
+            const l = Number(k[3]);
+            const c = Number(k[4]);
+
+            const body = Math.abs(c - o);
+            const lowerWick = Math.min(o, c) - l;
+            const upperWick = h - Math.max(o, c);
+
+            return { o, h, l, c, body, lowerWick, upperWick };
+        }
+
+        function isFiniteNumber(x) {
+            return typeof x === "number" && isFinite(x);
+        }
+
+        function computeSignal(symbol, klines) {
+            // 진행중 봉이 마지막에 올 수 있으므로, "이전 봉" = 마지막-2
+            if (!Array.isArray(klines) || klines.length < 120) return null;
+
+            const lastIdx = klines.length - 1;
+            const prevIdx = klines.length - 2;
+
+            const closes = klines.map((k) => Number(k[4]));
+            const prevCloseIndex = prevIdx;
+
+            const ma7 = sma(closes, prevCloseIndex, 7);
+            const ma25 = sma(closes, prevCloseIndex, 25);
+            const ma99 = sma(closes, prevCloseIndex, 99);
+
+            if (![ma7, ma25, ma99].every(isFiniteNumber)) return null;
+
+            const prev = parseCandle(klines[prevIdx]);
+
+            // 몸통 0에 대한 처리 (정렬 비율 계산용)
+            const bodyEps = prev.body > 0 ? prev.body : 1e-12;
+
+            const lowerRatio = prev.lowerWick / bodyEps;
+            const upperRatio = prev.upperWick / bodyEps;
+
+            return {
+                symbol,
+                prev,
+                ma7,
+                ma25,
+                ma99,
+                lowerRatio,
+                upperRatio
+            };
+        }
+
+        function renderTables(result1, result2) {
+            tb1.innerHTML = "";
+            tb2.innerHTML = "";
+
+            const r1 = result1.map((x, i) => {
+                const { symbol, prev, ma7, ma25, ma99, lowerRatio } = x;
+                return `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${buildRowLink(symbol)}</td>
+                        <td class="mono">${fmt(lowerRatio, 3)}</td>
+                        <td class="mono">${fmt(prev.lowerWick, 8)}</td>
+                        <td class="mono">${fmt(prev.body, 8)}</td>
+                        <td class="mono">${fmt(ma7)} / ${fmt(ma25)} / ${fmt(ma99)}</td>
+                        <td class="mono">${fmt(prev.o)} / ${fmt(prev.h)} / ${fmt(prev.l)} / ${fmt(prev.c)}</td>
+                    </tr>
+                `;
+            }).join("");
+
+            const r2 = result2.map((x, i) => {
+                const { symbol, prev, ma7, ma25, ma99, upperRatio } = x;
+                return `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${buildRowLink(symbol)}</td>
+                        <td class="mono">${fmt(upperRatio, 3)}</td>
+                        <td class="mono">${fmt(prev.upperWick, 8)}</td>
+                        <td class="mono">${fmt(prev.body, 8)}</td>
+                        <td class="mono">${fmt(ma7)} / ${fmt(ma25)} / ${fmt(ma99)}</td>
+                        <td class="mono">${fmt(prev.o)} / ${fmt(prev.h)} / ${fmt(prev.l)} / ${fmt(prev.c)}</td>
+                    </tr>
+                `;
+            }).join("");
+
+            tb1.innerHTML = r1 || `<tr><td colspan="7" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
+            tb2.innerHTML = r2 || `<tr><td colspan="7" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
+        }
+
+        async function runQueue(items, workerFn, concurrency, perItemDelayMs, onProgress) {
+            let idx = 0;
+            let done = 0;
+            const total = items.length;
+
+            async function worker() {
+                while (true) {
+                    if (stopFlag) return;
+
+                    const myIdx = idx++;
+                    if (myIdx >= total) return;
+
+                    const item = items[myIdx];
+
+                    try {
+                        await workerFn(item, myIdx);
+                    } catch (e) {
+                        // 그대로 상위에서 처리하게 두지 않고, 여기서도 삼켜서 전체 스캔이 계속되도록
+                        console.warn("worker error:", item, e);
+                    } finally {
+                        done++;
+                        onProgress && onProgress(done, total);
+                        if (perItemDelayMs > 0) {
+                            await sleep(perItemDelayMs);
+                        }
+                    }
+                }
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+        }
+
+        async function scan() {
+            stopFlag = false;
+            btnScan.disabled = true;
+            btnStop.disabled = false;
+
+            tb1.innerHTML = "";
+            tb2.innerHTML = "";
+            txtStatus.textContent = "심볼 목록 가져오는 중...";
+            setProgress(0, 0);
+
+            const conc = Math.max(1, Math.min(20, Number(inpConc.value || 6)));
+            const delayMs = Math.max(0, Math.min(2000, Number(inpDelay.value || 120)));
+
+            let symbols = await getUsdtPerpSymbols();
+
+            if (chkTopN.checked) {
+                const topN = Math.max(10, Math.min(800, Number(inpTopN.value || 250)));
+                txtStatus.textContent = `거래대금 상위 ${topN}개 선별 중...`;
+                const topSyms = await getTopSymbolsByQuoteVolume(topN);
+
+                // exchangeInfo에 있는 심볼만 유지
+                const symSet = new Set(symbols);
+                symbols = topSyms.filter((s) => symSet.has(s));
+            }
+
+            txtStatus.textContent = `스캔 대상: ${symbols.length}개 심볼 / 동시요청 ${conc} / 딜레이 ${delayMs}ms`;
+
+            const result1 = [];
+            const result2 = [];
+
+            let rateLimitBackoffUntil = 0;
+
+            async function workerFn(symbol) {
+                if (stopFlag) return;
+
+                // 백오프 시간 동안 대기
+                const now = Date.now();
+                if (now < rateLimitBackoffUntil) {
+                    await sleep(rateLimitBackoffUntil - now);
+                }
+
+                try {
+                    const klines = await fetchKlines(symbol, "15m", 200);
+                    const sig = computeSignal(symbol, klines);
+                    if (!sig) return;
+
+                    const { prev, ma7, ma25, ma99, lowerRatio, upperRatio } = sig;
+
+                    // 결과 1 조건: 밑꼬리 > 몸통 AND 7MA < 25MA < 99MA
+                    if (prev.lowerWick > prev.body && ma7 < ma25 && ma25 < ma99) {
+                        result1.push(sig);
+                    }
+
+                    // 결과 2 조건: 윗꼬리 > 몸통 AND 7MA > 25MA > 99MA
+                    if (prev.upperWick > prev.body && ma7 > ma25 && ma25 > ma99) {
+                        result2.push(sig);
+                    }
+                } catch (e) {
+                    const msg = String(e && e.message ? e.message : e);
+
+                    // RATE_LIMIT:429:waitMs 형태
+                    if (msg.startsWith("RATE_LIMIT:")) {
+                        const parts = msg.split(":");
+                        const status = parts[1];
+                        const waitMs = Number(parts[2] || "30000");
+
+                        // 전체 워커가 공유하는 백오프
+                        rateLimitBackoffUntil = Date.now() + Math.max(10000, Math.min(180000, waitMs));
+                        txtStatus.innerHTML = `<span class="warn">레이트리밋(${status}) 감지 → ${Math.round((rateLimitBackoffUntil - Date.now()) / 1000)}초 대기 후 재개</span>`;
+                        await sleep(Math.max(1000, Math.min(180000, waitMs)));
+                        return;
+                    }
+
+                    console.warn(symbol, e);
+                }
+            }
+
+            setProgress(0, symbols.length);
+
+            await runQueue(
+                symbols,
+                workerFn,
+                conc,
+                delayMs,
+                (done, total) => {
+                    setProgress(done, total);
+                    txtStatus.innerHTML = `진행중... <span class="mono">${done}/${total}</span> | 현재 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
+                }
+            );
+
+            // 정렬
+            result1.sort((a, b) => {
+                if (b.lowerRatio !== a.lowerRatio) return b.lowerRatio - a.lowerRatio;
+                return b.prev.lowerWick - a.prev.lowerWick;
+            });
+
+            result2.sort((a, b) => {
+                if (b.upperRatio !== a.upperRatio) return b.upperRatio - a.upperRatio;
+                return b.prev.upperWick - a.prev.upperWick;
+            });
+
+            renderTables(result1, result2);
+            setTimeNow();
+
+            if (stopFlag) {
+                txtStatus.innerHTML = `<span class="warn">중지됨</span> | 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
+            } else {
+                txtStatus.innerHTML = `<span class="ok">완료</span> | 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
+            }
+
+            btnScan.disabled = false;
+            btnStop.disabled = true;
+        }
+
+        btnScan.addEventListener("click", () => {
+            scan().catch((e) => {
+                console.error(e);
+                txtStatus.innerHTML = `<span class="bad">오류:</span> <span class="mono">${String(e && e.message ? e.message : e)}</span>`;
+                btnScan.disabled = false;
+                btnStop.disabled = true;
+            });
+        });
+
+        btnStop.addEventListener("click", () => {
+            stopFlag = true;
+            btnStop.disabled = true;
+            txtStatus.innerHTML = `<span class="warn">중지 요청됨...</span>`;
+        });
+    </script>
+</body>
+</html>
