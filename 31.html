@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Binance USDT Perp 15m Wick + MA Scanner</title>
+    <title>Binance USDT Perp 15m Wick + MA Scanner (Auto 00/15/30/45)</title>
     <style>
         body {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Pretendard, Apple SD Gothic Neo, sans-serif;
@@ -25,7 +25,7 @@
             padding: 12px;
             margin: 12px 0;
         }
-        input, select, button {
+        input, button {
             background: rgba(255,255,255,0.08);
             color: #e7eaf0;
             border: 1px solid rgba(255,255,255,0.14);
@@ -33,26 +33,12 @@
             padding: 10px 12px;
             outline: none;
         }
-        button {
-            cursor: pointer;
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .muted {
-            color: rgba(231,234,240,0.70);
-            font-size: 13px;
-        }
-        .ok {
-            color: #8ef0a6;
-        }
-        .warn {
-            color: #ffce6a;
-        }
-        .bad {
-            color: #ff7a7a;
-        }
+        button { cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .muted { color: rgba(231,234,240,0.70); font-size: 13px; }
+        .ok { color: #8ef0a6; }
+        .warn { color: #ffce6a; }
+        .bad { color: #ff7a7a; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -78,17 +64,10 @@
             gap: 12px;
         }
         @media (min-width: 1100px) {
-            .grid2 {
-                grid-template-columns: 1fr 1fr;
-            }
+            .grid2 { grid-template-columns: 1fr 1fr; }
         }
-        a {
-            color: #9bd1ff;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
+        a { color: #9bd1ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
         .pill {
             display: inline-block;
             padding: 2px 8px;
@@ -113,14 +92,45 @@
             width: 0%;
             background: rgba(155, 209, 255, 0.85);
         }
+        .top-pick {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .top-pick .title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .top-pick .big {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .top-pick .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+        }
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <h2 style="margin: 0 0 8px;">Binance USDT-M Perp 15m “이전봉” 꼬리/몸통 + MA(7/25/99) 스캐너</h2>
     <div class="muted">
-        - 결과 1: 밑꼬리 &gt; 몸통 AND 7MA &lt; 25MA &lt; 99MA, (밑꼬리/몸통) 내림차순<br/>
-        - 결과 2: 윗꼬리 &gt; 몸통 AND 7MA &gt; 25MA &gt; 99MA, (윗꼬리/몸통) 내림차순<br/>
-        - 기준 봉: 15분봉 “이전 봉”(마감된 마지막 봉, 진행중 봉 제외)
+        - 결과 1: 밑꼬리 &gt; 몸통 AND 7MA &lt; 25MA &lt; 99MA AND C &lt; MA7, (밑꼬리/몸통) 내림차순<br/>
+        - 결과 2: 윗꼬리 &gt; 몸통 AND 7MA &gt; 25MA &gt; 99MA AND C &gt; MA7, (윗꼬리/몸통) 내림차순<br/>
+        - 기준 봉: 15분봉 “이전 봉”(마감된 마지막 봉, 진행중 봉 제외)<br/>
+        - 자동 스캔: 매시 <span class="mono">00/15/30/45</span>분 (스캔 중이면 자동 트리거는 스킵)
     </div>
 
     <div class="card">
@@ -156,15 +166,27 @@
             <div class="row" style="margin: 0;">
                 <span class="muted">업데이트:</span>
                 <span id="txtTime" class="mono">-</span>
+                <span class="pill">다음 자동: <span id="txtNextAuto" class="mono">-</span></span>
             </div>
         </div>
 
         <div id="txtStatus" class="muted" style="margin-top: 8px;"></div>
     </div>
 
+    <!-- ✅ TOP PICK 카드 (결과 1/2 테이블 위) -->
+    <div id="topPickCard" class="card" style="display:none;">
+        <div class="top-pick">
+            <div class="title">
+                <div class="big">TOP PICK — 결과1 1등 vs 결과2 1등</div>
+                <div class="muted" id="topPickWhen"></div>
+            </div>
+            <div id="topPickBody"></div>
+        </div>
+    </div>
+
     <div class="grid2">
         <div class="card">
-            <h3 style="margin: 0 0 8px;">결과 1 — 밑꼬리 &gt; 몸통 &amp; 7MA&lt;25MA&lt;99MA</h3>
+            <h3 style="margin: 0 0 8px;">결과 1 — 밑꼬리 &gt; 몸통 &amp; 7MA&lt;25MA&lt;99MA &amp; C&lt;MA7</h3>
             <div class="muted" style="margin-bottom: 8px;">
                 정렬: <span class="mono">(밑꼬리 / 몸통)</span> 큰 순
             </div>
@@ -185,7 +207,7 @@
         </div>
 
         <div class="card">
-            <h3 style="margin: 0 0 8px;">결과 2 — 윗꼬리 &gt; 몸통 &amp; 7MA&gt;25MA&gt;99MA</h3>
+            <h3 style="margin: 0 0 8px;">결과 2 — 윗꼬리 &gt; 몸통 &amp; 7MA&gt;25MA&gt;99MA &amp; C&gt;MA7</h3>
             <div class="muted" style="margin-bottom: 8px;">
                 정렬: <span class="mono">(윗꼬리 / 몸통)</span> 큰 순
             </div>
@@ -217,14 +239,22 @@
         const inpDelay = $("#inpDelay");
         const chkTopN = $("#chkTopN");
         const inpTopN = $("#inpTopN");
+
         const tb1 = $("#tb1");
         const tb2 = $("#tb2");
+
         const txtStatus = $("#txtStatus");
         const txtProg = $("#txtProg");
         const txtTime = $("#txtTime");
         const progBar = $("#progBar");
 
+        const topPickCard = $("#topPickCard");
+        const topPickBody = $("#topPickBody");
+        const topPickWhen = $("#topPickWhen");
+        const txtNextAuto = $("#txtNextAuto");
+
         let stopFlag = false;
+        let isScanning = false;
 
         function sleep(ms) {
             return new Promise((r) => setTimeout(r, ms));
@@ -247,12 +277,16 @@
         function setTimeNow() {
             const d = new Date();
             txtTime.textContent = d.toLocaleString();
+            topPickWhen.textContent = `업데이트: ${d.toLocaleString()}`;
+        }
+
+        function setNextAutoLabel(nextDate) {
+            txtNextAuto.textContent = nextDate ? nextDate.toLocaleTimeString() : "-";
         }
 
         async function safeFetch(url, options = {}) {
             const res = await fetch(url, options);
 
-            // Binance 과호출 대응(429/418)
             if (res.status === 429 || res.status === 418) {
                 const retryAfter = Number(res.headers.get("retry-after") || "0");
                 const waitMs = retryAfter > 0 ? retryAfter * 1000 : 30000;
@@ -272,8 +306,7 @@
             const res = await safeFetch(url);
             const data = await res.json();
 
-            // USDT-M Perpetual + TRADING
-            const syms = (data.symbols || [])
+            return (data.symbols || [])
                 .filter((s) =>
                     s &&
                     s.contractType === "PERPETUAL" &&
@@ -281,8 +314,6 @@
                     s.status === "TRADING"
                 )
                 .map((s) => s.symbol);
-
-            return syms;
         }
 
         async function getTopSymbolsByQuoteVolume(limit) {
@@ -290,16 +321,15 @@
             const res = await safeFetch(url);
             const data = await res.json();
 
-            const rows = (data || [])
+            return (data || [])
                 .filter((r) => r && String(r.symbol || "").endsWith("USDT"))
                 .map((r) => ({
                     symbol: r.symbol,
                     quoteVolume: Number(r.quoteVolume || 0)
                 }))
                 .sort((a, b) => b.quoteVolume - a.quoteVolume)
-                .slice(0, Math.max(1, limit | 0));
-
-            return rows.map((r) => r.symbol);
+                .slice(0, Math.max(1, limit | 0))
+                .map((r) => r.symbol);
         }
 
         async function fetchKlines(symbol, interval = "15m", limit = 200) {
@@ -324,7 +354,6 @@
         }
 
         function parseCandle(k) {
-            // kline: [ openTime, open, high, low, close, volume, closeTime, quoteVol, trades, ...]
             const o = Number(k[1]);
             const h = Number(k[2]);
             const l = Number(k[3]);
@@ -342,26 +371,21 @@
         }
 
         function computeSignal(symbol, klines) {
-            // 진행중 봉이 마지막에 올 수 있으므로, "이전 봉" = 마지막-2
             if (!Array.isArray(klines) || klines.length < 120) return null;
 
-            const lastIdx = klines.length - 1;
+            // "이전 봉" = 마감된 마지막 봉 (진행중 봉 제외)
             const prevIdx = klines.length - 2;
 
             const closes = klines.map((k) => Number(k[4]));
-            const prevCloseIndex = prevIdx;
-
-            const ma7 = sma(closes, prevCloseIndex, 7);
-            const ma25 = sma(closes, prevCloseIndex, 25);
-            const ma99 = sma(closes, prevCloseIndex, 99);
+            const ma7 = sma(closes, prevIdx, 7);
+            const ma25 = sma(closes, prevIdx, 25);
+            const ma99 = sma(closes, prevIdx, 99);
 
             if (![ma7, ma25, ma99].every(isFiniteNumber)) return null;
 
             const prev = parseCandle(klines[prevIdx]);
 
-            // 몸통 0에 대한 처리 (정렬 비율 계산용)
             const bodyEps = prev.body > 0 ? prev.body : 1e-12;
-
             const lowerRatio = prev.lowerWick / bodyEps;
             const upperRatio = prev.upperWick / bodyEps;
 
@@ -414,6 +438,67 @@
             tb2.innerHTML = r2 || `<tr><td colspan="7" class="muted">조건을 만족하는 코인이 없습니다.</td></tr>`;
         }
 
+        function pickTopPick(result1, result2) {
+            const top1 = result1 && result1.length ? result1[0] : null;
+            const top2 = result2 && result2.length ? result2[0] : null;
+
+            if (!top1 && !top2) return null;
+            if (top1 && !top2) return { which: 1, item: top1 };
+            if (!top1 && top2) return { which: 2, item: top2 };
+
+            const r1 = top1.lowerRatio; // 결과1은 lowerRatio
+            const r2 = top2.upperRatio; // 결과2는 upperRatio
+
+            if (r1 > r2) return { which: 1, item: top1 };
+            if (r2 > r1) return { which: 2, item: top2 };
+
+            // 비율 동률이면 꼬리 절대값으로
+            const w1 = top1.prev.lowerWick;
+            const w2 = top2.prev.upperWick;
+            if (w1 >= w2) return { which: 1, item: top1 };
+            return { which: 2, item: top2 };
+        }
+
+        function renderTopPickCard(result1, result2) {
+            const pick = pickTopPick(result1, result2);
+
+            if (!pick) {
+                topPickCard.style.display = "none";
+                topPickBody.innerHTML = "";
+                return;
+            }
+
+            const { which, item } = pick;
+            const prev = item.prev;
+
+            const isResult1 = which === 1;
+            const sideLabel = isResult1 ? "결과 1 (Lower Wick)" : "결과 2 (Upper Wick)";
+            const ratio = isResult1 ? item.lowerRatio : item.upperRatio;
+            const wick = isResult1 ? prev.lowerWick : prev.upperWick;
+
+            const badge = isResult1 ? `<span class="tag"><span class="ok">●</span> ${sideLabel}</span>`
+                                    : `<span class="tag"><span class="warn">●</span> ${sideLabel}</span>`;
+
+            const url = `https://www.binance.com/en/futures/${item.symbol}`;
+
+            topPickBody.innerHTML = `
+                <div class="meta">
+                    ${badge}
+                    <span class="tag">Symbol: <a href="${url}" target="_blank" rel="noreferrer" class="mono">${item.symbol}</a></span>
+                    <span class="tag">Wick/Body: <span class="mono">${fmt(ratio, 3)}</span></span>
+                    <span class="tag">Wick: <span class="mono">${fmt(wick, 8)}</span></span>
+                    <span class="tag">Body: <span class="mono">${fmt(prev.body, 8)}</span></span>
+                    <span class="tag">C vs MA7: <span class="mono">${fmt(prev.c, 8)}</span> ${isResult1 ? "&lt;" : "&gt;"} <span class="mono">${fmt(item.ma7, 8)}</span></span>
+                    <span class="tag">MA7/25/99: <span class="mono">${fmt(item.ma7)}</span> / <span class="mono">${fmt(item.ma25)}</span> / <span class="mono">${fmt(item.ma99)}</span></span>
+                </div>
+                <div class="muted" style="margin-top: 8px;">
+                    Prev O/H/L/C: <span class="mono">${fmt(prev.o)} / ${fmt(prev.h)} / ${fmt(prev.l)} / ${fmt(prev.c)}</span>
+                </div>
+            `;
+
+            topPickCard.style.display = "block";
+        }
+
         async function runQueue(items, workerFn, concurrency, perItemDelayMs, onProgress) {
             let idx = 0;
             let done = 0;
@@ -422,7 +507,6 @@
             async function worker() {
                 while (true) {
                     if (stopFlag) return;
-
                     const myIdx = idx++;
                     if (myIdx >= total) return;
 
@@ -431,146 +515,157 @@
                     try {
                         await workerFn(item, myIdx);
                     } catch (e) {
-                        // 그대로 상위에서 처리하게 두지 않고, 여기서도 삼켜서 전체 스캔이 계속되도록
                         console.warn("worker error:", item, e);
                     } finally {
                         done++;
-                        onProgress && onProgress(done, total);
-                        if (perItemDelayMs > 0) {
-                            await sleep(perItemDelayMs);
-                        }
+                        if (onProgress) onProgress(done, total);
+                        if (perItemDelayMs > 0) await sleep(perItemDelayMs);
                     }
                 }
             }
 
             const workers = [];
-            for (let i = 0; i < concurrency; i++) {
-                workers.push(worker());
-            }
+            for (let i = 0; i < concurrency; i++) workers.push(worker());
             await Promise.all(workers);
         }
 
-        async function scan() {
+        async function scan(reason = "manual") {
+            if (isScanning) {
+                txtStatus.innerHTML = `<span class="warn">이미 스캔 중</span> (트리거: ${reason})`;
+                return;
+            }
+
             stopFlag = false;
+            isScanning = true;
+
             btnScan.disabled = true;
             btnStop.disabled = false;
 
             tb1.innerHTML = "";
             tb2.innerHTML = "";
-            txtStatus.textContent = "심볼 목록 가져오는 중...";
+            topPickCard.style.display = "none";
+
+            txtStatus.textContent = `심볼 목록 가져오는 중... (트리거: ${reason})`;
             setProgress(0, 0);
 
             const conc = Math.max(1, Math.min(20, Number(inpConc.value || 6)));
             const delayMs = Math.max(0, Math.min(2000, Number(inpDelay.value || 120)));
 
-            let symbols = await getUsdtPerpSymbols();
+            try {
+                let symbols = await getUsdtPerpSymbols();
 
-            if (chkTopN.checked) {
-                const topN = Math.max(10, Math.min(800, Number(inpTopN.value || 250)));
-                txtStatus.textContent = `거래대금 상위 ${topN}개 선별 중...`;
-                const topSyms = await getTopSymbolsByQuoteVolume(topN);
+                if (chkTopN.checked) {
+                    const topN = Math.max(10, Math.min(800, Number(inpTopN.value || 250)));
+                    txtStatus.textContent = `거래대금 상위 ${topN}개 선별 중... (트리거: ${reason})`;
+                    const topSyms = await getTopSymbolsByQuoteVolume(topN);
 
-                // exchangeInfo에 있는 심볼만 유지
-                const symSet = new Set(symbols);
-                symbols = topSyms.filter((s) => symSet.has(s));
-            }
-
-            txtStatus.textContent = `스캔 대상: ${symbols.length}개 심볼 / 동시요청 ${conc} / 딜레이 ${delayMs}ms`;
-
-            const result1 = [];
-            const result2 = [];
-
-            let rateLimitBackoffUntil = 0;
-
-            async function workerFn(symbol) {
-                if (stopFlag) return;
-
-                // 백오프 시간 동안 대기
-                const now = Date.now();
-                if (now < rateLimitBackoffUntil) {
-                    await sleep(rateLimitBackoffUntil - now);
+                    const symSet = new Set(symbols);
+                    symbols = topSyms.filter((s) => symSet.has(s));
                 }
 
-                try {
-                    const klines = await fetchKlines(symbol, "15m", 200);
-                    const sig = computeSignal(symbol, klines);
-                    if (!sig) return;
+                txtStatus.textContent = `스캔 대상: ${symbols.length}개 / 동시요청 ${conc} / 딜레이 ${delayMs}ms (트리거: ${reason})`;
 
-                    const { prev, ma7, ma25, ma99, lowerRatio, upperRatio } = sig;
+                const result1 = [];
+                const result2 = [];
 
-                    // 결과 1 조건: 밑꼬리 > 몸통 AND 7MA < 25MA < 99MA
-                    if (prev.lowerWick > prev.body && ma7 < ma25 && ma25 < ma99) {
-                        result1.push(sig);
+                let rateLimitBackoffUntil = 0;
+
+                async function workerFn(symbol) {
+                    if (stopFlag) return;
+
+                    const now = Date.now();
+                    if (now < rateLimitBackoffUntil) {
+                        await sleep(rateLimitBackoffUntil - now);
                     }
 
-                    // 결과 2 조건: 윗꼬리 > 몸통 AND 7MA > 25MA > 99MA
-                    if (prev.upperWick > prev.body && ma7 > ma25 && ma25 > ma99) {
-                        result2.push(sig);
+                    try {
+                        const klines = await fetchKlines(symbol, "15m", 200);
+                        const sig = computeSignal(symbol, klines);
+                        if (!sig) return;
+
+                        const { prev, ma7, ma25, ma99 } = sig;
+
+                        // 결과 1: 밑꼬리 > 몸통 AND 7MA < 25MA < 99MA AND C < MA7
+                        if (prev.lowerWick > prev.body && ma7 < ma25 && ma25 < ma99 && prev.c < ma7) {
+                            result1.push(sig);
+                        }
+
+                        // 결과 2: 윗꼬리 > 몸통 AND 7MA > 25MA > 99MA AND C > MA7
+                        if (prev.upperWick > prev.body && ma7 > ma25 && ma25 > ma99 && prev.c > ma7) {
+                            result2.push(sig);
+                        }
+                    } catch (e) {
+                        const msg = String(e && e.message ? e.message : e);
+
+                        if (msg.startsWith("RATE_LIMIT:")) {
+                            const parts = msg.split(":");
+                            const status = parts[1];
+                            const waitMs = Number(parts[2] || "30000");
+
+                            rateLimitBackoffUntil = Date.now() + Math.max(10000, Math.min(180000, waitMs));
+                            txtStatus.innerHTML = `<span class="warn">레이트리밋(${status}) 감지 → ${Math.round((rateLimitBackoffUntil - Date.now()) / 1000)}초 대기 후 재개</span>`;
+                            await sleep(Math.max(1000, Math.min(180000, waitMs)));
+                            return;
+                        }
+
+                        console.warn(symbol, e);
                     }
-                } catch (e) {
-                    const msg = String(e && e.message ? e.message : e);
-
-                    // RATE_LIMIT:429:waitMs 형태
-                    if (msg.startsWith("RATE_LIMIT:")) {
-                        const parts = msg.split(":");
-                        const status = parts[1];
-                        const waitMs = Number(parts[2] || "30000");
-
-                        // 전체 워커가 공유하는 백오프
-                        rateLimitBackoffUntil = Date.now() + Math.max(10000, Math.min(180000, waitMs));
-                        txtStatus.innerHTML = `<span class="warn">레이트리밋(${status}) 감지 → ${Math.round((rateLimitBackoffUntil - Date.now()) / 1000)}초 대기 후 재개</span>`;
-                        await sleep(Math.max(1000, Math.min(180000, waitMs)));
-                        return;
-                    }
-
-                    console.warn(symbol, e);
                 }
-            }
 
-            setProgress(0, symbols.length);
+                setProgress(0, symbols.length);
 
-            await runQueue(
-                symbols,
-                workerFn,
-                conc,
-                delayMs,
-                (done, total) => {
-                    setProgress(done, total);
-                    txtStatus.innerHTML = `진행중... <span class="mono">${done}/${total}</span> | 현재 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
+                await runQueue(
+                    symbols,
+                    workerFn,
+                    conc,
+                    delayMs,
+                    (done, total) => {
+                        setProgress(done, total);
+                        txtStatus.innerHTML =
+                            `진행중... <span class="mono">${done}/${total}</span> | ` +
+                            `현재 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span> ` +
+                            `<span class="muted">(트리거: ${reason})</span>`;
+                    }
+                );
+
+                // 정렬
+                result1.sort((a, b) => {
+                    if (b.lowerRatio !== a.lowerRatio) return b.lowerRatio - a.lowerRatio;
+                    return b.prev.lowerWick - a.prev.lowerWick;
+                });
+
+                result2.sort((a, b) => {
+                    if (b.upperRatio !== a.upperRatio) return b.upperRatio - a.upperRatio;
+                    return b.prev.upperWick - a.prev.upperWick;
+                });
+
+                renderTopPickCard(result1, result2);
+                renderTables(result1, result2);
+                setTimeNow();
+
+                if (stopFlag) {
+                    txtStatus.innerHTML =
+                        `<span class="warn">중지됨</span> | 결과: ` +
+                        `<span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span> ` +
+                        `<span class="muted">(트리거: ${reason})</span>`;
+                } else {
+                    txtStatus.innerHTML =
+                        `<span class="ok">완료</span> | 결과: ` +
+                        `<span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span> ` +
+                        `<span class="muted">(트리거: ${reason})</span>`;
                 }
-            );
-
-            // 정렬
-            result1.sort((a, b) => {
-                if (b.lowerRatio !== a.lowerRatio) return b.lowerRatio - a.lowerRatio;
-                return b.prev.lowerWick - a.prev.lowerWick;
-            });
-
-            result2.sort((a, b) => {
-                if (b.upperRatio !== a.upperRatio) return b.upperRatio - a.upperRatio;
-                return b.prev.upperWick - a.prev.upperWick;
-            });
-
-            renderTables(result1, result2);
-            setTimeNow();
-
-            if (stopFlag) {
-                txtStatus.innerHTML = `<span class="warn">중지됨</span> | 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
-            } else {
-                txtStatus.innerHTML = `<span class="ok">완료</span> | 결과: <span class="ok">결과1 ${result1.length}</span>, <span class="ok">결과2 ${result2.length}</span>`;
+            } catch (e) {
+                console.error(e);
+                txtStatus.innerHTML = `<span class="bad">오류:</span> <span class="mono">${String(e && e.message ? e.message : e)}</span>`;
+            } finally {
+                isScanning = false;
+                btnScan.disabled = false;
+                btnStop.disabled = true;
             }
-
-            btnScan.disabled = false;
-            btnStop.disabled = true;
         }
 
         btnScan.addEventListener("click", () => {
-            scan().catch((e) => {
-                console.error(e);
-                txtStatus.innerHTML = `<span class="bad">오류:</span> <span class="mono">${String(e && e.message ? e.message : e)}</span>`;
-                btnScan.disabled = false;
-                btnStop.disabled = true;
-            });
+            scan("manual").catch((e) => console.error(e));
         });
 
         btnStop.addEventListener("click", () => {
@@ -578,6 +673,53 @@
             btnStop.disabled = true;
             txtStatus.innerHTML = `<span class="warn">중지 요청됨...</span>`;
         });
+
+        // =========================
+        // ✅ 자동 스캔: 매시 00/15/30/45
+        // =========================
+        function getNextQuarterHour(now = new Date()) {
+            const d = new Date(now);
+            d.setSeconds(0, 0);
+
+            const m = d.getMinutes();
+            const nextM = m < 15 ? 15 : m < 30 ? 30 : m < 45 ? 45 : 60;
+
+            if (nextM === 60) {
+                d.setHours(d.getHours() + 1);
+                d.setMinutes(0);
+            } else {
+                d.setMinutes(nextM);
+            }
+            return d;
+        }
+
+        let autoTimer = null;
+
+        function scheduleAutoScan() {
+            if (autoTimer) clearTimeout(autoTimer);
+
+            const now = new Date();
+            const next = getNextQuarterHour(now);
+            setNextAutoLabel(next);
+
+            const waitMs = Math.max(0, next.getTime() - now.getTime());
+
+            autoTimer = setTimeout(async () => {
+                // 스캔 중이면 이번 턴은 스킵하고 다음 스케줄로
+                if (!isScanning) {
+                    await scan("auto@00/15/30/45");
+                } else {
+                    txtStatus.innerHTML = `<span class="warn">자동 스캔 스킵</span> (이미 스캔 중)`;
+                }
+                scheduleAutoScan();
+            }, waitMs);
+        }
+
+        // 페이지 로드 직후: 다음 자동 시간 표시 + 스케줄링
+        scheduleAutoScan();
+
+        // (선택) 페이지 처음 열었을 때 바로 한번 돌리고 싶으면 아래 주석 해제
+        // scan("auto@initial").catch(console.error);
     </script>
 </body>
 </html>
