@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Binance USDT Perp 4H - 5캔들(2-1-2) 스윙(3봉전) 스캐너</title>
+    <style>
+        :root {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+        }
+        body {
+            margin: 20px;
+            background: #0b0f14;
+            color: #e6edf3;
+        }
+        .panel {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            max-width: 1100px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .row > label {
+            display: grid;
+            gap: 6px;
+            font-size: 12px;
+            opacity: 0.95;
+        }
+        input, button, select {
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.04);
+            color: #e6edf3;
+            outline: none;
+        }
+        button {
+            cursor: pointer;
+            font-weight: 700;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.04);
+        }
+        .ok {
+            border-color: rgba(0, 255, 171, 0.35);
+        }
+        .warn {
+            border-color: rgba(255, 183, 77, 0.35);
+        }
+        .err {
+            border-color: rgba(255, 77, 110, 0.45);
+        }
+        .muted {
+            opacity: 0.7;
+            font-size: 12px;
+        }
+        .progress {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 16px;
+            max-width: 1400px;
+        }
+        th, td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 13px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: rgba(255,255,255,0.05);
+            position: sticky;
+            top: 0;
+        }
+        tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+        a {
+            color: #77b7ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .log {
+            white-space: pre-wrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+            opacity: 0.85;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            max-width: 1400px;
+            margin-top: 16px;
+        }
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.16);
+            font-size: 12px;
+        }
+        .pillH { border-color: rgba(255, 110, 140, 0.55); }
+        .pillL { border-color: rgba(0, 255, 171, 0.45); }
+        .pillB { border-color: rgba(255, 210, 120, 0.55); }
+    </style>
+</head>
+<body>
+    <h1 style="margin: 0 0 12px 0; font-size: 18px;">
+        Binance USDT Perp 4H - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔
+    </h1>
+
+    <div class="panel">
+        <div class="row">
+            <label>
+                동시 요청 수 (concurrency)
+                <input id="concurrency" type="number" min="1" max="25" value="8" />
+            </label>
+
+            <label>
+                최대 심볼 수 (0=전체)
+                <input id="maxSymbols" type="number" min="0" max="2000" value="0" />
+            </label>
+
+            <label>
+                타입 필터
+                <select id="typeFilter">
+                    <option value="ALL" selected>전체(H/L/BOTH)</option>
+                    <option value="H">스윙고점(H)</option>
+                    <option value="L">스윙저점(L)</option>
+                    <option value="BOTH">둘다(BOTH)</option>
+                </select>
+            </label>
+
+            <label>
+                정렬 기준(최근 5개 합)
+                <select id="sortMode">
+                    <option value="QUOTE" selected>거래대금(USDT) 합 (quoteVolume)</option>
+                    <option value="BASE">거래량 합 (baseVolume)</option>
+                </select>
+            </label>
+
+            <label>
+                최소 거래대금(USDT) 합 (0=미사용)
+                <input id="minQuoteSum" type="number" min="0" step="0.01" value="0" />
+            </label>
+
+            <label>
+                최소 거래량 합 (0=미사용)
+                <input id="minBaseSum" type="number" min="0" step="0.0001" value="0" />
+            </label>
+        </div>
+
+        <div class="actions">
+            <button id="startBtn">스캔 시작</button>
+            <button id="stopBtn" disabled>중지</button>
+            <span id="status" class="badge muted">대기</span>
+            <span id="progress" class="progress"></span>
+            <span class="muted">※ 4H 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
+        </div>
+
+        <div class="muted">
+            스윙 판정(확정): 최근 5개 닫힌 캔들 중 가운데(3봉전)의 high가 나머지 4개 high보다 크면 H, low가 나머지 4개 low보다 작으면 L.
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 140px;">Symbol</th>
+                <th style="width: 110px;">Type</th>
+                <th style="width: 200px;">Pivot Time (3봉전)</th>
+                <th style="width: 140px;">Pivot Price</th>
+                <th style="width: 160px;">Σ QuoteVol (USDT)</th>
+                <th style="width: 160px;">Σ BaseVol</th>
+                <th style="width: 140px;">Last Close</th>
+                <th>Links</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+
+    <div id="log" class="log"></div>
+
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+        const INTERVAL = "4h";
+
+        const $ = (id) => document.getElementById(id);
+
+        const state = {
+            running: false,
+            aborter: null
+        };
+
+        function setStatus(text, kind = "muted") {
+            const el = $("status");
+            el.textContent = text;
+            el.className = `badge ${kind}`;
+        }
+
+        function logLine(msg) {
+            const el = $("log");
+            el.textContent = `${msg}\n${el.textContent}`.slice(0, 24000);
+        }
+
+        function fmtTime(ms) {
+            try {
+                return new Date(ms).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+            } catch {
+                return new Date(ms).toISOString();
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async function fetchJson(url, signal, retry = 4) {
+            for (let attempt = 0; attempt <= retry; attempt++) {
+                const res = await fetch(url, { signal });
+
+                if (res.status === 429 || res.status === 418) {
+                    const wait = Math.min(2000 * (attempt + 1), 12000);
+                    logLine(`[429/418] 백오프 ${wait}ms : ${url}`);
+                    await sleep(wait);
+                    continue;
+                }
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    if (attempt < retry) {
+                        const wait = Math.min(600 * (attempt + 1), 4000);
+                        logLine(`[HTTP ${res.status}] 재시도 ${attempt + 1}/${retry} (${wait}ms) : ${text.slice(0, 140)}`);
+                        await sleep(wait);
+                        continue;
+                    }
+                    throw new Error(`HTTP ${res.status} ${text}`);
+                }
+
+                return await res.json();
+            }
+
+            throw new Error("fetchJson retry exceeded");
+        }
+
+        async function getUsdtPerpSymbols(signal) {
+            const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+            const data = await fetchJson(url, signal);
+
+            return (data?.symbols || [])
+                .filter((s) => s?.status === "TRADING")
+                .filter((s) => s?.contractType === "PERPETUAL")
+                .filter((s) => s?.quoteAsset === "USDT")
+                .map((s) => s.symbol);
+        }
+
+        async function getKlines6(symbol, signal) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${INTERVAL}&limit=6`;
+            const raw = await fetchJson(url, signal);
+            const now = Date.now();
+
+            return raw.map((k) => ({
+                openTime: Number(k[0]),
+                open: Number(k[1]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+                baseVol: Number(k[5]),
+                closeTime: Number(k[6]),
+                quoteVol: Number(k[7]),
+                isClosed: Number(k[6]) <= now
+            }));
+        }
+
+        function sum(values) {
+            let s = 0;
+            for (const v of values) {
+                s += v;
+            }
+            return s;
+        }
+
+        function swingTypeFrom5(closed5) {
+            // closed5: 가장 최근 5개 "닫힌" 캔들 (오래된 -> 최신 순)
+            // 가운데 = index 2 => 3봉전(현재봉 제외, 최근 닫힌 5개 기준)
+            const c = closed5[2];
+
+            const otherHighs = [closed5[0].high, closed5[1].high, closed5[3].high, closed5[4].high];
+            const otherLows = [closed5[0].low, closed5[1].low, closed5[3].low, closed5[4].low];
+
+            const isH = c.high > Math.max(...otherHighs);
+            const isL = c.low < Math.min(...otherLows);
+
+            if (isH && isL) return { type: "BOTH", pivot: c, pivotPrice: c.high }; // BOTH면 가격은 일단 high로 표시
+            if (isH) return { type: "H", pivot: c, pivotPrice: c.high };
+            if (isL) return { type: "L", pivot: c, pivotPrice: c.low };
+
+            return { type: "NONE", pivot: c, pivotPrice: null };
+        }
+
+        function typePill(type) {
+            if (type === "H") return `<span class="pill pillH">H</span>`;
+            if (type === "L") return `<span class="pill pillL">L</span>`;
+            if (type === "BOTH") return `<span class="pill pillB">BOTH</span>`;
+            return `<span class="pill">-</span>`;
+        }
+
+        function toRow(item) {
+            const chartUrl = `https://www.binance.com/en/futures/${encodeURIComponent(item.symbol)}`;
+            const tvUrl = `https://www.tradingview.com/symbols/${encodeURIComponent(item.symbol)}/`;
+
+            return `
+                <tr>
+                    <td><strong>${item.symbol}</strong></td>
+                    <td>${typePill(item.type)}</td>
+                    <td>${fmtTime(item.pivotTime)}</td>
+                    <td>${item.pivotPrice}</td>
+                    <td>${item.quoteSum.toFixed(2)}</td>
+                    <td>${item.baseSum.toFixed(6)}</td>
+                    <td>${item.lastClose}</td>
+                    <td>
+                        <a href="${chartUrl}" target="_blank" rel="noopener">Binance</a>
+                        &nbsp;|&nbsp;
+                        <a href="${tvUrl}" target="_blank" rel="noopener">TV</a>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function runPool(items, worker, concurrency, onProgress) {
+            const results = [];
+            let idx = 0;
+
+            const runners = Array.from({ length: concurrency }, async () => {
+                while (idx < items.length) {
+                    const current = items[idx++];
+                    const res = await worker(current);
+                    if (res !== null && res !== undefined) {
+                        results.push(res);
+                    }
+                    if (onProgress) onProgress(idx, items.length);
+                }
+            });
+
+            await Promise.all(runners);
+            return results;
+        }
+
+        function clearUI() {
+            $("tbody").innerHTML = "";
+            $("log").textContent = "";
+            $("progress").textContent = "";
+        }
+
+        $("startBtn").addEventListener("click", async () => {
+            if (state.running) return;
+
+            clearUI();
+
+            const concurrency = Math.max(1, Math.min(25, Number($("concurrency").value) || 8));
+            const maxSymbols = Math.max(0, Number($("maxSymbols").value) || 0);
+            const typeFilter = String($("typeFilter").value || "ALL");
+            const sortMode = String($("sortMode").value || "QUOTE");
+            const minQuoteSum = Math.max(0, Number($("minQuoteSum").value) || 0);
+            const minBaseSum = Math.max(0, Number($("minBaseSum").value) || 0);
+
+            const aborter = new AbortController();
+            state.aborter = aborter;
+            state.running = true;
+
+            $("startBtn").disabled = true;
+            $("stopBtn").disabled = false;
+
+            try {
+                setStatus("심볼 로딩", "warn");
+                logLine(`[start] interval=${INTERVAL}, mode=5-1-2(3봉전 확정), concurrency=${concurrency}`);
+
+                let symbols = await getUsdtPerpSymbols(aborter.signal);
+                logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
+
+                if (maxSymbols > 0) {
+                    symbols = symbols.slice(0, maxSymbols);
+                    logLine(`[symbols] capped to ${symbols.length}`);
+                }
+
+                $("progress").textContent = `0 / ${symbols.length}`;
+                setStatus("스캔중", "warn");
+
+                const worker = async (symbol) => {
+                    if (aborter.signal.aborted) return null;
+
+                    try {
+                        const kl6 = await getKlines6(symbol, aborter.signal);
+
+                        // 닫힌 캔들만 추출
+                        const closed = kl6.filter((k) => k.isClosed);
+                        if (closed.length < 5) return null;
+
+                        // 가장 최근 5개 "닫힌" 캔들 (오래된 -> 최신)
+                        const closed5 = closed.slice(-5);
+
+                        const swing = swingTypeFrom5(closed5);
+                        if (swing.type === "NONE") return null;
+
+                        if (typeFilter !== "ALL" && swing.type !== typeFilter) return null;
+
+                        const quoteSum = sum(closed5.map((k) => k.quoteVol));
+                        const baseSum = sum(closed5.map((k) => k.baseVol));
+
+                        if (minQuoteSum > 0 && quoteSum < minQuoteSum) return null;
+                        if (minBaseSum > 0 && baseSum < minBaseSum) return null;
+
+                        const lastClose = closed5[4].close;
+
+                        return {
+                            symbol,
+                            type: swing.type,
+                            pivotTime: swing.pivot.openTime,
+                            pivotPrice: String(swing.pivotPrice),
+                            quoteSum,
+                            baseSum,
+                            lastClose: String(lastClose)
+                        };
+                    } catch (err) {
+                        logLine(`[err] ${symbol} : ${String(err?.message || err).slice(0, 180)}`);
+                        return null;
+                    }
+                };
+
+                const results = await runPool(
+                    symbols,
+                    worker,
+                    concurrency,
+                    (done, total) => {
+                        $("progress").textContent = `${done} / ${total}`;
+                    }
+                );
+
+                // 정렬: 최근 5개 거래량/거래대금 합 내림차순
+                results.sort((a, b) => {
+                    if (sortMode === "BASE") return b.baseSum - a.baseSum;
+                    return b.quoteSum - a.quoteSum;
+                });
+
+                $("tbody").innerHTML = results.map(toRow).join("") || `<tr><td colspan="8" class="muted">결과 없음</td></tr>`;
+
+                setStatus("완료", "ok");
+                logLine(`[done] results=${results.length}`);
+            } catch (err) {
+                setStatus("실패", "err");
+                logLine(`[fatal] ${String(err?.message || err)}`);
+            } finally {
+                state.running = false;
+                state.aborter = null;
+                $("startBtn").disabled = false;
+                $("stopBtn").disabled = true;
+            }
+        });
+
+        $("stopBtn").addEventListener("click", () => {
+            if (state.aborter) {
+                state.aborter.abort();
+                setStatus("중지됨", "err");
+                logLine("[stop] aborted by user");
+            }
+        });
+    </script>
+</body>
+</html>
