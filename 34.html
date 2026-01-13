@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Binance USDT Perp 4H - 5캔들(2-1-2) 스윙(3봉전) 스캐너</title>
+    <title>Binance USDT Perp 4H - 5캔들(2-1-2) 스윙(3봉전) 스캐너 (조건 토글)</title>
     <style>
         :root {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
@@ -20,11 +20,11 @@
             border: 1px solid rgba(255,255,255,0.12);
             border-radius: 12px;
             background: rgba(255,255,255,0.03);
-            max-width: 1100px;
+            max-width: 1200px;
         }
         .row {
             display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: 10px;
         }
         .row > label {
@@ -87,7 +87,7 @@
             border-radius: 12px;
             overflow: hidden;
             margin-top: 16px;
-            max-width: 1400px;
+            max-width: 1600px;
         }
         th, td {
             padding: 10px 12px;
@@ -120,7 +120,7 @@
             border-radius: 12px;
             padding: 12px;
             background: rgba(255,255,255,0.03);
-            max-width: 1400px;
+            max-width: 1600px;
             margin-top: 16px;
         }
         .pill {
@@ -137,11 +137,20 @@
 </head>
 <body>
     <h1 style="margin: 0 0 12px 0; font-size: 18px;">
-        Binance USDT Perp 4H - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔
+        Binance USDT Perp 4H - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔 (조건 토글)
     </h1>
 
     <div class="panel">
         <div class="row">
+            <label>
+                스윙 판정 방식
+                <select id="swingMode">
+                    <option value="PIVOT" selected>기존(피벗): 가운데가 최고/최저</option>
+                    <option value="MONO">계단형(단조): ↑↑ 후 ↓↓ / ↓↓ 후 ↑↑</option>
+                    <option value="BOTH">기존+계단형(AND): 둘 다 만족</option>
+                </select>
+            </label>
+
             <label>
                 동시 요청 수 (concurrency)
                 <input id="concurrency" type="number" min="1" max="25" value="8" />
@@ -189,9 +198,7 @@
             <span class="muted">※ 4H 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
         </div>
 
-        <div class="muted">
-            스윙 판정(확정): 최근 5개 닫힌 캔들 중 가운데(3봉전)의 high가 나머지 4개 high보다 크면 H, low가 나머지 4개 low보다 작으면 L.
-        </div>
+        <div id="desc" class="muted"></div>
     </div>
 
     <table>
@@ -199,10 +206,10 @@
             <tr>
                 <th style="width: 140px;">Symbol</th>
                 <th style="width: 110px;">Type</th>
-                <th style="width: 200px;">Pivot Time (3봉전)</th>
-                <th style="width: 140px;">Pivot Price</th>
-                <th style="width: 160px;">Σ QuoteVol (USDT)</th>
-                <th style="width: 160px;">Σ BaseVol</th>
+                <th style="width: 220px;">Pivot Time (3봉전)</th>
+                <th style="width: 200px;">Pivot Price</th>
+                <th style="width: 170px;">Σ QuoteVol (USDT)</th>
+                <th style="width: 170px;">Σ BaseVol</th>
                 <th style="width: 140px;">Last Close</th>
                 <th>Links</th>
             </tr>
@@ -231,7 +238,34 @@
 
         function logLine(msg) {
             const el = $("log");
-            el.textContent = `${msg}\n${el.textContent}`.slice(0, 24000);
+            el.textContent = `${msg}\n${el.textContent}`.slice(0, 28000);
+        }
+
+        function setDesc(mode) {
+            const el = $("desc");
+            if (mode === "MONO") {
+                el.innerHTML = [
+                    "계단형(단조) 스윙 판정:",
+                    "스윙고점(H): (b[-5].H) < (b[-4].H) < (b[-3].H) && (b[-3].H) > (b[-2].H) > (b[-1].H)",
+                    "스윙저점(L): (b[-5].L) > (b[-4].L) > (b[-3].L) && (b[-3].L) < (b[-2].L) < (b[-1].L)"
+                ].join("<br />");
+                return;
+            }
+
+            if (mode === "BOTH") {
+                el.innerHTML = [
+                    "기존(피벗) + 계단형(단조) 모두 만족(AND)일 때만 통과.",
+                    "기존(피벗): 5개 중 가운데(b[-3])가 나머지 4개보다 high가 크면 H, low가 작으면 L.",
+                    "계단형(단조): H는 ↑↑ 후 ↓↓, L은 ↓↓ 후 ↑↑ (위 식 참고)."
+                ].join("<br />");
+                return;
+            }
+
+            el.innerHTML = [
+                "기존(피벗) 스윙 판정:",
+                "스윙고점(H): b[-3].high > max(b[-5], b[-4], b[-2], b[-1] high)",
+                "스윙저점(L): b[-3].low < min(b[-5], b[-4], b[-2], b[-1] low)"
+            ].join("<br />");
         }
 
         function fmtTime(ms) {
@@ -261,7 +295,7 @@
                     const text = await res.text().catch(() => "");
                     if (attempt < retry) {
                         const wait = Math.min(600 * (attempt + 1), 4000);
-                        logLine(`[HTTP ${res.status}] 재시도 ${attempt + 1}/${retry} (${wait}ms) : ${text.slice(0, 140)}`);
+                        logLine(`[HTTP ${res.status}] 재시도 ${attempt + 1}/${retry} (${wait}ms) : ${text.slice(0, 160)}`);
                         await sleep(wait);
                         continue;
                     }
@@ -311,22 +345,82 @@
             return s;
         }
 
-        function swingTypeFrom5(closed5) {
-            // closed5: 가장 최근 5개 "닫힌" 캔들 (오래된 -> 최신 순)
-            // 가운데 = index 2 => 3봉전(현재봉 제외, 최근 닫힌 5개 기준)
-            const c = closed5[2];
+        function swingPivotTypeFrom5(b0, b1, b2, b3, b4) {
+            const otherHighMax = Math.max(b0.high, b1.high, b3.high, b4.high);
+            const otherLowMin = Math.min(b0.low, b1.low, b3.low, b4.low);
 
-            const otherHighs = [closed5[0].high, closed5[1].high, closed5[3].high, closed5[4].high];
-            const otherLows = [closed5[0].low, closed5[1].low, closed5[3].low, closed5[4].low];
+            const isH = b2.high > otherHighMax;
+            const isL = b2.low < otherLowMin;
 
-            const isH = c.high > Math.max(...otherHighs);
-            const isL = c.low < Math.min(...otherLows);
+            return { isH, isL };
+        }
 
-            if (isH && isL) return { type: "BOTH", pivot: c, pivotPrice: c.high }; // BOTH면 가격은 일단 high로 표시
-            if (isH) return { type: "H", pivot: c, pivotPrice: c.high };
-            if (isL) return { type: "L", pivot: c, pivotPrice: c.low };
+        function swingMonotonicTypeFrom5(b0, b1, b2, b3, b4) {
+            const isH = (b0.high < b1.high) &&
+                        (b1.high < b2.high) &&
+                        (b2.high > b3.high) &&
+                        (b3.high > b4.high);
 
-            return { type: "NONE", pivot: c, pivotPrice: null };
+            const isL = (b0.low > b1.low) &&
+                        (b1.low > b2.low) &&
+                        (b2.low < b3.low) &&
+                        (b3.low < b4.low);
+
+            return { isH, isL };
+        }
+
+        function decideSwingFrom5(closed5, mode) {
+            // closed5: 오래된 -> 최신 (현재봉 제외, 닫힌 5개)
+            // b2 = 가운데 = 3봉전 확정 대상
+            const b0 = closed5[0];
+            const b1 = closed5[1];
+            const b2 = closed5[2];
+            const b3 = closed5[3];
+            const b4 = closed5[4];
+
+            const pivot = swingPivotTypeFrom5(b0, b1, b2, b3, b4);
+            const mono = swingMonotonicTypeFrom5(b0, b1, b2, b3, b4);
+
+            let isH = false;
+            let isL = false;
+
+            if (mode === "MONO") {
+                isH = mono.isH;
+                isL = mono.isL;
+            } else if (mode === "BOTH") {
+                isH = pivot.isH && mono.isH;
+                isL = pivot.isL && mono.isL;
+            } else {
+                // PIVOT
+                isH = pivot.isH;
+                isL = pivot.isL;
+            }
+
+            if (!isH && !isL) {
+                return { type: "NONE", pivot: b2, pivotPriceDisplay: "-" };
+            }
+
+            if (isH && isL) {
+                return {
+                    type: "BOTH",
+                    pivot: b2,
+                    pivotPriceDisplay: `H:${b2.high} / L:${b2.low}`
+                };
+            }
+
+            if (isH) {
+                return {
+                    type: "H",
+                    pivot: b2,
+                    pivotPriceDisplay: String(b2.high)
+                };
+            }
+
+            return {
+                type: "L",
+                pivot: b2,
+                pivotPriceDisplay: String(b2.low)
+            };
         }
 
         function typePill(type) {
@@ -345,7 +439,7 @@
                     <td><strong>${item.symbol}</strong></td>
                     <td>${typePill(item.type)}</td>
                     <td>${fmtTime(item.pivotTime)}</td>
-                    <td>${item.pivotPrice}</td>
+                    <td>${item.pivotPriceDisplay}</td>
                     <td>${item.quoteSum.toFixed(2)}</td>
                     <td>${item.baseSum.toFixed(6)}</td>
                     <td>${item.lastClose}</td>
@@ -383,11 +477,19 @@
             $("progress").textContent = "";
         }
 
+        $("swingMode").addEventListener("change", (e) => {
+            const mode = String(e.target.value || "PIVOT");
+            setDesc(mode);
+        });
+
+        setDesc(String($("swingMode").value || "PIVOT"));
+
         $("startBtn").addEventListener("click", async () => {
             if (state.running) return;
 
             clearUI();
 
+            const swingMode = String($("swingMode").value || "PIVOT");
             const concurrency = Math.max(1, Math.min(25, Number($("concurrency").value) || 8));
             const maxSymbols = Math.max(0, Number($("maxSymbols").value) || 0);
             const typeFilter = String($("typeFilter").value || "ALL");
@@ -404,10 +506,10 @@
 
             try {
                 setStatus("심볼 로딩", "warn");
-                logLine(`[start] interval=${INTERVAL}, mode=5-1-2(3봉전 확정), concurrency=${concurrency}`);
+                logLine(`[start] interval=${INTERVAL}, closed5 중심(b[-3]) 스윙확정, mode=${swingMode}, concurrency=${concurrency}`);
 
                 let symbols = await getUsdtPerpSymbols(aborter.signal);
-                logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
+                logLinesCOMTECTED_symbols: ${symbols.length}`);
 
                 if (maxSymbols > 0) {
                     symbols = symbols.slice(0, maxSymbols);
@@ -423,14 +525,13 @@
                     try {
                         const kl6 = await getKlines6(symbol, aborter.signal);
 
-                        // 닫힌 캔들만 추출
+                        // 닫힌 캔들만(현재봉 제외를 위해)
                         const closed = kl6.filter((k) => k.isClosed);
                         if (closed.length < 5) return null;
 
-                        // 가장 최근 5개 "닫힌" 캔들 (오래된 -> 최신)
-                        const closed5 = closed.slice(-5);
+                        const closed5 = closed.slice(-5); // 오래된 -> 최신
 
-                        const swing = swingTypeFrom5(closed5);
+                        const swing = decideSwingFrom5(closed5, swingMode);
                         if (swing.type === "NONE") return null;
 
                         if (typeFilter !== "ALL" && swing.type !== typeFilter) return null;
@@ -447,13 +548,13 @@
                             symbol,
                             type: swing.type,
                             pivotTime: swing.pivot.openTime,
-                            pivotPrice: String(swing.pivotPrice),
+                            pivotPriceDisplay: swing.pivotPriceDisplay,
                             quoteSum,
                             baseSum,
                             lastClose: String(lastClose)
                         };
                     } catch (err) {
-                        logLine(`[err] ${symbol} : ${String(err?.message || err).slice(0, 180)}`);
+                        logLine(`[err] ${symbol} : ${String(err?.message || err).slice(0, 200)}`);
                         return null;
                     }
                 };
@@ -467,7 +568,6 @@
                     }
                 );
 
-                // 정렬: 최근 5개 거래량/거래대금 합 내림차순
                 results.sort((a, b) => {
                     if (sortMode === "BASE") return b.baseSum - a.baseSum;
                     return b.quoteSum - a.quoteSum;
