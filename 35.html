@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Binance USDT Perp - 멀티TF 컨펌 스윙 스캐너</title>
+    <style>
+        :root {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+        }
+        body {
+            margin: 20px;
+            background: #0b0f14;
+            color: #e6edf3;
+        }
+        .panel {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            max-width: 1200px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .row > label {
+            display: grid;
+            gap: 6px;
+            font-size: 12px;
+            opacity: 0.95;
+        }
+        input, button, select {
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.04);
+            color: #e6edf3;
+            outline: none;
+        }
+        button {
+            cursor: pointer;
+            font-weight: 700;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.04);
+        }
+        .ok {
+            border-color: rgba(0, 255, 171, 0.35);
+        }
+        .warn {
+            border-color: rgba(255, 183, 77, 0.35);
+        }
+        .err {
+            border-color: rgba(255, 77, 110, 0.45);
+        }
+        .muted {
+            opacity: 0.7;
+            font-size: 12px;
+        }
+        .progress {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 16px;
+            max-width: 1600px;
+        }
+        th, td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 13px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: rgba(255,255,255,0.05);
+            position: sticky;
+            top: 0;
+        }
+        tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+        a {
+            color: #77b7ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .log {
+            white-space: pre-wrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+            opacity: 0.85;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            max-width: 1600px;
+            margin-top: 16px;
+        }
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.16);
+            font-size: 12px;
+        }
+        .pillH {
+            border-color: rgba(255, 110, 140, 0.55);
+        }
+        .pillL {
+            border-color: rgba(0, 255, 171, 0.45);
+        }
+        .pillB {
+            border-color: rgba(255, 210, 120, 0.55);
+        }
+        code.inline {
+            padding: 1px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.04);
+        }
+    </style>
+</head>
+<body>
+    <h1 id="pageTitle" style="margin: 0 0 12px 0; font-size: 18px;">
+        Binance USDT Perp - 멀티TF 컨펌 스윙 스캐너
+    </h1>
+
+    <div class="panel">
+        <div class="row">
+            <label>
+                Interval (최종 스캔)
+                <select id="interval">
+                    <option value="15m">15m (1d+4h+1h+15m)</option>
+                    <option value="1h">1h (1d+4h+1h)</option>
+                    <option value="4h" selected>4h (1d+4h)</option>
+                    <option value="1d">1d (1d만)</option>
+                </select>
+            </label>
+
+            <label>
+                스윙 판정 방식
+                <select id="swingMode">
+                    <option value="PIVOT" selected>기존(피벗): 가운데가 최고/최저</option>
+                    <option value="MONO">계단형(단조): ↑↑ 후 ↓↓ / ↓↓ 후 ↑↑</option>
+                    <option value="BOTH">기존+계단형(AND): 둘 다 만족</option>
+                </select>
+            </label>
+
+            <label>
+                동시 요청 수 (concurrency)
+                <input id="concurrency" type="number" min="1" max="25" value="8" />
+            </label>
+
+            <label>
+                최대 심볼 수 (0=전체)
+                <input id="maxSymbols" type="number" min="0" max="2000" value="0" />
+            </label>
+
+            <label>
+                타입 필터
+                <select id="typeFilter">
+                    <option value="ALL" selected>전체(H/L/BOTH)</option>
+                    <option value="H">스윙고점(H)</option>
+                    <option value="L">스윙저점(L)</option>
+                    <option value="BOTH">둘다(BOTH)</option>
+                </select>
+            </label>
+
+            <label>
+                정렬 기준(최종 interval 최근 5개 합)
+                <select id="sortMode">
+                    <option value="QUOTE" selected>거래대금(USDT) 합 (quoteVolume)</option>
+                    <option value="BASE">거래량 합 (baseVolume)</option>
+                </select>
+            </label>
+
+            <label>
+                최소 거래대금(USDT) 합 (0=미사용)
+                <input id="minQuoteSum" type="number" min="0" step="0.01" value="0" />
+            </label>
+
+            <label>
+                최소 거래량 합 (0=미사용)
+                <input id="minBaseSum" type="number" min="0" step="0.0001" value="0" />
+            </label>
+        </div>
+
+        <div class="actions">
+            <button id="startBtn">스캔 시작</button>
+            <button id="stopBtn" disabled>중지</button>
+            <span id="status" class="badge muted">대기</span>
+            <span id="progress" class="progress"></span>
+            <span class="muted">※ 각 interval마다 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
+        </div>
+
+        <div id="desc" class="muted"></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 110px;">Final TF</th>
+                <th style="width: 140px;">Symbol</th>
+                <th style="width: 110px;">Type</th>
+                <th style="width: 220px;">Pivot Time (3봉전)</th>
+                <th style="width: 220px;">Pivot Price</th>
+                <th style="width: 190px;">Chain (1D→…)</th>
+                <th style="width: 170px;">Σ QuoteVol</th>
+                <th style="width: 170px;">Σ BaseVol</th>
+                <th style="width: 140px;">Last Close</th>
+                <th>Links</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+
+    <div id="log" class="log"></div>
+
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+
+        const state = {
+            running: false,
+            aborter: null
+        };
+
+        function el(id) {
+            return document.getElementById(id);
+        }
+
+        function setStatus(text, kind) {
+            const badge = el("status");
+            badge.textContent = text;
+            badge.className = `badge ${kind || "muted"}`;
+        }
+
+        function logLine(msg) {
+            const log = el("log");
+            log.textContent = `${msg}\n${log.textContent}`.slice(0, 28000);
+        }
+
+        function fmtTime(ms) {
+            try {
+                return new Date(ms).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+            } catch {
+                return new Date(ms).toISOString();
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        function readNumber(id, min, max, fallback) {
+            const v = Number(el(id).value);
+            if (!Number.isFinite(v)) return fallback;
+            return Math.max(min, Math.min(max, v));
+        }
+
+        function readString(id, fallback) {
+            const v = String(el(id).value || "").trim();
+            return v || fallback;
+        }
+
+        function sum(values) {
+            let s = 0;
+            for (const v of values) {
+                s += v;
+            }
+            return s;
+        }
+
+        function getIntervalChain(finalInterval) {
+            if (finalInterval === "1d") return ["1d"];
+            if (finalInterval === "4h") return ["1d", "4h"];
+            if (finalInterval === "1h") return ["1d", "4h", "1h"];
+            return ["1d", "4h", "1h", "15m"]; // 15m
+        }
+
+        function updateTitleAndDesc() {
+            const interval = readString("interval", "4h");
+            const chain = getIntervalChain(interval);
+
+            const title = `Binance USDT Perp - 멀티TF 컨펌 스윙 스캐너 (Final: ${interval.toUpperCase()})`;
+            el("pageTitle").textContent = title;
+            document.title = title;
+
+            const desc = el("desc");
+            desc.innerHTML = [
+                `멀티TF 컨펌: <code class="inline">${chain.map((x) => x.toUpperCase()).join(" → ")}</code> 순서로 검사`,
+                `- 최상위(1D)에서 스윙 타입(H/L/BOTH)이 먼저 나와야 하며`,
+                `- 아래 TF로 내려갈수록 <b>상위 TF들과 동일 타입</b>을 전부 만족해야 최종 TF 결과로 출력됩니다.`
+            ].join("<br />");
+        }
+
+        async function fetchJson(url, signal, retry) {
+            const maxRetry = Number.isFinite(retry) ? retry : 4;
+
+            for (let attempt = 0; attempt <= maxRetry; attempt++) {
+                const res = await fetch(url, { signal });
+
+                if (res.status === 429 || res.status === 418) {
+                    const wait = Math.min(2000 * (attempt + 1), 12000);
+                    logLine(`[rate] ${res.status} 백오프 ${wait}ms: ${url}`);
+                    await sleep(wait);
+                    continue;
+                }
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    if (attempt < maxRetry) {
+                        const wait = Math.min(600 * (attempt + 1), 4000);
+                        logLine(`[http] ${res.status} 재시도 ${attempt + 1}/${maxRetry} (${wait}ms): ${text.slice(0, 160)}`);
+                        await sleep(wait);
+                        continue;
+                    }
+                    throw new Error(`HTTP ${res.status} ${text}`);
+                }
+
+                return await res.json();
+            }
+
+            throw new Error("fetchJson retry exceeded");
+        }
+
+        async function getUsdtPerpSymbols(signal) {
+            const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+            const data = await fetchJson(url, signal, 4);
+
+            return (data?.symbols || [])
+                .filter((s) => s?.status === "TRADING")
+                .filter((s) => s?.contractType === "PERPETUAL")
+                .filter((s) => s?.quoteAsset === "USDT")
+                .map((s) => s.symbol);
+        }
+
+        async function getKlines6(symbol, interval, signal) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=6`;
+            const raw = await fetchJson(url, signal, 4);
+
+            return raw.map((k) => ({
+                openTime: Number(k[0]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+                baseVol: Number(k[5]),
+                closeTime: Number(k[6]),
+                quoteVol: Number(k[7])
+            }));
+        }
+
+        function swingPivotType(b0, b1, b2, b3, b4) {
+            const otherHighMax = Math.max(b0.high, b1.high, b3.high, b4.high);
+            const otherLowMin = Math.min(b0.low, b1.low, b3.low, b4.low);
+
+            const isH = b2.high > otherHighMax;
+            const isL = b2.low < otherLowMin;
+
+            return { isH, isL };
+        }
+
+        function swingMonotonicType(b0, b1, b2, b3, b4) {
+            const isH = (b0.high < b1.high) &&
+                        (b1.high < b2.high) &&
+                        (b2.high > b3.high) &&
+                        (b3.high > b4.high);
+
+            const isL = (b0.low > b1.low) &&
+                        (b1.low > b2.low) &&
+                        (b2.low < b3.low) &&
+                        (b3.low < b4.low);
+
+            return { isH, isL };
+        }
+
+        function decideSwing(closed5, mode) {
+            const b0 = closed5[0];
+            const b1 = closed5[1];
+            const b2 = closed5[2]; // 3봉전(확정)
+            const b3 = closed5[3];
+            const b4 = closed5[4];
+
+            const pivot = swingPivotType(b0, b1, b2, b3, b4);
+            const mono = swingMonotonicType(b0, b1, b2, b3, b4);
+
+            let isH = false;
+            let isL = false;
+
+            if (mode === "MONO") {
+                isH = mono.isH;
+                isL = mono.isL;
+            } else if (mode === "BOTH") {
+                isH = pivot.isH && mono.isH;
+                isL = pivot.isL && mono.isL;
+            } else {
+                isH = pivot.isH;
+                isL = pivot.isL;
+            }
+
+            if (!isH && !isL) {
+                return { type: "NONE", pivot: b2, pivotPriceDisplay: "-" };
+            }
+
+            if (isH && isL) {
+                return {
+                    type: "BOTH",
+                    pivot: b2,
+                    pivotPriceDisplay: `H:${b2.high} / L:${b2.low}`
+                };
+            }
+
+            if (isH) {
+                return { type: "H", pivot: b2, pivotPriceDisplay: String(b2.high) };
+            }
+
+            return { type: "L", pivot: b2, pivotPriceDisplay: String(b2.low) };
+        }
+
+        function typePill(type) {
+            if (type === "H") return `<span class="pill pillH">H</span>`;
+            if (type === "L") return `<span class="pill pillL">L</span>`;
+            if (type === "BOTH") return `<span class="pill pillB">BOTH</span>`;
+            return `<span class="pill">-</span>`;
+        }
+
+        function chainText(chain, chainTypes) {
+            return chain
+                .map((tf) => `${tf.toUpperCase()}:${chainTypes[tf] || "-"}`)
+                .join(" | ");
+        }
+
+        function rowHtml(item) {
+            const chartUrl = `https://www.binance.com/en/futures/${encodeURIComponent(item.symbol)}`;
+            const tvUrl = `https://www.tradingview.com/symbols/${encodeURIComponent(item.symbol)}/`;
+
+            return `
+                <tr>
+                    <td>${item.finalInterval.toUpperCase()}</td>
+                    <td><strong>${item.symbol}</strong></td>
+                    <td>${typePill(item.type)}</td>
+                    <td>${fmtTime(item.pivotTime)}</td>
+                    <td>${item.pivotPriceDisplay}</td>
+                    <td>${item.chainInfo}</td>
+                    <td>${item.quoteSum.toFixed(2)}</td>
+                    <td>${item.baseSum.toFixed(6)}</td>
+                    <td>${item.lastClose}</td>
+                    <td>
+                        <a href="${chartUrl}" target="_blank" rel="noopener">Binance</a>
+                        &nbsp;|&nbsp;
+                        <a href="${tvUrl}" target="_blank" rel="noopener">TV</a>
+                    </td>
+                </tr>
+            `;
+        }
+
+        async function runPool(items, worker, concurrency, onProgress) {
+            const results = [];
+            let idx = 0;
+
+            const runners = Array.from({ length: concurrency }, async () => {
+                while (idx < items.length) {
+                    const current = items[idx++];
+                    const res = await worker(current);
+                    if (res !== null && res !== undefined) {
+                        results.push(res);
+                    }
+                    if (onProgress) onProgress(idx, items.length);
+                }
+            });
+
+            await Promise.all(runners);
+            return results;
+        }
+
+        function clearUI() {
+            el("tbody").innerHTML = "";
+            el("log").textContent = "";
+            el("progress").textContent = "";
+        }
+
+        function matchesSameType(childType, requiredType) {
+            return childType === requiredType;
+        }
+
+        async function scanOneIntervalSignal(symbol, interval, swingMode, signal) {
+            const kl6 = await getKlines6(symbol, interval, signal);
+
+            const now = Date.now();
+            const closed = kl6.filter((k) => k.closeTime <= now);
+            if (closed.length < 5) return null;
+
+            const closed5 = closed.slice(-5);
+            const swing = decideSwing(closed5, swingMode);
+            if (swing.type === "NONE") return null;
+
+            const quoteSum = sum(closed5.map((k) => k.quoteVol));
+            const baseSum = sum(closed5.map((k) => k.baseVol));
+            const lastClose = closed5[4].close;
+
+            return {
+                interval,
+                type: swing.type,
+                pivotTime: swing.pivot.openTime,
+                pivotPriceDisplay: swing.pivotPriceDisplay,
+                quoteSum,
+                baseSum,
+                lastClose: String(lastClose)
+            };
+        }
+
+        el("interval").addEventListener("change", updateTitleAndDesc);
+        updateTitleAndDesc();
+
+        el("startBtn").addEventListener("click", async () => {
+            if (state.running) return;
+
+            clearUI();
+
+            const finalInterval = readString("interval", "4h");
+            const chain = getIntervalChain(finalInterval);
+
+            const swingMode = readString("swingMode", "PIVOT");
+            const concurrency = readNumber("concurrency", 1, 25, 8);
+            const maxSymbols = readNumber("maxSymbols", 0, 2000, 0);
+
+            const typeFilter = readString("typeFilter", "ALL");
+            const sortMode = readString("sortMode", "QUOTE");
+
+            const minQuoteSum = Math.max(0, Number(el("minQuoteSum").value) || 0);
+            const minBaseSum = Math.max(0, Number(el("minBaseSum").value) || 0);
+
+            const aborter = new AbortController();
+            state.aborter = aborter;
+            state.running = true;
+
+            el("startBtn").disabled = true;
+            el("stopBtn").disabled = false;
+
+            try {
+                setStatus("심볼 로딩", "warn");
+                logLine(`[start] final=${finalInterval}, chain=${chain.join("->")}, mode=${swingMode}, concurrency=${concurrency}`);
+
+                let symbols = await getUsdtPerpSymbols(aborter.signal);
+                logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
+
+                if (maxSymbols > 0) {
+                    symbols = symbols.slice(0, maxSymbols);
+                    logLine(`[symbols] capped to ${symbols.length}`);
+                }
+
+                el("progress").textContent = `0 / ${symbols.length}`;
+                setStatus("스캔중", "warn");
+
+                const worker = async (symbol) => {
+                    if (aborter.signal.aborted) return null;
+
+                    try {
+                        const chainTypes = {};
+                        const chainSignals = {};
+
+                        let requiredType = null;
+
+                        for (let i = 0; i < chain.length; i++) {
+                            const tf = chain[i];
+
+                            const sig = await scanOneIntervalSignal(symbol, tf, swingMode, aborter.signal);
+                            if (!sig) return null; // 해당 TF에서 스윙이 없으면 탈락
+
+                            chainTypes[tf] = sig.type;
+                            chainSignals[tf] = sig;
+
+                            if (i === 0) {
+                                requiredType = sig.type;
+
+                                // 최상위(1D) 타입으로 먼저 필터링하면, 아래 TF들도 동일 타입만 허용되므로 조기 탈락 가능
+                                if (typeFilter !== "ALL" && requiredType !== typeFilter) {
+                                    return null;
+                                }
+                            } else {
+                                if (!matchesSameType(sig.type, requiredType)) {
+                                    return null;
+                                }
+                            }
+                        }
+
+                        const finalSig = chainSignals[finalInterval];
+                        if (!finalSig) return null;
+
+                        // 최종 interval의 볼륨/거래대금 기준 필터 (요청대로 "최종 interval 최근 5개 합" 기준 유지)
+                        if (minQuoteSum > 0 && finalSig.quoteSum < minQuoteSum) return null;
+                        if (minBaseSum > 0 && finalSig.baseSum < minBaseSum) return null;
+
+                        return {
+                            finalInterval,
+                            symbol,
+                            type: finalSig.type,
+                            pivotTime: finalSig.pivotTime,
+                            pivotPriceDisplay: finalSig.pivotPriceDisplay,
+                            chainInfo: chainText(chain, chainTypes),
+                            quoteSum: finalSig.quoteSum,
+                            baseSum: finalSig.baseSum,
+                            lastClose: finalSig.lastClose
+                        };
+                    } catch (err) {
+                        logLine(`[err] ${symbol}: ${String(err?.message || err).slice(0, 200)}`);
+                        return null;
+                    }
+                };
+
+                const results = await runPool(
+                    symbols,
+                    worker,
+                    concurrency,
+                    (done, total) => {
+                        el("progress").textContent = `${done} / ${total}`;
+                    }
+                );
+
+                results.sort((a, b) => {
+                    if (sortMode === "BASE") return b.baseSum - a.baseSum;
+                    return b.quoteSum - a.quoteSum;
+                });
+
+                el("tbody").innerHTML = results.map(rowHtml).join("")
+                    || `<tr><td colspan="10" class="muted">결과 없음</td></tr>`;
+
+                setStatus("완료", "ok");
+                logLine(`[done] final=${finalInterval}, results=${results.length}`);
+            } catch (err) {
+                setStatus("실패", "err");
+                logLine(`[fatal] ${String(err?.message || err)}`);
+            } finally {
+                state.running = false;
+                state.aborter = null;
+                el("startBtn").disabled = false;
+                el("stopBtn").disabled = true;
+            }
+        });
+
+        el("stopBtn").addEventListener("click", () => {
+            if (state.aborter) {
+                state.aborter.abort();
+                setStatus("중지됨", "err");
+                logLine("[stop] aborted by user");
+            }
+        });
+    </script>
+</body>
+</html>
