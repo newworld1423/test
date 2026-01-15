@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Binance USDT Perp 4H - 5캔들(현재봉 제외) 3봉전 스윙 스캐너 (조건 토글)</title>
+    <title>Binance USDT Perp - 5캔들(현재봉 제외) 3봉전 스윙 스캐너 (15m/1h/4h/1d)</title>
     <style>
         :root {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
@@ -24,7 +24,7 @@
         }
         .row {
             display: grid;
-            grid-template-columns: repeat(7, minmax(0, 1fr));
+            grid-template-columns: repeat(8, minmax(0, 1fr));
             gap: 10px;
         }
         .row > label {
@@ -142,12 +142,22 @@
     </style>
 </head>
 <body>
-    <h1 style="margin: 0 0 12px 0; font-size: 18px;">
-        Binance USDT Perp 4H - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔 (조건 토글)
+    <h1 id="pageTitle" style="margin: 0 0 12px 0; font-size: 18px;">
+        Binance USDT Perp - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔 (15m/1h/4h/1d)
     </h1>
 
     <div class="panel">
         <div class="row">
+            <label>
+                Interval
+                <select id="interval">
+                    <option value="15m">15m</option>
+                    <option value="1h">1h</option>
+                    <option value="4h" selected>4h</option>
+                    <option value="1d">1d</option>
+                </select>
+            </label>
+
             <label>
                 스윙 판정 방식
                 <select id="swingMode">
@@ -201,7 +211,7 @@
             <button id="stopBtn" disabled>중지</button>
             <span id="status" class="badge muted">대기</span>
             <span id="progress" class="progress"></span>
-            <span class="muted">※ 4H 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
+            <span class="muted">※ 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
         </div>
 
         <div id="desc" class="muted"></div>
@@ -210,6 +220,7 @@
     <table>
         <thead>
             <tr>
+                <th style="width: 120px;">Interval</th>
                 <th style="width: 140px;">Symbol</th>
                 <th style="width: 110px;">Type</th>
                 <th style="width: 220px;">Pivot Time (3봉전)</th>
@@ -227,7 +238,6 @@
 
     <script>
         const API_BASE = "https://fapi.binance.com";
-        const INTERVAL = "4h";
 
         const state = {
             running: false,
@@ -331,8 +341,8 @@
             return symbols;
         }
 
-        async function getKlines6(symbol, signal) {
-            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${INTERVAL}&limit=6`;
+        async function getKlines6(symbol, interval, signal) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=6`;
             const raw = await fetchJson(url, signal, 4);
 
             return raw.map((k) => ({
@@ -434,6 +444,7 @@
 
             return `
                 <tr>
+                    <td>${item.interval}</td>
                     <td><strong>${item.symbol}</strong></td>
                     <td>${typePill(item.type)}</td>
                     <td>${fmtTime(item.pivotTime)}</td>
@@ -486,17 +497,30 @@
             return v || fallback;
         }
 
+        function updateTitle() {
+            const interval = readString("interval", "4h");
+            const title = `Binance USDT Perp ${interval.toUpperCase()} - 최근 5개(현재봉 제외)로 3봉전 스윙(H/L) 스캔 (조건 토글)`;
+            el("pageTitle").textContent = title;
+            document.title = title;
+        }
+
         el("swingMode").addEventListener("change", () => {
             setDesc(readString("swingMode", "PIVOT"));
         });
 
+        el("interval").addEventListener("change", () => {
+            updateTitle();
+        });
+
         setDesc(readString("swingMode", "PIVOT"));
+        updateTitle();
 
         el("startBtn").addEventListener("click", async () => {
             if (state.running) return;
 
             clearUI();
 
+            const interval = readString("interval", "4h");
             const swingMode = readString("swingMode", "PIVOT");
             const concurrency = readNumber("concurrency", 1, 25, 8);
             const maxSymbols = readNumber("maxSymbols", 0, 2000, 0);
@@ -516,7 +540,7 @@
 
             try {
                 setStatus("심볼 로딩", "warn");
-                logLine(`[start] interval=${INTERVAL}, mode=${swingMode}, concurrency=${concurrency}`);
+                logLine(`[start] interval=${interval}, mode=${swingMode}, concurrency=${concurrency}`);
 
                 let symbols = await getUsdtPerpSymbols(aborter.signal);
                 logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
@@ -533,7 +557,7 @@
                     if (aborter.signal.aborted) return null;
 
                     try {
-                        const kl6 = await getKlines6(symbol, aborter.signal);
+                        const kl6 = await getKlines6(symbol, interval, aborter.signal);
 
                         // "현재봉 제외"를 위해: closeTime이 현재보다 작은 것만(닫힌 캔들)
                         const now = Date.now();
@@ -558,6 +582,7 @@
                         const lastClose = closed5[4].close;
 
                         return {
+                            interval,
                             symbol,
                             type: swing.type,
                             pivotTime: swing.pivot.openTime,
@@ -587,10 +612,10 @@
                 });
 
                 el("tbody").innerHTML = results.map(rowHtml).join("")
-                    || `<tr><td colspan="8" class="muted">결과 없음</td></tr>`;
+                    || `<tr><td colspan="9" class="muted">결과 없음</td></tr>`;
 
                 setStatus("완료", "ok");
-                logLine(`[done] results=${results.length}`);
+                logLine(`[done] interval=${interval}, results=${results.length}`);
             } catch (err) {
                 setStatus("실패", "err");
                 logLine(`[fatal] ${String(err?.message || err)}`);
