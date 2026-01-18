@@ -14,7 +14,7 @@
             }
 
             .wrap {
-                max-width: 1100px;
+                max-width: 1200px;
                 margin: 0 auto;
                 padding: 20px;
             }
@@ -34,10 +34,6 @@
                 align-items: center;
             }
 
-            .row > * {
-                flex: 0 0 auto;
-            }
-
             label {
                 font-size: 13px;
                 opacity: 0.9;
@@ -46,7 +42,6 @@
             }
 
             input,
-            select,
             button {
                 background: #0b0f14;
                 border: 1px solid rgba(255, 255, 255, 0.12);
@@ -116,6 +111,7 @@
                 font-size: 13px;
                 text-align: left;
                 vertical-align: middle;
+                white-space: nowrap;
             }
 
             th {
@@ -164,8 +160,10 @@
                     <span class="tag">15m 2봉전 종가 &lt; 1D 99MA(현재봉 포함)</span>
                     <span class="tag">15m 1봉전 종가 &gt; 1D 99MA(현재봉 포함)</span>
                     <div style="margin-top: 8px;">
+                        정렬: <span class="tag">1일봉 현재봉 거래대금(USDT) 내림차순</span><br />
                         * 15분봉은 <b>마감된 캔들</b>만 사용(2봉전/1봉전).<br />
-                        * 1일봉 99MA는 <b>현재 진행중인 일봉의 종가(실시간 갱신)</b>까지 포함하여 계산.
+                        * 1일봉 99MA는 <b>현재 진행중인 일봉의 종가(실시간 갱신)</b>까지 포함하여 계산.<br />
+                        * 거래대금은 1D kline의 <b>현재봉 quoteAssetVolume(USDT)</b> 기준.
                     </div>
                 </div>
             </div>
@@ -179,14 +177,6 @@
                     <div>
                         <label>요청 딜레이(ms)</label>
                         <input id="delay" type="number" min="0" max="5000" value="80" />
-                    </div>
-                    <div>
-                        <label>정렬</label>
-                        <select id="sort">
-                            <option value="symbol">심볼</option>
-                            <option value="gapAsc">1봉전 - 99MA (오름)</option>
-                            <option value="gapDesc" selected>1봉전 - 99MA (내림)</option>
-                        </select>
                     </div>
                     <div style="margin-left: auto;">
                         <button id="btnStart" class="primary">스캔 시작</button>
@@ -215,6 +205,7 @@
                         <thead>
                             <tr>
                                 <th>심볼</th>
+                                <th>1D 현재봉 거래대금(USDT)</th>
                                 <th>1D 99MA(현재봉 포함)</th>
                                 <th>15m 2봉전 종가</th>
                                 <th>15m 1봉전 종가</th>
@@ -224,7 +215,7 @@
                         </thead>
                         <tbody id="tbody">
                             <tr>
-                                <td colspan="6" class="muted">아직 결과가 없습니다.</td>
+                                <td colspan="7" class="muted">아직 결과가 없습니다.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -246,7 +237,6 @@
             const els = {
                 concurrency: document.getElementById("concurrency"),
                 delay: document.getElementById("delay"),
-                sort: document.getElementById("sort"),
                 btnStart: document.getElementById("btnStart"),
                 btnStop: document.getElementById("btnStop"),
                 btnClearLog: document.getElementById("btnClearLog"),
@@ -289,6 +279,12 @@
                 const abs = Math.abs(v);
                 const d = abs >= 100 ? 2 : abs >= 1 ? 4 : digits;
                 return v.toFixed(d);
+            }
+
+            function formatMoney(v) {
+                if (!Number.isFinite(v)) return "-";
+                const n = Math.round(v);
+                return n.toLocaleString("en-US");
             }
 
             async function sleep(ms) {
@@ -346,24 +342,18 @@
 
             async function getAllUsdtPerpSymbols() {
                 const info = await fetchJson(`${BASE_URL}/fapi/v1/exchangeInfo`);
-                const symbols = (info.symbols || [])
+                return (info.symbols || [])
                     .filter((s) => s.contractType === "PERPETUAL")
                     .filter((s) => s.quoteAsset === "USDT")
                     .filter((s) => s.status === "TRADING")
                     .map((s) => s.symbol);
-
-                return symbols;
             }
 
             /**
-             * ✅ 핵심 변경
-             * 1D 99MA를 "현재 진행중인 일봉"까지 포함해서 계산.
-             * - Binance klines에서 마지막 캔들은 진행중인 1D일 수 있고,
-             *   close 값이 현재가처럼 계속 갱신됨.
-             * - 따라서 closeTime 필터로 "닫힌 일봉만" 추리는 로직을 제거.
-             * - 뒤에서 99개로 SMA 계산 (마지막이 현재 일봉 close 포함)
+             * 1) 1D 99MA: 현재 진행중인 일봉 close 포함
+             * 2) 1D 현재봉 거래대금(USDT): 마지막 1D kline의 quoteAssetVolume 사용
              */
-            async function getDailySMA99IncludingCurrent(symbol) {
+            async function getDailyInfoIncludingCurrent(symbol) {
                 const klines = await fetchJson(
                     `${BASE_URL}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=120`
                 );
@@ -372,7 +362,12 @@
                     .map((k) => Number(k[4]))
                     .filter((v) => Number.isFinite(v));
 
-                return computeSMAFromTail(closes, 99);
+                const sma99 = computeSMAFromTail(closes, 99);
+
+                const last = klines[klines.length - 1];
+                const dayQuoteVol = last ? Number(last[7]) : NaN; // quoteAssetVolume (USDT)
+
+                return { sma99, dayQuoteVol };
             }
 
             async function get15mLastTwoClosedCloses(symbol, serverTimeMs) {
@@ -395,21 +390,17 @@
             }
 
             function renderResults() {
-                const sortMode = els.sort.value;
-                const list = [...state.matches];
-
-                if (sortMode === "symbol") {
-                    list.sort((a, b) => a.symbol.localeCompare(b.symbol));
-                } else if (sortMode === "gapAsc") {
-                    list.sort((a, b) => a.gap - b.gap);
-                } else if (sortMode === "gapDesc") {
-                    list.sort((a, b) => b.gap - a.gap);
-                }
+                // ✅ 정렬 고정: 1D 현재봉 거래대금(USDT) 내림차순
+                const list = [...state.matches].sort((a, b) => {
+                    const av = Number.isFinite(a.dayQuoteVol) ? a.dayQuoteVol : -Infinity;
+                    const bv = Number.isFinite(b.dayQuoteVol) ? b.dayQuoteVol : -Infinity;
+                    return bv - av;
+                });
 
                 els.matchCount.textContent = String(list.length);
 
                 if (list.length === 0) {
-                    els.tbody.innerHTML = `<tr><td colspan="6" class="muted">조건을 만족하는 심볼이 없습니다.</td></tr>`;
+                    els.tbody.innerHTML = `<tr><td colspan="7" class="muted">조건을 만족하는 심볼이 없습니다.</td></tr>`;
                     return;
                 }
 
@@ -419,6 +410,7 @@
                     return `
                         <tr>
                             <td><b>${x.symbol}</b></td>
+                            <td>${formatMoney(x.dayQuoteVol)}</td>
                             <td>${formatNum(x.sma99)}</td>
                             <td>${formatNum(x.closePrev2)}</td>
                             <td>${formatNum(x.closePrev1)}</td>
@@ -445,16 +437,15 @@
                     const p = Promise.resolve().then(() => iteratorFn(item));
                     ret.push(p);
 
-                    if (limit <= items.length) {
-                        const e = p.then(() => {
-                            const idx = executing.indexOf(e);
-                            if (idx >= 0) executing.splice(idx, 1);
-                        });
-                        executing.push(e);
+                    const e = p.then(() => {
+                        const idx = executing.indexOf(e);
+                        if (idx >= 0) executing.splice(idx, 1);
+                    });
 
-                        if (executing.length >= limit) {
-                            await Promise.race(executing);
-                        }
+                    executing.push(e);
+
+                    if (executing.length >= limit) {
+                        await Promise.race(executing);
                     }
                 }
 
@@ -465,25 +456,27 @@
                 if (state.abort) return;
 
                 try {
-                    // 1) 1D 99MA (현재 일봉 포함)
-                    const sma99 = await getDailySMA99IncludingCurrent(symbol);
+                    // 1) 1D 99MA + 1D 현재봉 거래대금(USDT)
+                    const { sma99, dayQuoteVol } = await getDailyInfoIncludingCurrent(symbol);
                     if (!Number.isFinite(sma99)) return;
 
                     if (state.abort) return;
 
-                    // 2) 15m 종가 2개(2봉전/1봉전) - 마감봉만
+                    // 2) 15m 2봉전/1봉전 종가 (마감봉만)
                     const c = await get15mLastTwoClosedCloses(symbol, state.serverTime);
                     if (!c) return;
 
                     const { closePrev1, closePrev2 } = c;
 
                     // 조건:
-                    // 2봉전 종가 < 99MA
-                    // 1봉전 종가 > 99MA
+                    // 2봉전 종가 < 99MA(현재봉 포함)
+                    // 1봉전 종가 > 99MA(현재봉 포함)
                     if (closePrev2 < sma99 && closePrev1 > sma99) {
                         const gap = closePrev1 - sma99;
+
                         state.matches.push({
                             symbol,
+                            dayQuoteVol,
                             sma99,
                             closePrev2,
                             closePrev1,
@@ -571,10 +564,6 @@
 
             els.btnClearLog.addEventListener("click", () => {
                 els.log.textContent = "";
-            });
-
-            els.sort.addEventListener("change", () => {
-                renderResults();
             });
 
             logLine("준비 완료. '스캔 시작'을 누르세요.");
