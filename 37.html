@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance Perp USDT — 15m 안정형 +1% 후보 스캐너 (눌림반등)</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+                background: #0b0f14;
+                color: #e6edf3;
+            }
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 16px;
+            }
+            .card {
+                background: #111823;
+                border: 1px solid #223044;
+                border-radius: 10px;
+                padding: 14px;
+                margin-bottom: 12px;
+            }
+            .row {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+            label {
+                font-size: 12px;
+                opacity: 0.85;
+            }
+            input, select, button {
+                background: #0b0f14;
+                color: #e6edf3;
+                border: 1px solid #2a3b55;
+                border-radius: 8px;
+                padding: 8px 10px;
+                font-size: 13px;
+                outline: none;
+            }
+            button {
+                cursor: pointer;
+                background: #162235;
+            }
+            button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            .small {
+                font-size: 12px;
+                opacity: 0.85;
+                line-height: 1.5;
+            }
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            }
+            .progress {
+                font-size: 12px;
+                opacity: 0.95;
+                white-space: pre-wrap;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th, td {
+                padding: 10px 8px;
+                border-bottom: 1px solid #223044;
+                font-size: 13px;
+                text-align: right;
+                vertical-align: middle;
+            }
+            th {
+                position: sticky;
+                top: 0;
+                background: #111823;
+                z-index: 1;
+                cursor: pointer;
+                user-select: none;
+            }
+            th:first-child, td:first-child {
+                text-align: left;
+                font-weight: 800;
+            }
+            tr:hover td {
+                background: rgba(255, 255, 255, 0.03);
+            }
+            .tag {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 999px;
+                border: 1px solid #2a3b55;
+                font-size: 11px;
+                opacity: 0.9;
+                margin-left: 6px;
+                white-space: nowrap;
+            }
+            .pill-good {
+                border-color: #2f6f4e;
+            }
+            .pill-warn {
+                border-color: #7a5b2a;
+            }
+            .pill-new {
+                border-color: #37b24d;
+            }
+            a {
+                color: #9cd1ff;
+                text-decoration: none;
+            }
+            /* (3) 신규 후보 하이라이트 */
+            tr.is-new td {
+                background: rgba(55, 178, 77, 0.08);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="card">
+                <div class="row" style="justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 16px; font-weight: 900;">Binance Perp USDT — 15m 안정형 “+1% 후보” (눌림반등)</div>
+                        <div class="small">
+                            안정형 기준: <b>Top 거래대금</b> + <b>스프레드 필터</b> + <b>1H/4H EMA200 위</b> + <b>15m EMA20 눌림</b> + <b>반등(직전고점 소폭 돌파)</b> + <b>거래량 증가</b>
+                            <span class="tag pill-warn">추격 최소화</span>
+                            <br />
+                            ※ 이건 “예측”이 아니라 후보를 추리는 도구야. 손절/리스크 관리는 별도로 꼭 해야 함.
+                        </div>
+                    </div>
+                    <div class="row">
+                        <button id="btnScan">스캔 시작</button>
+                        <button id="btnStop" disabled>중지</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="row">
+                    <div>
+                        <label>유니버스: 24h 거래대금 상위 Top K</label><br />
+                        <input id="topK" type="number" value="120" min="30" step="10" />
+                    </div>
+                    <div>
+                        <label>24h 최소 거래대금(USDT)</label><br />
+                        <input id="minQuoteVol" type="number" value="50000000" step="5000000" />
+                    </div>
+                    <div>
+                        <label>스프레드 상한(%) ≤</label><br />
+                        <input id="maxSpreadPct" type="number" value="0.03" step="0.01" />
+                    </div>
+                    <div>
+                        <label>15m VolRatio(직전봉/평균) ≥</label><br />
+                        <input id="minVolRatio" type="number" value="1.8" step="0.1" />
+                    </div>
+                    <div>
+                        <label>15m ATR% ≤</label><br />
+                        <input id="maxAtrPct" type="number" value="1.6" step="0.1" />
+                    </div>
+                    <div>
+                        <label>EMA20 근처(%) ≤</label><br />
+                        <input id="maxDistEma20" type="number" value="0.25" step="0.05" />
+                    </div>
+                    <div>
+                        <label>과열 제외: EMA20 이탈(%) ≥</label><br />
+                        <input id="overheatPct" type="number" value="0.70" step="0.05" />
+                    </div>
+                    <div>
+                        <label>자동 리프레시(초, 0=꺼짐)</label><br />
+                        <input id="autoRefreshSec" type="number" value="0" step="10" min="0" />
+                    </div>
+                    <div>
+                        <label>동시 요청</label><br />
+                        <select id="concurrency">
+                            <option value="2">2 (매우 안전)</option>
+                            <option value="3" selected>3 (권장)</option>
+                            <option value="5">5 (빠름/429 위험)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>표시 상위</label><br />
+                        <select id="topN">
+                            <option value="30">30</option>
+                            <option value="50" selected>50</option>
+                            <option value="80">80</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="progress mono" id="progress" style="margin-top: 10px;">대기 중…</div>
+            </div>
+
+            <div class="card">
+                <div class="small" style="margin-bottom: 8px;">
+                    정렬: 헤더 클릭 가능. SYMBOL 클릭하면 바이낸스 선물로 이동. <span class="tag pill-new">NEW</span>는 이전 스캔 대비 새로 등장한 후보.
+                </div>
+                <div style="max-height: 70vh; overflow: auto; border: 1px solid #223044; border-radius: 10px;">
+                    <table id="tbl">
+                        <thead>
+                            <tr>
+                                <th data-key="symbol">SYMBOL</th>
+                                <th data-key="score">SCORE</th>
+                                <th data-key="quoteVol24h">24H QV</th>
+                                <th data-key="spreadPct">Spread%</th>
+                                <th data-key="change24h">24H%</th>
+                                <th data-key="price">PRICE</th>
+
+                                <!-- (2) 손절/익절 가이드 표시 -->
+                                <th data-key="slPct">SL</th>
+                                <th data-key="tp1Pct">TP1</th>
+                                <th data-key="tp2Pct">TP2</th>
+
+                                <th data-key="distEma20Pct">Dist→EMA20%</th>
+                                <th data-key="volRatio">VolRatio</th>
+                                <th data-key="atrPct">ATR%</th>
+                                <th data-key="trend1h">1H>EMA200</th>
+                                <th data-key="trend4h">4H>EMA200</th>
+                                <th data-key="time">Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const API_BASE = "https://fapi.binance.com";
+
+            const state = {
+                running: false,
+                stop: false,
+                sortKey: "score",
+                sortDir: "desc",
+                rows: [],
+                autoTimer: null,
+
+                // (3) 이전 스캔 후보 심볼
+                prevSymbols: new Set(),
+            };
+
+            const el = {
+                btnScan: document.getElementById("btnScan"),
+                btnStop: document.getElementById("btnStop"),
+                progress: document.getElementById("progress"),
+                tbody: document.querySelector("#tbl tbody"),
+                topK: document.getElementById("topK"),
+                minQuoteVol: document.getElementById("minQuoteVol"),
+                maxSpreadPct: document.getElementById("maxSpreadPct"),
+                minVolRatio: document.getElementById("minVolRatio"),
+                maxAtrPct: document.getElementById("maxAtrPct"),
+                maxDistEma20: document.getElementById("maxDistEma20"),
+                overheatPct: document.getElementById("overheatPct"),
+                autoRefreshSec: document.getElementById("autoRefreshSec"),
+                concurrency: document.getElementById("concurrency"),
+                topN: document.getElementById("topN"),
+            };
+
+            function fmtNum(n, digits = 2) {
+                if (!Number.isFinite(n)) return "-";
+                return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+            }
+
+            function fmtCompact(n) {
+                if (!Number.isFinite(n)) return "-";
+                const abs = Math.abs(n);
+                if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B";
+                if (abs >= 1e6) return (n / 1e6).toFixed(2) + "M";
+                if (abs >= 1e3) return (n / 1e3).toFixed(2) + "K";
+                return fmtNum(n, 0);
+            }
+
+            function sleep(ms) {
+                return new Promise((r) => setTimeout(r, ms));
+            }
+
+            async function fetchJSON(url) {
+                const res = await fetch(url, { cache: "no-store" });
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 160)}`);
+                }
+                return res.json();
+            }
+
+            function setProgress(msg) {
+                el.progress.textContent = msg;
+            }
+
+            function setButtons() {
+                el.btnScan.disabled = state.running;
+                el.btnStop.disabled = !state.running;
+            }
+
+            async function getPerpUsdtSymbols() {
+                const data = await fetchJSON(`${API_BASE}/fapi/v1/exchangeInfo`);
+                const symbols = [];
+                for (const s of data.symbols) {
+                    if (s.contractType !== "PERPETUAL") continue;
+                    if (s.quoteAsset !== "USDT") continue;
+                    if (s.status !== "TRADING") continue;
+                    symbols.push(s.symbol);
+                }
+                return symbols;
+            }
+
+            async function get24hTickers() {
+                const data = await fetchJSON(`${API_BASE}/fapi/v1/ticker/24hr`);
+                const map = new Map();
+                for (const t of data) {
+                    map.set(t.symbol, {
+                        lastPrice: Number(t.lastPrice),
+                        priceChangePercent: Number(t.priceChangePercent),
+                        quoteVolume: Number(t.quoteVolume),
+                    });
+                }
+                return map;
+            }
+
+            async function getBookTickers() {
+                const data = await fetchJSON(`${API_BASE}/fapi/v1/ticker/bookTicker`);
+                const map = new Map();
+                for (const t of data) {
+                    const bid = Number(t.bidPrice);
+                    const ask = Number(t.askPrice);
+                    const mid = (bid + ask) / 2;
+                    const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : NaN;
+                    map.set(t.symbol, { bid, ask, spreadPct });
+                }
+                return map;
+            }
+
+            async function getKlines(symbol, interval, limit) {
+                const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+                const data = await fetchJSON(url);
+                return data.map((k) => ({
+                    openTime: Number(k[0]),
+                    open: Number(k[1]),
+                    high: Number(k[2]),
+                    low: Number(k[3]),
+                    close: Number(k[4]),
+                    volume: Number(k[5]),
+                    closeTime: Number(k[6]),
+                }));
+            }
+
+            function calcEMA(closes, period) {
+                if (!closes || closes.length < period) return NaN;
+                const k = 2 / (period + 1);
+                let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+                for (let i = period; i < closes.length; i++) {
+                    ema = closes[i] * k + ema * (1 - k);
+                }
+                return ema;
+            }
+
+            function calcATRPercent(klines, period = 14) {
+                if (!klines || klines.length < period + 2) return NaN;
+                const candles = klines.slice(0, -1);
+                const tr = [];
+                for (let i = 1; i < candles.length; i++) {
+                    const cur = candles[i];
+                    const prev = candles[i - 1];
+                    const highLow = cur.high - cur.low;
+                    const highPrevClose = Math.abs(cur.high - prev.close);
+                    const lowPrevClose = Math.abs(cur.low - prev.close);
+                    tr.push(Math.max(highLow, highPrevClose, lowPrevClose));
+                }
+                if (tr.length < period) return NaN;
+                const recent = tr.slice(-period);
+                const atr = recent.reduce((a, b) => a + b, 0) / period;
+                const lastClose = candles[candles.length - 1].close;
+                return (atr / lastClose) * 100;
+            }
+
+            function calcVolRatio(klines, avgWindow = 20) {
+                if (!klines || klines.length < avgWindow + 3) return NaN;
+                const candles = klines.slice(0, -1);
+                const last = candles[candles.length - 1];
+                const prev = candles.slice(-(avgWindow + 1), -1);
+                const avg = prev.reduce((a, c) => a + c.volume, 0) / prev.length;
+                if (avg <= 0) return NaN;
+                return last.volume / avg;
+            }
+
+            function isPullbackBounce15m(kl15, cfg) {
+                const candles = kl15.slice(0, -1);
+                if (candles.length < 220) return { ok: false };
+
+                const closes = candles.map((c) => c.close);
+                const ema20 = calcEMA(closes, 20);
+                const ema50 = calcEMA(closes, 50);
+                const ema200 = calcEMA(closes, 200);
+
+                if (!Number.isFinite(ema20) || !Number.isFinite(ema50) || !Number.isFinite(ema200)) return { ok: false };
+                if (!(ema50 > ema200)) return { ok: false };
+
+                const c1 = candles[candles.length - 1];
+                const c2 = candles[candles.length - 2];
+
+                const distEma20Pct = ((c1.close - ema20) / ema20) * 100;
+                const absDist = Math.abs(distEma20Pct);
+
+                if (absDist > cfg.maxDistEma20) return { ok: false };
+                if (Math.abs(distEma20Pct) >= cfg.overheatPct) return { ok: false };
+
+                const bullish = c1.close > c1.open;
+                const brokePrevHigh = c1.close > c2.high * 1.0003;
+                if (!bullish || !brokePrevHigh) return { ok: false };
+
+                return { ok: true, ema20, ema50, ema200, distEma20Pct };
+            }
+
+            function scoreRow({ volRatio, atrPct, spreadPct, distEma20Pct, trend1h, trend4h }) {
+                const volScore = Math.max(0, Math.min(1, (volRatio - 1.2) / 1.8));
+                const atrScore = Math.max(0, Math.min(1, (2.0 - atrPct) / 2.0));
+                const spreadScore = Number.isFinite(spreadPct) ? Math.max(0, Math.min(1, (0.06 - spreadPct) / 0.06)) : 0;
+
+                const absDist = Math.abs(distEma20Pct);
+                const distScore = Math.max(0, Math.min(1, (0.30 - absDist) / 0.30));
+
+                const trendScore = (trend1h ? 0.15 : 0) + (trend4h ? 0.25 : 0);
+
+                const score = (0.38 * volScore) + (0.22 * atrScore) + (0.20 * spreadScore) + (0.20 * distScore) + trendScore;
+                return score * 100;
+            }
+
+            // (2) 손절/익절 가이드: ATR% 기반으로 “너무 타이트/너무 루즈” 방지
+            function calcGuides(price, atrPct) {
+                // 손절: ATR의 0.5배, 최소 0.35%, 최대 0.80%
+                const slPct = Math.min(0.80, Math.max(0.35, atrPct * 0.50));
+
+                // 익절: 안정형 1% 목표 (TP2는 여유)
+                const tp1Pct = 1.00;
+                const tp2Pct = 1.30;
+
+                const slPrice = price * (1 - slPct / 100);
+                const tp1Price = price * (1 + tp1Pct / 100);
+                const tp2Price = price * (1 + tp2Pct / 100);
+
+                return { slPct, tp1Pct, tp2Pct, slPrice, tp1Price, tp2Price };
+            }
+
+            function sortRows(rows) {
+                const key = state.sortKey;
+                const dir = state.sortDir === "asc" ? 1 : -1;
+                return rows.slice().sort((a, b) => {
+                    const av = a[key];
+                    const bv = b[key];
+                    if (av === bv) return 0;
+                    if (!Number.isFinite(av) && Number.isFinite(bv)) return 1;
+                    if (Number.isFinite(av) && !Number.isFinite(bv)) return -1;
+                    return (av > bv ? 1 : -1) * dir;
+                });
+            }
+
+            function render(rows) {
+                const topN = Number(el.topN.value);
+                const sliced = sortRows(rows).slice(0, topN);
+
+                el.tbody.innerHTML = "";
+                for (const r of sliced) {
+                    // (3) 신규 후보 판단: 첫 스캔은 NEW 표시 안 함
+                    const isNew = (state.prevSymbols.size > 0) && !state.prevSymbols.has(r.symbol);
+
+                    const tr = document.createElement("tr");
+                    if (isNew) tr.classList.add("is-new");
+
+                    const link = `https://www.binance.com/en/futures/${r.symbol}`;
+
+                    const tags = [];
+                    if (isNew) tags.push('<span class="tag pill-new">NEW</span>');
+                    if (r.volRatio >= 2.8) tags.push('<span class="tag pill-good">VOL🔥</span>');
+                    if (r.spreadPct <= 0.02) tags.push('<span class="tag pill-good">TIGHT</span>');
+                    if (r.trend1h && r.trend4h) tags.push('<span class="tag pill-good">TREND✅</span>');
+
+                    tr.innerHTML = `
+                        <td class="mono">
+                            <a href="${link}" target="_blank" rel="noreferrer">${r.symbol}</a>
+                            ${tags.join("")}
+                        </td>
+                        <td class="mono">${fmtNum(r.score, 2)}</td>
+                        <td class="mono">${fmtCompact(r.quoteVol24h)}</td>
+                        <td class="mono">${fmtNum(r.spreadPct, 3)}</td>
+                        <td class="mono">${fmtNum(r.change24h, 2)}</td>
+                        <td class="mono">${fmtNum(r.price, 6)}</td>
+
+                        <!-- (2) 가이드 값 표시 -->
+                        <td class="mono">${fmtNum(r.slPct, 2)}%<br><span style="opacity:.8">${fmtNum(r.slPrice, 6)}</span></td>
+                        <td class="mono">${fmtNum(r.tp1Pct, 2)}%<br><span style="opacity:.8">${fmtNum(r.tp1Price, 6)}</span></td>
+                        <td class="mono">${fmtNum(r.tp2Pct, 2)}%<br><span style="opacity:.8">${fmtNum(r.tp2Price, 6)}</span></td>
+
+                        <td class="mono">${fmtNum(r.distEma20Pct, 3)}</td>
+                        <td class="mono">${fmtNum(r.volRatio, 2)}</td>
+                        <td class="mono">${fmtNum(r.atrPct, 2)}</td>
+                        <td class="mono">${r.trend1h ? "Y" : "N"}</td>
+                        <td class="mono">${r.trend4h ? "Y" : "N"}</td>
+                        <td class="mono">${new Date(r.time).toLocaleTimeString()}</td>
+                    `;
+                    el.tbody.appendChild(tr);
+                }
+            }
+
+            async function runPool(items, worker, concurrency, onResult) {
+                const results = [];
+                let idx = 0;
+
+                const runners = Array.from({ length: concurrency }, async () => {
+                    while (idx < items.length) {
+                        if (state.stop) return;
+                        const cur = items[idx++];
+                        try {
+                            const r = await worker(cur);
+                            if (r) {
+                                results.push(r);
+                                if (typeof onResult === "function") onResult(results);
+                            }
+                        } catch (e) {
+                            const msg = String(e?.message || e);
+                            if (msg.includes("429") || msg.includes("418")) {
+                                await sleep(900);
+                            } else {
+                                await sleep(80);
+                            }
+                        }
+                    }
+                });
+
+                await Promise.all(runners);
+                return results;
+            }
+
+            async function scanOnce() {
+                state.running = true;
+                state.stop = false;
+                setButtons();
+
+                const cfg = {
+                    topK: Number(el.topK.value),
+                    minQuoteVol: Number(el.minQuoteVol.value),
+                    maxSpreadPct: Number(el.maxSpreadPct.value),
+                    minVolRatio: Number(el.minVolRatio.value),
+                    maxAtrPct: Number(el.maxAtrPct.value),
+                    maxDistEma20: Number(el.maxDistEma20.value),
+                    overheatPct: Number(el.overheatPct.value),
+                    concurrency: Number(el.concurrency.value),
+                };
+
+                setProgress("심볼/티커/호가 불러오는 중…");
+                const [symbols, tickerMap, bookMap] = await Promise.all([
+                    getPerpUsdtSymbols(),
+                    get24hTickers(),
+                    getBookTickers(),
+                ]);
+
+                const ranked = [];
+                for (const sym of symbols) {
+                    const t = tickerMap.get(sym);
+                    const b = bookMap.get(sym);
+                    if (!t || !b) continue;
+
+                    if (!Number.isFinite(t.quoteVolume) || t.quoteVolume < cfg.minQuoteVol) continue;
+                    if (!Number.isFinite(b.spreadPct) || b.spreadPct > cfg.maxSpreadPct) continue;
+
+                    ranked.push({ symbol: sym, quoteVol: t.quoteVolume });
+                }
+                ranked.sort((a, b) => b.quoteVol - a.quoteVol);
+                const universe = ranked.slice(0, Math.min(cfg.topK, ranked.length)).map((x) => x.symbol);
+
+                setProgress(
+                    `유니버스: ${universe.length}개 (TopK=${cfg.topK}, 24hQV>=${fmtCompact(cfg.minQuoteVol)}, Spread<=${cfg.maxSpreadPct}%)\n` +
+                    `필터: 1H/4H EMA200 위 + 15m EMA20 눌림 + 반등 확인 + VolRatio>=${cfg.minVolRatio} + ATR<=${cfg.maxAtrPct}%\n` +
+                    `스캔 시작…`
+                );
+
+                const startedAt = Date.now();
+                let checked = 0;
+
+                const rows = await runPool(
+                    universe,
+                    async (symbol) => {
+                        if (state.stop) return null;
+
+                        const kl15 = await getKlines(symbol, "15m", 260);
+                        const volRatio = calcVolRatio(kl15, 20);
+                        const atrPct = calcATRPercent(kl15, 14);
+
+                        if (!Number.isFinite(volRatio) || volRatio < cfg.minVolRatio) return null;
+                        if (!Number.isFinite(atrPct) || atrPct > cfg.maxAtrPct) return null;
+
+                        const pb = isPullbackBounce15m(kl15, cfg);
+                        if (!pb.ok) return null;
+
+                        const [kl1h, kl4h] = await Promise.all([
+                            getKlines(symbol, "1h", 260),
+                            getKlines(symbol, "4h", 260),
+                        ]);
+
+                        const closes1h = kl1h.slice(0, -1).map((c) => c.close);
+                        const closes4h = kl4h.slice(0, -1).map((c) => c.close);
+
+                        const ema200_1h = calcEMA(closes1h, 200);
+                        const ema200_4h = calcEMA(closes4h, 200);
+
+                        if (!Number.isFinite(ema200_1h) || !Number.isFinite(ema200_4h)) return null;
+
+                        const last1h = closes1h[closes1h.length - 1];
+                        const last4h = closes4h[closes4h.length - 1];
+
+                        const trend1h = last1h > ema200_1h;
+                        const trend4h = last4h > ema200_4h;
+
+                        if (!trend1h || !trend4h) return null;
+
+                        const t = tickerMap.get(symbol);
+                        const b = bookMap.get(symbol);
+
+                        const price = t?.lastPrice ?? NaN;
+                        const quoteVol24h = t?.quoteVolume ?? NaN;
+                        const change24h = t?.priceChangePercent ?? NaN;
+                        const spreadPct = b?.spreadPct ?? NaN;
+
+                        if (!Number.isFinite(price)) return null;
+                        if (!Number.isFinite(spreadPct) || spreadPct > cfg.maxSpreadPct) return null;
+
+                        const guides = calcGuides(price, atrPct);
+
+                        const score = scoreRow({
+                            volRatio,
+                            atrPct,
+                            spreadPct,
+                            distEma20Pct: pb.distEma20Pct,
+                            trend1h,
+                            trend4h,
+                        });
+
+                        checked += 1;
+                        if (checked % 10 === 0) {
+                            const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+                            setProgress(
+                                `스캔 중… ${checked}/${universe.length} 통과검사 (경과 ${elapsed}s)\n` +
+                                `현재 후보: ${state.rows.length}`
+                            );
+                        }
+
+                        return {
+                            symbol,
+                            score,
+                            quoteVol24h,
+                            spreadPct,
+                            change24h,
+                            price,
+                            distEma20Pct: pb.distEma20Pct,
+                            volRatio,
+                            atrPct,
+                            trend1h,
+                            trend4h,
+                            time: Date.now(),
+
+                            // (2) 가이드 값
+                            slPct: guides.slPct,
+                            tp1Pct: guides.tp1Pct,
+                            tp2Pct: guides.tp2Pct,
+                            slPrice: guides.slPrice,
+                            tp1Price: guides.tp1Price,
+                            tp2Price: guides.tp2Price,
+                        };
+                    },
+                    cfg.concurrency,
+                    (partialResults) => {
+                        // 부분 렌더링
+                        state.rows = partialResults;
+                        render(partialResults);
+                    }
+                );
+
+                state.rows = rows;
+                render(rows);
+
+                const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+                setProgress(
+                    `완료 ✅ 경과 ${elapsed}s\n` +
+                    `후보 수: ${rows.length}\n` +
+                    `팁: 후보가 많으면 VolRatio를 2.0~2.3으로 올리고, Spread를 0.02%로 줄여봐.`
+                );
+
+                // (3) 이번 결과를 다음 스캔의 기준으로 저장
+                state.prevSymbols = new Set(rows.map((r) => r.symbol));
+
+                state.running = false;
+                setButtons();
+            }
+
+            function clearAuto() {
+                if (state.autoTimer) {
+                    clearInterval(state.autoTimer);
+                    state.autoTimer = null;
+                }
+            }
+
+            async function startScan() {
+                clearAuto();
+                await scanOnce();
+
+                const sec = Number(el.autoRefreshSec.value);
+                if (Number.isFinite(sec) && sec > 0) {
+                    state.autoTimer = setInterval(() => {
+                        if (state.running) return;
+                        scanOnce().catch(() => {});
+                    }, sec * 1000);
+                }
+            }
+
+            el.btnScan.addEventListener("click", async () => {
+                if (state.running) return;
+                try {
+                    await startScan();
+                } catch (e) {
+                    setProgress(`에러: ${String(e?.message || e)}`);
+                    state.running = false;
+                    setButtons();
+                }
+            });
+
+            el.btnStop.addEventListener("click", () => {
+                state.stop = true;
+                clearAuto();
+                setProgress("중지 요청됨… 진행 중인 요청이 끝나면 멈춥니다.");
+                state.running = false;
+                setButtons();
+            });
+
+            document.querySelectorAll("#tbl thead th").forEach((th) => {
+                th.addEventListener("click", () => {
+                    const key = th.getAttribute("data-key");
+                    if (!key) return;
+                    if (state.sortKey === key) {
+                        state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+                    } else {
+                        state.sortKey = key;
+                        state.sortDir = "desc";
+                    }
+                    render(state.rows);
+                });
+            });
+        </script>
+    </body>
+</html>
