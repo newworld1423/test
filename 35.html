@@ -63,23 +63,11 @@
             border: 1px solid rgba(255,255,255,0.14);
             background: rgba(255,255,255,0.04);
         }
-        .ok {
-            border-color: rgba(0, 255, 171, 0.35);
-        }
-        .warn {
-            border-color: rgba(255, 183, 77, 0.35);
-        }
-        .err {
-            border-color: rgba(255, 77, 110, 0.45);
-        }
-        .muted {
-            opacity: 0.7;
-            font-size: 12px;
-        }
-        .progress {
-            font-size: 12px;
-            opacity: 0.85;
-        }
+        .ok { border-color: rgba(0, 255, 171, 0.35); }
+        .warn { border-color: rgba(255, 183, 77, 0.35); }
+        .err { border-color: rgba(255, 77, 110, 0.45); }
+        .muted { opacity: 0.7; font-size: 12px; }
+        .progress { font-size: 12px; opacity: 0.85; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -101,16 +89,9 @@
             position: sticky;
             top: 0;
         }
-        tr:hover td {
-            background: rgba(255,255,255,0.03);
-        }
-        a {
-            color: #77b7ff;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        a { color: #77b7ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
         .log {
             white-space: pre-wrap;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -130,15 +111,9 @@
             border: 1px solid rgba(255,255,255,0.16);
             font-size: 12px;
         }
-        .pillH {
-            border-color: rgba(255, 110, 140, 0.55);
-        }
-        .pillL {
-            border-color: rgba(0, 255, 171, 0.45);
-        }
-        .pillB {
-            border-color: rgba(255, 210, 120, 0.55);
-        }
+        .pillH { border-color: rgba(255, 110, 140, 0.55); }
+        .pillL { border-color: rgba(0, 255, 171, 0.45); }
+        .pillB { border-color: rgba(255, 210, 120, 0.55); }
         code.inline {
             padding: 1px 6px;
             border-radius: 6px;
@@ -218,8 +193,8 @@
             <span id="status" class="badge muted">대기</span>
             <span id="progress" class="progress"></span>
             <span class="muted">
-                ※ 각 interval마다 최근 7개를 받아 “닫힌 캔들 5개”만 스윙판정(현재봉 제외).
-                단, <b>현재봉 low &lt; 직전봉 low</b>면 즉시 제외
+                ※ 스윙판정: 닫힌 캔들 5개(현재봉 제외). 추가 필터:
+                <b>각 TF에서 현재봉 low &lt; 직전봉 low면 제외</b>
             </span>
         </div>
 
@@ -249,15 +224,12 @@
     <script>
         const API_BASE = "https://fapi.binance.com";
 
-        const LS_PREFIX = "multiTfSwingScanner:v3:";
+        const LS_PREFIX = "multiTfSwingScanner:v4:";
         const LS_LAST_RESULTS = `${LS_PREFIX}lastResults`;
         const LS_TF_CACHE = `${LS_PREFIX}tfCache`;
 
-        // localStorage 용량 보호용: 캐시는 심볼 단위로 오래된 것부터 제거
         const TF_CACHE_SYMBOL_LIMIT = 800;
-
-        const ALL_TFS = ["1M", "1w", "1d", "4h", "1h", "15m"];
-        const ANCHOR_SYMBOL = "BTCUSDT"; // 기준봉(openTime) 동기화용
+        const ANCHOR_SYMBOL = "BTCUSDT";
 
         const state = {
             running: false,
@@ -304,9 +276,7 @@
 
         function sum(values) {
             let s = 0;
-            for (const v of values) {
-                s += v;
-            }
+            for (const v of values) s += v;
             return s;
         }
 
@@ -329,11 +299,11 @@
 
             const desc = el("desc");
             desc.innerHTML = [
-                `멀티TF 컨펌: <code class="inline">${chain.map((x) => x.toUpperCase()).join(" → ")}</code> 순서로 검사`,
-                `- 최상위(1M)에서 스윙 타입(H/L/BOTH)이 먼저 나와야 하며`,
-                `- 아래 TF로 내려갈수록 <b>상위 TF들과 동일 타입</b>을 전부 만족해야 최종 TF 결과로 출력됩니다.`,
-                `- 추가 필터: 각 TF에서 <b>현재봉 low &lt; 직전봉 low</b>면 해당 심볼은 즉시 제외됩니다.`,
-                `- 캐시: 모든 TF의 신호를 localStorage에 저장하며, <b>기준봉(현재봉 openTime)</b>이 바뀌면 해당 TF 캐시는 자동 갱신됩니다.`
+                `멀티TF 컨펌: <code class="inline">${chain.map((x) => x.toUpperCase()).join(" → ")}</code>`,
+                `- 최상위(1M) 타입이 먼저 나와야 하고, 아래 TF로 내려갈수록 <b>동일 타입</b> 유지`,
+                `- 캐시 유효(기준봉 동일) 시: <b>캐시 심볼만 선별 스캔</b>`,
+                `- 캐시 무효(기준봉 변경) 시: <b>전체 스캔</b>`,
+                `- 추가 필터: 각 TF 현재봉 low < 직전봉 low면 제외`
             ].join("<br />");
         }
 
@@ -394,12 +364,22 @@
         }
 
         async function getBasisOpenTimeForInterval(interval, signal) {
-            // 기준봉 = 해당 TF의 "현재봉 openTime"
-            // 모든 심볼이 동일 캔들 경계라서 BTCUSDT로 동기화
             const kl = await getKlines(ANCHOR_SYMBOL, interval, 2, signal);
             if (!kl || kl.length < 1) return null;
             const current = kl[kl.length - 1];
             return Number.isFinite(current?.openTime) ? current.openTime : null;
+        }
+
+        async function passesCurrentLowRule(symbol, interval, signal) {
+            // "현재봉 low < 직전봉 low면 제외"를 실시간으로 확인 (limit=2만)
+            const kl2 = await getKlines(symbol, interval, 2, signal);
+            if (!kl2 || kl2.length < 2) return false;
+
+            const prev = kl2[0];
+            const curr = kl2[1];
+
+            if (!Number.isFinite(prev?.low) || !Number.isFinite(curr?.low)) return false;
+            return curr.low >= prev.low;
         }
 
         function swingMonotonicType(b0, b1, b2, b3, b4) {
@@ -424,25 +404,16 @@
             const b4 = closed5[4];
 
             const mono = swingMonotonicType(b0, b1, b2, b3, b4);
-
             const isH = mono.isH;
             const isL = mono.isL;
 
-            if (!isH && !isL) {
-                return { type: "NONE", pivot: b2, pivotPriceDisplay: "-" };
-            }
+            if (!isH && !isL) return { type: "NONE", pivot: b2, pivotPriceDisplay: "-" };
 
             if (isH && isL) {
-                return {
-                    type: "BOTH",
-                    pivot: b2,
-                    pivotPriceDisplay: `H:${b2.high} / L:${b2.low}`
-                };
+                return { type: "BOTH", pivot: b2, pivotPriceDisplay: `H:${b2.high} / L:${b2.low}` };
             }
 
-            if (isH) {
-                return { type: "H", pivot: b2, pivotPriceDisplay: String(b2.high) };
-            }
+            if (isH) return { type: "H", pivot: b2, pivotPriceDisplay: String(b2.high) };
 
             return { type: "L", pivot: b2, pivotPriceDisplay: String(b2.low) };
         }
@@ -455,9 +426,7 @@
         }
 
         function chainText(chain, chainTypes) {
-            return chain
-                .map((tf) => `${tf.toUpperCase()}:${chainTypes[tf] || "-"}`)
-                .join(" | ");
+            return chain.map((tf) => `${tf.toUpperCase()}:${chainTypes[tf] || "-"}`).join(" | ");
         }
 
         function rowHtml(item) {
@@ -492,9 +461,7 @@
                 while (idx < items.length) {
                     const current = items[idx++];
                     const res = await worker(current);
-                    if (res !== null && res !== undefined) {
-                        results.push(res);
-                    }
+                    if (res !== null && res !== undefined) results.push(res);
                     if (onProgress) onProgress(idx, items.length);
                 }
             });
@@ -514,11 +481,7 @@
         }
 
         function safeJsonParse(text) {
-            try {
-                return JSON.parse(text);
-            } catch {
-                return null;
-            }
+            try { return JSON.parse(text); } catch { return null; }
         }
 
         function loadLastResults() {
@@ -580,29 +543,34 @@
         }
 
         function invalidateTfEntriesIfBasisChanged(cache, basisNowByTf) {
-            // 기준봉이 바뀐 TF는 해당 TF 캐시를 전부 제거 -> "자동 갱신"을 위해
             const basisPrevByTf = cache.basisByTf || {};
             const data = cache.data || {};
 
             for (const [tf, basisNow] of Object.entries(basisNowByTf)) {
                 const prev = basisPrevByTf[tf];
-                if (!prev || !basisNow || prev === basisNow) {
-                    continue;
-                }
+                if (!prev || !basisNow || prev === basisNow) continue;
 
                 logLine(`[cache] basis changed for ${tf}: ${fmtTime(prev)} -> ${fmtTime(basisNow)} (invalidate all ${tf})`);
 
                 for (const symbol of Object.keys(data)) {
-                    if (data[symbol] && data[symbol][tf]) {
-                        delete data[symbol][tf];
-                    }
+                    if (data[symbol] && data[symbol][tf]) delete data[symbol][tf];
                 }
             }
 
             cache.data = data;
-
-            // 기준봉 테이블 자체는 최신 값으로 덮어씀
             cache.basisByTf = { ...basisPrevByTf, ...basisNowByTf };
+        }
+
+        function isCacheValidForChain(cache, chain, basisNowByTf) {
+            const basisPrevByTf = cache.basisByTf || {};
+
+            for (const tf of chain) {
+                const now = basisNowByTf[tf];
+                const prev = basisPrevByTf[tf];
+                if (!now || !prev) return false;
+                if (now !== prev) return false;
+            }
+            return true;
         }
 
         function getCachedSignal(cache, symbol, tf, requiredBasisOpenTime) {
@@ -641,13 +609,11 @@
 
             const cache = loadTfCache();
             const count = Object.keys(cache.data || {}).length;
-            const basisInfo = cache.basisByTf || {};
-            const basisText = Object.entries(basisInfo)
-                .map(([tf, t]) => `${tf}:${t ? fmtTime(t) : "-"}`)
-                .join(" | ");
-
             if (count > 0) {
                 logLine(`[restore] tfCache symbols=${count} (updatedAt=${fmtTime(cache.updatedAt || 0)})`);
+                const basisText = Object.entries(cache.basisByTf || {})
+                    .map(([tf, t]) => `${tf}:${t ? fmtTime(t) : "-"}`)
+                    .join(" | ");
                 if (basisText) logLine(`[restore] cached basisByTf: ${basisText}`);
             }
         }
@@ -667,6 +633,8 @@
                 if (current.low < prev.low) {
                     return null;
                 }
+            } else {
+                return null;
             }
 
             const closed = kl7.filter((k) => k.closeTime <= now);
@@ -696,9 +664,7 @@
 
         async function getSignalWithCache(cache, symbol, tf, requiredBasisOpenTime, signal) {
             const cached = getCachedSignal(cache, symbol, tf, requiredBasisOpenTime);
-            if (cached) {
-                return cached;
-            }
+            if (cached) return cached;
 
             const fresh = await scanOneIntervalSignalFetch(symbol, tf, signal);
             if (!fresh) return null;
@@ -712,7 +678,6 @@
                 quoteSum: fresh.quoteSum,
                 baseSum: fresh.baseSum,
                 lastClose: fresh.lastClose,
-                // 기준봉(openTime) 같이 저장
                 basisOpenTime: fresh.basisOpenTime
             };
 
@@ -720,9 +685,70 @@
             return rec;
         }
 
+        function buildResultsFromCacheOnly(cache, chain, basisNowByTf, typeFilter, minQuoteSum, minBaseSum, finalInterval) {
+            const symbols = Object.keys(cache.data || {});
+            const results = [];
+
+            for (const symbol of symbols) {
+                const chainTypes = {};
+                const chainSignals = {};
+
+                let requiredType = null;
+                let ok = true;
+
+                for (let i = 0; i < chain.length; i++) {
+                    const tf = chain[i];
+                    const requiredBasis = basisNowByTf[tf] || null;
+
+                    const sig = getCachedSignal(cache, symbol, tf, requiredBasis);
+                    if (!sig) {
+                        ok = false;
+                        break;
+                    }
+
+                    chainSignals[tf] = sig;
+                    chainTypes[tf] = sig.type;
+
+                    if (i === 0) {
+                        requiredType = sig.type;
+                        if (typeFilter !== "ALL" && requiredType !== typeFilter) {
+                            ok = false;
+                            break;
+                        }
+                    } else {
+                        if (!matchesSameType(sig.type, requiredType)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (!ok) continue;
+
+                const finalSig = chainSignals[finalInterval];
+                if (!finalSig) continue;
+
+                if (minQuoteSum > 0 && finalSig.quoteSum < minQuoteSum) continue;
+                if (minBaseSum > 0 && finalSig.baseSum < minBaseSum) continue;
+
+                results.push({
+                    finalInterval,
+                    symbol,
+                    type: finalSig.type,
+                    pivotTime: finalSig.pivotTime,
+                    pivotPriceDisplay: finalSig.pivotPriceDisplay,
+                    chainInfo: chainText(chain, chainTypes),
+                    quoteSum: finalSig.quoteSum,
+                    baseSum: finalSig.baseSum,
+                    lastClose: finalSig.lastClose
+                });
+            }
+
+            return results;
+        }
+
         el("interval").addEventListener("change", updateTitleAndDesc);
         updateTitleAndDesc();
-
         restoreFromLocalStorageIfAny();
 
         el("startBtn").addEventListener("click", async () => {
@@ -752,7 +778,7 @@
             const cache = loadTfCache();
 
             try {
-                // 1) 이번 스캔의 "기준봉(openTime)"을 TF별로 동기화 (BTCUSDT 기준)
+                // 1) 기준봉 동기화
                 setStatus("기준봉 동기화", "warn");
                 const basisNowByTf = {};
 
@@ -763,12 +789,80 @@
                     logLine(`[basis] ${tf} current openTime = ${basis ? fmtTime(basis) : "N/A"}`);
                 }
 
-                // 2) 기준봉이 바뀐 TF는 캐시 무효화(삭제) -> 자동 갱신되도록
+                const cacheValid = isCacheValidForChain(cache, chain, basisNowByTf);
+
+                // 2) 캐시 유효면: "캐시 심볼만" + "캐시로 조건 선필터" 후에 "low-rule만 실시간 검증"
+                if (cacheValid && Object.keys(cache.data || {}).length > 0) {
+                    setStatus("캐시 선별 스캔", "warn");
+                    logLine(`[mode] cache-only candidates (basis unchanged)`);
+
+                    let candidates = buildResultsFromCacheOnly(
+                        cache,
+                        chain,
+                        basisNowByTf,
+                        typeFilter,
+                        minQuoteSum,
+                        minBaseSum,
+                        finalInterval
+                    );
+
+                    // maxSymbols 적용(캐시심볼 기반 모드에서도)
+                    if (maxSymbols > 0) {
+                        candidates = candidates.slice(0, maxSymbols);
+                    }
+
+                    logLine(`[cache] prefiltered candidates=${candidates.length}`);
+                    el("progress").textContent = `0 / ${candidates.length}`;
+
+                    // low-rule 실시간 검증은 candidates만 대상으로
+                    const worker = async (item) => {
+                        if (aborter.signal.aborted) return null;
+
+                        try {
+                            for (const tf of chain) {
+                                const pass = await passesCurrentLowRule(item.symbol, tf, aborter.signal);
+                                if (!pass) return null;
+                            }
+                            return item;
+                        } catch (err) {
+                            logLine(`[err] low-check ${item.symbol}: ${String(err?.message || err).slice(0, 160)}`);
+                            return null;
+                        }
+                    };
+
+                    let results = await runPool(
+                        candidates,
+                        worker,
+                        concurrency,
+                        (done, total) => {
+                            el("progress").textContent = `${done} / ${total}`;
+                        }
+                    );
+
+                    results.sort((a, b) => {
+                        if (sortMode === "BASE") return b.baseSum - a.baseSum;
+                        return b.quoteSum - a.quoteSum;
+                    });
+
+                    renderResults(results);
+
+                    saveLastResults({
+                        savedAt: Date.now(),
+                        settings: { finalInterval, chain, concurrency, maxSymbols, typeFilter, sortMode, minQuoteSum, minBaseSum, mode: "CACHE_ONLY" },
+                        results
+                    });
+
+                    setStatus("완료", "ok");
+                    logLine(`[done] mode=CACHE_ONLY final=${finalInterval}, results=${results.length}`);
+                    return;
+                }
+
+                // 3) 캐시 무효면: 기준봉 변경된 TF 캐시 무효화 후 전체 스캔
+                setStatus("전체 스캔 준비", "warn");
                 invalidateTfEntriesIfBasisChanged(cache, basisNowByTf);
 
-                // 3) 심볼 로드
                 setStatus("심볼 로딩", "warn");
-                logLine(`[start] final=${finalInterval}, chain=${chain.join("->")}, concurrency=${concurrency}`);
+                logLine(`[mode] FULL_SCAN (basis changed or no cache)`);
 
                 let symbols = await getUsdtPerpSymbols(aborter.signal);
                 logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
@@ -787,21 +881,13 @@
                     try {
                         const chainTypes = {};
                         const chainSignals = {};
-
                         let requiredType = null;
 
                         for (let i = 0; i < chain.length; i++) {
                             const tf = chain[i];
                             const requiredBasis = basisNowByTf[tf] || null;
 
-                            const sig = await getSignalWithCache(
-                                cache,
-                                symbol,
-                                tf,
-                                requiredBasis,
-                                aborter.signal
-                            );
-
+                            const sig = await getSignalWithCache(cache, symbol, tf, requiredBasis, aborter.signal);
                             if (!sig) return null;
 
                             chainTypes[tf] = sig.type;
@@ -809,14 +895,9 @@
 
                             if (i === 0) {
                                 requiredType = sig.type;
-
-                                if (typeFilter !== "ALL" && requiredType !== typeFilter) {
-                                    return null;
-                                }
+                                if (typeFilter !== "ALL" && requiredType !== typeFilter) return null;
                             } else {
-                                if (!matchesSameType(sig.type, requiredType)) {
-                                    return null;
-                                }
+                                if (!matchesSameType(sig.type, requiredType)) return null;
                             }
                         }
 
@@ -843,7 +924,7 @@
                     }
                 };
 
-                const results = await runPool(
+                let results = await runPool(
                     symbols,
                     worker,
                     concurrency,
@@ -861,24 +942,14 @@
 
                 saveLastResults({
                     savedAt: Date.now(),
-                    settings: {
-                        finalInterval,
-                        chain,
-                        concurrency,
-                        maxSymbols,
-                        typeFilter,
-                        sortMode,
-                        minQuoteSum,
-                        minBaseSum
-                    },
+                    settings: { finalInterval, chain, concurrency, maxSymbols, typeFilter, sortMode, minQuoteSum, minBaseSum, mode: "FULL_SCAN" },
                     results
                 });
 
-                // 4) 캐시 저장 (모든 TF)
                 saveTfCache(cache);
 
                 setStatus("완료", "ok");
-                logLine(`[done] final=${finalInterval}, results=${results.length}`);
+                logLine(`[done] mode=FULL_SCAN final=${finalInterval}, results=${results.length}`);
             } catch (err) {
                 setStatus("실패", "err");
                 logLine(`[fatal] ${String(err?.message || err)}`);
