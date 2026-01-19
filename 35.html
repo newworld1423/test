@@ -157,19 +157,19 @@
             <label>
                 Interval (최종 스캔)
                 <select id="interval">
-                    <option value="15m">15m (1d+4h+1h+15m)</option>
-                    <option value="1h">1h (1d+4h+1h)</option>
-                    <option value="4h" selected>4h (1d+4h)</option>
-                    <option value="1d">1d (1d만)</option>
+                    <option value="15m">15m (1M+1w+1d+4h+1h+15m)</option>
+                    <option value="1h">1h (1M+1w+1d+4h+1h)</option>
+                    <option value="4h" selected>4h (1M+1w+1d+4h)</option>
+                    <option value="1d">1d (1M+1w+1d)</option>
+                    <option value="1w">1w (1M+1w)</option>
+                    <option value="1M">1M (1M만)</option>
                 </select>
             </label>
 
             <label>
-                스윙 판정 방식
-                <select id="swingMode">
-                    <option value="PIVOT" selected>기존(피벗): 가운데가 최고/최저</option>
-                    <option value="MONO">계단형(단조): ↑↑ 후 ↓↓ / ↓↓ 후 ↑↑</option>
-                    <option value="BOTH">기존+계단형(AND): 둘 다 만족</option>
+                스윙 판정 방식 (고정)
+                <select id="swingMode" disabled>
+                    <option value="MONO" selected>계단형(단조): ↑↑ 후 ↓↓ / ↓↓ 후 ↑↑</option>
                 </select>
             </label>
 
@@ -217,7 +217,10 @@
             <button id="stopBtn" disabled>중지</button>
             <span id="status" class="badge muted">대기</span>
             <span id="progress" class="progress"></span>
-            <span class="muted">※ 각 interval마다 최근 6개를 받아 “닫힌 캔들 5개”만 사용 (현재봉 자동 제외)</span>
+            <span class="muted">
+                ※ 각 interval마다 최근 7개를 받아 “닫힌 캔들 5개”만 스윙판정(현재봉 제외).
+                단, <b>현재봉 low &lt; 직전봉 low</b>면 즉시 제외
+            </span>
         </div>
 
         <div id="desc" class="muted"></div>
@@ -231,7 +234,7 @@
                 <th style="width: 110px;">Type</th>
                 <th style="width: 220px;">Pivot Time (3봉전)</th>
                 <th style="width: 220px;">Pivot Price</th>
-                <th style="width: 190px;">Chain (1D→…)</th>
+                <th style="width: 190px;">Chain (1M→…)</th>
                 <th style="width: 170px;">Σ QuoteVol</th>
                 <th style="width: 170px;">Σ BaseVol</th>
                 <th style="width: 140px;">Last Close</th>
@@ -245,6 +248,16 @@
 
     <script>
         const API_BASE = "https://fapi.binance.com";
+
+        const LS_PREFIX = "multiTfSwingScanner:v3:";
+        const LS_LAST_RESULTS = `${LS_PREFIX}lastResults`;
+        const LS_TF_CACHE = `${LS_PREFIX}tfCache`;
+
+        // localStorage 용량 보호용: 캐시는 심볼 단위로 오래된 것부터 제거
+        const TF_CACHE_SYMBOL_LIMIT = 800;
+
+        const ALL_TFS = ["1M", "1w", "1d", "4h", "1h", "15m"];
+        const ANCHOR_SYMBOL = "BTCUSDT"; // 기준봉(openTime) 동기화용
 
         const state = {
             running: false,
@@ -298,10 +311,12 @@
         }
 
         function getIntervalChain(finalInterval) {
-            if (finalInterval === "1d") return ["1d"];
-            if (finalInterval === "4h") return ["1d", "4h"];
-            if (finalInterval === "1h") return ["1d", "4h", "1h"];
-            return ["1d", "4h", "1h", "15m"]; // 15m
+            if (finalInterval === "1M") return ["1M"];
+            if (finalInterval === "1w") return ["1M", "1w"];
+            if (finalInterval === "1d") return ["1M", "1w", "1d"];
+            if (finalInterval === "4h") return ["1M", "1w", "1d", "4h"];
+            if (finalInterval === "1h") return ["1M", "1w", "1d", "4h", "1h"];
+            return ["1M", "1w", "1d", "4h", "1h", "15m"];
         }
 
         function updateTitleAndDesc() {
@@ -315,8 +330,10 @@
             const desc = el("desc");
             desc.innerHTML = [
                 `멀티TF 컨펌: <code class="inline">${chain.map((x) => x.toUpperCase()).join(" → ")}</code> 순서로 검사`,
-                `- 최상위(1D)에서 스윙 타입(H/L/BOTH)이 먼저 나와야 하며`,
-                `- 아래 TF로 내려갈수록 <b>상위 TF들과 동일 타입</b>을 전부 만족해야 최종 TF 결과로 출력됩니다.`
+                `- 최상위(1M)에서 스윙 타입(H/L/BOTH)이 먼저 나와야 하며`,
+                `- 아래 TF로 내려갈수록 <b>상위 TF들과 동일 타입</b>을 전부 만족해야 최종 TF 결과로 출력됩니다.`,
+                `- 추가 필터: 각 TF에서 <b>현재봉 low &lt; 직전봉 low</b>면 해당 심볼은 즉시 제외됩니다.`,
+                `- 캐시: 모든 TF의 신호를 localStorage에 저장하며, <b>기준봉(현재봉 openTime)</b>이 바뀌면 해당 TF 캐시는 자동 갱신됩니다.`
             ].join("<br />");
         }
 
@@ -361,8 +378,8 @@
                 .map((s) => s.symbol);
         }
 
-        async function getKlines6(symbol, interval, signal) {
-            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=6`;
+        async function getKlines(symbol, interval, limit, signal) {
+            const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${encodeURIComponent(String(limit))}`;
             const raw = await fetchJson(url, signal, 4);
 
             return raw.map((k) => ({
@@ -376,14 +393,13 @@
             }));
         }
 
-        function swingPivotType(b0, b1, b2, b3, b4) {
-            const otherHighMax = Math.max(b0.high, b1.high, b3.high, b4.high);
-            const otherLowMin = Math.min(b0.low, b1.low, b3.low, b4.low);
-
-            const isH = b2.high > otherHighMax;
-            const isL = b2.low < otherLowMin;
-
-            return { isH, isL };
+        async function getBasisOpenTimeForInterval(interval, signal) {
+            // 기준봉 = 해당 TF의 "현재봉 openTime"
+            // 모든 심볼이 동일 캔들 경계라서 BTCUSDT로 동기화
+            const kl = await getKlines(ANCHOR_SYMBOL, interval, 2, signal);
+            if (!kl || kl.length < 1) return null;
+            const current = kl[kl.length - 1];
+            return Number.isFinite(current?.openTime) ? current.openTime : null;
         }
 
         function swingMonotonicType(b0, b1, b2, b3, b4) {
@@ -400,29 +416,17 @@
             return { isH, isL };
         }
 
-        function decideSwing(closed5, mode) {
+        function decideSwingMonotonicOnly(closed5) {
             const b0 = closed5[0];
             const b1 = closed5[1];
-            const b2 = closed5[2]; // 3봉전(확정)
+            const b2 = closed5[2];
             const b3 = closed5[3];
             const b4 = closed5[4];
 
-            const pivot = swingPivotType(b0, b1, b2, b3, b4);
             const mono = swingMonotonicType(b0, b1, b2, b3, b4);
 
-            let isH = false;
-            let isL = false;
-
-            if (mode === "MONO") {
-                isH = mono.isH;
-                isL = mono.isL;
-            } else if (mode === "BOTH") {
-                isH = pivot.isH && mono.isH;
-                isL = pivot.isL && mono.isL;
-            } else {
-                isH = pivot.isH;
-                isL = pivot.isL;
-            }
+            const isH = mono.isH;
+            const isL = mono.isL;
 
             if (!isH && !isL) {
                 return { type: "NONE", pivot: b2, pivotPriceDisplay: "-" };
@@ -509,20 +513,174 @@
             return childType === requiredType;
         }
 
-        async function scanOneIntervalSignal(symbol, interval, swingMode, signal) {
-            const kl6 = await getKlines6(symbol, interval, signal);
+        function safeJsonParse(text) {
+            try {
+                return JSON.parse(text);
+            } catch {
+                return null;
+            }
+        }
+
+        function loadLastResults() {
+            const raw = localStorage.getItem(LS_LAST_RESULTS);
+            if (!raw) return null;
+            return safeJsonParse(raw);
+        }
+
+        function saveLastResults(payload) {
+            try {
+                localStorage.setItem(LS_LAST_RESULTS, JSON.stringify(payload));
+            } catch (err) {
+                logLine(`[ls] lastResults 저장 실패: ${String(err?.message || err).slice(0, 160)}`);
+            }
+        }
+
+        function loadTfCache() {
+            const raw = localStorage.getItem(LS_TF_CACHE);
+            if (!raw) return { updatedAt: 0, basisByTf: {}, data: {} };
+
+            const parsed = safeJsonParse(raw);
+            if (!parsed || typeof parsed !== "object") return { updatedAt: 0, basisByTf: {}, data: {} };
+
+            if (!parsed.data || typeof parsed.data !== "object") parsed.data = {};
+            if (!parsed.basisByTf || typeof parsed.basisByTf !== "object") parsed.basisByTf = {};
+            if (!Number.isFinite(parsed.updatedAt)) parsed.updatedAt = 0;
+
+            return parsed;
+        }
+
+        function pruneTfCache(cache) {
+            const data = cache.data || {};
+
+            const symbolTimes = Object.entries(data).map(([symbol, perTf]) => {
+                const times = Object.values(perTf || {}).map((x) => Number(x?.savedAt) || 0);
+                const t = times.length ? Math.max(...times) : 0;
+                return { symbol, t };
+            });
+
+            symbolTimes.sort((a, b) => b.t - a.t);
+
+            const keep = new Set(symbolTimes.slice(0, TF_CACHE_SYMBOL_LIMIT).map((x) => x.symbol));
+            for (const symbol of Object.keys(data)) {
+                if (!keep.has(symbol)) delete data[symbol];
+            }
+
+            cache.data = data;
+        }
+
+        function saveTfCache(cache) {
+            pruneTfCache(cache);
+            cache.updatedAt = Date.now();
+
+            try {
+                localStorage.setItem(LS_TF_CACHE, JSON.stringify(cache));
+            } catch (err) {
+                logLine(`[ls] tfCache 저장 실패: ${String(err?.message || err).slice(0, 160)}`);
+            }
+        }
+
+        function invalidateTfEntriesIfBasisChanged(cache, basisNowByTf) {
+            // 기준봉이 바뀐 TF는 해당 TF 캐시를 전부 제거 -> "자동 갱신"을 위해
+            const basisPrevByTf = cache.basisByTf || {};
+            const data = cache.data || {};
+
+            for (const [tf, basisNow] of Object.entries(basisNowByTf)) {
+                const prev = basisPrevByTf[tf];
+                if (!prev || !basisNow || prev === basisNow) {
+                    continue;
+                }
+
+                logLine(`[cache] basis changed for ${tf}: ${fmtTime(prev)} -> ${fmtTime(basisNow)} (invalidate all ${tf})`);
+
+                for (const symbol of Object.keys(data)) {
+                    if (data[symbol] && data[symbol][tf]) {
+                        delete data[symbol][tf];
+                    }
+                }
+            }
+
+            cache.data = data;
+
+            // 기준봉 테이블 자체는 최신 값으로 덮어씀
+            cache.basisByTf = { ...basisPrevByTf, ...basisNowByTf };
+        }
+
+        function getCachedSignal(cache, symbol, tf, requiredBasisOpenTime) {
+            const perTf = cache.data?.[symbol];
+            if (!perTf) return null;
+
+            const rec = perTf[tf];
+            if (!rec) return null;
+
+            if (requiredBasisOpenTime && rec.basisOpenTime !== requiredBasisOpenTime) {
+                return null;
+            }
+
+            return rec;
+        }
+
+        function setCachedSignal(cache, symbol, tf, rec) {
+            if (!cache.data) cache.data = {};
+            if (!cache.data[symbol]) cache.data[symbol] = {};
+            cache.data[symbol][tf] = rec;
+        }
+
+        function renderResults(results) {
+            el("tbody").innerHTML = results.map(rowHtml).join("")
+                || `<tr><td colspan="10" class="muted">결과 없음</td></tr>`;
+        }
+
+        function restoreFromLocalStorageIfAny() {
+            const last = loadLastResults();
+            if (last && Array.isArray(last.results)) {
+                renderResults(last.results);
+                setStatus("로컬 결과 표시", "ok");
+                el("progress").textContent = `로컬: ${last.results.length}개`;
+                logLine(`[restore] lastResults loaded: ${last.results.length} (savedAt=${fmtTime(last.savedAt || 0)})`);
+            }
+
+            const cache = loadTfCache();
+            const count = Object.keys(cache.data || {}).length;
+            const basisInfo = cache.basisByTf || {};
+            const basisText = Object.entries(basisInfo)
+                .map(([tf, t]) => `${tf}:${t ? fmtTime(t) : "-"}`)
+                .join(" | ");
+
+            if (count > 0) {
+                logLine(`[restore] tfCache symbols=${count} (updatedAt=${fmtTime(cache.updatedAt || 0)})`);
+                if (basisText) logLine(`[restore] cached basisByTf: ${basisText}`);
+            }
+        }
+
+        async function scanOneIntervalSignalFetch(symbol, interval, signal) {
+            // 최근 7개: 현재봉 + 직전봉 + 닫힌캔들 5개(스윙용)
+            const kl7 = await getKlines(symbol, interval, 7, signal);
+            if (!kl7 || kl7.length < 7) return null;
 
             const now = Date.now();
-            const closed = kl6.filter((k) => k.closeTime <= now);
+
+            const current = kl7[kl7.length - 1];
+            const prev = kl7[kl7.length - 2];
+
+            // 현재봉 저점 < 직전봉 저점이면 제외
+            if (Number.isFinite(current?.low) && Number.isFinite(prev?.low)) {
+                if (current.low < prev.low) {
+                    return null;
+                }
+            }
+
+            const closed = kl7.filter((k) => k.closeTime <= now);
             if (closed.length < 5) return null;
 
             const closed5 = closed.slice(-5);
-            const swing = decideSwing(closed5, swingMode);
+            const swing = decideSwingMonotonicOnly(closed5);
             if (swing.type === "NONE") return null;
 
             const quoteSum = sum(closed5.map((k) => k.quoteVol));
             const baseSum = sum(closed5.map((k) => k.baseVol));
             const lastClose = closed5[4].close;
+
+            const basisOpenTime = Number.isFinite(current?.openTime) ? current.openTime : null;
 
             return {
                 interval,
@@ -531,12 +689,41 @@
                 pivotPriceDisplay: swing.pivotPriceDisplay,
                 quoteSum,
                 baseSum,
-                lastClose: String(lastClose)
+                lastClose: String(lastClose),
+                basisOpenTime
             };
+        }
+
+        async function getSignalWithCache(cache, symbol, tf, requiredBasisOpenTime, signal) {
+            const cached = getCachedSignal(cache, symbol, tf, requiredBasisOpenTime);
+            if (cached) {
+                return cached;
+            }
+
+            const fresh = await scanOneIntervalSignalFetch(symbol, tf, signal);
+            if (!fresh) return null;
+
+            const rec = {
+                savedAt: Date.now(),
+                interval: tf,
+                type: fresh.type,
+                pivotTime: fresh.pivotTime,
+                pivotPriceDisplay: fresh.pivotPriceDisplay,
+                quoteSum: fresh.quoteSum,
+                baseSum: fresh.baseSum,
+                lastClose: fresh.lastClose,
+                // 기준봉(openTime) 같이 저장
+                basisOpenTime: fresh.basisOpenTime
+            };
+
+            setCachedSignal(cache, symbol, tf, rec);
+            return rec;
         }
 
         el("interval").addEventListener("change", updateTitleAndDesc);
         updateTitleAndDesc();
+
+        restoreFromLocalStorageIfAny();
 
         el("startBtn").addEventListener("click", async () => {
             if (state.running) return;
@@ -546,7 +733,6 @@
             const finalInterval = readString("interval", "4h");
             const chain = getIntervalChain(finalInterval);
 
-            const swingMode = readString("swingMode", "PIVOT");
             const concurrency = readNumber("concurrency", 1, 25, 8);
             const maxSymbols = readNumber("maxSymbols", 0, 2000, 0);
 
@@ -563,9 +749,26 @@
             el("startBtn").disabled = true;
             el("stopBtn").disabled = false;
 
+            const cache = loadTfCache();
+
             try {
+                // 1) 이번 스캔의 "기준봉(openTime)"을 TF별로 동기화 (BTCUSDT 기준)
+                setStatus("기준봉 동기화", "warn");
+                const basisNowByTf = {};
+
+                for (const tf of chain) {
+                    if (aborter.signal.aborted) throw new Error("aborted");
+                    const basis = await getBasisOpenTimeForInterval(tf, aborter.signal);
+                    basisNowByTf[tf] = basis;
+                    logLine(`[basis] ${tf} current openTime = ${basis ? fmtTime(basis) : "N/A"}`);
+                }
+
+                // 2) 기준봉이 바뀐 TF는 캐시 무효화(삭제) -> 자동 갱신되도록
+                invalidateTfEntriesIfBasisChanged(cache, basisNowByTf);
+
+                // 3) 심볼 로드
                 setStatus("심볼 로딩", "warn");
-                logLine(`[start] final=${finalInterval}, chain=${chain.join("->")}, mode=${swingMode}, concurrency=${concurrency}`);
+                logLine(`[start] final=${finalInterval}, chain=${chain.join("->")}, concurrency=${concurrency}`);
 
                 let symbols = await getUsdtPerpSymbols(aborter.signal);
                 logLine(`[symbols] USDT PERP TRADING: ${symbols.length}`);
@@ -589,9 +792,17 @@
 
                         for (let i = 0; i < chain.length; i++) {
                             const tf = chain[i];
+                            const requiredBasis = basisNowByTf[tf] || null;
 
-                            const sig = await scanOneIntervalSignal(symbol, tf, swingMode, aborter.signal);
-                            if (!sig) return null; // 해당 TF에서 스윙이 없으면 탈락
+                            const sig = await getSignalWithCache(
+                                cache,
+                                symbol,
+                                tf,
+                                requiredBasis,
+                                aborter.signal
+                            );
+
+                            if (!sig) return null;
 
                             chainTypes[tf] = sig.type;
                             chainSignals[tf] = sig;
@@ -599,7 +810,6 @@
                             if (i === 0) {
                                 requiredType = sig.type;
 
-                                // 최상위(1D) 타입으로 먼저 필터링하면, 아래 TF들도 동일 타입만 허용되므로 조기 탈락 가능
                                 if (typeFilter !== "ALL" && requiredType !== typeFilter) {
                                     return null;
                                 }
@@ -613,7 +823,6 @@
                         const finalSig = chainSignals[finalInterval];
                         if (!finalSig) return null;
 
-                        // 최종 interval의 볼륨/거래대금 기준 필터 (요청대로 "최종 interval 최근 5개 합" 기준 유지)
                         if (minQuoteSum > 0 && finalSig.quoteSum < minQuoteSum) return null;
                         if (minBaseSum > 0 && finalSig.baseSum < minBaseSum) return null;
 
@@ -648,8 +857,25 @@
                     return b.quoteSum - a.quoteSum;
                 });
 
-                el("tbody").innerHTML = results.map(rowHtml).join("")
-                    || `<tr><td colspan="10" class="muted">결과 없음</td></tr>`;
+                renderResults(results);
+
+                saveLastResults({
+                    savedAt: Date.now(),
+                    settings: {
+                        finalInterval,
+                        chain,
+                        concurrency,
+                        maxSymbols,
+                        typeFilter,
+                        sortMode,
+                        minQuoteSum,
+                        minBaseSum
+                    },
+                    results
+                });
+
+                // 4) 캐시 저장 (모든 TF)
+                saveTfCache(cache);
 
                 setStatus("완료", "ok");
                 logLine(`[done] final=${finalInterval}, results=${results.length}`);
