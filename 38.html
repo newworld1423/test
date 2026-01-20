@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp 1D V-Low + Swing Scanner</title>
+        <title>Binance USDT Perp 1D V-Low + Swing Scanner (SwH/SwL Lines Only)</title>
 
         <!-- Chart.js -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -160,7 +160,7 @@
                         <div class="muted" style="margin-top: 6px;">
                             1) 최근 5개 1D 완성봉 저점: <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span><br />
                             2) 통과 심볼만 최근 <span class="pill">200개 1D 완성봉</span>에서 스윙 탐지(5봉 패턴)<br />
-                            3) Close 라인 + ZigZag + 스윙고점 연결선 + 스윙저점 연결선 + V구간 하이라이트 + 트렌드라인 + 줌/팬
+                            3) 차트는 <span class="pill">스윙고점 연결선</span> + <span class="pill">스윙저점 연결선</span> + 점 표시만 출력
                         </div>
                         <div class="muted" style="margin-top: 6px;">
                             <span class="pill">줌/팬</span> 휠=줌, Shift+드래그=박스줌, Alt+드래그=팬, Reset 버튼=원복
@@ -191,7 +191,7 @@
                         <select id="selSort">
                             <option value="score_desc" selected>추천순(Score) ↓</option>
                             <option value="qv_desc">24h 거래대금(QuoteVol) ↓</option>
-                            <option value="support_asc">SupportDist% ↑(가까운 저점)</option>
+                            <option value="support_asc">SupportDist% ↑(저점 가까운)</option>
                             <option value="upside_desc">Upside% ↓(위공간 큰)</option>
                             <option value="sym_asc">심볼 A→Z</option>
                         </select>
@@ -248,12 +248,9 @@
                 </div>
 
                 <div class="muted" style="margin-top: 8px;">
-                    - <span class="pill">Close</span> 최근 200개 1D 종가<br />
-                    - <span class="pill">ZigZag</span> 스윙고/저 번갈아 연결(선형)<br />
                     - <span class="pill">Swing Highs Line</span> 스윙고점끼리 연결선<br />
                     - <span class="pill">Swing Lows Line</span> 스윙저점끼리 연결선<br />
-                    - <span class="pill">Trendline</span> 최근 2개 저점/고점 기반 지지/저항선(연장)<br />
-                    - <span class="pill">V Highlight</span> 최근 5봉 구간 배경 + Low 점 표시
+                    - Close/ZigZag/Trendline/V-Lows는 표시하지 않음
                 </div>
 
                 <canvas id="chart"></canvas>
@@ -506,54 +503,11 @@
                 return { swingHighs, swingLows };
             };
 
-            const buildZigZag = (swingHighs, swingLows) => {
-                // 시간순 합치고, 같은 타입 연속은 더 극단값으로 치환 후 번갈아 배열 생성
-                const swings = [...swingHighs, ...swingLows].sort((a, b) => a.t - b.t);
-
-                const out = [];
-                for (const p of swings) {
-                    if (out.length === 0) {
-                        out.push(p);
-                        continue;
-                    }
-
-                    const last = out[out.length - 1];
-
-                    if (p.type === last.type) {
-                        if (p.type === "H" && p.price > last.price) out[out.length - 1] = p;
-                        if (p.type === "L" && p.price < last.price) out[out.length - 1] = p;
-                    } else {
-                        out.push(p);
-                    }
-                }
-
-                return out;
-            };
-
             const latestOfTypeFromEnd = (points, type) => {
                 for (let i = points.length - 1; i >= 0; i -= 1) {
                     if (points[i].type === type) return points[i];
                 }
                 return null;
-            };
-
-            const buildTrendlineFromLastTwo = (pointsOfType, endTime) => {
-                if (!Array.isArray(pointsOfType) || pointsOfType.length < 2) return null;
-
-                const p1 = pointsOfType[pointsOfType.length - 2];
-                const p2 = pointsOfType[pointsOfType.length - 1];
-
-                const dt = p2.t - p1.t;
-                if (!Number.isFinite(dt) || dt === 0) return null;
-
-                const slope = (p2.price - p1.price) / dt;
-                const yEnd = p2.price + slope * (endTime - p2.t);
-
-                return [
-                    { x: p1.t, y: p1.price },
-                    { x: p2.t, y: p2.price },
-                    { x: endTime, y: yEnd },
-                ];
             };
 
             const computeScore = ({ quoteVolume, supportDistPct, upsidePct, lowAgeDays }) => {
@@ -569,7 +523,7 @@
                 // 저점 신선도: 60일 이내면 가점
                 const ageScore = Number.isFinite(lowAgeDays) ? (1 - clamp(lowAgeDays / 60, 0, 1)) : 0;
 
-                // 가중치(실전 우선순위)
+                // 가중치
                 return (0.40 * liqScore) + (0.35 * supportScore) + (0.20 * upScore) + (0.05 * ageScore);
             };
 
@@ -775,36 +729,8 @@
             };
 
             // -----------------------------
-            // Chart: highlight plugin + zoom
+            // Chart (SwH/SwL lines only) + Zoom
             // -----------------------------
-            const vHighlightPlugin = {
-                id: "vHighlight",
-                beforeDatasetsDraw(chartInstance, args, pluginOptions) {
-                    const opts = pluginOptions || {};
-                    const start = opts.start;
-                    const end = opts.end;
-
-                    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-
-                    const { ctx, chartArea, scales } = chartInstance;
-                    if (!chartArea) return;
-
-                    const xScale = scales.x;
-                    if (!xScale) return;
-
-                    const x1 = xScale.getPixelForValue(start);
-                    const x2 = xScale.getPixelForValue(end);
-
-                    const left = Math.min(x1, x2);
-                    const right = Math.max(x1, x2);
-
-                    ctx.save();
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-                    ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
-                    ctx.restore();
-                },
-            };
-
             const ensureChart = () => {
                 if (chart) return chart;
 
@@ -813,10 +739,6 @@
                     if (window.ChartZoom) {
                         Chart.register(window.ChartZoom);
                     }
-                } catch (_) {}
-
-                try {
-                    Chart.register(vHighlightPlugin);
                 } catch (_) {}
 
                 const ctx = $("#chart").getContext("2d");
@@ -846,10 +768,6 @@
                                     },
                                 },
                             },
-                            vHighlight: {
-                                start: NaN,
-                                end: NaN,
-                            },
                             zoom: {
                                 pan: {
                                     enabled: true,
@@ -857,12 +775,8 @@
                                     modifierKey: "alt",
                                 },
                                 zoom: {
-                                    wheel: {
-                                        enabled: true,
-                                    },
-                                    pinch: {
-                                        enabled: true,
-                                    },
+                                    wheel: { enabled: true },
+                                    pinch: { enabled: true },
                                     drag: {
                                         enabled: true,
                                         modifierKey: "shift",
@@ -900,81 +814,28 @@
 
                 const c = ensureChart();
 
-                const candles = data.candles;
-                const last = candles[candles.length - 1];
-                const endTime = last.openTime;
-
-                // V highlight range
-                c.options.plugins.vHighlight.start = data.vRangeStart;
-                c.options.plugins.vHighlight.end = data.vRangeEnd;
-
-                // datasets
-                const closeLine = candles.map((k) => ({ x: k.openTime, y: k.close }));
-
-                // ZigZag line (alternating swings)
-                const zigzagLine = data.zigzag.map((p) => ({ x: p.t, y: p.price }));
-
-                // Swing points
-                const swingHighPoints = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
-                const swingLowPoints = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
-
-                // 요청: 스윙고점끼리 연결선 / 스윙저점끼리 연결선
+                // 스윙고점/저점 “연결선”
                 const swingHighLine = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
                 const swingLowLine = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
 
-                // V low points (last 5 bars lows)
-                const vLowPoints = data.vLows.map((p) => ({ x: p.t, y: p.price }));
-
-                // Trendlines (last 2 highs/lows, extended)
-                const supportLine = buildTrendlineFromLastTwo(data.swingLows, endTime);
-                const resistanceLine = buildTrendlineFromLastTwo(data.swingHighs, endTime);
+                // 점 표시(가독성)
+                const swingHighPoints = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
+                const swingLowPoints = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
 
                 c.data.datasets = [
-                    {
-                        label: `${symbol} Close`,
-                        data: closeLine,
-                        borderWidth: 1.5,
-                        pointRadius: 0,
-                        tension: 0.15,
-                    },
-                    {
-                        label: `${symbol} ZigZag`,
-                        data: zigzagLine,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0,
-                    },
                     {
                         label: "Swing Highs Line",
                         data: swingHighLine,
                         borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
+                        pointRadius: 0,
                         tension: 0,
                     },
                     {
                         label: "Swing Lows Line",
                         data: swingLowLine,
                         borderWidth: 2,
-                        pointRadius: 2,
-                        pointHoverRadius: 5,
-                        tension: 0,
-                    },
-                    {
-                        label: "Support Trendline (last 2 Swing Lows)",
-                        data: supportLine || [],
-                        borderWidth: 2,
                         pointRadius: 0,
                         tension: 0,
-                        borderDash: [6, 6],
-                    },
-                    {
-                        label: "Resistance Trendline (last 2 Swing Highs)",
-                        data: resistanceLine || [],
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0,
-                        borderDash: [6, 6],
                     },
                     {
                         label: "Swing High (points)",
@@ -990,21 +851,12 @@
                         pointRadius: 4,
                         pointHoverRadius: 6,
                     },
-                    {
-                        label: "V-Lows (last 5 bars)",
-                        type: "scatter",
-                        data: vLowPoints,
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
-                    },
                 ];
 
                 c.update();
 
-                // Reset zoom enable
                 btnResetZoom.disabled = false;
 
-                // Binance link
                 btnBinance.href = `https://www.binance.com/en/futures/${encodeURIComponent(symbol)}`;
                 btnBinance.style.display = "inline-block";
             };
@@ -1080,9 +932,7 @@
                         symbols,
                         concurrency,
                         async (symbol) => {
-                            // small delay to reduce rate-limit bursts
                             await sleep(40);
-
                             const raw = await getKlines(symbol, "1d", 10, { timeoutMs, signal, retries });
                             const candles = normalizeKlines(raw, state.serverTime);
 
@@ -1130,23 +980,17 @@
 
                             const candles200 = allClosed.slice(-200);
 
-                            // V-range highlight: last 5 bars within these 200
-                            const m = candles200.length;
-                            const vRangeStart = candles200[m - 5].openTime;
-                            const vRangeEnd = candles200[m - 1].closeTime;
-                            const vLows = candles200.slice(m - 5).map((c) => ({ t: c.openTime, price: c.low }));
-
                             const { swingHighs, swingLows } = detectSwings(candles200);
-                            const zigzag = buildZigZag(swingHighs, swingLows);
 
+                            // 점수 계산(정렬용)
                             const lastClose = candles200[candles200.length - 1].close;
 
-                            const latestLow = latestOfTypeFromEnd(zigzag, "L");
-                            const latestHigh = latestOfTypeFromEnd(zigzag, "H");
+                            // 최신 스윙저점/고점은 단순히 swing 배열의 마지막 값(시간순 탐지)
+                            const latestLow = swingLows.length > 0 ? swingLows[swingLows.length - 1] : null;
+                            const latestHigh = swingHighs.length > 0 ? swingHighs[swingHighs.length - 1] : null;
 
                             const supportDistPct = latestLow ? (lastClose - latestLow.price) / lastClose : NaN;
                             const upsidePct = latestHigh ? (latestHigh.price - lastClose) / lastClose : NaN;
-
                             const lowAgeDays = latestLow
                                 ? (candles200[candles200.length - 1].openTime - latestLow.t) / 86400000
                                 : NaN;
@@ -1161,12 +1005,6 @@
                                 candles: candles200,
                                 swingHighs,
                                 swingLows,
-                                zigzag,
-
-                                vRangeStart,
-                                vRangeEnd,
-                                vLows,
-
                                 quoteVolume,
                                 lastClose,
                                 supportDistPct,
