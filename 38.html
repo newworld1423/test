@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp 1D V-Low + Swing Scanner (SwH/SwL Lines Only)</title>
+        <title>Binance USDT Perp Swing Scanner (TF Select, No 1M)</title>
 
         <!-- Chart.js -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -156,11 +156,13 @@
             <div class="card">
                 <div class="row" style="justify-content: space-between;">
                     <div>
-                        <div style="font-size: 18px; font-weight: 800;">Binance USDT 무기한 1D V-저점 + 스윙 스캐너</div>
+                        <div style="font-size: 18px; font-weight: 800;">Binance USDT 무기한 스윙 스캐너 (TF 선택 / 1M 제외)</div>
                         <div class="muted" style="margin-top: 6px;">
-                            1) 최근 5개 1D 완성봉 저점: <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span><br />
-                            2) 통과 심볼만 최근 <span class="pill">200개 1D 완성봉</span>에서 스윙 탐지(5봉 패턴)<br />
-                            3) 차트는 <span class="pill">스윙고점 연결선</span> + <span class="pill">스윙저점 연결선</span> + 점 표시만 출력
+                            1) 선택 TF 최근 5개 완성봉 저점: <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span><br />
+                            2) 통과 심볼만 최근 <span class="pill">200개 완성봉</span>에서 스윙 탐지(5봉)<br />
+                            - 스윙고점: <span class="pill">b[-2].H &lt; b[-1].H &lt; b.H &gt; b[1].H &gt; b[2].H</span><br />
+                            - 스윙저점: <span class="pill">b[-2].L &gt; b[-1].L &gt; b.L &lt; b[1].L &lt; b[2].L</span><br />
+                            3) 차트: <span class="pill">스윙고점 연결선</span> + <span class="pill">스윙저점 연결선</span> + 점 표시만
                         </div>
                         <div class="muted" style="margin-top: 6px;">
                             <span class="pill">줌/팬</span> 휠=줌, Shift+드래그=박스줌, Alt+드래그=팬, Reset 버튼=원복
@@ -173,6 +175,16 @@
                 </div>
 
                 <div class="row" style="margin-top: 12px;">
+                    <div>
+                        <label>타임프레임</label><br />
+                        <select id="selTf" style="width: 160px;">
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h" selected>4h</option>
+                            <option value="1d">1d</option>
+                            <option value="1w">1w</option>
+                        </select>
+                    </div>
                     <div>
                         <label>동시 요청(Concurrency)</label><br />
                         <input id="inpConcurrency" type="number" min="1" max="20" value="4" style="width: 140px;" />
@@ -223,6 +235,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Symbol</th>
+                                <th>TF</th>
                                 <th>Score</th>
                                 <th>24h QuoteVol(USDT)</th>
                                 <th>SupportDist%</th>
@@ -250,7 +263,7 @@
                 <div class="muted" style="margin-top: 8px;">
                     - <span class="pill">Swing Highs Line</span> 스윙고점끼리 연결선<br />
                     - <span class="pill">Swing Lows Line</span> 스윙저점끼리 연결선<br />
-                    - Close/ZigZag/Trendline/V-Lows는 표시하지 않음
+                    - (종가/지그재그/추세선/V-lows 없음)
                 </div>
 
                 <canvas id="chart"></canvas>
@@ -270,6 +283,11 @@
             const btnResetZoom = $("#btnResetZoom");
             const btnBinance = $("#btnBinance");
 
+            const selTf = $("#selTf");
+            const inpConcurrency = $("#inpConcurrency");
+            const inpTimeout = $("#inpTimeout");
+            const inpRetries = $("#inpRetries");
+
             const statusEl = $("#status");
             const resultSummary = $("#resultSummary");
             const tblBody = $("#tblResults tbody");
@@ -287,6 +305,7 @@
                 results: [],              // array of result objects
                 resultsMap: new Map(),    // symbol -> result
                 filtered: [],             // filtered + sorted view for UI
+                selectedTf: "4h",
             };
 
             // -----------------------------
@@ -319,6 +338,15 @@
 
             const logStatus = (lines) => {
                 statusEl.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines);
+            };
+
+            const getTimeUnitForTf = (tf) => {
+                if (tf === "15m") return "day";
+                if (tf === "1h") return "day";
+                if (tf === "4h") return "week";
+                if (tf === "1d") return "month";
+                if (tf === "1w") return "quarter";
+                return "month";
             };
 
             const anySignal = (signals) => {
@@ -419,7 +447,7 @@
                     };
                 });
 
-                // 진행 중(완성 전) 일봉 제거: closeTime이 서버시간보다 미래면 pop
+                // 진행 중(완성 전) 캔들 제거: closeTime이 서버시간보다 미래면 pop
                 if (candles.length > 0) {
                     const last = candles[candles.length - 1];
                     if (Number.isFinite(last.closeTime) && last.closeTime > serverTime) {
@@ -482,48 +510,41 @@
                         (lP1 < lP2);
 
                     if (isSwingHigh) {
-                        swingHighs.push({
-                            t: candles200[i].openTime,
-                            price: h0,
-                            idx: i,
-                            type: "H",
-                        });
+                        swingHighs.push({ t: candles200[i].openTime, price: h0, idx: i, type: "H" });
                     }
 
                     if (isSwingLow) {
-                        swingLows.push({
-                            t: candles200[i].openTime,
-                            price: l0,
-                            idx: i,
-                            type: "L",
-                        });
+                        swingLows.push({ t: candles200[i].openTime, price: l0, idx: i, type: "L" });
                     }
                 }
 
                 return { swingHighs, swingLows };
             };
 
-            const latestOfTypeFromEnd = (points, type) => {
-                for (let i = points.length - 1; i >= 0; i -= 1) {
-                    if (points[i].type === type) return points[i];
+            const findTargetHighAbove = (swingHighs, lastClose, afterTime) => {
+                if (!Array.isArray(swingHighs) || swingHighs.length === 0) return null;
+
+                const candidates = swingHighs
+                    .filter((h) => Number.isFinite(h.price) && h.price > lastClose)
+                    .filter((h) => (Number.isFinite(afterTime) ? h.t >= afterTime : true))
+                    .sort((a, b) => a.price - b.price);
+
+                if (candidates.length > 0) return candidates[0];
+
+                // fallback: 최고 스윙고점
+                let max = swingHighs[0];
+                for (const h of swingHighs) {
+                    if (h.price > max.price) max = h;
                 }
-                return null;
+                return max;
             };
 
             const computeScore = ({ quoteVolume, supportDistPct, upsidePct, lowAgeDays }) => {
-                // 유동성(로그 스케일)
                 const liqScore = clamp(Math.log10((quoteVolume || 0) + 1) / 8, 0, 1);
-
-                // 지지거리: 8% 이내면 높은 점수
                 const supportScore = Number.isFinite(supportDistPct) ? (1 - clamp(supportDistPct / 0.08, 0, 1)) : 0;
-
-                // 업사이드: 20% 이상이면 상한
                 const upScore = Number.isFinite(upsidePct) ? clamp(upsidePct / 0.20, 0, 1) : 0;
-
-                // 저점 신선도: 60일 이내면 가점
                 const ageScore = Number.isFinite(lowAgeDays) ? (1 - clamp(lowAgeDays / 60, 0, 1)) : 0;
 
-                // 가중치
                 return (0.40 * liqScore) + (0.35 * supportScore) + (0.20 * upScore) + (0.05 * ageScore);
             };
 
@@ -566,15 +587,16 @@
             };
 
             // -----------------------------
-            // UI: table / sort / filter / csv
+            // UI
             // -----------------------------
             const setUiRunning = (running) => {
                 btnStart.disabled = running;
                 btnStop.disabled = !running;
 
-                $("#inpConcurrency").disabled = running;
-                $("#inpTimeout").disabled = running;
-                $("#inpRetries").disabled = running;
+                selTf.disabled = running;
+                inpConcurrency.disabled = running;
+                inpTimeout.disabled = running;
+                inpRetries.disabled = running;
 
                 selSort.disabled = running;
                 inpSearch.disabled = running;
@@ -627,7 +649,6 @@
                         return (b.score - a.score);
                     }
 
-                    // default: score_desc
                     const d1 = (b.score - a.score);
                     if (Math.abs(d1) > 1e-12) return d1;
 
@@ -656,11 +677,12 @@
                     tr.innerHTML = `
                         <td>${idx + 1}</td>
                         <td><strong>${r.symbol}</strong></td>
+                        <td>${r.tf}</td>
                         <td>${r.score.toFixed(4)}</td>
                         <td>${fmtNum(r.quoteVolume)}</td>
                         <td>${fmtPct(r.supportDistPct)}</td>
                         <td>${fmtPct(r.upsidePct)}</td>
-                        <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(0) : "-"}</td>
+                        <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(1) : "-"}</td>
                         <td>${r.swingHighs.length}</td>
                         <td>${r.swingLows.length}</td>
                         <td>${isoDate(r.candles[r.candles.length - 1].openTime)}</td>
@@ -675,6 +697,7 @@
                 });
 
                 resultSummary.innerHTML = `
+                    TF: <strong class="pill">${state.selectedTf}</strong>
                     최종 매칭: <strong class="ok">${state.results.length}개</strong>
                     (현재 표시: ${state.filtered.length}개)
                 `;
@@ -684,6 +707,7 @@
                 const headers = [
                     "rank",
                     "symbol",
+                    "tf",
                     "score",
                     "quoteVolumeUSDT",
                     "supportDistPct",
@@ -698,6 +722,7 @@
                     return [
                         i + 1,
                         r.symbol,
+                        r.tf,
                         r.score,
                         r.quoteVolume,
                         r.supportDistPct,
@@ -720,7 +745,7 @@
 
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = `binance_swing_scan_${Date.now()}.csv`;
+                a.download = `binance_swing_scan_${state.selectedTf}_${Date.now()}.csv`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -734,7 +759,6 @@
             const ensureChart = () => {
                 if (chart) return chart;
 
-                // plugin register (safe)
                 try {
                     if (window.ChartZoom) {
                         Chart.register(window.ChartZoom);
@@ -793,7 +817,7 @@
                         scales: {
                             x: {
                                 type: "time",
-                                time: { unit: "month" },
+                                time: { unit: "week" },
                                 ticks: { color: "#cfd6e6" },
                                 grid: { color: "rgba(255,255,255,0.08)" },
                             },
@@ -814,24 +838,24 @@
 
                 const c = ensureChart();
 
-                // 스윙고점/저점 “연결선”
+                c.options.scales.x.time.unit = getTimeUnitForTf(state.selectedTf);
+
                 const swingHighLine = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
                 const swingLowLine = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
 
-                // 점 표시(가독성)
                 const swingHighPoints = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
                 const swingLowPoints = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
 
                 c.data.datasets = [
                     {
-                        label: "Swing Highs Line",
+                        label: `Swing Highs Line (${symbol})`,
                         data: swingHighLine,
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0,
                     },
                     {
-                        label: "Swing Lows Line",
+                        label: `Swing Lows Line (${symbol})`,
                         data: swingLowLine,
                         borderWidth: 2,
                         pointRadius: 0,
@@ -865,14 +889,16 @@
             // Main scan
             // -----------------------------
             const scan = async () => {
-                const concurrency = Math.max(1, Math.min(20, Number($("#inpConcurrency").value) || 4));
-                const timeoutMs = Math.max(2000, Math.min(60000, Number($("#inpTimeout").value) || 12000));
-                const retries = Math.max(0, Math.min(10, Number($("#inpRetries").value) || 3));
+                const tf = String(selTf.value || "4h");
+                state.selectedTf = tf;
+
+                const concurrency = Math.max(1, Math.min(20, Number(inpConcurrency.value) || 4));
+                const timeoutMs = Math.max(2000, Math.min(60000, Number(inpTimeout.value) || 12000));
+                const retries = Math.max(0, Math.min(10, Number(inpRetries.value) || 3));
 
                 globalAbortController = new AbortController();
                 const signal = globalAbortController.signal;
 
-                // reset state
                 state.symbols = [];
                 state.tickers.clear();
                 state.results = [];
@@ -889,10 +915,10 @@
                 setUiRunning(true);
 
                 try {
-                    logStatus(["서버시간 가져오는 중…"]);
+                    logStatus([`TF=${tf}`, "서버시간 가져오는 중…"]);
                     state.serverTime = await getServerTime({ timeoutMs, signal, retries });
 
-                    logStatus(["exchangeInfo 가져오는 중…"]);
+                    logStatus([`TF=${tf}`, "exchangeInfo 가져오는 중…"]);
                     const info = await getExchangeInfo({ timeoutMs, signal, retries });
 
                     const symbols = (info.symbols || [])
@@ -904,9 +930,10 @@
                     state.symbols = symbols;
 
                     logStatus([
+                        `TF=${tf}`,
                         `USDT PERP 심볼: ${symbols.length}`,
                         "",
-                        "24h ticker 전체 가져오는 중(거래대금/현재가)…",
+                        "24h ticker 전체 가져오는 중(거래대금)…",
                     ]);
 
                     const allTickers = await getAll24hTickers({ timeoutMs, signal, retries });
@@ -922,18 +949,19 @@
                     }
 
                     logStatus([
+                        `TF=${tf}`,
                         `USDT PERP 심볼: ${symbols.length}`,
                         "",
-                        "1단계: 최근 1D 완성봉 5개 저점 V-패턴 필터링…",
+                        "1단계: 최근 5개 완성봉 저점 V-패턴 필터링…",
                     ]);
 
-                    // Stage1: each symbol fetch 1d 10 bars, check V pattern
+                    // Stage1: fetch small
                     const stage1 = await mapWithConcurrency(
                         symbols,
                         concurrency,
                         async (symbol) => {
-                            await sleep(40);
-                            const raw = await getKlines(symbol, "1d", 10, { timeoutMs, signal, retries });
+                            await sleep(35);
+                            const raw = await getKlines(symbol, tf, 12, { timeoutMs, signal, retries });
                             const candles = normalizeKlines(raw, state.serverTime);
 
                             if (candles.length < 5) return { symbol, pass: false };
@@ -943,6 +971,7 @@
                         },
                         (done, total) => {
                             logStatus([
+                                `TF=${tf}`,
                                 `USDT PERP 심볼: ${symbols.length}`,
                                 "",
                                 `1단계 진행: ${done}/${total}`,
@@ -958,20 +987,23 @@
                         .map((r) => r.symbol);
 
                     logStatus([
+                        `TF=${tf}`,
                         `1단계 통과: ${filteredSymbols.length} / ${symbols.length}`,
                         "",
-                        "2단계: 통과 심볼만 1D 260봉 조회 → (완성봉 기준) 최근 200봉 스윙 계산…",
+                        "2단계: 통과 심볼만 최근 200개 완성봉 확보 후 스윙 계산…",
                         "200봉 미만 심볼은 제외됨.",
                     ]);
 
-                    // Stage2: for filtered symbols, fetch more bars, require >=200 closed
+                    // Stage2: fetch bigger (keep it moderate)
+                    const stage2Limit = 600;
+
                     const stage2 = await mapWithConcurrency(
                         filteredSymbols,
                         concurrency,
                         async (symbol) => {
-                            await sleep(60);
+                            await sleep(55);
 
-                            const raw = await getKlines(symbol, "1d", 260, { timeoutMs, signal, retries });
+                            const raw = await getKlines(symbol, tf, stage2Limit, { timeoutMs, signal, retries });
                             const allClosed = normalizeKlines(raw, state.serverTime);
 
                             if (allClosed.length < 200) {
@@ -982,26 +1014,35 @@
 
                             const { swingHighs, swingLows } = detectSwings(candles200);
 
-                            // 점수 계산(정렬용)
                             const lastClose = candles200[candles200.length - 1].close;
 
-                            // 최신 스윙저점/고점은 단순히 swing 배열의 마지막 값(시간순 탐지)
-                            const latestLow = swingLows.length > 0 ? swingLows[swingLows.length - 1] : null;
-                            const latestHigh = swingHighs.length > 0 ? swingHighs[swingHighs.length - 1] : null;
-
-                            const supportDistPct = latestLow ? (lastClose - latestLow.price) / lastClose : NaN;
-                            const upsidePct = latestHigh ? (latestHigh.price - lastClose) / lastClose : NaN;
-                            const lowAgeDays = latestLow
-                                ? (candles200[candles200.length - 1].openTime - latestLow.t) / 86400000
+                            const lastSwingLow = swingLows.length > 0 ? swingLows[swingLows.length - 1] : null;
+                            const supportDistPct = lastSwingLow ? (lastClose - lastSwingLow.price) / lastClose : NaN;
+                            const lowAgeDays = lastSwingLow
+                                ? (candles200[candles200.length - 1].openTime - lastSwingLow.t) / 86400000
                                 : NaN;
+
+                            const targetHigh = findTargetHighAbove(
+                                swingHighs,
+                                lastClose,
+                                lastSwingLow ? lastSwingLow.t : NaN
+                            );
+
+                            let upsidePct = NaN;
+                            if (targetHigh && Number.isFinite(targetHigh.price) && targetHigh.price > lastClose) {
+                                upsidePct = (targetHigh.price - lastClose) / lastClose;
+                            } else {
+                                upsidePct = 0;
+                            }
 
                             const t = state.tickers.get(symbol) || { quoteVolume: 0, lastPrice: NaN };
                             const quoteVolume = Number.isFinite(t.quoteVolume) ? t.quoteVolume : 0;
 
                             const score = computeScore({ quoteVolume, supportDistPct, upsidePct, lowAgeDays });
 
-                            const result = {
+                            return {
                                 symbol,
+                                tf,
                                 candles: candles200,
                                 swingHighs,
                                 swingLows,
@@ -1012,15 +1053,13 @@
                                 lowAgeDays,
                                 score,
                             };
-
-                            return result;
                         },
                         (done, total) => {
                             logStatus([
+                                `TF=${tf}`,
                                 `1단계 통과: ${filteredSymbols.length} / ${symbols.length}`,
                                 "",
                                 `2단계 진행: ${done}/${total}`,
-                                `최종 누적(200봉 충족): ${state.results.length}`,
                             ]);
                         },
                         signal
@@ -1031,7 +1070,6 @@
                     const finalResults = stage2
                         .filter((r) => r && !r.__error && !r.excluded && r.candles && r.candles.length === 200);
 
-                    // store
                     state.results = finalResults;
                     state.resultsMap.clear();
                     for (const r of finalResults) {
@@ -1042,6 +1080,7 @@
 
                     logStatus([
                         "완료!",
+                        `TF=${tf}`,
                         `총 심볼: ${symbols.length}`,
                         `1단계 통과: ${filteredSymbols.length}`,
                         `최종(200봉 충족): ${finalResults.length}`,
@@ -1049,7 +1088,6 @@
                         "테이블 클릭 또는 심볼 선택으로 차트 확인 가능",
                     ]);
 
-                    // auto draw first
                     if (state.filtered.length > 0) {
                         selSymbol.value = state.filtered[0].symbol;
                         drawSymbolChart(state.filtered[0].symbol);
