@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp 1D Swing Scanner</title>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+        <style>
+            body {
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
+                margin: 0;
+                padding: 16px;
+                background: #0b0f17;
+                color: #e7eaf0;
+            }
+
+            .wrap {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+
+            .card {
+                background: #121a2a;
+                border: 1px solid #1e2a44;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: center;
+            }
+
+            label {
+                font-size: 13px;
+                opacity: 0.9;
+            }
+
+            input,
+            select,
+            button {
+                border-radius: 10px;
+                border: 1px solid #2a3a5f;
+                background: #0f1524;
+                color: #e7eaf0;
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+
+            button {
+                cursor: pointer;
+                background: #1a2640;
+            }
+
+            button:hover {
+                background: #223255;
+            }
+
+            button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+            .muted {
+                opacity: 0.75;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .status {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+                font-size: 12px;
+                white-space: pre-wrap;
+                background: #0a0f1c;
+                border: 1px solid #1e2a44;
+                border-radius: 10px;
+                padding: 12px;
+                margin-top: 12px;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 12px;
+                font-size: 14px;
+            }
+
+            th,
+            td {
+                border-bottom: 1px solid #1e2a44;
+                padding: 10px 8px;
+                text-align: left;
+            }
+
+            th {
+                opacity: 0.9;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            tr:hover {
+                background: rgba(255, 255, 255, 0.04);
+                cursor: pointer;
+            }
+
+            .pill {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 999px;
+                border: 1px solid #2a3a5f;
+                font-size: 12px;
+                opacity: 0.9;
+            }
+
+            canvas {
+                width: 100% !important;
+                height: 520px !important;
+            }
+
+            .danger {
+                color: #ff6b6b;
+            }
+
+            .ok {
+                color: #7cff9b;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="card">
+                <div class="row" style="justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 18px; font-weight: 700;">Binance USDT 무기한(Perp) 1D 스윙 스캐너</div>
+                        <div class="muted">
+                            1) 1D 기준 최근 완성봉 5개 저점이 <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span> 인 심볼만 필터<br />
+                            2) 그 심볼들에 대해 최근 완성봉 기준 <span class="pill">최근 200개 1D</span>에서 스윙고점/스윙저점 탐지<br />
+                            3) 종가 라인 + 스윙(지그재그) 선형 그래프 + 트렌드라인 + V구간 하이라이트
+                        </div>
+                        <div class="muted" style="margin-top: 8px;">
+                            <span class="pill">정렬(Score)</span>
+                            유동성(24h 거래대금)↑, 스윙저점 거리↓, 스윙고점 여유↑, 저점 신선도↑ 를 합산 점수로 정렬
+                        </div>
+                    </div>
+                    <div class="row">
+                        <button id="btnStart">스캔 시작</button>
+                        <button id="btnStop" disabled>중지</button>
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top: 12px;">
+                    <div>
+                        <label>동시 요청(Concurrency)</label><br />
+                        <input id="inpConcurrency" type="number" min="1" max="20" value="8" style="width: 140px;" />
+                    </div>
+                    <div>
+                        <label>요청 타임아웃(ms)</label><br />
+                        <input id="inpTimeout" type="number" min="2000" max="60000" value="12000" style="width: 140px;" />
+                    </div>
+                    <div>
+                        <label>재시도 횟수</label><br />
+                        <input id="inpRetries" type="number" min="0" max="10" value="3" style="width: 140px;" />
+                    </div>
+                    <div class="muted" style="flex: 1; min-width: 260px;">
+                        API 호출이 많아질 수 있어. <span class="pill">24h ticker</span>는 한 번만 받아서 거래대금/현재가를 씀.<br />
+                        분석(2단계)은 심볼당 260봉만 받아서 <span class="pill">최근 200봉</span>으로 계산.
+                    </div>
+                </div>
+
+                <div id="status" class="status">대기 중…</div>
+            </div>
+
+            <div class="card">
+                <div class="row" style="justify-content: space-between;">
+                    <div style="font-size: 16px; font-weight: 700;">결과</div>
+                    <div class="row">
+                        <label>심볼 선택</label>
+                        <select id="selSymbol" style="min-width: 200px;">
+                            <option value="">(스캔 후 선택)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="muted" id="resultSummary" style="margin-top: 8px;">아직 결과가 없어.</div>
+
+                <div style="overflow: auto;">
+                    <table id="tblResults">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Score</th>
+                                <th>24h QuoteVol(USDT)</th>
+                                <th>SupportDist%</th>
+                                <th>Upside%</th>
+                                <th>LowAge(d)</th>
+                                <th>SwH</th>
+                                <th>SwL</th>
+                                <th>마지막 완성봉(UTC)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">차트</div>
+                <div class="muted" style="margin-bottom: 8px;">
+                    - <span class="pill">Close Line</span>: 최근 200개 1D 종가<br />
+                    - <span class="pill">ZigZag</span>: 스윙고점/저점(정의된 패턴)으로 만든 지그재그 선형 그래프<br />
+                    - <span class="pill">Trendline</span>: 최근 스윙저점 2개(지지), 스윙고점 2개(저항) 기준으로 우측 연장<br />
+                    - <span class="pill">V Highlight</span>: 최근 5봉 V-저점 구간 배경 하이라이트 + 5봉 Low 점 표시
+                </div>
+                <canvas id="chart"></canvas>
+            </div>
+        </div>
+
+        <script>
+            const BINANCE_FAPI = "https://fapi.binance.com";
+
+            const $ = (sel) => document.querySelector(sel);
+
+            const btnStart = $("#btnStart");
+            const btnStop = $("#btnStop");
+            const statusEl = $("#status");
+            const tblBody = $("#tblResults tbody");
+            const selSymbol = $("#selSymbol");
+            const resultSummary = $("#resultSummary");
+
+            let globalAbortController = null;
+            let chart = null;
+
+            const state = {
+                serverTime: 0,
+                symbols: [],
+                filteredSymbols: [],
+                tickers: new Map(), // symbol -> { lastPrice, quoteVolume, priceChangePercent }
+                results: new Map(), // symbol -> result
+            };
+
+            function logStatus(lines) {
+                statusEl.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines);
+            }
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            function toNumber(v) {
+                const n = Number(v);
+                return Number.isFinite(n) ? n : NaN;
+            }
+
+            function clamp(v, min, max) {
+                return Math.max(min, Math.min(max, v));
+            }
+
+            function fmtNum(n) {
+                if (!Number.isFinite(n)) return "-";
+                if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + "B";
+                if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + "M";
+                if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(2) + "K";
+                return n.toFixed(2);
+            }
+
+            function fmtPct(n) {
+                if (!Number.isFinite(n)) return "-";
+                return (n * 100).toFixed(2) + "%";
+            }
+
+            async function fetchJson(url, { timeoutMs = 12000, signal = null } = {}) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+                const mergedSignal = signal ? anySignal([signal, controller.signal]) : controller.signal;
+
+                try {
+                    const res = await fetch(url, { signal: mergedSignal });
+                    const text = await res.text();
+
+                    if (!res.ok) {
+                        const err = new Error(`HTTP ${res.status} ${res.statusText} - ${text.slice(0, 200)}`);
+                        err.status = res.status;
+                        throw err;
+                    }
+
+                    return JSON.parse(text);
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            }
+
+            function anySignal(signals) {
+                const controller = new AbortController();
+
+                const onAbort = () => {
+                    controller.abort();
+                    for (const s of signals) {
+                        if (s) s.removeEventListener("abort", onAbort);
+                    }
+                };
+
+                for (const s of signals) {
+                    if (!s) continue;
+                    if (s.aborted) {
+                        controller.abort();
+                        return controller.signal;
+                    }
+                    s.addEventListener("abort", onAbort, { once: true });
+                }
+
+                return controller.signal;
+            }
+
+            async function fetchJsonWithRetry(url, { timeoutMs, signal, retries = 3 } = {}) {
+                let lastErr = null;
+
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        return await fetchJson(url, { timeoutMs, signal });
+                    } catch (err) {
+                        lastErr = err;
+
+                        const status = err && typeof err.status === "number" ? err.status : 0;
+                        const isRateLimited = status === 429 || status === 418;
+
+                        if (signal && signal.aborted) throw err;
+
+                        if (attempt === retries) break;
+
+                        const backoff = isRateLimited ? (800 + attempt * 600) : (300 + attempt * 300);
+                        await sleep(backoff);
+                    }
+                }
+
+                throw lastErr;
+            }
+
+            async function getServerTime({ timeoutMs, signal, retries }) {
+                const data = await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/time`, { timeoutMs, signal, retries });
+                return data.serverTime;
+            }
+
+            async function getExchangeInfo({ timeoutMs, signal, retries }) {
+                return await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`, { timeoutMs, signal, retries });
+            }
+
+            async function getAll24hTickers({ timeoutMs, signal, retries }) {
+                return await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`, { timeoutMs, signal, retries });
+            }
+
+            async function getKlines(symbol, interval, limit, { timeoutMs, signal, retries }) {
+                const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+                return await fetchJsonWithRetry(url, { timeoutMs, signal, retries });
+            }
+
+            function normalizeKlines(rawKlines, serverTime) {
+                const candles = rawKlines.map((k) => {
+                    return {
+                        openTime: toNumber(k[0]),
+                        open: toNumber(k[1]),
+                        high: toNumber(k[2]),
+                        low: toNumber(k[3]),
+                        close: toNumber(k[4]),
+                        volume: toNumber(k[5]),
+                        closeTime: toNumber(k[6]),
+                    };
+                });
+
+                // 진행 중인 일봉(완성 전)은 제거
+                if (candles.length > 0) {
+                    const last = candles[candles.length - 1];
+                    if (Number.isFinite(last.closeTime) && last.closeTime > serverTime) {
+                        candles.pop();
+                    }
+                }
+
+                return candles;
+            }
+
+            function passesVShapeLast5Lows(candles) {
+                // a[-5] > a[-4] > a[-3] < a[-2] < a[-1]
+                if (!candles || candles.length < 5) return false;
+
+                const m = candles.length;
+                const l5 = candles[m - 5].low;
+                const l4 = candles[m - 4].low;
+                const l3 = candles[m - 3].low;
+                const l2 = candles[m - 2].low;
+                const l1 = candles[m - 1].low;
+
+                if (![l5, l4, l3, l2, l1].every(Number.isFinite)) return false;
+
+                return (l5 > l4) && (l4 > l3) && (l3 < l2) && (l2 < l1);
+            }
+
+            function detectSwings(candles) {
+                // swing high at b:
+                // b[-2].high < b[-1].high < b.high > b[1].high > b[2].high
+                // swing low at b:
+                // b[-2].low > b[-1].low > b.low < b[1].low < b[2].low
+                const swingHighs = [];
+                const swingLows = [];
+
+                for (let i = 2; i <= candles.length - 3; i++) {
+                    const h2 = candles[i - 2].high;
+                    const h1 = candles[i - 1].high;
+                    const h0 = candles[i].high;
+                    const hP1 = candles[i + 1].high;
+                    const hP2 = candles[i + 2].high;
+
+                    const l2 = candles[i - 2].low;
+                    const l1 = candles[i - 1].low;
+                    const l0 = candles[i].low;
+                    const lP1 = candles[i + 1].low;
+                    const lP2 = candles[i + 2].low;
+
+                    if ([h2, h1, h0, hP1, hP2].every(Number.isFinite)) {
+                        if ((h2 < h1) && (h1 < h0) && (h0 > hP1) && (hP1 > hP2)) {
+                            swingHighs.push({ t: candles[i].openTime, price: h0, idx: i, type: "H" });
+                        }
+                    }
+
+                    if ([l2, l1, l0, lP1, lP2].every(Number.isFinite)) {
+                        if ((l2 > l1) && (l1 > l0) && (l0 < lP1) && (lP1 < lP2)) {
+                            swingLows.push({ t: candles[i].openTime, price: l0, idx: i, type: "L" });
+                        }
+                    }
+                }
+
+                return { swingHighs, swingLows };
+            }
+
+            function buildZigZag(swingHighs, swingLows) {
+                const swings = [...swingHighs, ...swingLows].sort((a, b) => a.t - b.t);
+
+                const out = [];
+                for (const p of swings) {
+                    if (out.length === 0) {
+                        out.push(p);
+                        continue;
+                    }
+
+                    const last = out[out.length - 1];
+
+                    if (p.type === last.type) {
+                        // 같은 타입 연속이면 더 극단적인 값으로 교체
+                        if (p.type === "H" && p.price > last.price) out[out.length - 1] = p;
+                        if (p.type === "L" && p.price < last.price) out[out.length - 1] = p;
+                    } else {
+                        out.push(p);
+                    }
+                }
+
+                return out;
+            }
+
+            function latestOfTypeFromEnd(points, type) {
+                for (let i = points.length - 1; i >= 0; i--) {
+                    if (points[i].type === type) return points[i];
+                }
+                return null;
+            }
+
+            function buildTrendlineFromLastTwo(pointsOfType, endTime) {
+                if (!Array.isArray(pointsOfType) || pointsOfType.length < 2) return null;
+
+                const p1 = pointsOfType[pointsOfType.length - 2];
+                const p2 = pointsOfType[pointsOfType.length - 1];
+
+                const dt = p2.t - p1.t;
+                if (!Number.isFinite(dt) || dt === 0) return null;
+
+                const slope = (p2.price - p1.price) / dt;
+                const yEnd = p2.price + slope * (endTime - p2.t);
+
+                return [
+                    { x: p1.t, y: p1.price },
+                    { x: p2.t, y: p2.price },
+                    { x: endTime, y: yEnd },
+                ];
+            }
+
+            function computeScore({ quoteVolume, supportDistPct, upsidePct, lowAgeDays }) {
+                // 유동성: log 스케일(대략 1e8 USDT 정도면 max 근처)
+                const liqScore = clamp(Math.log10((quoteVolume || 0) + 1) / 8, 0, 1);
+
+                // 지지거리: 8% 이내면 가점, 멀면 감점
+                const supportScore = Number.isFinite(supportDistPct) ? (1 - clamp(supportDistPct / 0.08, 0, 1)) : 0;
+
+                // 업사이드: 20% 이상이면 가점 상한
+                const upScore = Number.isFinite(upsidePct) ? clamp(upsidePct / 0.20, 0, 1) : 0;
+
+                // 저점 신선도: 60일 이내면 가점
+                const ageScore = Number.isFinite(lowAgeDays) ? (1 - clamp(lowAgeDays / 60, 0, 1)) : 0;
+
+                // 가중치(실전 우선순위)
+                return (0.40 * liqScore) + (0.35 * supportScore) + (0.20 * upScore) + (0.05 * ageScore);
+            }
+
+            async function mapWithConcurrency(items, concurrency, mapper, onProgress, signal) {
+                const results = new Array(items.length);
+                let index = 0;
+                let done = 0;
+
+                async function worker() {
+                    while (true) {
+                        if (signal && signal.aborted) return;
+
+                        const i = index;
+                        index += 1;
+
+                        if (i >= items.length) return;
+
+                        try {
+                            results[i] = await mapper(items[i], i);
+                        } catch (err) {
+                            results[i] = { __error: err };
+                        } finally {
+                            done += 1;
+                            if (typeof onProgress === "function") onProgress(done, items.length);
+                        }
+                    }
+                }
+
+                const workers = [];
+                const actual = Math.max(1, Math.min(concurrency, items.length));
+                for (let i = 0; i < actual; i++) {
+                    workers.push(worker());
+                }
+
+                await Promise.all(workers);
+                return results;
+            }
+
+            function renderTable(resultsArray) {
+                tblBody.innerHTML = "";
+
+                for (const r of resultsArray) {
+                    const tr = document.createElement("tr");
+                    tr.dataset.symbol = r.symbol;
+
+                    const lastDate = new Date(r.candles[r.candles.length - 1].openTime).toISOString().slice(0, 10);
+
+                    tr.innerHTML = `
+                        <td><strong>${r.symbol}</strong></td>
+                        <td>${r.score.toFixed(4)}</td>
+                        <td>${fmtNum(r.quoteVolume)}</td>
+                        <td>${fmtPct(r.supportDistPct)}</td>
+                        <td>${fmtPct(r.upsidePct)}</td>
+                        <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(0) : "-"}</td>
+                        <td>${r.swingHighs.length}</td>
+                        <td>${r.swingLows.length}</td>
+                        <td>${lastDate}</td>
+                    `;
+
+                    tr.addEventListener("click", () => {
+                        selSymbol.value = r.symbol;
+                        drawSymbolChart(r.symbol);
+                    });
+
+                    tblBody.appendChild(tr);
+                }
+            }
+
+            function setSymbolSelect(symbols) {
+                selSymbol.innerHTML = `<option value="">(선택)</option>`;
+                for (const s of symbols) {
+                    const opt = document.createElement("option");
+                    opt.value = s;
+                    opt.textContent = s;
+                    selSymbol.appendChild(opt);
+                }
+            }
+
+            // V-구간 하이라이트 플러그인
+            const vHighlightPlugin = {
+                id: "vHighlight",
+                beforeDatasetsDraw(chartInstance, args, pluginOptions) {
+                    const opts = pluginOptions || {};
+                    const start = opts.start;
+                    const end = opts.end;
+
+                    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+
+                    const { ctx, chartArea, scales } = chartInstance;
+                    if (!chartArea) return;
+
+                    const xScale = scales.x;
+                    if (!xScale) return;
+
+                    const x1 = xScale.getPixelForValue(start);
+                    const x2 = xScale.getPixelForValue(end);
+
+                    const left = Math.min(x1, x2);
+                    const right = Math.max(x1, x2);
+
+                    ctx.save();
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+                    ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+                    ctx.restore();
+                },
+            };
+
+            function ensureChart() {
+                const ctx = $("#chart").getContext("2d");
+                if (chart) return chart;
+
+                chart = new Chart(ctx, {
+                    type: "line",
+                    data: { datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: "nearest", intersect: false },
+                        plugins: {
+                            legend: { labels: { color: "#e7eaf0" } },
+                            tooltip: {
+                                callbacks: {
+                                    label: (c) => {
+                                        const y = c.parsed && typeof c.parsed.y === "number" ? c.parsed.y : null;
+                                        if (y === null) return c.dataset.label || "";
+                                        return `${c.dataset.label}: ${y}`;
+                                    },
+                                },
+                            },
+                            vHighlight: { start: NaN, end: NaN },
+                        },
+                        scales: {
+                            x: {
+                                type: "time",
+                                time: { unit: "month" },
+                                ticks: { color: "#cfd6e6" },
+                                grid: { color: "rgba(255,255,255,0.08)" },
+                            },
+                            y: {
+                                ticks: { color: "#cfd6e6" },
+                                grid: { color: "rgba(255,255,255,0.08)" },
+                            },
+                        },
+                    },
+                    plugins: [vHighlightPlugin],
+                });
+
+                return chart;
+            }
+
+            function drawSymbolChart(symbol) {
+                const data = state.results.get(symbol);
+                if (!data) return;
+
+                const c = ensureChart();
+
+                const lastCandle = data.candles[data.candles.length - 1];
+                const endTime = lastCandle.openTime;
+
+                // V-구간(최근 5봉) 하이라이트 범위
+                c.options.plugins.vHighlight.start = data.vRangeStart;
+                c.options.plugins.vHighlight.end = data.vRangeEnd;
+
+                const closeLine = data.candles.map((k) => ({ x: k.openTime, y: k.close }));
+                const zigzagLine = data.zigzag.map((p) => ({ x: p.t, y: p.price }));
+
+                const swingHighs = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
+                const swingLows = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
+
+                const vLows = data.vLows.map((p) => ({ x: p.t, y: p.price }));
+
+                // 트렌드라인(최근 2개 스윙 저점/고점)
+                const supportLine = buildTrendlineFromLastTwo(data.swingLows, endTime);
+                const resistLine = buildTrendlineFromLastTwo(data.swingHighs, endTime);
+
+                c.data.datasets = [
+                    {
+                        label: `${symbol} Close Line`,
+                        data: closeLine,
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        tension: 0.15,
+                    },
+                    {
+                        label: `${symbol} ZigZag`,
+                        data: zigzagLine,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0,
+                    },
+                    {
+                        label: "Support Trendline (from last 2 Swing Lows)",
+                        data: supportLine || [],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0,
+                        borderDash: [6, 6],
+                    },
+                    {
+                        label: "Resistance Trendline (from last 2 Swing Highs)",
+                        data: resistLine || [],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0,
+                        borderDash: [6, 6],
+                    },
+                    {
+                        label: "Swing High",
+                        type: "scatter",
+                        data: swingHighs,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: "Swing Low",
+                        type: "scatter",
+                        data: swingLows,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: "V-Range Lows (last 5 bars)",
+                        type: "scatter",
+                        data: vLows,
+                        pointRadius: 5,
+                    },
+                ];
+
+                c.update();
+            }
+
+            function setUiRunning(running) {
+                btnStart.disabled = running;
+                btnStop.disabled = !running;
+                $("#inpConcurrency").disabled = running;
+                $("#inpTimeout").disabled = running;
+                $("#inpRetries").disabled = running;
+            }
+
+            btnStop.addEventListener("click", () => {
+                if (globalAbortController) globalAbortController.abort();
+            });
+
+            selSymbol.addEventListener("change", () => {
+                const symbol = selSymbol.value;
+                if (!symbol) return;
+                drawSymbolChart(symbol);
+            });
+
+            btnStart.addEventListener("click", async () => {
+                const concurrency = Math.max(1, Math.min(20, Number($("#inpConcurrency").value) || 8));
+                const timeoutMs = Math.max(2000, Math.min(60000, Number($("#inpTimeout").value) || 12000));
+                const retries = Math.max(0, Math.min(10, Number($("#inpRetries").value) || 3));
+
+                globalAbortController = new AbortController();
+                const signal = globalAbortController.signal;
+
+                state.results.clear();
+                state.filteredSymbols = [];
+                tblBody.innerHTML = "";
+                setSymbolSelect([]);
+                resultSummary.textContent = "스캔 중…";
+                logStatus("초기화…");
+                setUiRunning(true);
+
+                try {
+                    // 0) 서버시간
+                    logStatus(["서버시간 가져오는 중…"]);
+                    state.serverTime = await getServerTime({ timeoutMs, signal, retries });
+
+                    // 1) USDT Perpetual 심볼 목록
+                    logStatus(["exchangeInfo 가져오는 중…"]);
+                    const info = await getExchangeInfo({ timeoutMs, signal, retries });
+
+                    const symbols = (info.symbols || [])
+                        .filter((s) => s.contractType === "PERPETUAL")
+                        .filter((s) => s.quoteAsset === "USDT")
+                        .filter((s) => s.status === "TRADING")
+                        .map((s) => s.symbol);
+
+                    state.symbols = symbols;
+
+                    // 1.5) 24h ticker 전체 한번에 받아오기(유동성/현재가)
+                    logStatus([
+                        `USDT PERP 심볼 수: ${symbols.length}`,
+                        "",
+                        "24h ticker(거래대금/현재가) 가져오는 중…",
+                    ]);
+
+                    const allTickers = await getAll24hTickers({ timeoutMs, signal, retries });
+                    state.tickers.clear();
+                    for (const t of (Array.isArray(allTickers) ? allTickers : [])) {
+                        const sym = t && t.symbol ? String(t.symbol) : "";
+                        if (!sym) continue;
+                        state.tickers.set(sym, {
+                            lastPrice: toNumber(t.lastPrice),
+                            quoteVolume: toNumber(t.quoteVolume),
+                            priceChangePercent: toNumber(t.priceChangePercent),
+                        });
+                    }
+
+                    logStatus([
+                        `USDT PERP 심볼 수: ${symbols.length}`,
+                        "",
+                        "1단계: 최근 완성봉 5개 저점 V-패턴 필터링 중…",
+                    ]);
+
+                    // 2) 1단계 필터: 심볼당 1D 10봉만 가져와서 V-패턴 체크
+                    const stage1 = await mapWithConcurrency(
+                        symbols,
+                        concurrency,
+                        async (symbol) => {
+                            const raw = await getKlines(symbol, "1d", 10, { timeoutMs, signal, retries });
+                            const candles = normalizeKlines(raw, state.serverTime);
+
+                            if (candles.length < 5) return { symbol, pass: false, reason: "candles<5" };
+
+                            const pass = passesVShapeLast5Lows(candles);
+                            return { symbol, pass };
+                        },
+                        (done, total) => {
+                            logStatus([
+                                `USDT PERP 심볼 수: ${symbols.length}`,
+                                "",
+                                `1단계 진행: ${done}/${total}`,
+                                `현재 필터 통과(추정): ${state.filteredSymbols.length}`,
+                            ]);
+                        },
+                        signal
+                    );
+
+                    if (signal.aborted) throw new Error("사용자 중지");
+
+                    const filtered = [];
+                    for (const r of stage1) {
+                        if (r && r.pass === true) filtered.push(r.symbol);
+                    }
+                    state.filteredSymbols = filtered;
+
+                    logStatus([
+                        `1단계 필터 통과: ${filtered.length} / ${symbols.length}`,
+                        "",
+                        "2단계: 통과 심볼만 1D 260봉 받아서 최근 200봉 스윙 계산 중…",
+                    ]);
+
+                    // 3) 2단계: 통과 심볼만 분석(최소 200봉 미만은 제외)
+                    const stage2 = await mapWithConcurrency(
+                        filtered,
+                        concurrency,
+                        async (symbol) => {
+                            const raw = await getKlines(symbol, "1d", 260, { timeoutMs, signal, retries });
+                            const allCandles = normalizeKlines(raw, state.serverTime);
+
+                            // "이전봉이 200개가 안되는 심볼 제외"
+                            if (allCandles.length < 200) {
+                                return { symbol, excluded: true, reason: "candles<200" };
+                            }
+
+                            const candles = allCandles.slice(-200);
+
+                            // V-구간(최근 5봉) 정보: slice(-200) 기준에서 마지막 5봉
+                            const m = candles.length;
+                            const vRangeStart = candles[m - 5].openTime;
+                            const vRangeEnd = candles[m - 1].closeTime;
+                            const vLows = candles.slice(m - 5).map((c) => ({ t: c.openTime, price: c.low }));
+
+                            const { swingHighs, swingLows } = detectSwings(candles);
+                            const zigzag = buildZigZag(swingHighs, swingLows);
+
+                            const lastClose = candles[candles.length - 1].close;
+
+                            const latestLow = latestOfTypeFromEnd(zigzag, "L");
+                            const latestHigh = latestOfTypeFromEnd(zigzag, "H");
+
+                            const supportDistPct = latestLow ? (lastClose - latestLow.price) / lastClose : NaN;
+                            const upsidePct = latestHigh ? (latestHigh.price - lastClose) / lastClose : NaN;
+
+                            const lowAgeDays = latestLow
+                                ? (candles[candles.length - 1].openTime - latestLow.t) / 86400000
+                                : NaN;
+
+                            const t = state.tickers.get(symbol) || { lastPrice: NaN, quoteVolume: 0, priceChangePercent: NaN };
+                            const quoteVolume = Number.isFinite(t.quoteVolume) ? t.quoteVolume : 0;
+
+                            const score = computeScore({ quoteVolume, supportDistPct, upsidePct, lowAgeDays });
+
+                            const result = {
+                                symbol,
+                                candles,
+                                swingHighs,
+                                swingLows,
+                                zigzag,
+
+                                // 정렬/표시용
+                                quoteVolume,
+                                lastClose,
+                                supportDistPct,
+                                upsidePct,
+                                lowAgeDays,
+                                score,
+
+                                // 하이라이트용
+                                vRangeStart,
+                                vRangeEnd,
+                                vLows,
+                            };
+
+                            state.results.set(symbol, result);
+                            return result;
+                        },
+                        (done, total) => {
+                            logStatus([
+                                `1단계 필터 통과: ${filtered.length} / ${symbols.length}`,
+                                "",
+                                `2단계 진행: ${done}/${total}`,
+                                `분석 완료(200봉 충족): ${state.results.size}`,
+                            ]);
+                        },
+                        signal
+                    );
+
+                    if (signal.aborted) throw new Error("사용자 중지");
+
+                    // 최종 결과만 정리 (excluded/error 제거)
+                    const finalResults = stage2
+                        .filter((r) => r && !r.__error && !r.excluded && r.candles && r.candles.length === 200)
+                        .sort((a, b) => {
+                            // Score 내림차순 -> 유동성 -> 저점거리(작을수록)
+                            const d1 = (b.score - a.score);
+                            if (Math.abs(d1) > 1e-12) return d1;
+
+                            const d2 = (b.quoteVolume - a.quoteVolume);
+                            if (Math.abs(d2) > 1e-12) return d2;
+
+                            const ad = Number.isFinite(a.supportDistPct) ? a.supportDistPct : 1e9;
+                            const bd = Number.isFinite(b.supportDistPct) ? b.supportDistPct : 1e9;
+                            return ad - bd;
+                        });
+
+                    renderTable(finalResults);
+                    setSymbolSelect(finalResults.map((r) => r.symbol));
+
+                    resultSummary.innerHTML = `
+                        총 심볼: ${symbols.length}개<br />
+                        1단계 통과: ${filtered.length}개<br />
+                        2단계(200봉 충족) 최종: <strong class="ok">${finalResults.length}개</strong><br />
+                        정렬: <span class="pill">Score desc</span> (Liquidity↑ / SupportDist↓ / Upside↑ / LowAge↓)
+                    `;
+
+                    logStatus([
+                        "완료!",
+                        `총 심볼: ${symbols.length}`,
+                        `1단계 통과: ${filtered.length}`,
+                        `최종(200봉 충족): ${finalResults.length}`,
+                        "",
+                        "테이블에서 심볼 클릭 또는 상단 셀렉트에서 선택하면 차트가 나와.",
+                        "차트: V구간 하이라이트 + 지지/저항 트렌드라인 자동 표시",
+                    ]);
+
+                    // 첫 심볼 자동 표시
+                    if (finalResults.length > 0) {
+                        const first = finalResults[0].symbol;
+                        selSymbol.value = first;
+                        drawSymbolChart(first);
+                    }
+                } catch (err) {
+                    const msg = err && err.message ? err.message : String(err);
+                    logStatus([
+                        "중단/오류 발생:",
+                        msg.includes("사용자 중지") ? "사용자가 중지했어." : msg,
+                        "",
+                        "참고: file://로 열면 CORS로 막힐 수 있으니 로컬 서버(http://localhost)로 열어줘.",
+                    ]);
+                    resultSummary.innerHTML = `<span class="danger">중단/오류: ${msg}</span>`;
+                } finally {
+                    setUiRunning(false);
+                    globalAbortController = null;
+                }
+            });
+        </script>
+    </body>
+</html>
