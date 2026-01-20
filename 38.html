@@ -1,33 +1,42 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko-KR">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp 1D Swing Scanner</title>
+        <title>Binance USDT-P ERP 1D V-저점 + 스윙고/저 스캐너</title>
 
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+        <!-- Chart.js (UMD) -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+        <!-- Hammer.js (핀치 제스처 인식용) -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+
+        <!-- chartjs-plugin-zoom -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.2.0/chartjs-plugin-zoom.min.js"></script>
 
         <style>
+            :root {
+                font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", "Apple SD Gothic Neo", Arial, "맑은 고딕", sans-serif;
+            }
+
             body {
-                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
                 margin: 0;
-                padding: 16px;
-                background: #0b0f17;
-                color: #e7eaf0;
+                background: #0b0f19;
+                color: #e6e9f2;
             }
 
             .wrap {
                 max-width: 1200px;
                 margin: 0 auto;
+                padding: 16px;
             }
 
             .card {
-                background: #121a2a;
-                border: 1px solid #1e2a44;
+                background: #121a2b;
+                border: 1px solid rgba(255, 255, 255, 0.08);
                 border-radius: 12px;
-                padding: 16px;
-                margin-bottom: 16px;
+                padding: 12px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
             }
 
             .row {
@@ -37,947 +46,859 @@
                 align-items: center;
             }
 
-            label {
-                font-size: 13px;
-                opacity: 0.9;
+            .row > * {
+                flex: 0 0 auto;
             }
 
-            input,
-            select,
-            button {
-                border-radius: 10px;
-                border: 1px solid #2a3a5f;
-                background: #0f1524;
-                color: #e7eaf0;
-                padding: 10px 12px;
-                font-size: 14px;
+            .grow {
+                flex: 1 1 auto;
             }
 
             button {
                 cursor: pointer;
-                background: #1a2640;
-            }
-
-            button:hover {
-                background: #223255;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: #1a2540;
+                color: #e6e9f2;
+                border-radius: 10px;
+                padding: 10px 12px;
+                font-weight: 600;
             }
 
             button:disabled {
-                opacity: 0.6;
+                opacity: 0.5;
                 cursor: not-allowed;
             }
 
+            input,
+            select {
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: #0f172a;
+                color: #e6e9f2;
+                border-radius: 10px;
+                padding: 10px 12px;
+                outline: none;
+                width: 100%;
+                max-width: 340px;
+            }
+
             .muted {
-                opacity: 0.75;
-                font-size: 13px;
-                line-height: 1.5;
+                color: rgba(230, 233, 242, 0.7);
+                font-size: 12px;
+                line-height: 1.4;
             }
 
             .status {
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-                font-size: 12px;
                 white-space: pre-wrap;
-                background: #0a0f1c;
-                border: 1px solid #1e2a44;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 12px;
+                color: rgba(230, 233, 242, 0.75);
+                background: rgba(0, 0, 0, 0.25);
                 border-radius: 10px;
-                padding: 12px;
-                margin-top: 12px;
+                padding: 10px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                margin-top: 10px;
+                max-height: 220px;
+                overflow: auto;
             }
 
             table {
                 width: 100%;
                 border-collapse: collapse;
-                margin-top: 12px;
-                font-size: 14px;
+                margin-top: 10px;
+                overflow: hidden;
+                border-radius: 12px;
             }
 
             th,
             td {
-                border-bottom: 1px solid #1e2a44;
-                padding: 10px 8px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 10px 10px;
                 text-align: left;
+                font-size: 13px;
             }
 
             th {
-                opacity: 0.9;
-                font-weight: 600;
-                white-space: nowrap;
+                background: rgba(255, 255, 255, 0.06);
+                position: sticky;
+                top: 0;
+                z-index: 1;
             }
 
-            tr:hover {
+            tr:hover td {
                 background: rgba(255, 255, 255, 0.04);
-                cursor: pointer;
             }
 
             .pill {
                 display: inline-block;
-                padding: 2px 8px;
+                padding: 3px 8px;
                 border-radius: 999px;
-                border: 1px solid #2a3a5f;
                 font-size: 12px;
-                opacity: 0.9;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: rgba(255, 255, 255, 0.06);
+            }
+
+            .chartWrap {
+                margin-top: 12px;
+            }
+
+            .chartHead {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                margin-bottom: 8px;
+            }
+
+            .chartTitle {
+                font-weight: 800;
+                letter-spacing: 0.2px;
             }
 
             canvas {
                 width: 100% !important;
-                height: 520px !important;
+                height: 420px !important;
+                background: #0f172a;
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                touch-action: none;
             }
 
-            .danger {
-                color: #ff6b6b;
-            }
-
-            .ok {
-                color: #7cff9b;
+            .hint {
+                font-size: 12px;
+                color: rgba(230, 233, 242, 0.75);
             }
         </style>
     </head>
+
     <body>
         <div class="wrap">
             <div class="card">
-                <div class="row" style="justify-content: space-between;">
-                    <div>
-                        <div style="font-size: 18px; font-weight: 700;">Binance USDT 무기한(Perp) 1D 스윙 스캐너</div>
-                        <div class="muted">
-                            1) 1D 기준 최근 완성봉 5개 저점이 <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span> 인 심볼만 필터<br />
-                            2) 그 심볼들에 대해 최근 완성봉 기준 <span class="pill">최근 200개 1D</span>에서 스윙고점/스윙저점 탐지<br />
-                            3) 종가 라인 + 스윙(지그재그) 선형 그래프 + 트렌드라인 + V구간 하이라이트
-                        </div>
-                        <div class="muted" style="margin-top: 8px;">
-                            <span class="pill">정렬(Score)</span>
-                            유동성(24h 거래대금)↑, 스윙저점 거리↓, 스윙고점 여유↑, 저점 신선도↑ 를 합산 점수로 정렬
-                        </div>
-                    </div>
-                    <div class="row">
-                        <button id="btnStart">스캔 시작</button>
-                        <button id="btnStop" disabled>중지</button>
-                    </div>
+                <div class="row">
+                    <button id="btnStart">스캔 시작</button>
+                    <button id="btnStop" disabled>중지</button>
+
+                    <select id="sortSelect" title="정렬 기준">
+                        <option value="score_desc" selected>추천순(Score) ↓ (기본)</option>
+                        <option value="rr_desc">RR(보상/위험) ↓</option>
+                        <option value="qv_desc">24h 거래대금(Quote Volume) ↓</option>
+                        <option value="sym_asc">심볼 A→Z</option>
+                    </select>
+
+                    <input id="searchInput" class="grow" placeholder="결과 검색 (예: BTC, ETH...)" />
+
+                    <button id="btnCsv" disabled>CSV 다운로드</button>
                 </div>
 
-                <div class="row" style="margin-top: 12px;">
-                    <div>
-                        <label>동시 요청(Concurrency)</label><br />
-                        <input id="inpConcurrency" type="number" min="1" max="20" value="8" style="width: 140px;" />
-                    </div>
-                    <div>
-                        <label>요청 타임아웃(ms)</label><br />
-                        <input id="inpTimeout" type="number" min="2000" max="60000" value="12000" style="width: 140px;" />
-                    </div>
-                    <div>
-                        <label>재시도 횟수</label><br />
-                        <input id="inpRetries" type="number" min="0" max="10" value="3" style="width: 140px;" />
-                    </div>
-                    <div class="muted" style="flex: 1; min-width: 260px;">
-                        API 호출이 많아질 수 있어. <span class="pill">24h ticker</span>는 한 번만 받아서 거래대금/현재가를 씀.<br />
-                        분석(2단계)은 심볼당 260봉만 받아서 <span class="pill">최근 200봉</span>으로 계산.
-                    </div>
+                <div class="muted" style="margin-top: 10px;">
+                    - USDT 무기한(Perpetual)만 대상. `/fapi/v1/exchangeInfo`로 심볼 목록을 가져오고, 1D 캔들은 `/fapi/v1/klines`로 조회. :contentReference[oaicite:4]{index=4}<br />
+                    - 24h 거래대금은 `/fapi/v1/ticker/24hr`(심볼 미지정 시 전체 배열) 사용. :contentReference[oaicite:5]{index=5}<br />
+                    - API 레이트리밋(특히 klines LIMIT에 따른 weight) 때문에 브라우저에서 “전 종목” 스캔은 느릴 수 있어. (필요하면 동시요청 수를 줄이는 게 안전) :contentReference[oaicite:6]{index=6}
                 </div>
 
-                <div id="status" class="status">대기 중…</div>
+                <div id="status" class="status">대기 중...</div>
             </div>
 
-            <div class="card">
+            <div class="card" style="margin-top: 12px;">
                 <div class="row" style="justify-content: space-between;">
-                    <div style="font-size: 16px; font-weight: 700;">결과</div>
-                    <div class="row">
-                        <label>심볼 선택</label>
-                        <select id="selSymbol" style="min-width: 200px;">
-                            <option value="">(스캔 후 선택)</option>
-                        </select>
+                    <div>
+                        <span class="pill" id="countPill">매칭: 0</span>
+                        <span class="pill" id="progressPill">진행: 0 / 0</span>
+                    </div>
+                    <div class="hint">
+                        줌/이동: 휠=확대, Shift+드래그=박스줌, Alt+드래그=이동, Reset 버튼=원복
                     </div>
                 </div>
 
-                <div class="muted" id="resultSummary" style="margin-top: 8px;">아직 결과가 없어.</div>
-
-                <div style="overflow: auto;">
-                    <table id="tblResults">
+                <div style="max-height: 420px; overflow: auto; margin-top: 10px;">
+                    <table id="resultTable">
                         <thead>
                             <tr>
-                                <th>Symbol</th>
-                                <th>Score</th>
-                                <th>24h QuoteVol(USDT)</th>
-                                <th>SupportDist%</th>
-                                <th>Upside%</th>
-                                <th>LowAge(d)</th>
-                                <th>SwH</th>
-                                <th>SwL</th>
-                                <th>마지막 완성봉(UTC)</th>
+                                <th style="width: 56px;">#</th>
+                                <th style="width: 120px;">Symbol</th>
+                                <th style="width: 110px;">Score</th>
+                                <th style="width: 90px;">RR</th>
+                                <th style="width: 160px;">24h QuoteVol</th>
+                                <th style="width: 110px;">Close</th>
+                                <th>최근 스윙저점</th>
+                                <th>타겟 스윙고점</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
                 </div>
-            </div>
 
-            <div class="card">
-                <div style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">차트</div>
-                <div class="muted" style="margin-bottom: 8px;">
-                    - <span class="pill">Close Line</span>: 최근 200개 1D 종가<br />
-                    - <span class="pill">ZigZag</span>: 스윙고점/저점(정의된 패턴)으로 만든 지그재그 선형 그래프<br />
-                    - <span class="pill">Trendline</span>: 최근 스윙저점 2개(지지), 스윙고점 2개(저항) 기준으로 우측 연장<br />
-                    - <span class="pill">V Highlight</span>: 최근 5봉 V-저점 구간 배경 하이라이트 + 5봉 Low 점 표시
+                <div class="chartWrap">
+                    <div class="chartHead">
+                        <div class="chartTitle" id="chartTitle">차트: (심볼을 클릭하세요)</div>
+                        <div class="row">
+                            <button id="btnResetZoom" disabled>Reset Zoom</button>
+                            <a id="binanceLink" class="pill" href="#" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit; display: none;">
+                                Binance 열기
+                            </a>
+                        </div>
+                    </div>
+                    <canvas id="chartCanvas"></canvas>
                 </div>
-                <canvas id="chart"></canvas>
             </div>
         </div>
 
         <script>
-            const BINANCE_FAPI = "https://fapi.binance.com";
+            // -------------------------------
+            // Utilities
+            // -------------------------------
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-            const $ = (sel) => document.querySelector(sel);
-
-            const btnStart = $("#btnStart");
-            const btnStop = $("#btnStop");
-            const statusEl = $("#status");
-            const tblBody = $("#tblResults tbody");
-            const selSymbol = $("#selSymbol");
-            const resultSummary = $("#resultSummary");
-
-            let globalAbortController = null;
-            let chart = null;
-
-            const state = {
-                serverTime: 0,
-                symbols: [],
-                filteredSymbols: [],
-                tickers: new Map(), // symbol -> { lastPrice, quoteVolume, priceChangePercent }
-                results: new Map(), // symbol -> result
+            const fmtNumber = (v, digits = 2) => {
+                const n = Number(v);
+                if (!Number.isFinite(n)) return "-";
+                return n.toLocaleString(undefined, { maximumFractionDigits: digits });
             };
 
-            function logStatus(lines) {
-                statusEl.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines);
-            }
+            const fmtDate = (ms) => {
+                const d = new Date(ms);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            };
 
-            function sleep(ms) {
-                return new Promise((resolve) => setTimeout(resolve, ms));
-            }
-
-            function toNumber(v) {
-                const n = Number(v);
-                return Number.isFinite(n) ? n : NaN;
-            }
-
-            function clamp(v, min, max) {
-                return Math.max(min, Math.min(max, v));
-            }
-
-            function fmtNum(n) {
-                if (!Number.isFinite(n)) return "-";
-                if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + "B";
-                if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + "M";
-                if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(2) + "K";
-                return n.toFixed(2);
-            }
-
-            function fmtPct(n) {
-                if (!Number.isFinite(n)) return "-";
-                return (n * 100).toFixed(2) + "%";
-            }
-
-            async function fetchJson(url, { timeoutMs = 12000, signal = null } = {}) {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                const mergedSignal = signal ? anySignal([signal, controller.signal]) : controller.signal;
-
-                try {
-                    const res = await fetch(url, { signal: mergedSignal });
-                    const text = await res.text();
-
-                    if (!res.ok) {
-                        const err = new Error(`HTTP ${res.status} ${res.statusText} - ${text.slice(0, 200)}`);
-                        err.status = res.status;
-                        throw err;
-                    }
-
-                    return JSON.parse(text);
-                } finally {
-                    clearTimeout(timeoutId);
-                }
-            }
-
-            function anySignal(signals) {
-                const controller = new AbortController();
-
-                const onAbort = () => {
-                    controller.abort();
-                    for (const s of signals) {
-                        if (s) s.removeEventListener("abort", onAbort);
-                    }
+            const toKline = (raw) => {
+                // Binance kline format:
+                // [ openTime, open, high, low, close, volume, closeTime, quoteVolume, ... ]
+                return {
+                    openTime: Number(raw[0]),
+                    open: Number(raw[1]),
+                    high: Number(raw[2]),
+                    low: Number(raw[3]),
+                    close: Number(raw[4]),
+                    volume: Number(raw[5]),
+                    closeTime: Number(raw[6]),
+                    quoteVolume: Number(raw[7]),
                 };
+            };
 
-                for (const s of signals) {
-                    if (!s) continue;
-                    if (s.aborted) {
-                        controller.abort();
-                        return controller.signal;
-                    }
-                    s.addEventListener("abort", onAbort, { once: true });
+            const safeJson = async (res) => {
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
                 }
+                return res.json();
+            };
 
-                return controller.signal;
-            }
+            // -------------------------------
+            // Binance endpoints (USD-M Futures)
+            // -------------------------------
+            const BASE = "https://fapi.binance.com";
+            const ENDPOINTS = {
+                exchangeInfo: `${BASE}/fapi/v1/exchangeInfo`,
+                klines: (symbol, interval, limit) => `${BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${encodeURIComponent(limit)}`,
+                ticker24hAll: `${BASE}/fapi/v1/ticker/24hr`,
+            };
 
-            async function fetchJsonWithRetry(url, { timeoutMs, signal, retries = 3 } = {}) {
-                let lastErr = null;
+            // -------------------------------
+            // Scan logic
+            // -------------------------------
+            const state = {
+                abortControllers: [],
+                running: false,
+                symbols: [],
+                tickerMap: new Map(),
+                results: [],
+                filteredResults: [],
+                chart: null,
+                selectedSymbol: null,
+            };
 
-                for (let attempt = 0; attempt <= retries; attempt++) {
-                    try {
-                        return await fetchJson(url, { timeoutMs, signal });
-                    } catch (err) {
-                        lastErr = err;
+            const log = (msg) => {
+                const el = document.getElementById("status");
+                el.textContent = `${msg}\n${el.textContent}`.slice(0, 20000);
+            };
 
-                        const status = err && typeof err.status === "number" ? err.status : 0;
-                        const isRateLimited = status === 429 || status === 418;
+            const setStatusTop = (msg) => {
+                const el = document.getElementById("status");
+                el.textContent = msg;
+            };
 
-                        if (signal && signal.aborted) throw err;
+            const setProgress = (done, total) => {
+                document.getElementById("progressPill").textContent = `진행: ${done} / ${total}`;
+            };
 
-                        if (attempt === retries) break;
+            const setCount = (n) => {
+                document.getElementById("countPill").textContent = `매칭: ${n}`;
+            };
 
-                        const backoff = isRateLimited ? (800 + attempt * 600) : (300 + attempt * 300);
-                        await sleep(backoff);
-                    }
+            const getUSDTPerpSymbols = async () => {
+                const controller = new AbortController();
+                state.abortControllers.push(controller);
+
+                const res = await fetch(ENDPOINTS.exchangeInfo, { signal: controller.signal });
+                const data = await safeJson(res);
+
+                const list = (data.symbols || [])
+                    .filter((s) => s.contractType === "PERPETUAL")
+                    .filter((s) => s.quoteAsset === "USDT")
+                    .filter((s) => s.status === "TRADING")
+                    .map((s) => s.symbol);
+
+                return list;
+            };
+
+            const loadTicker24hAll = async () => {
+                const controller = new AbortController();
+                state.abortControllers.push(controller);
+
+                const res = await fetch(ENDPOINTS.ticker24hAll, { signal: controller.signal });
+                const arr = await safeJson(res);
+
+                const map = new Map();
+                for (const t of arr) {
+                    if (!t || !t.symbol) continue;
+                    map.set(t.symbol, {
+                        quoteVolume: Number(t.quoteVolume),
+                        lastPrice: Number(t.lastPrice),
+                    });
                 }
+                state.tickerMap = map;
+            };
 
-                throw lastErr;
-            }
+            const fetchDailyKlines = async (symbol, limit = 210) => {
+                const controller = new AbortController();
+                state.abortControllers.push(controller);
 
-            async function getServerTime({ timeoutMs, signal, retries }) {
-                const data = await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/time`, { timeoutMs, signal, retries });
-                return data.serverTime;
-            }
+                const url = ENDPOINTS.klines(symbol, "1d", limit);
+                const res = await fetch(url, { signal: controller.signal });
+                const raw = await safeJson(res);
+                return raw.map(toKline);
+            };
 
-            async function getExchangeInfo({ timeoutMs, signal, retries }) {
-                return await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/exchangeInfo`, { timeoutMs, signal, retries });
-            }
+            // Condition:
+            // a[-5].low > a[-4].low > a[-3].low < a[-2].low < a[-1].low
+            // where a is "current candle" and [-1..-5] are last closed 5 candles.
+            const matchVLowPattern = (klines) => {
+                if (!klines || klines.length < 7) return false;
 
-            async function getAll24hTickers({ timeoutMs, signal, retries }) {
-                return await fetchJsonWithRetry(`${BINANCE_FAPI}/fapi/v1/ticker/24hr`, { timeoutMs, signal, retries });
-            }
+                const idxCurrent = klines.length - 1;          // (likely) forming candle
+                const idxLastClosed = idxCurrent - 1;          // last closed candle
 
-            async function getKlines(symbol, interval, limit, { timeoutMs, signal, retries }) {
-                const url = `${BINANCE_FAPI}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
-                return await fetchJsonWithRetry(url, { timeoutMs, signal, retries });
-            }
+                if (idxLastClosed - 4 < 0) return false;
 
-            function normalizeKlines(rawKlines, serverTime) {
-                const candles = rawKlines.map((k) => {
-                    return {
-                        openTime: toNumber(k[0]),
-                        open: toNumber(k[1]),
-                        high: toNumber(k[2]),
-                        low: toNumber(k[3]),
-                        close: toNumber(k[4]),
-                        volume: toNumber(k[5]),
-                        closeTime: toNumber(k[6]),
-                    };
-                });
+                const k1 = klines[idxLastClosed];
+                const k2 = klines[idxLastClosed - 1];
+                const k3 = klines[idxLastClosed - 2];
+                const k4 = klines[idxLastClosed - 3];
+                const k5 = klines[idxLastClosed - 4];
 
-                // 진행 중인 일봉(완성 전)은 제거
-                if (candles.length > 0) {
-                    const last = candles[candles.length - 1];
-                    if (Number.isFinite(last.closeTime) && last.closeTime > serverTime) {
-                        candles.pop();
-                    }
-                }
+                return (k5.low > k4.low) && (k4.low > k3.low) && (k3.low < k2.low) && (k2.low < k1.low);
+            };
 
-                return candles;
-            }
-
-            function passesVShapeLast5Lows(candles) {
-                // a[-5] > a[-4] > a[-3] < a[-2] < a[-1]
-                if (!candles || candles.length < 5) return false;
-
-                const m = candles.length;
-                const l5 = candles[m - 5].low;
-                const l4 = candles[m - 4].low;
-                const l3 = candles[m - 3].low;
-                const l2 = candles[m - 2].low;
-                const l1 = candles[m - 1].low;
-
-                if (![l5, l4, l3, l2, l1].every(Number.isFinite)) return false;
-
-                return (l5 > l4) && (l4 > l3) && (l3 < l2) && (l2 < l1);
-            }
-
-            function detectSwings(candles) {
-                // swing high at b:
-                // b[-2].high < b[-1].high < b.high > b[1].high > b[2].high
-                // swing low at b:
-                // b[-2].low > b[-1].low > b.low < b[1].low < b[2].low
+            // Swing definitions on windowed array W:
+            // swingHigh at i:
+            // W[i-2].high < W[i-1].high < W[i].high > W[i+1].high > W[i+2].high
+            // swingLow at i:
+            // W[i-2].low > W[i-1].low > W[i].low < W[i+1].low < W[i+2].low
+            const detectSwings = (windowKlines) => {
                 const swingHighs = [];
                 const swingLows = [];
 
-                for (let i = 2; i <= candles.length - 3; i++) {
-                    const h2 = candles[i - 2].high;
-                    const h1 = candles[i - 1].high;
-                    const h0 = candles[i].high;
-                    const hP1 = candles[i + 1].high;
-                    const hP2 = candles[i + 2].high;
+                for (let i = 2; i < windowKlines.length - 2; i += 1) {
+                    const b2 = windowKlines[i - 2];
+                    const b1 = windowKlines[i - 1];
+                    const b0 = windowKlines[i];
+                    const f1 = windowKlines[i + 1];
+                    const f2 = windowKlines[i + 2];
 
-                    const l2 = candles[i - 2].low;
-                    const l1 = candles[i - 1].low;
-                    const l0 = candles[i].low;
-                    const lP1 = candles[i + 1].low;
-                    const lP2 = candles[i + 2].low;
+                    const isHigh = (b2.high < b1.high) && (b1.high < b0.high) && (b0.high > f1.high) && (f1.high > f2.high);
+                    const isLow = (b2.low > b1.low) && (b1.low > b0.low) && (b0.low < f1.low) && (f1.low < f2.low);
 
-                    if ([h2, h1, h0, hP1, hP2].every(Number.isFinite)) {
-                        if ((h2 < h1) && (h1 < h0) && (h0 > hP1) && (hP1 > hP2)) {
-                            swingHighs.push({ t: candles[i].openTime, price: h0, idx: i, type: "H" });
-                        }
+                    if (isHigh) {
+                        swingHighs.push({ index: i, time: b0.openTime, price: b0.high });
                     }
-
-                    if ([l2, l1, l0, lP1, lP2].every(Number.isFinite)) {
-                        if ((l2 > l1) && (l1 > l0) && (l0 < lP1) && (lP1 < lP2)) {
-                            swingLows.push({ t: candles[i].openTime, price: l0, idx: i, type: "L" });
-                        }
+                    if (isLow) {
+                        swingLows.push({ index: i, time: b0.openTime, price: b0.low });
                     }
                 }
 
                 return { swingHighs, swingLows };
-            }
-
-            function buildZigZag(swingHighs, swingLows) {
-                const swings = [...swingHighs, ...swingLows].sort((a, b) => a.t - b.t);
-
-                const out = [];
-                for (const p of swings) {
-                    if (out.length === 0) {
-                        out.push(p);
-                        continue;
-                    }
-
-                    const last = out[out.length - 1];
-
-                    if (p.type === last.type) {
-                        // 같은 타입 연속이면 더 극단적인 값으로 교체
-                        if (p.type === "H" && p.price > last.price) out[out.length - 1] = p;
-                        if (p.type === "L" && p.price < last.price) out[out.length - 1] = p;
-                    } else {
-                        out.push(p);
-                    }
-                }
-
-                return out;
-            }
-
-            function latestOfTypeFromEnd(points, type) {
-                for (let i = points.length - 1; i >= 0; i--) {
-                    if (points[i].type === type) return points[i];
-                }
-                return null;
-            }
-
-            function buildTrendlineFromLastTwo(pointsOfType, endTime) {
-                if (!Array.isArray(pointsOfType) || pointsOfType.length < 2) return null;
-
-                const p1 = pointsOfType[pointsOfType.length - 2];
-                const p2 = pointsOfType[pointsOfType.length - 1];
-
-                const dt = p2.t - p1.t;
-                if (!Number.isFinite(dt) || dt === 0) return null;
-
-                const slope = (p2.price - p1.price) / dt;
-                const yEnd = p2.price + slope * (endTime - p2.t);
-
-                return [
-                    { x: p1.t, y: p1.price },
-                    { x: p2.t, y: p2.price },
-                    { x: endTime, y: yEnd },
-                ];
-            }
-
-            function computeScore({ quoteVolume, supportDistPct, upsidePct, lowAgeDays }) {
-                // 유동성: log 스케일(대략 1e8 USDT 정도면 max 근처)
-                const liqScore = clamp(Math.log10((quoteVolume || 0) + 1) / 8, 0, 1);
-
-                // 지지거리: 8% 이내면 가점, 멀면 감점
-                const supportScore = Number.isFinite(supportDistPct) ? (1 - clamp(supportDistPct / 0.08, 0, 1)) : 0;
-
-                // 업사이드: 20% 이상이면 가점 상한
-                const upScore = Number.isFinite(upsidePct) ? clamp(upsidePct / 0.20, 0, 1) : 0;
-
-                // 저점 신선도: 60일 이내면 가점
-                const ageScore = Number.isFinite(lowAgeDays) ? (1 - clamp(lowAgeDays / 60, 0, 1)) : 0;
-
-                // 가중치(실전 우선순위)
-                return (0.40 * liqScore) + (0.35 * supportScore) + (0.20 * upScore) + (0.05 * ageScore);
-            }
-
-            async function mapWithConcurrency(items, concurrency, mapper, onProgress, signal) {
-                const results = new Array(items.length);
-                let index = 0;
-                let done = 0;
-
-                async function worker() {
-                    while (true) {
-                        if (signal && signal.aborted) return;
-
-                        const i = index;
-                        index += 1;
-
-                        if (i >= items.length) return;
-
-                        try {
-                            results[i] = await mapper(items[i], i);
-                        } catch (err) {
-                            results[i] = { __error: err };
-                        } finally {
-                            done += 1;
-                            if (typeof onProgress === "function") onProgress(done, items.length);
-                        }
-                    }
-                }
-
-                const workers = [];
-                const actual = Math.max(1, Math.min(concurrency, items.length));
-                for (let i = 0; i < actual; i++) {
-                    workers.push(worker());
-                }
-
-                await Promise.all(workers);
-                return results;
-            }
-
-            function renderTable(resultsArray) {
-                tblBody.innerHTML = "";
-
-                for (const r of resultsArray) {
-                    const tr = document.createElement("tr");
-                    tr.dataset.symbol = r.symbol;
-
-                    const lastDate = new Date(r.candles[r.candles.length - 1].openTime).toISOString().slice(0, 10);
-
-                    tr.innerHTML = `
-                        <td><strong>${r.symbol}</strong></td>
-                        <td>${r.score.toFixed(4)}</td>
-                        <td>${fmtNum(r.quoteVolume)}</td>
-                        <td>${fmtPct(r.supportDistPct)}</td>
-                        <td>${fmtPct(r.upsidePct)}</td>
-                        <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(0) : "-"}</td>
-                        <td>${r.swingHighs.length}</td>
-                        <td>${r.swingLows.length}</td>
-                        <td>${lastDate}</td>
-                    `;
-
-                    tr.addEventListener("click", () => {
-                        selSymbol.value = r.symbol;
-                        drawSymbolChart(r.symbol);
-                    });
-
-                    tblBody.appendChild(tr);
-                }
-            }
-
-            function setSymbolSelect(symbols) {
-                selSymbol.innerHTML = `<option value="">(선택)</option>`;
-                for (const s of symbols) {
-                    const opt = document.createElement("option");
-                    opt.value = s;
-                    opt.textContent = s;
-                    selSymbol.appendChild(opt);
-                }
-            }
-
-            // V-구간 하이라이트 플러그인
-            const vHighlightPlugin = {
-                id: "vHighlight",
-                beforeDatasetsDraw(chartInstance, args, pluginOptions) {
-                    const opts = pluginOptions || {};
-                    const start = opts.start;
-                    const end = opts.end;
-
-                    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-
-                    const { ctx, chartArea, scales } = chartInstance;
-                    if (!chartArea) return;
-
-                    const xScale = scales.x;
-                    if (!xScale) return;
-
-                    const x1 = xScale.getPixelForValue(start);
-                    const x2 = xScale.getPixelForValue(end);
-
-                    const left = Math.min(x1, x2);
-                    const right = Math.max(x1, x2);
-
-                    ctx.save();
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-                    ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
-                    ctx.restore();
-                },
             };
 
-            function ensureChart() {
-                const ctx = $("#chart").getContext("2d");
-                if (chart) return chart;
+            // Sorting:
+            // 기본 추천 Score = RR * log10(quoteVol + 1)
+            // RR = (targetHigh - close) / (close - lastSwingLow)
+            const buildMetrics = ({ symbol, windowKlines, swings }) => {
+                const ticker = state.tickerMap.get(symbol);
+                const qv = ticker ? ticker.quoteVolume : 0;
 
-                chart = new Chart(ctx, {
+                const close = windowKlines[windowKlines.length - 1].close;
+
+                const lastSwingLow = swings.swingLows.length > 0 ? swings.swingLows[swings.swingLows.length - 1] : null;
+
+                let targetHigh = null;
+                if (swings.swingHighs.length > 0) {
+                    const candidates = swings.swingHighs
+                        .filter((h) => h.price > close)
+                        .filter((h) => (lastSwingLow ? h.time >= lastSwingLow.time : true));
+
+                    if (candidates.length > 0) {
+                        // "가격 기준으로 가장 가까운 위쪽 스윙고점"
+                        candidates.sort((a, b) => a.price - b.price);
+                        targetHigh = candidates[0];
+                    } else {
+                        // fallback: 윈도우 내 최고 스윙고점
+                        let best = swings.swingHighs[0];
+                        for (const h of swings.swingHighs) {
+                            if (h.price > best.price) best = h;
+                        }
+                        targetHigh = best;
+                    }
+                }
+
+                const lowPrice = lastSwingLow ? lastSwingLow.price : NaN;
+                const highPrice = targetHigh ? targetHigh.price : NaN;
+
+                const risk = close - lowPrice;
+                const reward = highPrice - close;
+
+                const rr = (Number.isFinite(risk) && Number.isFinite(reward) && risk > 0 && reward > 0) ? (reward / risk) : 0;
+
+                const score = rr * Math.log10((Number.isFinite(qv) ? qv : 0) + 1);
+
+                return {
+                    symbol,
+                    close,
+                    quoteVolume: qv,
+                    rr,
+                    score,
+                    lastSwingLow,
+                    targetHigh,
+                };
+            };
+
+            // -------------------------------
+            // Concurrency pool
+            // -------------------------------
+            const asyncPool = async (poolLimit, array, iteratorFn, onProgress) => {
+                const ret = [];
+                const executing = [];
+
+                for (let i = 0; i < array.length; i += 1) {
+                    const item = array[i];
+                    const p = Promise.resolve().then(() => iteratorFn(item, i));
+                    ret.push(p);
+
+                    if (poolLimit <= array.length) {
+                        const e = p.then(() => executing.splice(executing.indexOf(e), 1)).catch(() => executing.splice(executing.indexOf(e), 1));
+                        executing.push(e);
+                        if (executing.length >= poolLimit) {
+                            await Promise.race(executing);
+                        }
+                    }
+
+                    if (typeof onProgress === "function") onProgress(i + 1, array.length);
+                }
+
+                return Promise.allSettled(ret);
+            };
+
+            // -------------------------------
+            // Rendering
+            // -------------------------------
+            const applySortAndFilter = () => {
+                const q = document.getElementById("searchInput").value.trim().toUpperCase();
+                const sortKey = document.getElementById("sortSelect").value;
+
+                let arr = [...state.results];
+
+                if (q) {
+                    arr = arr.filter((r) => r.symbol.includes(q));
+                }
+
+                const by = {
+                    score_desc: (a, b) => (b.metrics.score - a.metrics.score) || (b.metrics.quoteVolume - a.metrics.quoteVolume),
+                    rr_desc: (a, b) => (b.metrics.rr - a.metrics.rr) || (b.metrics.quoteVolume - a.metrics.quoteVolume),
+                    qv_desc: (a, b) => (b.metrics.quoteVolume - a.metrics.quoteVolume) || (b.metrics.score - a.metrics.score),
+                    sym_asc: (a, b) => a.symbol.localeCompare(b.symbol),
+                }[sortKey];
+
+                if (by) arr.sort(by);
+
+                state.filteredResults = arr;
+                renderTable();
+            };
+
+            const renderTable = () => {
+                const tbody = document.querySelector("#resultTable tbody");
+                tbody.innerHTML = "";
+
+                state.filteredResults.forEach((r, idx) => {
+                    const tr = document.createElement("tr");
+                    tr.style.cursor = "pointer";
+
+                    const m = r.metrics;
+
+                    const cells = [
+                        String(idx + 1),
+                        r.symbol,
+                        fmtNumber(m.score, 4),
+                        fmtNumber(m.rr, 2),
+                        fmtNumber(m.quoteVolume, 0),
+                        fmtNumber(m.close, 6),
+                        m.lastSwingLow ? `${fmtDate(m.lastSwingLow.time)} (${fmtNumber(m.lastSwingLow.price, 6)})` : "-",
+                        m.targetHigh ? `${fmtDate(m.targetHigh.time)} (${fmtNumber(m.targetHigh.price, 6)})` : "-",
+                    ];
+
+                    for (const c of cells) {
+                        const td = document.createElement("td");
+                        td.textContent = c;
+                        tr.appendChild(td);
+                    }
+
+                    tr.addEventListener("click", () => {
+                        selectSymbol(r.symbol);
+                    });
+
+                    tbody.appendChild(tr);
+                });
+
+                setCount(state.filteredResults.length);
+                document.getElementById("btnCsv").disabled = state.filteredResults.length === 0;
+            };
+
+            const downloadCsv = () => {
+                const headers = [
+                    "rank",
+                    "symbol",
+                    "score",
+                    "rr",
+                    "quoteVolume",
+                    "close",
+                    "lastSwingLowDate",
+                    "lastSwingLowPrice",
+                    "targetHighDate",
+                    "targetHighPrice",
+                ];
+
+                const rows = state.filteredResults.map((r, i) => {
+                    const m = r.metrics;
+                    const lDate = m.lastSwingLow ? fmtDate(m.lastSwingLow.time) : "";
+                    const lPrice = m.lastSwingLow ? m.lastSwingLow.price : "";
+                    const tDate = m.targetHigh ? fmtDate(m.targetHigh.time) : "";
+                    const tPrice = m.targetHigh ? m.targetHigh.price : "";
+
+                    return [
+                        i + 1,
+                        r.symbol,
+                        m.score,
+                        m.rr,
+                        m.quoteVolume,
+                        m.close,
+                        lDate,
+                        lPrice,
+                        tDate,
+                        tPrice,
+                    ];
+                });
+
+                const csv = [
+                    headers.join(","),
+                    ...rows.map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")),
+                ].join("\n");
+
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `binance_vlow_swings_${Date.now()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                URL.revokeObjectURL(url);
+            };
+
+            // -------------------------------
+            // Chart (Zoom/Pan enabled)
+            // -------------------------------
+            const ensureChart = () => {
+                const canvas = document.getElementById("chartCanvas");
+
+                // Register zoom plugin if available
+                if (window.ChartZoom && typeof Chart !== "undefined" && typeof Chart.register === "function") {
+                    try {
+                        Chart.register(window.ChartZoom);
+                    } catch (_) {
+                        // ignore double-register
+                    }
+                }
+
+                if (state.chart) return state.chart;
+
+                state.chart = new Chart(canvas.getContext("2d"), {
                     type: "line",
-                    data: { datasets: [] },
+                    data: {
+                        datasets: [],
+                    },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        animation: false,
+                        parsing: false,
                         interaction: { mode: "nearest", intersect: false },
                         plugins: {
-                            legend: { labels: { color: "#e7eaf0" } },
+                            legend: { display: true },
                             tooltip: {
                                 callbacks: {
-                                    label: (c) => {
-                                        const y = c.parsed && typeof c.parsed.y === "number" ? c.parsed.y : null;
-                                        if (y === null) return c.dataset.label || "";
-                                        return `${c.dataset.label}: ${y}`;
+                                    title: (items) => {
+                                        const it = items && items[0];
+                                        if (!it) return "";
+                                        const x = it.parsed.x;
+                                        const meta = state.selectedSymbol ? state.results.find((r) => r.symbol === state.selectedSymbol) : null;
+                                        if (!meta) return `Index ${x}`;
+                                        const w = meta.windowKlines;
+                                        const idx = Math.round(x);
+                                        if (!w[idx]) return `Index ${x}`;
+                                        return fmtDate(w[idx].openTime);
                                     },
                                 },
                             },
-                            vHighlight: { start: NaN, end: NaN },
+                            zoom: {
+                                limits: {
+                                    x: { min: "original", max: "original" },
+                                    y: { min: "original", max: "original" },
+                                },
+                                pan: {
+                                    enabled: true,
+                                    mode: "x",
+                                    modifierKey: "alt",
+                                },
+                                zoom: {
+                                    wheel: {
+                                        enabled: true,
+                                    },
+                                    pinch: {
+                                        enabled: true,
+                                    },
+                                    drag: {
+                                        enabled: true,
+                                        modifierKey: "shift",
+                                        threshold: 2,
+                                    },
+                                    mode: "x",
+                                },
+                            },
                         },
                         scales: {
                             x: {
-                                type: "time",
-                                time: { unit: "month" },
-                                ticks: { color: "#cfd6e6" },
-                                grid: { color: "rgba(255,255,255,0.08)" },
+                                type: "linear",
+                                min: 0,
+                                max: 199,
+                                ticks: {
+                                    callback: (value) => {
+                                        const meta = state.selectedSymbol ? state.results.find((r) => r.symbol === state.selectedSymbol) : null;
+                                        if (!meta) return value;
+                                        const idx = Math.round(Number(value));
+                                        const w = meta.windowKlines;
+                                        if (!w[idx]) return "";
+                                        // 너무 빽빽하면 일부만 표시
+                                        if (idx % 20 !== 0 && idx !== 0 && idx !== w.length - 1) return "";
+                                        return fmtDate(w[idx].openTime);
+                                    },
+                                },
+                                grid: { color: "rgba(255,255,255,0.06)" },
                             },
                             y: {
-                                ticks: { color: "#cfd6e6" },
-                                grid: { color: "rgba(255,255,255,0.08)" },
+                                grid: { color: "rgba(255,255,255,0.06)" },
                             },
                         },
                     },
-                    plugins: [vHighlightPlugin],
                 });
 
-                return chart;
-            }
+                return state.chart;
+            };
 
-            function drawSymbolChart(symbol) {
-                const data = state.results.get(symbol);
-                if (!data) return;
+            const updateChart = (symbol) => {
+                const meta = state.results.find((r) => r.symbol === symbol);
+                if (!meta) return;
 
-                const c = ensureChart();
+                state.selectedSymbol = symbol;
 
-                const lastCandle = data.candles[data.candles.length - 1];
-                const endTime = lastCandle.openTime;
+                const chart = ensureChart();
+                const w = meta.windowKlines;
+                const swings = meta.swings;
 
-                // V-구간(최근 5봉) 하이라이트 범위
-                c.options.plugins.vHighlight.start = data.vRangeStart;
-                c.options.plugins.vHighlight.end = data.vRangeEnd;
+                const closeSeries = w.map((k, i) => ({ x: i, y: k.close }));
+                const swingHighPoints = swings.swingHighs.map((p) => ({ x: p.index, y: p.price }));
+                const swingLowPoints = swings.swingLows.map((p) => ({ x: p.index, y: p.price }));
 
-                const closeLine = data.candles.map((k) => ({ x: k.openTime, y: k.close }));
-                const zigzagLine = data.zigzag.map((p) => ({ x: p.t, y: p.price }));
-
-                const swingHighs = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
-                const swingLows = data.swingLows.map((p) => ({ x: p.t, y: p.price }));
-
-                const vLows = data.vLows.map((p) => ({ x: p.t, y: p.price }));
-
-                // 트렌드라인(최근 2개 스윙 저점/고점)
-                const supportLine = buildTrendlineFromLastTwo(data.swingLows, endTime);
-                const resistLine = buildTrendlineFromLastTwo(data.swingHighs, endTime);
-
-                c.data.datasets = [
+                chart.data.datasets = [
                     {
-                        label: `${symbol} Close Line`,
-                        data: closeLine,
-                        borderWidth: 1.5,
+                        label: "Close (200 bars)",
+                        data: closeSeries,
+                        borderWidth: 2,
                         pointRadius: 0,
                         tension: 0.15,
                     },
                     {
-                        label: `${symbol} ZigZag`,
-                        data: zigzagLine,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0,
-                    },
-                    {
-                        label: "Support Trendline (from last 2 Swing Lows)",
-                        data: supportLine || [],
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0,
-                        borderDash: [6, 6],
-                    },
-                    {
-                        label: "Resistance Trendline (from last 2 Swing Highs)",
-                        data: resistLine || [],
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0,
-                        borderDash: [6, 6],
-                    },
-                    {
                         label: "Swing High",
-                        type: "scatter",
-                        data: swingHighs,
+                        data: swingHighPoints,
+                        showLine: false,
                         pointRadius: 4,
+                        pointHoverRadius: 6,
                     },
                     {
                         label: "Swing Low",
-                        type: "scatter",
-                        data: swingLows,
+                        data: swingLowPoints,
+                        showLine: false,
                         pointRadius: 4,
-                    },
-                    {
-                        label: "V-Range Lows (last 5 bars)",
-                        type: "scatter",
-                        data: vLows,
-                        pointRadius: 5,
+                        pointHoverRadius: 6,
                     },
                 ];
 
-                c.update();
-            }
+                chart.options.scales.x.min = 0;
+                chart.options.scales.x.max = Math.max(0, w.length - 1);
 
-            function setUiRunning(running) {
-                btnStart.disabled = running;
-                btnStop.disabled = !running;
-                $("#inpConcurrency").disabled = running;
-                $("#inpTimeout").disabled = running;
-                $("#inpRetries").disabled = running;
-            }
+                chart.update("none");
 
-            btnStop.addEventListener("click", () => {
-                if (globalAbortController) globalAbortController.abort();
-            });
+                if (typeof chart.resetZoom === "function") {
+                    chart.resetZoom();
+                }
 
-            selSymbol.addEventListener("change", () => {
-                const symbol = selSymbol.value;
-                if (!symbol) return;
-                drawSymbolChart(symbol);
-            });
+                document.getElementById("chartTitle").textContent = `차트: ${symbol} (최근 200봉 Close + 스윙고/저점)`;
+                const link = document.getElementById("binanceLink");
+                link.href = `https://www.binance.com/en/futures/${encodeURIComponent(symbol)}`;
+                link.style.display = "inline-block";
 
-            btnStart.addEventListener("click", async () => {
-                const concurrency = Math.max(1, Math.min(20, Number($("#inpConcurrency").value) || 8));
-                const timeoutMs = Math.max(2000, Math.min(60000, Number($("#inpTimeout").value) || 12000));
-                const retries = Math.max(0, Math.min(10, Number($("#inpRetries").value) || 3));
+                document.getElementById("btnResetZoom").disabled = false;
+            };
 
-                globalAbortController = new AbortController();
-                const signal = globalAbortController.signal;
+            const selectSymbol = (symbol) => {
+                updateChart(symbol);
+            };
 
-                state.results.clear();
-                state.filteredSymbols = [];
-                tblBody.innerHTML = "";
-                setSymbolSelect([]);
-                resultSummary.textContent = "스캔 중…";
-                logStatus("초기화…");
-                setUiRunning(true);
+            // -------------------------------
+            // Main scan
+            // -------------------------------
+            const startScan = async () => {
+                if (state.running) return;
+
+                state.running = true;
+                state.abortControllers = [];
+                state.results = [];
+                state.filteredResults = [];
+                state.selectedSymbol = null;
+
+                document.getElementById("btnStart").disabled = true;
+                document.getElementById("btnStop").disabled = false;
+                document.getElementById("btnCsv").disabled = true;
+                document.getElementById("btnResetZoom").disabled = true;
+                document.getElementById("binanceLink").style.display = "none";
+                document.getElementById("chartTitle").textContent = "차트: (심볼을 클릭하세요)";
+                setStatusTop("준비 중...");
 
                 try {
-                    // 0) 서버시간
-                    logStatus(["서버시간 가져오는 중…"]);
-                    state.serverTime = await getServerTime({ timeoutMs, signal, retries });
-
-                    // 1) USDT Perpetual 심볼 목록
-                    logStatus(["exchangeInfo 가져오는 중…"]);
-                    const info = await getExchangeInfo({ timeoutMs, signal, retries });
-
-                    const symbols = (info.symbols || [])
-                        .filter((s) => s.contractType === "PERPETUAL")
-                        .filter((s) => s.quoteAsset === "USDT")
-                        .filter((s) => s.status === "TRADING")
-                        .map((s) => s.symbol);
-
+                    setStatusTop("1) 심볼 로딩 중...");
+                    const symbols = await getUSDTPerpSymbols(); // /exchangeInfo :contentReference[oaicite:7]{index=7}
                     state.symbols = symbols;
 
-                    // 1.5) 24h ticker 전체 한번에 받아오기(유동성/현재가)
-                    logStatus([
-                        `USDT PERP 심볼 수: ${symbols.length}`,
-                        "",
-                        "24h ticker(거래대금/현재가) 가져오는 중…",
-                    ]);
+                    setStatusTop("2) 24h 티커 로딩 중...");
+                    await loadTicker24hAll(); // /ticker/24hr :contentReference[oaicite:8]{index=8}
 
-                    const allTickers = await getAll24hTickers({ timeoutMs, signal, retries });
-                    state.tickers.clear();
-                    for (const t of (Array.isArray(allTickers) ? allTickers : [])) {
-                        const sym = t && t.symbol ? String(t.symbol) : "";
-                        if (!sym) continue;
-                        state.tickers.set(sym, {
-                            lastPrice: toNumber(t.lastPrice),
-                            quoteVolume: toNumber(t.quoteVolume),
-                            priceChangePercent: toNumber(t.priceChangePercent),
-                        });
-                    }
+                    setStatusTop(`3) 스캔 시작... (총 ${symbols.length}개)`);
+                    setProgress(0, symbols.length);
+                    setCount(0);
 
-                    logStatus([
-                        `USDT PERP 심볼 수: ${symbols.length}`,
-                        "",
-                        "1단계: 최근 완성봉 5개 저점 V-패턴 필터링 중…",
-                    ]);
+                    const CONCURRENCY = 3; // 필요하면 1~2로 낮춰서 안정적으로
+                    let done = 0;
 
-                    // 2) 1단계 필터: 심볼당 1D 10봉만 가져와서 V-패턴 체크
-                    const stage1 = await mapWithConcurrency(
-                        symbols,
-                        concurrency,
-                        async (symbol) => {
-                            const raw = await getKlines(symbol, "1d", 10, { timeoutMs, signal, retries });
-                            const candles = normalizeKlines(raw, state.serverTime);
+                    const scanOne = async (symbol) => {
+                        if (!state.running) return;
 
-                            if (candles.length < 5) return { symbol, pass: false, reason: "candles<5" };
+                        try {
+                            const klines = await fetchDailyKlines(symbol, 210); // /klines :contentReference[oaicite:9]{index=9}
+                            // 200개 미만이면 제외 (요청사항)
+                            // "마지막 200개(닫힌 봉) + 최근 5개 패턴 체크"까지 안정적으로 하려면 최소 206개 이상이 필요
+                            if (klines.length < 206) return;
 
-                            const pass = passesVShapeLast5Lows(candles);
-                            return { symbol, pass };
-                        },
-                        (done, total) => {
-                            logStatus([
-                                `USDT PERP 심볼 수: ${symbols.length}`,
-                                "",
-                                `1단계 진행: ${done}/${total}`,
-                                `현재 필터 통과(추정): ${state.filteredSymbols.length}`,
-                            ]);
-                        },
-                        signal
-                    );
+                            if (!matchVLowPattern(klines)) return;
 
-                    if (signal.aborted) throw new Error("사용자 중지");
+                            // 최근 닫힌 봉 기준 200개 윈도우
+                            const idxCurrent = klines.length - 1;
+                            const idxLastClosed = idxCurrent - 1;
+                            const start = idxLastClosed - 199;
+                            const end = idxLastClosed;
 
-                    const filtered = [];
-                    for (const r of stage1) {
-                        if (r && r.pass === true) filtered.push(r.symbol);
-                    }
-                    state.filteredSymbols = filtered;
+                            if (start < 0) return;
 
-                    logStatus([
-                        `1단계 필터 통과: ${filtered.length} / ${symbols.length}`,
-                        "",
-                        "2단계: 통과 심볼만 1D 260봉 받아서 최근 200봉 스윙 계산 중…",
-                    ]);
+                            const windowKlines = klines.slice(start, end + 1);
+                            if (windowKlines.length !== 200) return;
 
-                    // 3) 2단계: 통과 심볼만 분석(최소 200봉 미만은 제외)
-                    const stage2 = await mapWithConcurrency(
-                        filtered,
-                        concurrency,
-                        async (symbol) => {
-                            const raw = await getKlines(symbol, "1d", 260, { timeoutMs, signal, retries });
-                            const allCandles = normalizeKlines(raw, state.serverTime);
+                            const swings = detectSwings(windowKlines);
+                            const metrics = buildMetrics({ symbol, windowKlines, swings });
 
-                            // "이전봉이 200개가 안되는 심볼 제외"
-                            if (allCandles.length < 200) {
-                                return { symbol, excluded: true, reason: "candles<200" };
-                            }
+                            state.results.push({ symbol, windowKlines, swings, metrics });
+                        } catch (e) {
+                            // 레이트리밋/네트워크 에러 대비: 조용히 넘기되 로그는 남김
+                            log(`[${symbol}] 실패: ${String(e.message || e)}`);
+                        } finally {
+                            done += 1;
+                            setProgress(done, symbols.length);
+                        }
 
-                            const candles = allCandles.slice(-200);
+                        // 살짝 쉬어주면 레이트리밋에 덜 걸림
+                        await sleep(60);
+                    };
 
-                            // V-구간(최근 5봉) 정보: slice(-200) 기준에서 마지막 5봉
-                            const m = candles.length;
-                            const vRangeStart = candles[m - 5].openTime;
-                            const vRangeEnd = candles[m - 1].closeTime;
-                            const vLows = candles.slice(m - 5).map((c) => ({ t: c.openTime, price: c.low }));
+                    await asyncPool(CONCURRENCY, symbols, scanOne);
 
-                            const { swingHighs, swingLows } = detectSwings(candles);
-                            const zigzag = buildZigZag(swingHighs, swingLows);
+                    // 정렬/필터 적용 후 렌더
+                    applySortAndFilter();
 
-                            const lastClose = candles[candles.length - 1].close;
-
-                            const latestLow = latestOfTypeFromEnd(zigzag, "L");
-                            const latestHigh = latestOfTypeFromEnd(zigzag, "H");
-
-                            const supportDistPct = latestLow ? (lastClose - latestLow.price) / lastClose : NaN;
-                            const upsidePct = latestHigh ? (latestHigh.price - lastClose) / lastClose : NaN;
-
-                            const lowAgeDays = latestLow
-                                ? (candles[candles.length - 1].openTime - latestLow.t) / 86400000
-                                : NaN;
-
-                            const t = state.tickers.get(symbol) || { lastPrice: NaN, quoteVolume: 0, priceChangePercent: NaN };
-                            const quoteVolume = Number.isFinite(t.quoteVolume) ? t.quoteVolume : 0;
-
-                            const score = computeScore({ quoteVolume, supportDistPct, upsidePct, lowAgeDays });
-
-                            const result = {
-                                symbol,
-                                candles,
-                                swingHighs,
-                                swingLows,
-                                zigzag,
-
-                                // 정렬/표시용
-                                quoteVolume,
-                                lastClose,
-                                supportDistPct,
-                                upsidePct,
-                                lowAgeDays,
-                                score,
-
-                                // 하이라이트용
-                                vRangeStart,
-                                vRangeEnd,
-                                vLows,
-                            };
-
-                            state.results.set(symbol, result);
-                            return result;
-                        },
-                        (done, total) => {
-                            logStatus([
-                                `1단계 필터 통과: ${filtered.length} / ${symbols.length}`,
-                                "",
-                                `2단계 진행: ${done}/${total}`,
-                                `분석 완료(200봉 충족): ${state.results.size}`,
-                            ]);
-                        },
-                        signal
-                    );
-
-                    if (signal.aborted) throw new Error("사용자 중지");
-
-                    // 최종 결과만 정리 (excluded/error 제거)
-                    const finalResults = stage2
-                        .filter((r) => r && !r.__error && !r.excluded && r.candles && r.candles.length === 200)
-                        .sort((a, b) => {
-                            // Score 내림차순 -> 유동성 -> 저점거리(작을수록)
-                            const d1 = (b.score - a.score);
-                            if (Math.abs(d1) > 1e-12) return d1;
-
-                            const d2 = (b.quoteVolume - a.quoteVolume);
-                            if (Math.abs(d2) > 1e-12) return d2;
-
-                            const ad = Number.isFinite(a.supportDistPct) ? a.supportDistPct : 1e9;
-                            const bd = Number.isFinite(b.supportDistPct) ? b.supportDistPct : 1e9;
-                            return ad - bd;
-                        });
-
-                    renderTable(finalResults);
-                    setSymbolSelect(finalResults.map((r) => r.symbol));
-
-                    resultSummary.innerHTML = `
-                        총 심볼: ${symbols.length}개<br />
-                        1단계 통과: ${filtered.length}개<br />
-                        2단계(200봉 충족) 최종: <strong class="ok">${finalResults.length}개</strong><br />
-                        정렬: <span class="pill">Score desc</span> (Liquidity↑ / SupportDist↓ / Upside↑ / LowAge↓)
-                    `;
-
-                    logStatus([
-                        "완료!",
-                        `총 심볼: ${symbols.length}`,
-                        `1단계 통과: ${filtered.length}`,
-                        `최종(200봉 충족): ${finalResults.length}`,
-                        "",
-                        "테이블에서 심볼 클릭 또는 상단 셀렉트에서 선택하면 차트가 나와.",
-                        "차트: V구간 하이라이트 + 지지/저항 트렌드라인 자동 표시",
-                    ]);
-
-                    // 첫 심볼 자동 표시
-                    if (finalResults.length > 0) {
-                        const first = finalResults[0].symbol;
-                        selSymbol.value = first;
-                        drawSymbolChart(first);
-                    }
-                } catch (err) {
-                    const msg = err && err.message ? err.message : String(err);
-                    logStatus([
-                        "중단/오류 발생:",
-                        msg.includes("사용자 중지") ? "사용자가 중지했어." : msg,
-                        "",
-                        "참고: file://로 열면 CORS로 막힐 수 있으니 로컬 서버(http://localhost)로 열어줘.",
-                    ]);
-                    resultSummary.innerHTML = `<span class="danger">중단/오류: ${msg}</span>`;
+                    setStatusTop(`완료! 매칭 ${state.results.length}개\n- 정렬: 추천순(Score)\n- 테이블에서 심볼 클릭하면 차트 표시\n- CSV 다운로드 가능`);
+                } catch (e) {
+                    setStatusTop(`에러: ${String(e.message || e)}`);
                 } finally {
-                    setUiRunning(false);
-                    globalAbortController = null;
+                    state.running = false;
+                    state.abortControllers = [];
+                    document.getElementById("btnStart").disabled = false;
+                    document.getElementById("btnStop").disabled = true;
+                }
+            };
+
+            const stopScan = () => {
+                state.running = false;
+                for (const c of state.abortControllers) {
+                    try {
+                        c.abort();
+                    } catch (_) {}
+                }
+                state.abortControllers = [];
+                setStatusTop("중지됨.");
+                document.getElementById("btnStart").disabled = false;
+                document.getElementById("btnStop").disabled = true;
+            };
+
+            // -------------------------------
+            // Events
+            // -------------------------------
+            document.getElementById("btnStart").addEventListener("click", startScan);
+            document.getElementById("btnStop").addEventListener("click", stopScan);
+
+            document.getElementById("sortSelect").addEventListener("change", applySortAndFilter);
+            document.getElementById("searchInput").addEventListener("input", applySortAndFilter);
+
+            document.getElementById("btnCsv").addEventListener("click", downloadCsv);
+
+            document.getElementById("btnResetZoom").addEventListener("click", () => {
+                if (!state.chart) return;
+                if (typeof state.chart.resetZoom === "function") {
+                    state.chart.resetZoom();
                 }
             });
+
+            // Initial chart create (so zoom plugin is ready)
+            ensureChart();
+            setStatusTop("대기 중... (스캔 시작을 누르세요)");
         </script>
     </body>
 </html>
