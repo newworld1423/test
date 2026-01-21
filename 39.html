@@ -330,8 +330,9 @@
                 <div>
                     <h1>Binance USDT 무기한 롱 스캐너 + 백테스트(15m) 통합</h1>
                     <div class="sub">
-                        규칙: 1D(99SMA 상단) + 1H(EMA50&gt;EMA200 정배열) + 15m(EMA20 재탈환 + RSI 상승) → 다음 15m 시가 진입 가정<br />
-                        SL: 최근N 저점 vs 1H ATR 기반 중 더 타이트한 값 / TP: RR 고정 / 판정: 15m 고가/저가 터치(동봉 TP&SL은 기본 SL 우선)
+                        조건(신호봉 기준): 1D(종가 &gt; 99SMA) + 1H(종가 &gt; EMA50 &gt; EMA200) + 15m(EMA20 재탈환 + RSI상승, 45~65)<br />
+                        진입: 다음 15m 시가 / SL: (최근 N 저점) vs (1H ATR*배수) 중 더 타이트한 값(=롱 기준 더 높은 SL) / TP: RR 고정<br />
+                        판정: 15m 고가/저가 터치(동봉 TP&SL은 설정값에 따라 SL 우선/TP 우선)
                     </div>
                 </div>
             </div>
@@ -365,7 +366,7 @@
                         </div>
 
                         <div class="field" style="grid-column: span 3;">
-                            <label>동시 요청</label>
+                            <label>동시 요청(스캔)</label>
                             <input id="concurrency" type="number" min="1" max="20" step="1" value="8" />
                         </div>
 
@@ -490,7 +491,7 @@
                                     <th data-skey="price" class="right" data-tip="현재가(24h 티커 lastPrice). 표시용 참고값.">Price</th>
                                     <th data-skey="setup" data-tip="세팅 상태 태그. (세팅완료=1D OK + 1H Strong + 15m 재탈환+RSI상승)">Setup</th>
                                     <th data-skey="entry" class="right" data-tip="진입 참고가(스캐너): 신호봉 15m 종가. 백테스트는 다음 15m 시가 진입.">EntryRef</th>
-                                    <th data-skey="sl" class="right" data-tip="손절(SL): 최근 N개 15m 저점 최저 vs 1H ATR*배수 중 더 타이트한 값.">SL</th>
+                                    <th data-skey="sl" class="right" data-tip="손절(SL): 최근 N개 15m 저점 최저 vs 1H ATR*배수 중 더 타이트한 값(롱 기준 더 높은 SL).">SL</th>
                                     <th data-skey="tp" class="right" data-tip="익절(TP): Entry + RR*(Entry-SL). RR은 백테스트 설정 사용.">TP</th>
                                     <th data-skey="riskPct" class="right" data-tip="리스크 폭(%): (Entry-SL)/Entry * 100.">Risk%</th>
                                     <th data-skey="dailyOk" data-tip="1D 필터: 일봉 종가가 99SMA 위인지 여부.">1D(99SMA)</th>
@@ -518,7 +519,7 @@
                                 <tr>
                                     <th data-bkey="symbol" data-tip="심볼(USDT 무기한 선물).">Symbol</th>
                                     <th data-bkey="trades" class="right" data-tip="조건 충족으로 실제로 진입한 트레이드 수.">Trades</th>
-                                    <th data-bkey="winrate" class="right" data-tip="승률(%). TP로 종료(or R>0) 비율.">Win%</th>
+                                    <th data-bkey="winrate" class="right" data-tip="승률(%). R>0 비율(시간 종료로 +R도 승리로 처리).">Win%</th>
                                     <th data-bkey="netR" class="right" data-tip="누적 R 합계. (각 트레이드를 1R 기준으로 환산해 합산)">Net R</th>
                                     <th data-bkey="avgR" class="right" data-tip="평균 R. (NetR / Trades)">Avg R</th>
                                     <th data-bkey="pf" class="right" data-tip="Profit Factor = 총이익R / 총손실R(절대값). 1보다 크면 우위.">PF</th>
@@ -538,7 +539,6 @@
             </div>
         </div>
 
-        <!-- ✅ overflow 영향 안 받는 body-fixed tooltip -->
         <div id="thTooltip" class="th-tooltip" role="tooltip"></div>
 
         <script>
@@ -588,7 +588,7 @@
             };
 
             const TEMPO_DELAY_MS = { fast: 0, normal: 80, slow: 180 };
-            const CACHE_PREFIX = "binance_recent_kline_cache_v2:";
+            const CACHE_PREFIX = "binance_recent_kline_cache_v3:";
             const CACHE_MAX_BYTES = 4 * 1024 * 1024;
 
             const state = {
@@ -612,9 +612,19 @@
                 btDone: 0,
             };
 
-            function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-            function safeFloat(x) { const v = Number.parseFloat(x); return Number.isFinite(v) ? v : NaN; }
-            function safeInt(x) { const v = Number.parseInt(x, 10); return Number.isFinite(v) ? v : NaN; }
+            function clamp(v, a, b) {
+                return Math.max(a, Math.min(b, v));
+            }
+
+            function safeFloat(x) {
+                const v = Number.parseFloat(x);
+                return Number.isFinite(v) ? v : NaN;
+            }
+
+            function safeInt(x) {
+                const v = Number.parseInt(x, 10);
+                return Number.isFinite(v) ? v : NaN;
+            }
 
             function fmtNum(n, digits = 2) {
                 if (!Number.isFinite(n)) return "-";
@@ -627,7 +637,9 @@
                 return `${sign}${n.toFixed(digits)}%`;
             }
 
-            function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+            function sleep(ms) {
+                return new Promise((r) => setTimeout(r, ms));
+            }
 
             function nowString() {
                 const d = new Date();
@@ -668,7 +680,9 @@
                     if (!parsed || typeof parsed !== "object") return null;
                     if (typeof parsed.validUntil === "number" && Date.now() < parsed.validUntil && Array.isArray(parsed.data)) return parsed.data;
                     return null;
-                } catch (_) { return null; }
+                } catch (_) {
+                    return null;
+                }
             }
 
             function cacheSet(key, data, validUntil) {
@@ -745,11 +759,11 @@
 
             function parseKlines(raw) {
                 const openTimes = [];
+                const closeTimes = [];
                 const opens = [];
                 const highs = [];
                 const lows = [];
                 const closes = [];
-                const closeTimes = [];
 
                 for (let i = 0; i < raw.length; i += 1) {
                     const row = raw[i];
@@ -854,25 +868,6 @@
                 return out;
             }
 
-            function rollingMinArray(values, window) {
-                const out = new Array(values.length).fill(NaN);
-                const dq = [];
-                for (let i = 0; i < values.length; i += 1) {
-                    while (dq.length > 0 && dq[0] <= i - window) dq.shift();
-
-                    const v = values[i];
-                    while (dq.length > 0) {
-                        const lastIdx = dq[dq.length - 1];
-                        if (values[lastIdx] <= v) break;
-                        dq.pop();
-                    }
-                    dq.push(i);
-
-                    if (i >= window - 1) out[i] = values[dq[0]];
-                }
-                return out;
-            }
-
             function normalize01(val, min, max) {
                 if (!Number.isFinite(val) || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
                 return clamp((val - min) / (max - min), 0, 1);
@@ -939,10 +934,7 @@
                 return data;
             }
 
-            async function fetchAllKlinesRange(baseUrl, symbol, interval, startTime, endTime, abortCheck, memCache) {
-                const key = `K:${symbol}:${interval}:${startTime}:${endTime}`;
-                if (memCache.has(key)) return memCache.get(key);
-
+            async function fetchAllKlinesRange(baseUrl, symbol, interval, startTime, endTime, abortCheck) {
                 const limit = 1500;
                 const out = [];
                 let cursor = startTime;
@@ -975,14 +967,10 @@
                     if (chunk.length < limit) break;
                 }
 
-                memCache.set(key, out);
                 return out;
             }
 
-            async function fetchAllFundingRates(baseUrl, symbol, startTime, endTime, abortCheck, memCache) {
-                const key = `F:${symbol}:${startTime}:${endTime}`;
-                if (memCache.has(key)) return memCache.get(key);
-
+            async function fetchAllFundingRates(baseUrl, symbol, startTime, endTime, abortCheck) {
                 const limit = 1000;
                 const out = [];
                 let cursor = startTime;
@@ -1012,8 +1000,30 @@
                     if (chunk.length < limit) break;
                 }
 
-                memCache.set(key, out);
                 return out;
+            }
+
+            function fundingRateAt(fundingRows, timeMs) {
+                if (!Array.isArray(fundingRows) || fundingRows.length === 0) return NaN;
+
+                let lo = 0;
+                let hi = fundingRows.length - 1;
+                let ans = -1;
+
+                while (lo <= hi) {
+                    const mid = (lo + hi) >> 1;
+                    const t = Number(fundingRows[mid].fundingTime);
+                    if (Number.isFinite(t) && t <= timeMs) {
+                        ans = mid;
+                        lo = mid + 1;
+                    } else {
+                        hi = mid - 1;
+                    }
+                }
+
+                if (ans < 0) return NaN;
+                const r = safeFloat(fundingRows[ans].fundingRate);
+                return r;
             }
 
             function buildUniverse(exchangeInfo, tickers, premiumAll, minQuoteVol, maxSymbols) {
@@ -1140,7 +1150,7 @@
                         <td class="right mono">${fmtNum(r.winrate, 1)}%</td>
                         <td class="right mono"><strong>${fmtNum(r.netR, 2)}</strong></td>
                         <td class="right mono">${fmtNum(r.avgR, 2)}</td>
-                        <td class="right mono">${fmtNum(r.pf, 2)}</td>
+                        <td class="right mono">${Number.isFinite(r.pf) ? fmtNum(r.pf, 2) : "-"}</td>
                         <td class="right mono">${fmtNum(r.maxDD, 2)}</td>
                         <td class="right mono">${fmtNum(r.bestR, 2)}</td>
                         <td class="right mono">${fmtNum(r.worstR, 2)}</td>
@@ -1151,7 +1161,7 @@
                 els.btnBtCsv.disabled = rows.length === 0;
             }
 
-            /* ✅ 여기서부터: 툴팁 로직 (body-fixed, overflow 영향 없음) */
+            /* ===== Tooltip (body-fixed) ===== */
             function tooltipShow(text, clientX, clientY) {
                 if (!text) return;
                 els.thTooltip.textContent = text;
@@ -1161,7 +1171,6 @@
                 let x = clientX + 14;
                 let y = clientY - 12;
 
-                // 먼저 대충 위치 잡고, 실제 크기 기반으로 화면 밖이면 보정
                 els.thTooltip.style.left = `${x}px`;
                 els.thTooltip.style.top = `${y}px`;
 
@@ -1199,7 +1208,7 @@
                 window.addEventListener("scroll", tooltipHide, { passive: true });
                 window.addEventListener("blur", tooltipHide);
             }
-            /* ✅ /툴팁 로직 끝 */
+            /* ===== /Tooltip ===== */
 
             function attachHeaderSort() {
                 document.querySelectorAll("thead th[data-skey]").forEach((th) => {
@@ -1298,10 +1307,13 @@
                 }
             }
 
-            // (이하 스캔/백테스트 로직은 기존과 동일 — 길어서 그대로 유지)
-            // 여기부터는 네가 쓰던 그대로 동작하도록 핵심 부분은 변경하지 않았어.
-            // --- 아래는 기존 코드와 동일한 스캔/백테스트 함수들 ---
-            // (중간 생략 없이 전체 유지해야 해서 그대로 둠)
+            function parseDateToMs(dateStr, endOfDay) {
+                if (!dateStr) return NaN;
+                const [y, m, d] = dateStr.split("-").map((x) => Number.parseInt(x, 10));
+                if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return NaN;
+                if (endOfDay) return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+                return new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+            }
 
             async function runScan() {
                 state.abortScan = false;
@@ -1339,12 +1351,16 @@
 
                 els.scanStatus.textContent = "캔들 수집/계산 중...";
 
+                const rr = clamp(safeFloat(els.btRR.value) || 2.0, 0.5, 10);
+                const atrMult = clamp(safeFloat(els.btAtrMult.value) || 1.2, 0.5, 5);
+                const swingN = clamp(safeInt(els.btSwingN.value) || 12, 3, 60);
+
                 const worker = async (item) => {
                     const symbol = item.symbol;
 
                     const [raw15, raw1h, raw1d] = await Promise.all([
-                        getKlinesRecent(baseUrl, symbol, "15m", 210, abortCheck),
-                        getKlinesRecent(baseUrl, symbol, "1h", 260, abortCheck),
+                        getKlinesRecent(baseUrl, symbol, "15m", 230, abortCheck),
+                        getKlinesRecent(baseUrl, symbol, "1h", 320, abortCheck),
                         getKlinesRecent(baseUrl, symbol, "1d", 210, abortCheck),
                     ]);
 
@@ -1426,9 +1442,6 @@
                     });
 
                     const entry = close15;
-                    const swingN = clamp(safeInt(els.btSwingN.value) || 12, 3, 60);
-                    const atrMult = clamp(safeFloat(els.btAtrMult.value) || 1.2, 0.5, 5);
-                    const rr = clamp(safeFloat(els.btRR.value) || 2.0, 0.5, 10);
 
                     let swingLow = NaN;
                     if (idx15 - (swingN - 1) >= 0) {
@@ -1444,10 +1457,12 @@
                     const slFromAtr = Number.isFinite(atr1h) ? entry - atrMult * atr1h : NaN;
                     const slFromSwing = Number.isFinite(swingLow) ? swingLow * (1 - 0.0005) : NaN;
 
-                    let sl = NaN;
-                    if (Number.isFinite(slFromAtr) && Number.isFinite(slFromSwing)) sl = Math.min(slFromAtr, slFromSwing);
-                    else if (Number.isFinite(slFromAtr)) sl = slFromAtr;
-                    else if (Number.isFinite(slFromSwing)) sl = slFromSwing;
+                    const candidates = [];
+                    if (Number.isFinite(slFromAtr) && slFromAtr < entry) candidates.push(slFromAtr);
+                    if (Number.isFinite(slFromSwing) && slFromSwing < entry) candidates.push(slFromSwing);
+
+                    // 롱에서 "타이트" = entry에 더 가까운(더 높은) SL
+                    const sl = candidates.length > 0 ? Math.max(...candidates) : NaN;
 
                     const risk = Number.isFinite(sl) ? entry - sl : NaN;
                     const tp = Number.isFinite(risk) && risk > 0 ? entry + rr * risk : NaN;
@@ -1506,10 +1521,365 @@
                 renderScanTable();
             }
 
-            // 백테스트 함수들은 이전과 동일하게 유지 (여기서는 툴팁 수정이 목적이라 생략 없이 유지해야 하지만,
-            // 너가 이미 위 코드 그대로 붙여넣어 실행하는 흐름이라, 본문에서 스캔만 테스트해도 툴팁 확인 가능)
-            // --- 아래 이벤트 바인딩 포함 ---
+            function computeMaxDDFromEquityRs(rs) {
+                let peak = 0;
+                let eq = 0;
+                let maxDD = 0;
+                for (let i = 0; i < rs.length; i += 1) {
+                    eq += rs[i];
+                    if (eq > peak) peak = eq;
+                    const dd = peak - eq;
+                    if (dd > maxDD) maxDD = dd;
+                }
+                return maxDD;
+            }
 
+            async function runBacktest() {
+                state.abortBt = false;
+                state.btRunning = true;
+                state.btRows = [];
+                state.btTotal = 0;
+                state.btDone = 0;
+
+                els.btnBt.disabled = true;
+                els.btnBtStop.disabled = false;
+                els.btnBtCsv.disabled = true;
+
+                els.btStatus.textContent = "준비 중...";
+                els.btProgress.textContent = `0 / 0`;
+                els.btTrades.textContent = "0";
+                els.btWinrate.textContent = "-";
+                els.btNetR.textContent = "-";
+
+                const baseUrl = String(els.baseUrl.value || "").trim().replace(/\/+$/, "");
+                const startMs = parseDateToMs(els.btStart.value, false);
+                const endMs = parseDateToMs(els.btEnd.value, true);
+
+                if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+                    els.btStatus.textContent = "날짜가 올바르지 않음";
+                    return;
+                }
+
+                const topN = clamp(safeInt(els.btTopN.value) || 20, 1, 80);
+                const rr = clamp(safeFloat(els.btRR.value) || 2.0, 0.5, 10);
+                const atrMult = clamp(safeFloat(els.btAtrMult.value) || 1.2, 0.5, 5);
+                const swingN = clamp(safeInt(els.btSwingN.value) || 12, 3, 60);
+                const maxHold = clamp(safeInt(els.btMaxHold.value) || 96, 4, 2000);
+                const tieBreak = els.btTieBreak.value === "tp" ? "tp" : "sl";
+                const fundingMode = els.btFundingMode.value === "on" ? "on" : "off";
+                const fundingMax = Math.max(0, safeFloat(els.btFundingMax.value) || 0);
+                const concurrency = clamp(safeInt(els.btConcurrency.value) || 3, 1, 10);
+
+                const abortCheck = () => state.abortBt;
+
+                // 스캔 결과가 없으면 자동으로 스캔부터 수행
+                if (!Array.isArray(state.scanRows) || state.scanRows.length === 0) {
+                    els.btStatus.textContent = "스캔 결과 없음 → 스캔 먼저 실행 중...";
+                    await runScan();
+                    if (abortCheck()) {
+                        els.btStatus.textContent = "중지됨";
+                        return;
+                    }
+                }
+
+                const sorted = state.scanRows
+                    .slice()
+                    .filter((r) => r && r.symbol)
+                    .sort((a, b) => (Number.isFinite(b.score) ? b.score : -Infinity) - (Number.isFinite(a.score) ? a.score : -Infinity));
+
+                const targets = sorted.slice(0, topN).map((r) => r.symbol);
+
+                state.btTotal = targets.length;
+                state.btDone = 0;
+                els.btProgress.textContent = `0 / ${state.btTotal}`;
+
+                els.btStatus.textContent = "데이터 수집/시뮬레이션 중...";
+
+                const delayMs = 120; // 백테스트는 조금 더 보수적으로
+
+                const worker = async (symbol) => {
+                    const lookback15 = Math.max(240, swingN + 80) * intervalToMs("15m");
+                    const lookback1h = 360 * intervalToMs("1h");
+                    const lookback1d = 140 * intervalToMs("1d");
+                    const forward15 = (maxHold + 5) * intervalToMs("15m");
+
+                    const k15Start = startMs - lookback15;
+                    const k1hStart = startMs - lookback1h;
+                    const k1dStart = startMs - lookback1d;
+
+                    const k15End = endMs + forward15;
+                    const k1hEnd = endMs;
+                    const k1dEnd = endMs;
+
+                    const [raw15, raw1h, raw1d] = await Promise.all([
+                        fetchAllKlinesRange(baseUrl, symbol, "15m", k15Start, k15End, abortCheck),
+                        fetchAllKlinesRange(baseUrl, symbol, "1h", k1hStart, k1hEnd, abortCheck),
+                        fetchAllKlinesRange(baseUrl, symbol, "1d", k1dStart, k1dEnd, abortCheck),
+                    ]);
+
+                    let fundingRows = [];
+                    if (fundingMode === "on") {
+                        const fStart = startMs - 10 * intervalToMs("1d");
+                        fundingRows = await fetchAllFundingRates(baseUrl, symbol, fStart, endMs, abortCheck);
+                        fundingRows.sort((a, b) => Number(a.fundingTime) - Number(b.fundingTime));
+                    }
+
+                    const k15 = parseKlines(raw15);
+                    const k1h = parseKlines(raw1h);
+                    const k1d = parseKlines(raw1d);
+
+                    if (k15.opens.length < 50 || k1h.opens.length < 210 || k1d.opens.length < 120) {
+                        return {
+                            symbol,
+                            trades: 0,
+                            winrate: 0,
+                            netR: 0,
+                            avgR: 0,
+                            pf: NaN,
+                            maxDD: 0,
+                            bestR: NaN,
+                            worstR: NaN,
+                        };
+                    }
+
+                    const ema20_15 = emaArray(k15.closes, 20);
+                    const rsi15 = rsiArray(k15.closes, 14);
+
+                    const ema50_1h = emaArray(k1h.closes, 50);
+                    const ema200_1h = emaArray(k1h.closes, 200);
+                    const atr14_1h = atrArray(k1h.highs, k1h.lows, k1h.closes, 14);
+
+                    const sma99_1d = smaArray(k1d.closes, 99);
+
+                    // time alignment pointer (1h, 1d)
+                    let p1h = 0;
+                    let p1d = 0;
+
+                    const tradesR = [];
+                    let trades = 0;
+                    let wins = 0;
+                    let sumPos = 0;
+                    let sumNeg = 0;
+                    let bestR = -Infinity;
+                    let worstR = Infinity;
+
+                    for (let i = 1; i < k15.opens.length - 2; i += 1) {
+                        if (abortCheck()) break;
+
+                        const closeTime15 = k15.closeTimes[i];
+                        const openTime15 = k15.openTimes[i];
+
+                        // 백테스트 구간의 "신호봉"만 체크
+                        if (closeTime15 < startMs || closeTime15 > endMs) continue;
+                        if (!Number.isFinite(openTime15) || !Number.isFinite(closeTime15)) continue;
+
+                        // move pointer to latest 1h closeTime <= 15m closeTime
+                        while (p1h + 1 < k1h.closeTimes.length && k1h.closeTimes[p1h + 1] <= closeTime15) p1h += 1;
+                        while (p1d + 1 < k1d.closeTimes.length && k1d.closeTimes[p1d + 1] <= closeTime15) p1d += 1;
+
+                        const idx1h = p1h;
+                        const idx1d = p1d;
+
+                        const dailyOk = Number.isFinite(sma99_1d[idx1d]) && k1d.closes[idx1d] > sma99_1d[idx1d];
+
+                        const trendStrong =
+                            Number.isFinite(ema50_1h[idx1h]) &&
+                            Number.isFinite(ema200_1h[idx1h]) &&
+                            k1h.closes[idx1h] > ema50_1h[idx1h] &&
+                            ema50_1h[idx1h] > ema200_1h[idx1h];
+
+                        const close = k15.closes[i];
+                        const prevClose = k15.closes[i - 1];
+                        const e = ema20_15[i];
+                        const prevE = ema20_15[i - 1];
+
+                        const reclaim = Number.isFinite(e) && Number.isFinite(prevE) && close > e && prevClose <= prevE;
+
+                        const rsiNow = rsi15[i];
+                        const rsiPrev = rsi15[i - 1];
+                        const rsiOk = Number.isFinite(rsiNow) && Number.isFinite(rsiPrev) && rsiNow >= 45 && rsiNow <= 65 && rsiNow > rsiPrev;
+
+                        if (!(dailyOk && trendStrong && reclaim && rsiOk)) continue;
+
+                        // entry = next 15m open
+                        const entryIdx = i + 1;
+                        const entryTime = k15.openTimes[entryIdx];
+                        const entryPrice = k15.opens[entryIdx];
+                        if (!Number.isFinite(entryTime) || !Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+
+                        if (fundingMode === "on") {
+                            const fr = fundingRateAt(fundingRows, entryTime);
+                            if (Number.isFinite(fr) && fr > fundingMax) continue;
+                        }
+
+                        // swing low (signal bar 포함, 직전 N개)
+                        if (i - (swingN - 1) < 0) continue;
+
+                        let swingLow = Infinity;
+                        for (let j = i - (swingN - 1); j <= i; j += 1) {
+                            const l = k15.lows[j];
+                            if (Number.isFinite(l)) swingLow = Math.min(swingLow, l);
+                        }
+                        if (!Number.isFinite(swingLow) || swingLow === Infinity) continue;
+
+                        const slFromSwing = swingLow * (1 - 0.0005);
+                        const atr = atr14_1h[idx1h];
+                        const slFromAtr = Number.isFinite(atr) ? entryPrice - atrMult * atr : NaN;
+
+                        const slCandidates = [];
+                        if (Number.isFinite(slFromSwing) && slFromSwing < entryPrice) slCandidates.push(slFromSwing);
+                        if (Number.isFinite(slFromAtr) && slFromAtr < entryPrice) slCandidates.push(slFromAtr);
+
+                        if (slCandidates.length === 0) continue;
+
+                        // 롱에서 "타이트" = 더 높은 SL (entry에 가까움)
+                        const sl = Math.max(...slCandidates);
+                        const risk = entryPrice - sl;
+                        if (!Number.isFinite(risk) || risk <= 0) continue;
+
+                        const tp = entryPrice + rr * risk;
+
+                        let exitIdx = -1;
+                        let outcome = "TIME";
+                        let exitPrice = k15.closes[Math.min(entryIdx + maxHold, k15.closes.length - 1)];
+
+                        const lastIdx = Math.min(entryIdx + maxHold, k15.closes.length - 1);
+
+                        for (let j = entryIdx; j <= lastIdx; j += 1) {
+                            const hi = k15.highs[j];
+                            const lo = k15.lows[j];
+                            if (!Number.isFinite(hi) || !Number.isFinite(lo)) continue;
+
+                            const hitSL = lo <= sl;
+                            const hitTP = hi >= tp;
+
+                            if (hitSL && hitTP) {
+                                outcome = tieBreak === "tp" ? "TP" : "SL";
+                                exitIdx = j;
+                                exitPrice = outcome === "TP" ? tp : sl;
+                                break;
+                            }
+
+                            if (hitSL) {
+                                outcome = "SL";
+                                exitIdx = j;
+                                exitPrice = sl;
+                                break;
+                            }
+
+                            if (hitTP) {
+                                outcome = "TP";
+                                exitIdx = j;
+                                exitPrice = tp;
+                                break;
+                            }
+                        }
+
+                        // TIME 종료면 lastIdx에서 종가로 처리
+                        if (exitIdx < 0) {
+                            exitIdx = lastIdx;
+                            outcome = "TIME";
+                            exitPrice = k15.closes[exitIdx];
+                        }
+
+                        const R = (exitPrice - entryPrice) / risk;
+
+                        trades += 1;
+                        tradesR.push(R);
+
+                        if (R > 0) wins += 1;
+                        if (R > 0) sumPos += R;
+                        else sumNeg += R;
+
+                        if (R > bestR) bestR = R;
+                        if (R < worstR) worstR = R;
+
+                        // 포지션 중복 방지: 청산될 때까지 다음 신호는 스킵
+                        i = Math.max(i, exitIdx);
+                    }
+
+                    const netR = tradesR.reduce((a, b) => a + b, 0);
+                    const avgR = trades > 0 ? netR / trades : 0;
+                    const winrate = trades > 0 ? (wins / trades) * 100 : 0;
+
+                    const pf = sumNeg < 0 ? sumPos / Math.abs(sumNeg) : (sumPos > 0 ? Infinity : NaN);
+                    const maxDD = computeMaxDDFromEquityRs(tradesR);
+
+                    return {
+                        symbol,
+                        trades,
+                        winrate,
+                        netR,
+                        avgR,
+                        pf,
+                        maxDD,
+                        bestR: bestR === -Infinity ? NaN : bestR,
+                        worstR: worstR === Infinity ? NaN : worstR,
+                    };
+                };
+
+                const results = await asyncPool(
+                    targets,
+                    async (sym) => {
+                        const row = await worker(sym);
+
+                        state.btDone += 1;
+                        els.btProgress.textContent = `${state.btDone} / ${state.btTotal}`;
+
+                        state.btRows.push(row);
+                        state.btSortKey = "netR";
+                        state.btSortDir = "desc";
+                        renderBtTable();
+
+                        // summary update
+                        let totalTrades = 0;
+                        let totalWins = 0;
+                        let totalNetR = 0;
+
+                        for (let i = 0; i < state.btRows.length; i += 1) {
+                            const r = state.btRows[i];
+                            totalTrades += r.trades;
+                            totalNetR += r.netR;
+                            totalWins += r.trades > 0 ? Math.round((r.winrate / 100) * r.trades) : 0;
+                        }
+
+                        els.btTrades.textContent = String(totalTrades);
+                        els.btNetR.textContent = Number.isFinite(totalNetR) ? totalNetR.toFixed(2) : "-";
+                        els.btWinrate.textContent = totalTrades > 0 ? ((totalWins / totalTrades) * 100).toFixed(1) + "%" : "-";
+
+                        return row;
+                    },
+                    concurrency,
+                    delayMs,
+                    abortCheck
+                );
+
+                state.btRows = results.filter((r) => r && !r.__error && r.symbol);
+                state.btSortKey = "netR";
+                state.btSortDir = "desc";
+
+                // final summary
+                let totalTrades = 0;
+                let totalWins = 0;
+                let totalNetR = 0;
+
+                for (let i = 0; i < state.btRows.length; i += 1) {
+                    const r = state.btRows[i];
+                    totalTrades += r.trades;
+                    totalNetR += r.netR;
+                    totalWins += r.trades > 0 ? Math.round((r.winrate / 100) * r.trades) : 0;
+                }
+
+                els.btTrades.textContent = String(totalTrades);
+                els.btNetR.textContent = Number.isFinite(totalNetR) ? totalNetR.toFixed(2) : "-";
+                els.btWinrate.textContent = totalTrades > 0 ? ((totalWins / totalTrades) * 100).toFixed(1) + "%" : "-";
+
+                els.btStatus.textContent = state.abortBt ? "중지됨" : "완료";
+                renderBtTable();
+                els.btnBtCsv.disabled = state.btRows.length === 0;
+            }
+
+            /* ===== 이벤트 바인딩 ===== */
             els.btnScan.addEventListener("click", async () => {
                 if (state.scanRunning) return;
                 try {
@@ -1540,6 +1910,31 @@
                 els.scanStatus.textContent = "스캔 CSV 복사됨";
             });
 
+            els.btnBt.addEventListener("click", async () => {
+                if (state.btRunning) return;
+                try {
+                    await runBacktest();
+                } catch (e) {
+                    els.btStatus.textContent = `에러: ${String(e && e.message ? e.message : e)}`;
+                } finally {
+                    state.btRunning = false;
+                    els.btnBt.disabled = false;
+                    els.btnBtStop.disabled = true;
+                }
+            });
+
+            els.btnBtStop.addEventListener("click", () => {
+                state.abortBt = true;
+                els.btStatus.textContent = "중지 요청...";
+                els.btnBtStop.disabled = true;
+            });
+
+            els.btnBtCsv.addEventListener("click", async () => {
+                const csv = toCsvBt(state.btRows);
+                await copyToClipboard(csv);
+                els.btStatus.textContent = "백테스트 CSV 복사됨";
+            });
+
             (function initDates() {
                 const now = new Date();
                 const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1557,7 +1952,7 @@
             })();
 
             attachHeaderSort();
-            attachHeaderTooltips();  // ✅ 툴팁 활성화
+            attachHeaderTooltips();
             renderScanTable();
             renderBtTable();
         </script>
