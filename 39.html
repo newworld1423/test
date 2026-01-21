@@ -214,6 +214,63 @@
                 white-space: nowrap;
             }
 
+            /* ====== Tooltip (th hover) ====== */
+            thead th[data-tip] {
+                position: sticky; /* keep sticky behavior, also works for tooltip positioning */
+            }
+
+            thead th[data-tip]::after {
+                content: attr(data-tip);
+                position: absolute;
+                left: 50%;
+                top: 0;
+                transform: translate(-50%, calc(-100% - 10px)) translateY(6px);
+                width: min(320px, 70vw);
+                white-space: normal;
+                text-align: left;
+                background: rgba(15, 23, 42, 0.98);
+                color: var(--text);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-size: 12px;
+                line-height: 1.45;
+                box-shadow: var(--shadow);
+                opacity: 0;
+                pointer-events: none;
+                z-index: 9999;
+                transition: opacity 0.12s ease, transform 0.12s ease;
+            }
+
+            thead th[data-tip]::before {
+                content: "";
+                position: absolute;
+                left: 50%;
+                top: 0;
+                transform: translate(-50%, -12px) translateY(6px);
+                border: 7px solid transparent;
+                border-top-color: rgba(15, 23, 42, 0.98);
+                opacity: 0;
+                pointer-events: none;
+                z-index: 9999;
+                transition: opacity 0.12s ease, transform 0.12s ease;
+            }
+
+            thead th[data-tip]:hover::after,
+            thead th[data-tip]:hover::before {
+                opacity: 1;
+                transform: translate(-50%, calc(-100% - 10px)) translateY(0);
+            }
+
+            /* 마우스가 없는 환경(터치)에서는 툴팁 숨김 */
+            @media (hover: none) {
+                thead th[data-tip]::after,
+                thead th[data-tip]::before {
+                    display: none;
+                }
+            }
+            /* ====== /Tooltip ====== */
+
             tbody td {
                 border-bottom: 1px solid var(--line);
                 padding: 10px 10px;
@@ -458,27 +515,57 @@
                 <!-- Scan Table -->
                 <div class="panel tableWrap">
                     <div style="padding: 10px 12px; border-bottom: 1px solid var(--line);" class="small">
-                        스캐너 결과 (기본: Score 내림차순) / 헤더 클릭 정렬
+                        스캐너 결과 (기본: Score 내림차순) / 헤더 클릭 정렬 / 헤더 hover = 의미 툴팁
                     </div>
                     <div style="overflow: auto; max-height: 60vh;">
                         <table>
                             <thead>
                                 <tr>
-                                    <th data-skey="symbol">Symbol</th>
-                                    <th data-skey="score" class="right">Score</th>
-                                    <th data-skey="price" class="right">Price</th>
-                                    <th data-skey="setup">Setup</th>
-                                    <th data-skey="entry" class="right">EntryRef</th>
-                                    <th data-skey="sl" class="right">SL</th>
-                                    <th data-skey="tp" class="right">TP</th>
-                                    <th data-skey="riskPct" class="right">Risk%</th>
-                                    <th data-skey="dailyOk">1D(99SMA)</th>
-                                    <th data-skey="trendOk">1H Trend</th>
-                                    <th data-skey="rsi" class="right">RSI(15m)</th>
-                                    <th data-skey="funding" class="right">Funding</th>
-                                    <th data-skey="chg24" class="right">24h%</th>
-                                    <th data-skey="qv" class="right">24h QV</th>
-                                    <th>Link</th>
+                                    <th data-skey="symbol" data-tip="거래 심볼(USDT 무기한 선물). 예: BTCUSDT">
+                                        Symbol
+                                    </th>
+                                    <th data-skey="score" class="right" data-tip="롱 진입 적합도 종합 점수(0~100). 1D 추세 + 1H 정배열 + 15m 눌림/회복 + 펀딩/유동성 가중, 과열/변동성 패널티 반영.">
+                                        Score
+                                    </th>
+                                    <th data-skey="price" class="right" data-tip="현재가(24h 티커 lastPrice). 스캐너 표시용 참고값.">
+                                        Price
+                                    </th>
+                                    <th data-skey="setup" data-tip="세팅 상태 태그. (세팅완료=1D OK + 1H Strong + 15m EMA20 재탈환 + RSI 상승)">
+                                        Setup
+                                    </th>
+                                    <th data-skey="entry" class="right" data-tip="진입 참고가(스캐너 기준): 신호봉(15m) 종가. 백테스트에서는 ‘다음 15m 시가’로 진입 가정.">
+                                        EntryRef
+                                    </th>
+                                    <th data-skey="sl" class="right" data-tip="손절가(SL) 후보: (최근 N개 15m 저점 최저) vs (1H ATR*배수) 중 더 타이트한 값.">
+                                        SL
+                                    </th>
+                                    <th data-skey="tp" class="right" data-tip="익절가(TP): Entry + RR*(Entry-SL). RR은 우측 백테스트 설정값을 사용.">
+                                        TP
+                                    </th>
+                                    <th data-skey="riskPct" class="right" data-tip="리스크 폭(%): (Entry-SL)/Entry * 100. 작을수록 손절 폭이 짧음.">
+                                        Risk%
+                                    </th>
+                                    <th data-skey="dailyOk" data-tip="1D 필터: 일봉 종가가 99SMA 위인지 여부(추세 필터).">
+                                        1D(99SMA)
+                                    </th>
+                                    <th data-skey="trendOk" data-tip="1H 추세 강도: 1H 종가 > EMA50 > EMA200 정배열이면 Strong.">
+                                        1H Trend
+                                    </th>
+                                    <th data-skey="rsi" class="right" data-tip="RSI(15m, 14): 신호봉 기준 RSI 값. 기본 세팅은 45~65 구간 + 상승을 선호.">
+                                        RSI(15m)
+                                    </th>
+                                    <th data-skey="funding" class="right" data-tip="마지막 펀딩율(lastFundingRate). 낮거나 음수일수록 롱 보유 비용이 유리한 편(시장상황에 따라 해석 필요).">
+                                        Funding
+                                    </th>
+                                    <th data-skey="chg24" class="right" data-tip="최근 24시간 가격 변동률(%). 과열(급등)일수록 점수에서 패널티가 들어갈 수 있음.">
+                                        24h%
+                                    </th>
+                                    <th data-skey="qv" class="right" data-tip="24시간 거래대금(QuoteVolume, USDT 기준). 유동성 지표로 점수에 반영.">
+                                        24h QV
+                                    </th>
+                                    <th data-tip="바이낸스 선물 거래 화면 링크. 클릭 시 해당 심볼의 Futures 페이지로 이동.">
+                                        Link
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="scanTbody"></tbody>
@@ -489,21 +576,39 @@
                 <!-- Backtest Table -->
                 <div class="panel tableWrap">
                     <div style="padding: 10px 12px; border-bottom: 1px solid var(--line);" class="small">
-                        백테스트 결과(심볼별 요약) / 헤더 클릭 정렬
+                        백테스트 결과(심볼별 요약) / 헤더 클릭 정렬 / 헤더 hover = 의미 툴팁
                     </div>
                     <div style="overflow: auto; max-height: 60vh;">
                         <table>
                             <thead>
                                 <tr>
-                                    <th data-bkey="symbol">Symbol</th>
-                                    <th data-bkey="trades" class="right">Trades</th>
-                                    <th data-bkey="winrate" class="right">Win%</th>
-                                    <th data-bkey="netR" class="right">Net R</th>
-                                    <th data-bkey="avgR" class="right">Avg R</th>
-                                    <th data-bkey="pf" class="right">PF</th>
-                                    <th data-bkey="maxDD" class="right">MaxDD(R)</th>
-                                    <th data-bkey="bestR" class="right">Best R</th>
-                                    <th data-bkey="worstR" class="right">Worst R</th>
+                                    <th data-bkey="symbol" data-tip="심볼(USDT 무기한 선물).">
+                                        Symbol
+                                    </th>
+                                    <th data-bkey="trades" class="right" data-tip="백테스트 기간 동안 조건을 만족해 진입한 트레이드 수.">
+                                        Trades
+                                    </th>
+                                    <th data-bkey="winrate" class="right" data-tip="승률(%). TP로 종료(또는 R>0)한 비율.">
+                                        Win%
+                                    </th>
+                                    <th data-bkey="netR" class="right" data-tip="총 누적 R. 각 트레이드의 R(수익/손실을 리스크 1R 기준으로 환산)을 합산.">
+                                        Net R
+                                    </th>
+                                    <th data-bkey="avgR" class="right" data-tip="평균 R. (Net R / Trades).">
+                                        Avg R
+                                    </th>
+                                    <th data-bkey="pf" class="right" data-tip="Profit Factor. (총 이익 R 합) / (총 손실 R 절대값). 1보다 크면 우위.">
+                                        PF
+                                    </th>
+                                    <th data-bkey="maxDD" class="right" data-tip="Max Drawdown(R). 누적 R 곡선 기준 최대 낙폭(피크-저점).">
+                                        MaxDD(R)
+                                    </th>
+                                    <th data-bkey="bestR" class="right" data-tip="최고 단일 트레이드 R. (예: RR=2면 TP는 보통 +2R).">
+                                        Best R
+                                    </th>
+                                    <th data-bkey="worstR" class="right" data-tip="최악 단일 트레이드 R. SL로 종료되면 보통 -1R.">
+                                        Worst R
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="btTbody"></tbody>
@@ -865,7 +970,7 @@
 
             function rollingMinArray(values, window) {
                 const out = new Array(values.length).fill(NaN);
-                const dq = []; // indices
+                const dq = [];
 
                 for (let i = 0; i < values.length; i += 1) {
                     while (dq.length > 0 && dq[0] <= i - window) dq.shift();
@@ -923,7 +1028,7 @@
                 return clamp(base - penalty, 0, 100);
             }
 
-            function pickLastClosedIndex(klinesParsed, interval) {
+            function pickLastClosedIndex(klinesParsed) {
                 const n = klinesParsed.openTimes.length;
                 if (n < 3) return n - 1;
 
@@ -1334,9 +1439,9 @@
                     const k1h = parseKlines(raw1h);
                     const k1d = parseKlines(raw1d);
 
-                    const idx15 = pickLastClosedIndex(k15, "15m");
-                    const idx1h = pickLastClosedIndex(k1h, "1h");
-                    const idx1d = pickLastClosedIndex(k1d, "1d");
+                    const idx15 = pickLastClosedIndex(k15);
+                    const idx1h = pickLastClosedIndex(k1h);
+                    const idx1d = pickLastClosedIndex(k1d);
 
                     const ema20_15 = emaArray(k15.closes, 20);
                     const rsi15 = rsiArray(k15.closes, 14);
@@ -1407,7 +1512,6 @@
                         overheatPenalty,
                     });
 
-                    // Entry/SL/TP (스캐너 표시용): entryRef = 15m 신호봉 종가
                     const entry = close15;
                     const swingN = clamp(safeInt(els.btSwingN.value) || 12, 3, 60);
                     const atrMult = clamp(safeFloat(els.btAtrMult.value) || 1.2, 0.5, 5);
@@ -1488,7 +1592,6 @@
             }
 
             function dateToMsStart(dateStr) {
-                // input[type=date]는 로컬 타임존 기준 자정이 들어옴
                 const d = new Date(dateStr);
                 return d.getTime();
             }
@@ -1593,7 +1696,6 @@
                     const entryIndex = i + 1;
                     const entryTime = k15.openTimes[entryIndex];
 
-                    // funding at entryTime (마지막 fundingTime <= entryTime)
                     let fundingOk = true;
                     let fundingAtEntry = NaN;
 
@@ -1636,7 +1738,6 @@
 
                     const tp = entry + rr * risk;
 
-                    // simulate forward
                     let exitIndex = -1;
                     let exitPrice = NaN;
                     let exitReason = "EOD";
@@ -1797,7 +1898,6 @@
 
                 const abortCheck = () => state.abortBt;
 
-                // symbols: scanRows가 있으면 상위N, 없으면 새로 universe 구성
                 let symbols = [];
 
                 if (state.scanRows.length > 0) {
@@ -1822,7 +1922,6 @@
 
                 const memCache = new Map();
 
-                // warmup windows
                 const warm1d = 130 * 24 * 60 * 60 * 1000;
                 const warm1h = 20 * 24 * 60 * 60 * 1000;
                 const warm15 = 7 * 24 * 60 * 60 * 1000;
@@ -1842,7 +1941,6 @@
 
                     let funding = [];
                     if (fundingMode === "on") {
-                        // funding은 잦지 않으니 startTime만큼만
                         const fRaw = await fetchAllFundingRates(baseUrl, symbol, startTime, endTime, abortCheck, memCache);
                         funding = Array.isArray(fRaw) ? fRaw : [];
                     }
@@ -1877,7 +1975,6 @@
                         state.btSortDir = "desc";
                         renderBtTable();
 
-                        // summary update
                         let totalTrades = 0;
                         let totalWins = 0;
                         let totalNetR = 0;
@@ -1886,8 +1983,6 @@
                             const r = state.btRows[i];
                             totalTrades += r.trades;
                             totalNetR += r.netR;
-
-                            // wins 추정: winrate*trades
                             totalWins += (r.winrate / 100) * r.trades;
                         }
 
@@ -1912,7 +2007,6 @@
                 renderBtTable();
             }
 
-            // events
             els.btnScan.addEventListener("click", async () => {
                 if (state.scanRunning) return;
                 try {
@@ -1968,7 +2062,6 @@
                 els.btStatus.textContent = "백테스트 CSV 복사됨";
             });
 
-            // default date range: last 30 days
             (function initDates() {
                 const now = new Date();
                 const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
