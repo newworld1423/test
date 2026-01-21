@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ko-KR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp Long Scanner</title>
+        <style>
+            :root {
+                --bg: #0b0f17;
+                --panel: #111827;
+                --panel2: #0f172a;
+                --text: #e5e7eb;
+                --muted: #9ca3af;
+                --line: rgba(255, 255, 255, 0.08);
+                --good: rgba(34, 197, 94, 0.18);
+                --warn: rgba(245, 158, 11, 0.18);
+                --bad: rgba(239, 68, 68, 0.18);
+                --chip: rgba(255, 255, 255, 0.06);
+                --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+                background: radial-gradient(1200px 600px at 20% 0%, rgba(99, 102, 241, 0.15), transparent 60%),
+                    radial-gradient(900px 500px at 90% 10%, rgba(16, 185, 129, 0.12), transparent 55%),
+                    var(--bg);
+                color: var(--text);
+            }
+
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 18px;
+            }
+
+            .header {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                margin-bottom: 14px;
+            }
+
+            .title {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            h1 {
+                margin: 0;
+                font-size: 18px;
+                letter-spacing: -0.3px;
+            }
+
+            .sub {
+                color: var(--muted);
+                font-size: 12px;
+                line-height: 1.45;
+            }
+
+            .panel {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 25%), var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                box-shadow: var(--shadow);
+            }
+
+            .controls {
+                padding: 14px;
+                display: grid;
+                grid-template-columns: repeat(12, 1fr);
+                gap: 10px;
+                align-items: end;
+            }
+
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .field label {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .field input,
+            .field select {
+                width: 100%;
+                padding: 10px 10px;
+                border-radius: 10px;
+                border: 1px solid var(--line);
+                background: var(--panel2);
+                color: var(--text);
+                outline: none;
+            }
+
+            .field input:focus,
+            .field select:focus {
+                border-color: rgba(99, 102, 241, 0.55);
+                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+            }
+
+            .btns {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                justify-content: flex-end;
+                flex-wrap: wrap;
+            }
+
+            button {
+                appearance: none;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--text);
+                padding: 10px 12px;
+                border-radius: 10px;
+                cursor: pointer;
+                transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+                font-weight: 600;
+                letter-spacing: -0.2px;
+            }
+
+            button:hover {
+                background: rgba(255, 255, 255, 0.09);
+            }
+
+            button:active {
+                transform: translateY(1px);
+            }
+
+            button.primary {
+                border-color: rgba(99, 102, 241, 0.55);
+                background: rgba(99, 102, 241, 0.2);
+            }
+
+            button.danger {
+                border-color: rgba(239, 68, 68, 0.55);
+                background: rgba(239, 68, 68, 0.18);
+            }
+
+            button:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+            }
+
+            .status {
+                padding: 12px 14px;
+                border-top: 1px solid var(--line);
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+            }
+
+            .status .left {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+
+            .chip {
+                display: inline-flex;
+                gap: 8px;
+                align-items: center;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: var(--chip);
+                border: 1px solid var(--line);
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            .chip strong {
+                color: var(--text);
+                font-weight: 700;
+            }
+
+            .note {
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+
+            .tableWrap {
+                margin-top: 14px;
+                overflow: hidden;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(17, 24, 39, 0.85);
+                backdrop-filter: blur(10px);
+                border-bottom: 1px solid var(--line);
+                text-align: left;
+                padding: 10px 10px;
+                color: var(--muted);
+                font-weight: 700;
+                cursor: pointer;
+                user-select: none;
+            }
+
+            tbody td {
+                border-bottom: 1px solid var(--line);
+                padding: 10px 10px;
+                vertical-align: middle;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .mono {
+                font-variant-numeric: tabular-nums;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 9px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.05);
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            .badge.good {
+                background: var(--good);
+                color: #bbf7d0;
+                border-color: rgba(34, 197, 94, 0.35);
+            }
+
+            .badge.warn {
+                background: var(--warn);
+                color: #fde68a;
+                border-color: rgba(245, 158, 11, 0.35);
+            }
+
+            .badge.bad {
+                background: var(--bad);
+                color: #fecaca;
+                border-color: rgba(239, 68, 68, 0.35);
+            }
+
+            .right {
+                text-align: right;
+            }
+
+            .small {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .footer {
+                margin-top: 12px;
+                padding: 12px 2px;
+                color: var(--muted);
+                font-size: 12px;
+                line-height: 1.55;
+            }
+
+            @media (max-width: 980px) {
+                .controls {
+                    grid-template-columns: repeat(6, 1fr);
+                }
+            }
+
+            @media (max-width: 560px) {
+                .controls {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="header">
+                <div class="title">
+                    <h1>Binance USDT 무기한 롱 스캐너 (브라우저)</h1>
+                    <div class="sub">
+                        점수 = (1D 추세) + (1H 정배열) + (15m 눌림/회복) + (낮은 펀딩) + (유동성) - (과열/변동성 패널티)<br />
+                        공개 REST API만 사용합니다. (투자 조언 아님)
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="controls">
+                    <div class="field" style="grid-column: span 3;">
+                        <label>스캔 대상(24h 거래대금 상위 N)</label>
+                        <input id="maxSymbols" type="number" min="10" max="200" step="1" value="80" />
+                    </div>
+
+                    <div class="field" style="grid-column: span 3;">
+                        <label>최소 24h 거래대금(USDT)</label>
+                        <input id="minQuoteVol" type="number" min="0" step="1000000" value="50000000" />
+                    </div>
+
+                    <div class="field" style="grid-column: span 3;">
+                        <label>동시 요청(concurrency)</label>
+                        <input id="concurrency" type="number" min="1" max="20" step="1" value="8" />
+                    </div>
+
+                    <div class="field" style="grid-column: span 3;">
+                        <label>요청 템포</label>
+                        <select id="tempo">
+                            <option value="fast">빠름</option>
+                            <option value="normal" selected>보통</option>
+                            <option value="slow">느림(429 줄이기)</option>
+                        </select>
+                    </div>
+
+                    <div class="field" style="grid-column: span 6;">
+                        <label>Base URL</label>
+                        <input id="baseUrl" type="text" value="https://fapi.binance.com" />
+                    </div>
+
+                    <div class="field" style="grid-column: span 6;">
+                        <label>필터</label>
+                        <select id="filterMode">
+                            <option value="all" selected>전체 표시</option>
+                            <option value="trend">추세 우호(1D>99SMA & 1H 정배열)만</option>
+                            <option value="setup">‘눌림+회복’ 세팅만</option>
+                        </select>
+                    </div>
+
+                    <div class="btns" style="grid-column: span 12;">
+                        <button id="btnStart" class="primary">스캔 시작</button>
+                        <button id="btnStop" class="danger" disabled>중지</button>
+                        <button id="btnCopy" disabled>CSV 복사</button>
+                        <button id="btnClearCache">캐시 삭제</button>
+                    </div>
+                </div>
+
+                <div class="status">
+                    <div class="left">
+                        <div class="chip">상태: <strong id="statusText">대기</strong></div>
+                        <div class="chip">진행: <strong id="progressText">0 / 0</strong></div>
+                        <div class="chip">표시: <strong id="shownText">0</strong></div>
+                        <div class="chip">마지막 스캔: <strong id="lastRunText">-</strong></div>
+                    </div>
+                    <div class="note">
+                        요청 가중치/제한이 있으니, 너무 많은 종목/동시요청은 429를 유발할 수 있어요. (`/fapi/v1/klines`는 limit에 따라 weight 증가) :contentReference[oaicite:1]{index=1}
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel tableWrap">
+                <div style="padding: 10px 12px; border-bottom: 1px solid var(--line);" class="small">
+                    헤더 클릭으로 정렬 변경 가능 (기본: Score 내림차순)
+                </div>
+                <div style="overflow: auto; max-height: 70vh;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th data-key="symbol">Symbol</th>
+                                <th data-key="score" class="right">Score</th>
+                                <th data-key="price" class="right">Price</th>
+                                <th data-key="setup">Setup</th>
+                                <th data-key="dailyOk">1D(99SMA)</th>
+                                <th data-key="trendOk">1H Trend</th>
+                                <th data-key="rsi" class="right">RSI(15m)</th>
+                                <th data-key="funding" class="right">Funding</th>
+                                <th data-key="chg24" class="right">24h%</th>
+                                <th data-key="qv" class="right">24h QV</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="footer">
+                <div>기술 참고: ExchangeInfo(USDT Perp 목록), Klines(캔들), PremiumIndex(마크가격/펀딩) :contentReference[oaicite:2]{index=2}</div>
+                <div>점수는 전략의 “출발점”이고, 실제 진입은 구조(지지/저항), 손절/익절, 레버리지, 포지션 사이징이 더 중요합니다.</div>
+            </div>
+        </div>
+
+        <script>
+            "use strict";
+
+            const $ = (sel) => document.querySelector(sel);
+
+            const state = {
+                isRunning: false,
+                abort: false,
+                results: [],
+                sortKey: "score",
+                sortDir: "desc",
+                total: 0,
+                done: 0,
+            };
+
+            const els = {
+                maxSymbols: $("#maxSymbols"),
+                minQuoteVol: $("#minQuoteVol"),
+                concurrency: $("#concurrency"),
+                tempo: $("#tempo"),
+                baseUrl: $("#baseUrl"),
+                filterMode: $("#filterMode"),
+                btnStart: $("#btnStart"),
+                btnStop: $("#btnStop"),
+                btnCopy: $("#btnCopy"),
+                btnClearCache: $("#btnClearCache"),
+                statusText: $("#statusText"),
+                progressText: $("#progressText"),
+                shownText: $("#shownText"),
+                lastRunText: $("#lastRunText"),
+                tbody: $("#tbody"),
+            };
+
+            const TEMPO_DELAY_MS = {
+                fast: 0,
+                normal: 80,
+                slow: 180,
+            };
+
+            const CACHE_PREFIX = "binance_kline_cache_v1:";
+            const CACHE_MAX_BYTES = 4 * 1024 * 1024; // 안전상한(대략)
+
+            function fmtNum(n, digits = 2) {
+                if (!Number.isFinite(n)) return "-";
+                return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+            }
+
+            function fmtPct(n, digits = 2) {
+                if (!Number.isFinite(n)) return "-";
+                const sign = n > 0 ? "+" : "";
+                return `${sign}${n.toFixed(digits)}%`;
+            }
+
+            function clamp(v, a, b) {
+                return Math.max(a, Math.min(b, v));
+            }
+
+            function nowKSTString() {
+                // 브라우저 현지 시간 사용
+                const d = new Date();
+                const yy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const hh = String(d.getHours()).padStart(2, "0");
+                const mi = String(d.getMinutes()).padStart(2, "0");
+                const ss = String(d.getSeconds()).padStart(2, "0");
+                return `${yy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+            }
+
+            function setStatus(text) {
+                els.statusText.textContent = text;
+            }
+
+            function setProgress(done, total) {
+                els.progressText.textContent = `${done} / ${total}`;
+            }
+
+            function setShown(n) {
+                els.shownText.textContent = String(n);
+            }
+
+            function safeParseFloat(x) {
+                const v = Number.parseFloat(x);
+                return Number.isFinite(v) ? v : NaN;
+            }
+
+            function sleep(ms) {
+                return new Promise((r) => setTimeout(r, ms));
+            }
+
+            async function fetchJson(url, { retries = 2, retryDelay = 350 } = {}) {
+                let lastErr = null;
+
+                for (let i = 0; i <= retries; i += 1) {
+                    if (state.abort) throw new Error("aborted");
+
+                    try {
+                        const res = await fetch(url, { method: "GET" });
+
+                        if (!res.ok) {
+                            const text = await res.text().catch(() => "");
+                            // 429, 418 등
+                            const err = new Error(`HTTP ${res.status} ${res.statusText} ${text.slice(0, 120)}`);
+                            err.status = res.status;
+                            throw err;
+                        }
+
+                        return await res.json();
+                    } catch (e) {
+                        lastErr = e;
+
+                        const status = e && typeof e === "object" ? e.status : null;
+                        const shouldRetry = i < retries && (status === 429 || status === 418 || status === 503 || status === 502);
+
+                        if (!shouldRetry) break;
+
+                        await sleep(retryDelay * (i + 1));
+                    }
+                }
+
+                throw lastErr || new Error("fetch failed");
+            }
+
+            function cacheGet(key) {
+                try {
+                    const raw = localStorage.getItem(CACHE_PREFIX + key);
+                    if (!raw) return null;
+
+                    const parsed = JSON.parse(raw);
+                    if (!parsed || typeof parsed !== "object") return null;
+
+                    if (typeof parsed.validUntil === "number" && Date.now() < parsed.validUntil && Array.isArray(parsed.data)) {
+                        return parsed.data;
+                    }
+
+                    return null;
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            function cacheSet(key, data, validUntil) {
+                try {
+                    const payload = JSON.stringify({ validUntil, data });
+                    // 너무 커지면 일부만 저장될 수 있어, 최악 케이스 방지
+                    if (payload.length > CACHE_MAX_BYTES) return;
+
+                    localStorage.setItem(CACHE_PREFIX + key, payload);
+                } catch (_) {
+                    // ignore
+                }
+            }
+
+            function cacheClearAll() {
+                try {
+                    const keys = [];
+                    for (let i = 0; i < localStorage.length; i += 1) {
+                        const k = localStorage.key(i);
+                        if (k && k.startsWith(CACHE_PREFIX)) keys.push(k);
+                    }
+                    keys.forEach((k) => localStorage.removeItem(k));
+                } catch (_) {
+                    // ignore
+                }
+            }
+
+            function intervalToMs(interval) {
+                // Binance interval: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d ...
+                const num = Number.parseInt(interval, 10);
+                if (Number.isFinite(num)) {
+                    if (interval.endsWith("m")) return num * 60 * 1000;
+                    if (interval.endsWith("h")) return num * 60 * 60 * 1000;
+                    if (interval.endsWith("d")) return num * 24 * 60 * 60 * 1000;
+                    if (interval.endsWith("w")) return num * 7 * 24 * 60 * 60 * 1000;
+                }
+                if (interval === "1M") return 30 * 24 * 60 * 60 * 1000;
+                return 0;
+            }
+
+            function nextCandleOpenTimeMs(interval) {
+                const ms = intervalToMs(interval);
+                if (!ms) return Date.now() + 60 * 1000;
+                const now = Date.now();
+                const next = Math.floor(now / ms) * ms + ms;
+                return next;
+            }
+
+            function smaLast(values, period) {
+                if (!Array.isArray(values) || values.length < period) return NaN;
+                let sum = 0;
+                for (let i = values.length - period; i < values.length; i += 1) {
+                    sum += values[i];
+                }
+                return sum / period;
+            }
+
+            function emaLast(values, period) {
+                if (!Array.isArray(values) || values.length < period) return NaN;
+                const k = 2 / (period + 1);
+                let ema = smaLast(values.slice(0, period), period);
+                for (let i = period; i < values.length; i += 1) {
+                    const v = values[i];
+                    ema = v * k + ema * (1 - k);
+                }
+                return ema;
+            }
+
+            function rsiLast(values, period) {
+                if (!Array.isArray(values) || values.length < period + 2) return { now: NaN, prev: NaN };
+
+                let gain = 0;
+                let loss = 0;
+
+                for (let i = 1; i <= period; i += 1) {
+                    const diff = values[i] - values[i - 1];
+                    if (diff >= 0) gain += diff;
+                    else loss -= diff;
+                }
+
+                let avgGain = gain / period;
+                let avgLoss = loss / period;
+
+                let rsiPrev = NaN;
+                let rsiNow = NaN;
+
+                for (let i = period + 1; i < values.length; i += 1) {
+                    const diff = values[i] - values[i - 1];
+                    const g = diff > 0 ? diff : 0;
+                    const l = diff < 0 ? -diff : 0;
+
+                    avgGain = (avgGain * (period - 1) + g) / period;
+                    avgLoss = (avgLoss * (period - 1) + l) / period;
+
+                    const rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+                    const rsi = 100 - 100 / (1 + rs);
+
+                    rsiPrev = rsiNow;
+                    rsiNow = rsi;
+                }
+
+                return { now: rsiNow, prev: rsiPrev };
+            }
+
+            function atrLast(highs, lows, closes, period) {
+                if (!highs || !lows || !closes) return NaN;
+                if (highs.length < period + 1 || lows.length < period + 1 || closes.length < period + 1) return NaN;
+
+                const trs = [];
+                for (let i = 1; i < highs.length; i += 1) {
+                    const h = highs[i];
+                    const l = lows[i];
+                    const pc = closes[i - 1];
+                    const tr = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+                    trs.push(tr);
+                }
+
+                if (trs.length < period) return NaN;
+
+                let atr = 0;
+                for (let i = 0; i < period; i += 1) {
+                    atr += trs[i];
+                }
+                atr /= period;
+
+                for (let i = period; i < trs.length; i += 1) {
+                    atr = (atr * (period - 1) + trs[i]) / period;
+                }
+
+                return atr;
+            }
+
+            function parseKlines(raw) {
+                // raw: [ [ openTime, open, high, low, close, volume, closeTime, quoteAssetVolume, ... ], ... ]
+                const closes = [];
+                const highs = [];
+                const lows = [];
+
+                for (let i = 0; i < raw.length; i += 1) {
+                    const row = raw[i];
+                    closes.push(safeParseFloat(row[4]));
+                    highs.push(safeParseFloat(row[2]));
+                    lows.push(safeParseFloat(row[3]));
+                }
+
+                const lastClose = closes[closes.length - 1];
+
+                return { closes, highs, lows, lastClose };
+            }
+
+            function normalizeByMinMax(val, min, max) {
+                if (!Number.isFinite(val) || !Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
+                return clamp((val - min) / (max - min), 0, 1);
+            }
+
+            function computeScore(ctx) {
+                // ctx: {
+                //   price, qvNorm, chg24, fundingRate,
+                //   dailyAbove99, trendStrength, pullbackScore, rsiScore, volPenalty, overheatPenalty
+                // }
+                const w = {
+                    daily: 0.22,
+                    trend: 0.25,
+                    pullback: 0.15,
+                    rsi: 0.15,
+                    funding: 0.10,
+                    liquidity: 0.13,
+                    penalties: 1.0,
+                };
+
+                const daily = ctx.dailyAbove99 ? 1 : 0;
+                const trend = ctx.trendStrength; // 0..1
+                const pullback = ctx.pullbackScore; // 0..1
+                const rsi = ctx.rsiScore; // 0..1
+                const funding = ctx.fundingScore; // 0..1
+                const liq = ctx.qvNorm; // 0..1
+
+                const base =
+                    100 *
+                    (w.daily * daily +
+                        w.trend * trend +
+                        w.pullback * pullback +
+                        w.rsi * rsi +
+                        w.funding * funding +
+                        w.liquidity * liq);
+
+                const penalty = 100 * (0.10 * ctx.volPenalty + 0.08 * ctx.overheatPenalty);
+
+                return clamp(base - penalty, 0, 100);
+            }
+
+            function makeSetupTag({ dailyOk, trendStrength, pullbackScore, rsiScore }) {
+                if (dailyOk && trendStrength >= 0.75 && pullbackScore >= 0.60 && rsiScore >= 0.60) {
+                    return { text: "추세+눌림", cls: "good" };
+                }
+                if (dailyOk && trendStrength >= 0.60 && rsiScore >= 0.55) {
+                    return { text: "추세 우호", cls: "warn" };
+                }
+                if (!dailyOk && rsiScore >= 0.65 && pullbackScore >= 0.65) {
+                    return { text: "역추세(주의)", cls: "bad" };
+                }
+                return { text: "관찰", cls: "warn" };
+            }
+
+            function binanceTradeLink(symbol) {
+                return `https://www.binance.com/en/futures/${encodeURIComponent(symbol)}`;
+            }
+
+            async function getExchangeInfo(baseUrl) {
+                const url = `${baseUrl}/fapi/v1/exchangeInfo`;
+                return await fetchJson(url);
+            }
+
+            async function getTicker24h(baseUrl) {
+                const url = `${baseUrl}/fapi/v1/ticker/24hr`;
+                return await fetchJson(url);
+            }
+
+            async function getPremiumIndexAll(baseUrl) {
+                // /fapi/v1/premiumIndex without symbol returns array (weight 10) :contentReference[oaicite:3]{index=3}
+                const url = `${baseUrl}/fapi/v1/premiumIndex`;
+                return await fetchJson(url);
+            }
+
+            async function getKlines(baseUrl, symbol, interval, limit) {
+                const cacheKey = `${symbol}:${interval}:${limit}`;
+                const cached = cacheGet(cacheKey);
+                if (cached) return cached;
+
+                const url = `${baseUrl}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${encodeURIComponent(limit)}`;
+                const data = await fetchJson(url);
+
+                const validUntil = nextCandleOpenTimeMs(interval) + 500; // 캔들 갱신 이후 약간 여유
+                cacheSet(cacheKey, data, validUntil);
+
+                return data;
+            }
+
+            async function asyncPool(items, worker, concurrency, delayMs) {
+                const results = [];
+                let idx = 0;
+
+                const runners = new Array(concurrency).fill(0).map(async () => {
+                    while (true) {
+                        if (state.abort) break;
+
+                        const myIdx = idx;
+                        idx += 1;
+
+                        if (myIdx >= items.length) break;
+
+                        const it = items[myIdx];
+                        try {
+                            const out = await worker(it, myIdx);
+                            results.push(out);
+                        } catch (e) {
+                            results.push({ __error: true, symbol: it && it.symbol ? it.symbol : String(myIdx), error: String(e && e.message ? e.message : e) });
+                        }
+
+                        if (delayMs > 0) await sleep(delayMs);
+                    }
+                });
+
+                await Promise.all(runners);
+                return results;
+            }
+
+            function renderTable() {
+                const mode = els.filterMode.value;
+
+                let rows = state.results.slice();
+
+                if (mode === "trend") {
+                    rows = rows.filter((r) => r.dailyOk && r.trendStrength >= 0.60);
+                } else if (mode === "setup") {
+                    rows = rows.filter((r) => r.dailyOk && r.trendStrength >= 0.75 && r.pullbackScore >= 0.60 && r.rsiScore >= 0.60);
+                }
+
+                const dir = state.sortDir === "asc" ? 1 : -1;
+                const key = state.sortKey;
+
+                rows.sort((a, b) => {
+                    const va = a[key];
+                    const vb = b[key];
+
+                    if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb) * dir;
+
+                    const na = Number.isFinite(va) ? va : -Infinity;
+                    const nb = Number.isFinite(vb) ? vb : -Infinity;
+                    return (na - nb) * dir;
+                });
+
+                const tbody = els.tbody;
+                tbody.innerHTML = "";
+
+                for (const r of rows) {
+                    const tr = document.createElement("tr");
+
+                    const setupBadge = makeSetupTag({
+                        dailyOk: r.dailyOk,
+                        trendStrength: r.trendStrength,
+                        pullbackScore: r.pullbackScore,
+                        rsiScore: r.rsiScore,
+                    });
+
+                    const dailyBadge = r.dailyOk ? `<span class="badge good">OK</span>` : `<span class="badge bad">NO</span>`;
+                    const trendBadge =
+                        r.trendStrength >= 0.75 ? `<span class="badge good">Strong</span>` : r.trendStrength >= 0.60 ? `<span class="badge warn">Mid</span>` : `<span class="badge bad">Weak</span>`;
+
+                    const fundingCls = r.funding <= 0 ? "good" : r.funding <= 0.0003 ? "warn" : "bad";
+
+                    tr.innerHTML = `
+                        <td class="mono"><strong>${r.symbol}</strong></td>
+                        <td class="right mono"><strong>${fmtNum(r.score, 1)}</strong></td>
+                        <td class="right mono">${fmtNum(r.price, 6)}</td>
+                        <td><span class="badge ${setupBadge.cls}">${setupBadge.text}</span></td>
+                        <td>${dailyBadge}</td>
+                        <td>${trendBadge}</td>
+                        <td class="right mono">${fmtNum(r.rsi, 1)}</td>
+                        <td class="right mono"><span class="badge ${fundingCls}">${(r.funding * 100).toFixed(4)}%</span></td>
+                        <td class="right mono">${fmtPct(r.chg24, 2)}</td>
+                        <td class="right mono">${fmtNum(r.qv, 0)}</td>
+                        <td><a class="badge" href="${binanceTradeLink(r.symbol)}" target="_blank" rel="noreferrer">Binance</a></td>
+                    `;
+
+                    tbody.appendChild(tr);
+                }
+
+                setShown(rows.length);
+                els.btnCopy.disabled = rows.length === 0;
+            }
+
+            function attachSortHandlers() {
+                const ths = document.querySelectorAll("thead th[data-key]");
+                ths.forEach((th) => {
+                    th.addEventListener("click", () => {
+                        const key = th.getAttribute("data-key");
+                        if (!key) return;
+
+                        if (state.sortKey === key) {
+                            state.sortDir = state.sortDir === "desc" ? "asc" : "desc";
+                        } else {
+                            state.sortKey = key;
+                            state.sortDir = key === "symbol" ? "asc" : "desc";
+                        }
+                        renderTable();
+                    });
+                });
+            }
+
+            function toCsv(rows) {
+                const header = ["symbol", "score", "price", "setup", "dailyOk", "trendStrength", "rsi", "funding", "chg24", "quoteVolume"];
+                const lines = [header.join(",")];
+
+                for (const r of rows) {
+                    const setupBadge = makeSetupTag({
+                        dailyOk: r.dailyOk,
+                        trendStrength: r.trendStrength,
+                        pullbackScore: r.pullbackScore,
+                        rsiScore: r.rsiScore,
+                    }).text;
+
+                    const line = [
+                        r.symbol,
+                        Number.isFinite(r.score) ? r.score.toFixed(2) : "",
+                        Number.isFinite(r.price) ? r.price : "",
+                        setupBadge,
+                        r.dailyOk ? "1" : "0",
+                        Number.isFinite(r.trendStrength) ? r.trendStrength.toFixed(3) : "",
+                        Number.isFinite(r.rsi) ? r.rsi.toFixed(2) : "",
+                        Number.isFinite(r.funding) ? r.funding : "",
+                        Number.isFinite(r.chg24) ? r.chg24.toFixed(4) : "",
+                        Number.isFinite(r.qv) ? Math.round(r.qv) : "",
+                    ].join(",");
+                    lines.push(line);
+                }
+
+                return lines.join("\n");
+            }
+
+            async function startScan() {
+                state.abort = false;
+                state.isRunning = true;
+                state.results = [];
+                state.total = 0;
+                state.done = 0;
+
+                els.btnStart.disabled = true;
+                els.btnStop.disabled = false;
+                els.btnCopy.disabled = true;
+
+                setStatus("초기 데이터 로딩...");
+                setProgress(0, 0);
+
+                const baseUrl = String(els.baseUrl.value || "").trim().replace(/\/+$/, "");
+                const maxSymbols = clamp(Number.parseInt(els.maxSymbols.value, 10) || 80, 10, 200);
+                const minQuoteVol = Math.max(0, Number.parseFloat(els.minQuoteVol.value) || 0);
+                const concurrency = clamp(Number.parseInt(els.concurrency.value, 10) || 8, 1, 20);
+                const tempo = els.tempo.value;
+                const delayMs = TEMPO_DELAY_MS[tempo] ?? 80;
+
+                // 1) symbol universe
+                const [exchangeInfo, tickers, premiumAll] = await Promise.all([
+                    getExchangeInfo(baseUrl),
+                    getTicker24h(baseUrl),
+                    getPremiumIndexAll(baseUrl),
+                ]);
+
+                if (state.abort) throw new Error("aborted");
+
+                const perpUsdtSymbols = new Set(
+                    (exchangeInfo.symbols || [])
+                        .filter((s) => s && s.status === "TRADING" && s.contractType === "PERPETUAL" && s.quoteAsset === "USDT")
+                        .map((s) => s.symbol)
+                );
+
+                const tickerMap = new Map();
+                for (const t of tickers) {
+                    if (!t || !t.symbol) continue;
+                    tickerMap.set(t.symbol, t);
+                }
+
+                const fundingMap = new Map();
+                for (const p of premiumAll) {
+                    if (!p || !p.symbol) continue;
+                    fundingMap.set(p.symbol, {
+                        fundingRate: safeParseFloat(p.lastFundingRate),
+                        markPrice: safeParseFloat(p.markPrice),
+                        nextFundingTime: Number.parseInt(p.nextFundingTime, 10),
+                    });
+                }
+
+                // 2) pick top by 24h quoteVolume
+                const universe = [];
+                for (const sym of perpUsdtSymbols) {
+                    const t = tickerMap.get(sym);
+                    if (!t) continue;
+
+                    const qv = safeParseFloat(t.quoteVolume);
+                    const lastPrice = safeParseFloat(t.lastPrice);
+                    const chg24 = safeParseFloat(t.priceChangePercent);
+                    if (!Number.isFinite(qv) || !Number.isFinite(lastPrice) || !Number.isFinite(chg24)) continue;
+                    if (qv < minQuoteVol) continue;
+
+                    const f = fundingMap.get(sym);
+                    const fundingRate = f && Number.isFinite(f.fundingRate) ? f.fundingRate : NaN;
+
+                    universe.push({
+                        symbol: sym,
+                        qv,
+                        price: lastPrice,
+                        chg24,
+                        funding: fundingRate,
+                    });
+                }
+
+                universe.sort((a, b) => b.qv - a.qv);
+
+                const picked = universe.slice(0, maxSymbols);
+
+                // normalize liquidity
+                const logQvs = picked.map((x) => Math.log10(x.qv + 1));
+                const minLog = Math.min(...logQvs);
+                const maxLog = Math.max(...logQvs);
+
+                const pickedWithNorm = picked.map((x) => ({
+                    ...x,
+                    qvNorm: normalizeByMinMax(Math.log10(x.qv + 1), minLog, maxLog),
+                }));
+
+                state.total = pickedWithNorm.length;
+                setProgress(0, state.total);
+
+                setStatus("캔들 수집/계산 중...");
+                renderTable();
+
+                const worker = async (item, idx) => {
+                    if (state.abort) throw new Error("aborted");
+
+                    const symbol = item.symbol;
+
+                    // klines (limit 210 -> weight 2) :contentReference[oaicite:4]{index=4}
+                    const [k15, k1h, k1d] = await Promise.all([
+                        getKlines(baseUrl, symbol, "15m", 210),
+                        getKlines(baseUrl, symbol, "1h", 260),
+                        getKlines(baseUrl, symbol, "1d", 210),
+                    ]);
+
+                    const p15 = parseKlines(k15);
+                    const p1h = parseKlines(k1h);
+                    const p1d = parseKlines(k1d);
+
+                    // 15m indicators
+                    const ema20_15 = emaLast(p15.closes, 20);
+                    const rsi15 = rsiLast(p15.closes, 14);
+
+                    // 1h indicators
+                    const ema50_1h = emaLast(p1h.closes, 50);
+                    const ema200_1h = emaLast(p1h.closes, 200);
+                    const atr14_1h = atrLast(p1h.highs, p1h.lows, p1h.closes, 14);
+
+                    // 1d indicators
+                    const sma99_1d = smaLast(p1d.closes, 99);
+
+                    const price = item.price;
+
+                    const dailyOk = Number.isFinite(sma99_1d) ? p1d.lastClose > sma99_1d : false;
+
+                    let trendStrength = 0;
+                    if (Number.isFinite(ema50_1h) && Number.isFinite(ema200_1h)) {
+                        if (p1h.lastClose > ema50_1h && ema50_1h > ema200_1h) trendStrength = 1;
+                        else if (p1h.lastClose > ema200_1h) trendStrength = 0.6;
+                        else trendStrength = 0.1;
+                    }
+
+                    let pullbackScore = 0;
+                    if (Number.isFinite(ema20_15) && ema20_15 > 0) {
+                        const dist = Math.abs(p15.lastClose - ema20_15) / ema20_15; // 0.01 = 1%
+                        // 0~1% 이내면 높게, 2% 넘어가면 급감
+                        pullbackScore = clamp(1 - dist / 0.02, 0, 1);
+                    }
+
+                    // RSI score: 45~60 & 상승이면 베스트, 과열(>70) 패널티
+                    let rsiScore = 0.3;
+                    if (Number.isFinite(rsi15.now)) {
+                        const rising = Number.isFinite(rsi15.prev) ? rsi15.now > rsi15.prev : false;
+
+                        if (rsi15.now >= 45 && rsi15.now <= 60) rsiScore = rising ? 1.0 : 0.75;
+                        else if (rsi15.now >= 40 && rsi15.now < 45) rsiScore = rising ? 0.75 : 0.55;
+                        else if (rsi15.now > 60 && rsi15.now <= 70) rsiScore = rising ? 0.55 : 0.40;
+                        else if (rsi15.now > 70) rsiScore = 0.15;
+                        else rsiScore = 0.25;
+                    }
+
+                    // funding score: 음수/낮을수록 롱에 유리(단, 극단 음수는 변동성 동반 가능)
+                    const funding = Number.isFinite(item.funding) ? item.funding : 0;
+                    let fundingScore = 0.5;
+                    if (Number.isFinite(funding)) {
+                        if (funding <= 0) fundingScore = 1.0;
+                        else fundingScore = clamp(1 - funding / 0.001, 0, 1); // 0.1%면 0점 근접
+                    }
+
+                    // volatility penalty: ATR%가 너무 크면 패널티
+                    let volPenalty = 0;
+                    if (Number.isFinite(atr14_1h) && p1h.lastClose > 0) {
+                        const atrPct = atr14_1h / p1h.lastClose; // 0.02 = 2%
+                        volPenalty = clamp((atrPct - 0.025) / 0.08, 0, 1);
+                    }
+
+                    // overheat penalty: 24h 급등 과열(예: 15% 이상)
+                    const chg24 = Number.isFinite(item.chg24) ? item.chg24 : 0;
+                    const overheatPenalty = clamp((chg24 - 15) / 25, 0, 1);
+
+                    const score = computeScore({
+                        dailyAbove99: dailyOk,
+                        trendStrength,
+                        pullbackScore,
+                        rsiScore,
+                        fundingScore,
+                        qvNorm: item.qvNorm,
+                        volPenalty,
+                        overheatPenalty,
+                    });
+
+                    const row = {
+                        symbol,
+                        score,
+                        price,
+                        setup: "",
+                        dailyOk,
+                        dailyOkNum: dailyOk ? 1 : 0,
+                        trendStrength,
+                        rsi: rsi15.now,
+                        rsiScore,
+                        funding,
+                        fundingScore,
+                        chg24,
+                        qv: item.qv,
+                        qvNorm: item.qvNorm,
+                        pullbackScore,
+                        volPenalty,
+                        overheatPenalty,
+                    };
+
+                    return row;
+                };
+
+                const out = await asyncPool(
+                    pickedWithNorm.map((x) => ({ ...x })),
+                    async (it) => {
+                        const row = await worker(it);
+                        state.done += 1;
+                        setProgress(state.done, state.total);
+
+                        // 누적 렌더(가벼운 편)
+                        if (!row.__error) {
+                            state.results.push(row);
+                            // 기본: score 내림차순
+                            state.sortKey = "score";
+                            state.sortDir = "desc";
+                            renderTable();
+                        }
+
+                        return row;
+                    },
+                    concurrency,
+                    delayMs
+                );
+
+                // 최종 결과: 에러 제외
+                state.results = out.filter((r) => r && !r.__error && r.symbol);
+                state.sortKey = "score";
+                state.sortDir = "desc";
+
+                els.lastRunText.textContent = nowKSTString();
+                setStatus("완료");
+                renderTable();
+            }
+
+            function stopScan() {
+                state.abort = true;
+                state.isRunning = false;
+                els.btnStart.disabled = false;
+                els.btnStop.disabled = true;
+                setStatus("중지됨");
+            }
+
+            function setUiIdle() {
+                state.isRunning = false;
+                els.btnStart.disabled = false;
+                els.btnStop.disabled = true;
+            }
+
+            els.btnStart.addEventListener("click", async () => {
+                if (state.isRunning) return;
+
+                try {
+                    setUiIdle();
+                    els.btnStart.disabled = true;
+                    els.btnStop.disabled = false;
+
+                    setStatus("시작...");
+                    els.lastRunText.textContent = "-";
+
+                    await startScan();
+                } catch (e) {
+                    const msg = e && e.message ? e.message : String(e);
+                    setStatus(`에러: ${msg}`);
+                } finally {
+                    state.isRunning = false;
+                    els.btnStart.disabled = false;
+                    els.btnStop.disabled = true;
+                }
+            });
+
+            els.btnStop.addEventListener("click", () => {
+                stopScan();
+            });
+
+            els.btnCopy.addEventListener("click", async () => {
+                const csv = toCsv(state.results);
+                try {
+                    await navigator.clipboard.writeText(csv);
+                    setStatus("CSV 복사됨");
+                } catch (_) {
+                    // fallback
+                    const ta = document.createElement("textarea");
+                    ta.value = csv;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    ta.remove();
+                    setStatus("CSV 복사됨(폴백)");
+                }
+            });
+
+            els.btnClearCache.addEventListener("click", () => {
+                cacheClearAll();
+                setStatus("캐시 삭제됨");
+            });
+
+            attachSortHandlers();
+            renderTable();
+        </script>
+    </body>
+</html>
