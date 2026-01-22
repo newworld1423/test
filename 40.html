@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Binance Futures 15m Swing-High Pattern Scanner</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --card: #111826;
+            --text: #e6edf3;
+            --muted: #9aa4b2;
+            --line: rgba(255,255,255,0.12);
+            --good: #30d158;
+            --bad: #ff453a;
+            --warn: #ffd60a;
+            --btn: #1f2a3a;
+            --btn2: #24344b;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 4px 0 14px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 140px 180px;
+            gap: 10px;
+            align-items: end;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.04);
+            color: var(--text);
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: rgba(255,255,255,0.28);
+        }
+        button {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: var(--btn);
+            color: var(--text);
+            cursor: pointer;
+            font-weight: 700;
+        }
+        button:hover { background: var(--btn2); }
+        .meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.04);
+            font-weight: 800;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--muted);
+        }
+        .dot.good { background: var(--good); }
+        .dot.bad { background: var(--bad); }
+        .dot.warn { background: var(--warn); }
+        .small {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 700;
+        }
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+        .ok { color: var(--good); font-weight: 800; }
+        .no { color: var(--bad); font-weight: 800; }
+        .warnText { color: var(--warn); font-weight: 800; }
+        .hint {
+            margin-top: 10px;
+            border-top: 1px dashed var(--line);
+            padding-top: 10px;
+        }
+
+        @media (max-width: 820px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            .meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="title">바이낸스 무기한 선물 · 15분봉 스윙고점(High) 패턴 체크 (a[-5] &lt; a[-4] &lt; a[-3] &gt; a[-2] &gt; a[-1])</div>
+
+        <div class="row">
+            <div class="card">
+                <div class="controls">
+                    <div>
+                        <label for="symbolInput">USDT 페어 (예: BTCUSDT / ETHUSDT / SOLUSDT)</label>
+                        <input id="symbolInput" type="text" inputmode="text" autocomplete="off" placeholder="예: BTCUSDT" />
+                    </div>
+                    <div>
+                        <label>&nbsp;</label>
+                        <button id="scanBtn">지금 스캔</button>
+                    </div>
+                    <div>
+                        <label>&nbsp;</label>
+                        <button id="autoBtn" data-on="0">자동스캔 OFF</button>
+                    </div>
+                </div>
+
+                <div class="meta">
+                    <div>로컬 시간: <span class="mono" id="localTime">-</span></div>
+                    <div>바이낸스 서버 시간: <span class="mono" id="serverTime">-</span></div>
+                    <div>다음 자동스캔: <span class="mono" id="nextRun">-</span></div>
+                </div>
+
+                <div class="hint small">
+                    ※ “현재봉 a”는 진행 중일 수 있어요. 그래서 조건은 <b>a[-5]~a[-1]</b>(완료된 5개 봉)으로만 검사합니다.
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="status">
+                    <div class="badge">
+                        <span class="dot" id="statusDot"></span>
+                        <span id="statusText">대기 중</span>
+                    </div>
+                    <div class="small" id="lastInfo">-</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>인덱스</th>
+                            <th>캔들 시작시간 (KST)</th>
+                            <th>High</th>
+                            <th>비교</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr>
+                            <td colspan="4" class="small">스캔을 실행하면 a[-5] ~ a[-1] 정보가 표시됩니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="hint small">
+                    패턴 의미: High가 <b>상승·상승</b>하다가 a[-3]에서 <b>피크(국소 고점)</b>를 만들고, 이후 <b>하락·하락</b>하는 형태입니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const API_BASE = "https://fapi.binance.com";
+            const INTERVAL = "15m";
+            const NEED_LIMIT = 6; // 마지막 1개는 '현재봉 a(진행 중 가능)'로 보고 제외, 그 앞 5개를 a[-5]~a[-1]로 사용
+
+            const els = {
+                symbolInput: document.getElementById("symbolInput"),
+                scanBtn: document.getElementById("scanBtn"),
+                autoBtn: document.getElementById("autoBtn"),
+                localTime: document.getElementById("localTime"),
+                serverTime: document.getElementById("serverTime"),
+                nextRun: document.getElementById("nextRun"),
+                statusDot: document.getElementById("statusDot"),
+                statusText: document.getElementById("statusText"),
+                lastInfo: document.getElementById("lastInfo"),
+                tbody: document.getElementById("tbody"),
+            };
+
+            let autoTimerId = null;
+            let clockTimerId = null;
+            let lastServerTimeMs = null;
+
+            function pad2(n) {
+                return String(n).padStart(2, "0");
+            }
+
+            function fmtDateTimeKST(ms) {
+                const d = new Date(ms);
+                const y = d.getFullYear();
+                const m = pad2(d.getMonth() + 1);
+                const day = pad2(d.getDate());
+                const hh = pad2(d.getHours());
+                const mm = pad2(d.getMinutes());
+                const ss = pad2(d.getSeconds());
+                return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+            }
+
+            function fmtDateTimeUTC(ms) {
+                const d = new Date(ms);
+                const y = d.getUTCFullYear();
+                const m = pad2(d.getUTCMonth() + 1);
+                const day = pad2(d.getUTCDate());
+                const hh = pad2(d.getUTCHours());
+                const mm = pad2(d.getUTCMinutes());
+                const ss = pad2(d.getUTCSeconds());
+                return `${y}-${m}-${day} ${hh}:${mm}:${ss} UTC`;
+            }
+
+            function setStatus(kind, text) {
+                els.statusDot.classList.remove("good", "bad", "warn");
+                if (kind === "good") els.statusDot.classList.add("good");
+                if (kind === "bad") els.statusDot.classList.add("bad");
+                if (kind === "warn") els.statusDot.classList.add("warn");
+                els.statusText.textContent = text;
+            }
+
+            function sanitizeSymbol(raw) {
+                let s = String(raw || "").trim().toUpperCase();
+                s = s.replace(/[^A-Z0-9]/g, "");
+                if (!s) return "";
+                if (!s.endsWith("USDT")) s = `${s}USDT`;
+                return s;
+            }
+
+            async function fetchJson(url) {
+                const res = await fetch(url, { method: "GET" });
+                if (!res.ok) {
+                    const t = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText}${t ? ` - ${t}` : ""}`);
+                }
+                return res.json();
+            }
+
+            async function syncServerTime() {
+                try {
+                    const data = await fetchJson(`${API_BASE}/fapi/v1/time`);
+                    if (typeof data.serverTime === "number") {
+                        lastServerTimeMs = data.serverTime;
+                        els.serverTime.textContent = `${fmtDateTimeKST(lastServerTimeMs)} (${fmtDateTimeUTC(lastServerTimeMs)})`;
+                    }
+                } catch (err) {
+                    els.serverTime.textContent = "가져오기 실패";
+                }
+            }
+
+            async function fetchKlines15m(symbol) {
+                const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${INTERVAL}&limit=${NEED_LIMIT}`;
+                return fetchJson(url);
+            }
+
+            function buildCompareText(h5, h4, h3, h2, h1) {
+                const c1 = h5 < h4 ? "✓" : "✗";
+                const c2 = h4 < h3 ? "✓" : "✗";
+                const c3 = h3 > h2 ? "✓" : "✗";
+                const c4 = h2 > h1 ? "✓" : "✗";
+                return `${c1} a[-5]<a[-4], ${c2} a[-4]<a[-3], ${c3} a[-3]>a[-2], ${c4} a[-2]>a[-1]`;
+            }
+
+            function toNum(x) {
+                const n = Number(x);
+                return Number.isFinite(n) ? n : NaN;
+            }
+
+            function clearTable(msg) {
+                els.tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="small">${msg}</td>
+                    </tr>
+                `;
+            }
+
+            function renderRows(fiveClosed) {
+                const rows = fiveClosed.map((k, idx) => {
+                    const openTime = k.openTime;
+                    const high = k.high;
+                    const indexLabel = idx === 0 ? "a[-5]" : idx === 1 ? "a[-4]" : idx === 2 ? "a[-3]" : idx === 3 ? "a[-2]" : "a[-1]";
+                    return `
+                        <tr>
+                            <td class="mono">${indexLabel}</td>
+                            <td class="mono">${fmtDateTimeKST(openTime)}</td>
+                            <td class="mono">${high}</td>
+                            <td></td>
+                        </tr>
+                    `;
+                }).join("");
+
+                els.tbody.innerHTML = rows;
+            }
+
+            function renderCompareIntoLastRow(compareText, passed) {
+                const trList = els.tbody.querySelectorAll("tr");
+                if (trList.length < 5) return;
+                const lastRow = trList[4];
+                const tds = lastRow.querySelectorAll("td");
+                if (tds.length < 4) return;
+
+                const cls = passed ? "ok" : "no";
+                tds[3].innerHTML = `<span class="${cls}">${compareText}</span>`;
+            }
+
+            async function runScan({ silent = false } = {}) {
+                const symbol = sanitizeSymbol(els.symbolInput.value);
+                if (!symbol) {
+                    setStatus("warn", "심볼을 입력하세요");
+                    clearTable("심볼을 입력한 뒤 스캔하세요. 예: BTCUSDT");
+                    return;
+                }
+
+                if (!silent) setStatus("warn", "스캔 중…");
+                els.lastInfo.textContent = `심볼: ${symbol} / 인터벌: ${INTERVAL} / 조건: a[-5] < a[-4] < a[-3] > a[-2] > a[-1]`;
+
+                try {
+                    const klines = await fetchKlines15m(symbol);
+                    if (!Array.isArray(klines) || klines.length < NEED_LIMIT) {
+                        throw new Error(`캔들 데이터가 부족합니다 (받은 개수: ${Array.isArray(klines) ? klines.length : 0})`);
+                    }
+
+                    // Binance klines: [openTime, open, high, low, close, volume, closeTime, ...]
+                    // 마지막 1개는 현재 진행 중일 수 있으니 제외하고, 그 앞 5개를 a[-5]~a[-1]로 사용
+                    const last6 = klines.map(k => ({
+                        openTime: toNum(k[0]),
+                        open: toNum(k[1]),
+                        high: toNum(k[2]),
+                        low: toNum(k[3]),
+                        close: toNum(k[4]),
+                        closeTime: toNum(k[6]),
+                    }));
+
+                    const fiveClosed = last6.slice(0, 5); // a[-5]~a[-1]
+                    const currentA = last6[5]; // a (정보용)
+
+                    const highs = fiveClosed.map(x => x.high);
+                    if (highs.some(h => !Number.isFinite(h))) {
+                        throw new Error("High 값 파싱 실패");
+                    }
+
+                    const h5 = highs[0];
+                    const h4 = highs[1];
+                    const h3 = highs[2];
+                    const h2 = highs[3];
+                    const h1 = highs[4];
+
+                    const passed = (h5 < h4) && (h4 < h3) && (h3 > h2) && (h2 > h1);
+                    const compareText = buildCompareText(h5, h4, h3, h2, h1);
+
+                    renderRows(fiveClosed);
+                    renderCompareIntoLastRow(compareText, passed);
+
+                    const now = Date.now();
+                    const info = `마지막 실행: ${fmtDateTimeKST(now)} / 현재봉 a 시작: ${fmtDateTimeKST(currentA.openTime)}`;
+
+                    if (passed) {
+                        setStatus("good", "조건 만족 (PASS)");
+                        els.lastInfo.textContent = `${info} / 심볼: ${symbol} / 결과: PASS`;
+                    } else {
+                        setStatus("bad", "조건 불만족 (FAIL)");
+                        els.lastInfo.textContent = `${info} / 심볼: ${symbol} / 결과: FAIL`;
+                    }
+                } catch (err) {
+                    setStatus("bad", "오류");
+                    const msg = (err && err.message) ? err.message : String(err);
+                    clearTable(`오류: ${msg}<br>※ 브라우저에서 바이낸스 API CORS가 막히는 환경이면 동작하지 않을 수 있어요.`);
+                    els.lastInfo.textContent = `실패: ${msg}`;
+                }
+            }
+
+            function msToNextQuarter(now = new Date()) {
+                const cur = new Date(now.getTime());
+                const minutes = cur.getMinutes();
+                const seconds = cur.getSeconds();
+                const ms = cur.getMilliseconds();
+                const mod = minutes % 15;
+
+                const next = new Date(cur.getTime());
+                next.setSeconds(0, 0);
+
+                // 정확히 00/15/30/45 "정각"이면 즉시 실행해도 되지만,
+                // 보통은 그 다음 분기(15분 뒤)로 가는 게 깔끔해서:
+                // - 만약 지금이 정각이고 (seconds=0, ms=0)이라면 "지금 실행" 후 다음 분기로 스케줄
+                // 스케줄 계산은 호출부에서 처리
+                if (mod === 0 && seconds === 0 && ms === 0) {
+                    return 0;
+                }
+
+                const addMin = (15 - mod);
+                next.setMinutes(minutes + addMin);
+
+                return Math.max(0, next.getTime() - cur.getTime());
+            }
+
+            function computeNextRunDate(now = new Date()) {
+                const ms = msToNextQuarter(now);
+                return new Date(now.getTime() + ms);
+            }
+
+            function setNextRunLabel(dateOrNull) {
+                if (!dateOrNull) {
+                    els.nextRun.textContent = "-";
+                    return;
+                }
+                els.nextRun.textContent = `${fmtDateTimeKST(dateOrNull.getTime())}`;
+            }
+
+            async function runAndReschedule() {
+                if (!isAutoOn()) return;
+
+                const now = new Date();
+                const ms = msToNextQuarter(now);
+
+                // 만약 "정각(00/15/30/45:00)"이면 즉시 실행하고 다음 분기로 예약
+                if (ms === 0) {
+                    await runScan({ silent: true });
+                    const next = new Date(now.getTime() + 15 * 60 * 1000);
+                    next.setSeconds(0, 0);
+                    setNextRunLabel(next);
+                    autoTimerId = window.setTimeout(runAndReschedule, 15 * 60 * 1000);
+                    return;
+                }
+
+                const nextRun = new Date(now.getTime() + ms);
+                setNextRunLabel(nextRun);
+
+                autoTimerId = window.setTimeout(async () => {
+                    if (!isAutoOn()) return;
+                    await runScan({ silent: true });
+                    runAndReschedule();
+                }, ms);
+            }
+
+            function isAutoOn() {
+                return els.autoBtn.dataset.on === "1";
+            }
+
+            function setAuto(on) {
+                els.autoBtn.dataset.on = on ? "1" : "0";
+                els.autoBtn.textContent = on ? "자동스캔 ON" : "자동스캔 OFF";
+
+                if (!on) {
+                    if (autoTimerId) {
+                        window.clearTimeout(autoTimerId);
+                        autoTimerId = null;
+                    }
+                    setNextRunLabel(null);
+                    return;
+                }
+
+                runAndReschedule();
+            }
+
+            function startClock() {
+                if (clockTimerId) window.clearInterval(clockTimerId);
+                clockTimerId = window.setInterval(() => {
+                    const now = Date.now();
+                    els.localTime.textContent = `${fmtDateTimeKST(now)}`;
+                }, 250);
+            }
+
+            function bindEvents() {
+                els.scanBtn.addEventListener("click", async () => {
+                    await runScan();
+                });
+
+                els.autoBtn.addEventListener("click", () => {
+                    setAuto(!isAutoOn());
+                });
+
+                els.symbolInput.addEventListener("keydown", async (e) => {
+                    if (e.key !== "Enter") return;
+                    await runScan();
+                });
+
+                els.symbolInput.addEventListener("blur", () => {
+                    const s = sanitizeSymbol(els.symbolInput.value);
+                    if (s) els.symbolInput.value = s;
+                });
+            }
+
+            async function init() {
+                startClock();
+                bindEvents();
+                await syncServerTime();
+                window.setInterval(syncServerTime, 30 * 1000);
+
+                setStatus("warn", "대기 중");
+                clearTable("심볼을 입력하고 ‘지금 스캔’을 누르세요. (예: BTCUSDT)");
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
