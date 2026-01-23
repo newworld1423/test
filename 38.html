@@ -212,8 +212,9 @@
                             <span class="pill">줌/팬</span> 휠=줌, Shift+드래그=박스줌, Alt+드래그=팬, Reset 버튼=원복
                         </div>
                         <div class="muted" style="margin-top: 6px;">
-                            <span class="pill">추가 필터</span>
-                            2단계에서 1단계 스윙저점(a[-3])이 "이전 스윙저점"보다 높은 경우만 표시(Higher Low)
+                            <span class="pill">2단계 추가조건</span>
+                            ① 1단계 스윙저점이 이전 스윙저점보다 높음(Higher Low)
+                            ② 최근 스윙고점이 이전 스윙고점보다 높음(Higher High)
                         </div>
                     </div>
                     <div class="row">
@@ -311,50 +312,72 @@
                     <table id="tblResults">
                         <thead>
                             <tr>
-                                <th class="sortable" data-sort-key="rank">
-                                    <span class="thLabel"># <span class="sortMark" data-sort-mark="rank"></span></span>
-                                </th>
+                                <th>#</th>
+
                                 <th class="sortable" data-sort-key="symbol">
                                     <span class="thLabel"
                                         >Symbol <span class="sortMark" data-sort-mark="symbol"></span
                                     ></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="tf">
                                     <span class="thLabel">TF <span class="sortMark" data-sort-mark="tf"></span></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="score">
                                     <span class="thLabel"
                                         >Score <span class="sortMark" data-sort-mark="score"></span
                                     ></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="quoteVolume">
                                     <span class="thLabel"
                                         >24h QuoteVol(USDT)
                                         <span class="sortMark" data-sort-mark="quoteVolume"></span
                                     ></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="supportDistPct">
                                     <span class="thLabel"
                                         >SupportDist%
                                         <span class="sortMark" data-sort-mark="supportDistPct"></span
                                     ></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="upsidePct">
                                     <span class="thLabel"
                                         >Upside% <span class="sortMark" data-sort-mark="upsidePct"></span
                                     ></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="lowAgeDays">
                                     <span class="thLabel"
                                         >LowAge(d) <span class="sortMark" data-sort-mark="lowAgeDays"></span
                                     ></span>
                                 </th>
+
+                                <th class="sortable" data-sort-key="lowRisePct">
+                                    <span class="thLabel"
+                                        >LowRise%
+                                        <span class="sortMark" data-sort-mark="lowRisePct"></span
+                                    ></span>
+                                </th>
+
                                 <th class="sortable" data-sort-key="swH">
                                     <span class="thLabel">SwH <span class="sortMark" data-sort-mark="swH"></span></span>
                                 </th>
+
                                 <th class="sortable" data-sort-key="swL">
                                     <span class="thLabel">SwL <span class="sortMark" data-sort-mark="swL"></span></span>
                                 </th>
+
+                                <th class="sortable" data-sort-key="highRisePct">
+                                    <span class="thLabel"
+                                        >HighRise%
+                                        <span class="sortMark" data-sort-mark="highRisePct"></span
+                                    ></span>
+                                </th>
+
                                 <th class="sortable" data-sort-key="lastOpenTime">
                                     <span class="thLabel"
                                         >마지막 완성봉(UTC)
@@ -431,14 +454,14 @@
             const state = {
                 serverTime: 0,
                 symbols: [],
-                tickers: new Map(),       // symbol -> { lastPrice, quoteVolume }
-                results: [],              // array of result objects
-                resultsMap: new Map(),    // symbol -> result
-                filtered: [],             // filtered + sorted view for UI
+                tickers: new Map(),
+                results: [],
+                resultsMap: new Map(),
+                filtered: [],
                 selectedTf: "4h",
 
                 // TH 클릭 정렬 상태
-                sort: { key: "score", dir: "desc" }, // 기본: score desc
+                sort: { key: "score", dir: "desc" },
             };
 
             // -----------------------------
@@ -640,7 +663,7 @@
                 return (l5 > l4) && (l4 > l3) && (l3 < l2) && (l2 < l1);
             };
 
-            // 1단계에서 확인한 "스윙저점"을 명확히 뽑기: a[-3]
+            // 1단계 스윙저점: a[-3]
             const getStage1SwingLowFromLast5 = (candles) => {
                 if (!candles || candles.length < 5) return null;
                 const m = candles.length;
@@ -701,7 +724,7 @@
                     if (swingLows[i].t === targetTime) return swingLows[i];
                 }
 
-                // 2) 근접 매칭(오차: intervalMs의 0.6배)
+                // 2) 근접 매칭
                 const tol = Math.max(1, Math.floor(tfIntervalMs * 0.6));
                 let best = null;
                 let bestAbs = Infinity;
@@ -822,11 +845,10 @@
                     state.sort.dir = (state.sort.dir === "asc") ? "desc" : "asc";
                 } else {
                     state.sort.key = key;
-                    // 기본 방향: 문자열(심볼/TF)=asc, 나머지=desc
+
                     if (key === "symbol" || key === "tf") {
                         state.sort.dir = "asc";
                     } else if (key === "supportDistPct") {
-                        // "저점 가까운"은 보통 asc가 보기 좋으니 기본 asc
                         state.sort.dir = "asc";
                     } else {
                         state.sort.dir = "desc";
@@ -852,8 +874,7 @@
                 target.textContent = dir === "asc" ? "▲" : "▼";
             };
 
-            const getSortValue = (r, key, rankIndex) => {
-                if (key === "rank") return rankIndex; // 현재 표시 순번 기준
+            const getSortValue = (r, key) => {
                 if (key === "symbol") return String(r.symbol || "");
                 if (key === "tf") return String(r.tf || "");
                 if (key === "score") return r.score;
@@ -861,8 +882,10 @@
                 if (key === "supportDistPct") return r.supportDistPct;
                 if (key === "upsidePct") return r.upsidePct;
                 if (key === "lowAgeDays") return r.lowAgeDays;
+                if (key === "lowRisePct") return r.lowRisePct;
                 if (key === "swH") return (r.swingHighs ? r.swingHighs.length : 0);
                 if (key === "swL") return (r.swingLows ? r.swingLows.length : 0);
+                if (key === "highRisePct") return r.highRisePct;
                 if (key === "lastOpenTime") return r.lastOpenTime;
                 return null;
             };
@@ -878,7 +901,6 @@
                     return asc ? d : -d;
                 }
 
-                // NaN / null 처리: 항상 뒤로
                 if ((a === null || a === undefined || (typeof a === "number" && !Number.isFinite(a))) &&
                     (b === null || b === undefined || (typeof b === "number" && !Number.isFinite(b)))) {
                     return 0;
@@ -904,18 +926,13 @@
                 const key = state.sort.key;
                 const dir = state.sort.dir;
 
-                // 정렬 안정성을 위해 tie-breaker 추가
                 arr.sort((ra, rb) => {
-                    const aRankIdx = 0;
-                    const bRankIdx = 0;
-
-                    const va = getSortValue(ra, key, aRankIdx);
-                    const vb = getSortValue(rb, key, bRankIdx);
+                    const va = getSortValue(ra, key);
+                    const vb = getSortValue(rb, key);
 
                     const primary = compareValues(va, vb, dir);
                     if (Math.abs(primary) > 1e-12) return primary;
 
-                    // tie-break: score desc → quoteVolume desc → symbol asc
                     const s = compareValues(ra.score, rb.score, "desc");
                     if (Math.abs(s) > 1e-12) return s;
 
@@ -950,8 +967,10 @@
                         <td>${fmtPct(r.supportDistPct)}</td>
                         <td>${fmtPct(r.upsidePct)}</td>
                         <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(1) : "-"}</td>
+                        <td>${fmtPct(r.lowRisePct)}</td>
                         <td>${r.swingHighs.length}</td>
                         <td>${r.swingLows.length}</td>
+                        <td>${fmtPct(r.highRisePct)}</td>
                         <td>${isoDate(r.lastOpenTime)}</td>
                     `;
 
@@ -980,8 +999,10 @@
                     "supportDistPct",
                     "upsidePct",
                     "lowAgeDays",
+                    "stage1LowRisePct",
                     "swingHighCount",
                     "swingLowCount",
+                    "lastHighRisePct",
                     "lastClosedUTC",
                 ];
 
@@ -995,8 +1016,10 @@
                         r.supportDistPct,
                         r.upsidePct,
                         r.lowAgeDays,
+                        r.lowRisePct,
                         r.swingHighs.length,
                         r.swingLows.length,
+                        r.highRisePct,
                         isoDate(r.lastOpenTime),
                     ];
                 });
@@ -1021,7 +1044,7 @@
             };
 
             // -----------------------------
-            // Chart (SwH/SwL lines only) + Zoom + 정확한 포인트 툴팁
+            // Chart + Zoom + 정확한 포인트 툴팁
             // -----------------------------
             const resolveZoomPlugin = () => {
                 const cand =
@@ -1270,7 +1293,7 @@
                         "1단계: 최근 5개 완성봉 저점 V-패턴 필터링…",
                     ]);
 
-                    // Stage1: fetch small + stage1 swing low (a[-3])
+                    // Stage1
                     const stage1 = await mapWithConcurrency(
                         symbols,
                         concurrency,
@@ -1316,7 +1339,7 @@
                         `1단계 통과: ${filteredSymbols.length} / ${symbols.length}`,
                         "",
                         "2단계: 통과 심볼만 최근 200개 완성봉 확보 후 스윙 계산…",
-                        "추가조건: 1단계 스윙저점이 이전 스윙저점보다 높아야 함(Higher Low).",
+                        "추가조건: Higher Low + Higher High",
                         "200봉 미만 심볼은 제외됨.",
                     ]);
 
@@ -1343,11 +1366,9 @@
                             const lastClose = lastCandle.close;
                             const lastOpenTime = lastCandle.openTime;
 
-                            // ---- 추가 조건: stage1Low(=a[-3])를 swingLow로 찾고, 그 이전 swingLow보다 높은지
+                            // ---- (A) Higher Low 조건: stage1Low(a[-3])가 prev swing low 보다 높아야 함
                             const stage1Low = stage1Map.get(symbol);
-                            if (!stage1Low) {
-                                return { symbol, excluded: true, reason: "no_stage1Low" };
-                            }
+                            if (!stage1Low) return { symbol, excluded: true, reason: "no_stage1Low" };
 
                             const stage1SwingLow = findClosestSwingLowByTime(swingLows, stage1Low.t, tfIntervalMs);
                             if (!stage1SwingLow) {
@@ -1361,13 +1382,9 @@
                                     break;
                                 }
                             }
+                            if (!prevSwingLow) return { symbol, excluded: true, reason: "no_prev_swingLow" };
 
-                            if (!prevSwingLow) {
-                                return { symbol, excluded: true, reason: "no_prev_swingLow" };
-                            }
-
-                            // 핵심: Higher Low 조건
-                            if (!(Number.isFinite(stage1SwingLow.price) && Number.isFinite(prevSwingLow.price))) {
+                            if (!Number.isFinite(stage1SwingLow.price) || !Number.isFinite(prevSwingLow.price)) {
                                 return { symbol, excluded: true, reason: "invalid_swingLow_price" };
                             }
 
@@ -1375,7 +1392,33 @@
                                 return { symbol, excluded: true, reason: "not_higher_low" };
                             }
 
-                            // scoring/metrics는 "stage1SwingLow"를 기준으로 계산
+                            const lowRisePct =
+                                prevSwingLow.price > 0
+                                    ? (stage1SwingLow.price - prevSwingLow.price) / prevSwingLow.price
+                                    : NaN;
+
+                            // ---- (B) Higher High 조건: 가장 최근 스윙고점이 이전 스윙고점보다 높아야 함
+                            if (!Array.isArray(swingHighs) || swingHighs.length < 2) {
+                                return { symbol, excluded: true, reason: "not_enough_swingHighs" };
+                            }
+
+                            const lastSwingHigh = swingHighs[swingHighs.length - 1];
+                            const prevSwingHigh = swingHighs[swingHighs.length - 2];
+
+                            if (!Number.isFinite(lastSwingHigh.price) || !Number.isFinite(prevSwingHigh.price)) {
+                                return { symbol, excluded: true, reason: "invalid_swingHigh_price" };
+                            }
+
+                            if (!(lastSwingHigh.price > prevSwingHigh.price)) {
+                                return { symbol, excluded: true, reason: "not_higher_high" };
+                            }
+
+                            const highRisePct =
+                                prevSwingHigh.price > 0
+                                    ? (lastSwingHigh.price - prevSwingHigh.price) / prevSwingHigh.price
+                                    : NaN;
+
+                            // ---- metrics/scoring (support는 stage1SwingLow 기준)
                             const supportDistPct = (lastClose - stage1SwingLow.price) / lastClose;
                             const lowAgeDays = (lastOpenTime - stage1SwingLow.t) / 86400000;
 
@@ -1408,12 +1451,16 @@
                                 supportDistPct,
                                 upsidePct,
                                 lowAgeDays,
+                                lowRisePct,
+                                highRisePct,
                                 score,
                                 lastOpenTime,
 
-                                // 디버깅/확인용으로 넣어둠(표시에는 안 씀)
+                                // 확인용
                                 stage1SwingLow,
                                 prevSwingLow,
+                                lastSwingHigh,
+                                prevSwingHigh,
                             };
                         },
                         (done, total) => {
@@ -1438,12 +1485,10 @@
                         state.resultsMap.set(r.symbol, r);
                     }
 
-                    // 기본 정렬: select가 score_desc로 시작하므로 유지
-                    // (혹시 th 클릭 정렬이 이전에 있었다면 그대로 남아있을 수 있으니, 스캔 시작 시 기본값으로 리셋)
+                    // 스캔 후 기본 정렬 상태 리셋
                     state.sort = { key: "score", dir: "desc" };
                     selSort.value = "score_desc";
                     updateSortMarks();
-
                     applySortAndFilter();
 
                     logStatus([
@@ -1451,7 +1496,7 @@
                         `TF=${tf}`,
                         `총 심볼: ${symbols.length}`,
                         `1단계 통과: ${filteredSymbols.length}`,
-                        `최종(Higher Low + 200봉 충족): ${finalResults.length}`,
+                        `최종(Higher Low + Higher High + 200봉 충족): ${finalResults.length}`,
                         "",
                         "테이블 클릭 또는 심볼 선택으로 차트 확인 가능",
                     ]);
@@ -1496,7 +1541,6 @@
                 const v = selSort.value;
 
                 if (v === "custom") {
-                    // 그대로 두고 TH 클릭 사용
                     updateSortMarks();
                     applySortAndFilter();
                     return;
@@ -1551,7 +1595,7 @@
                 }
             };
 
-            // init chart + th sort
+            // init
             ensureChart();
             bindThSort();
             updateSortMarks();
