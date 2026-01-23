@@ -48,7 +48,9 @@
                 opacity: 0.9;
             }
 
-            input, select, button {
+            input,
+            select,
+            button {
                 border-radius: 10px;
                 border: 1px solid #2a3a5f;
                 background: #0f1524;
@@ -78,7 +80,8 @@
             }
 
             .status {
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+                    monospace;
                 font-size: 12px;
                 white-space: pre-wrap;
                 background: #0a0f1c;
@@ -97,7 +100,8 @@
                 font-size: 14px;
             }
 
-            th, td {
+            th,
+            td {
                 border-bottom: 1px solid #1e2a44;
                 padding: 10px 8px;
                 text-align: left;
@@ -135,9 +139,19 @@
                 color: #ff6b6b;
             }
 
+            .chartBox {
+                width: 100%;
+                height: 560px;
+            }
+
             canvas {
                 width: 100% !important;
-                height: 560px !important;
+                height: 100% !important;
+                display: block;
+            }
+
+            #chart {
+                touch-action: none;
             }
 
             .right {
@@ -148,6 +162,27 @@
                 flex: 1 1 auto;
                 min-width: 220px;
             }
+
+            /* th 클릭 정렬 UI */
+            th.sortable {
+                cursor: pointer;
+                user-select: none;
+            }
+
+            th.sortable:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            .thLabel {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .sortMark {
+                opacity: 0.9;
+                font-size: 12px;
+            }
         </style>
     </head>
 
@@ -156,16 +191,29 @@
             <div class="card">
                 <div class="row" style="justify-content: space-between;">
                     <div>
-                        <div style="font-size: 18px; font-weight: 800;">Binance USDT 무기한 스윙 스캐너 (TF 선택 / 1M 제외)</div>
+                        <div style="font-size: 18px; font-weight: 800;">
+                            Binance USDT 무기한 스윙 스캐너 (TF 선택 / 1M 제외)
+                        </div>
                         <div class="muted" style="margin-top: 6px;">
-                            1) 선택 TF 최근 5개 완성봉 저점: <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span><br />
+                            1) 선택 TF 최근 5개 완성봉 저점:
+                            <span class="pill">a[-5] &gt; a[-4] &gt; a[-3] &lt; a[-2] &lt; a[-1]</span
+                            ><br />
                             2) 통과 심볼만 최근 <span class="pill">200개 완성봉</span>에서 스윙 탐지(5봉)<br />
-                            - 스윙고점: <span class="pill">b[-2].H &lt; b[-1].H &lt; b.H &gt; b[1].H &gt; b[2].H</span><br />
-                            - 스윙저점: <span class="pill">b[-2].L &gt; b[-1].L &gt; b.L &lt; b[1].L &lt; b[2].L</span><br />
-                            3) 차트: <span class="pill">스윙고점 연결선</span> + <span class="pill">스윙저점 연결선</span> + 점 표시만
+                            - 스윙고점:
+                            <span class="pill">b[-2].H &lt; b[-1].H &lt; b.H &gt; b[1].H &gt; b[2].H</span
+                            ><br />
+                            - 스윙저점:
+                            <span class="pill">b[-2].L &gt; b[-1].L &gt; b.L &lt; b[1].L &lt; b[2].L</span
+                            ><br />
+                            3) 차트:
+                            <span class="pill">스윙고점 연결선</span> + <span class="pill">스윙저점 연결선</span> + 점 표시만
                         </div>
                         <div class="muted" style="margin-top: 6px;">
                             <span class="pill">줌/팬</span> 휠=줌, Shift+드래그=박스줌, Alt+드래그=팬, Reset 버튼=원복
+                        </div>
+                        <div class="muted" style="margin-top: 6px;">
+                            <span class="pill">추가 필터</span>
+                            2단계에서 1단계 스윙저점(a[-3])이 "이전 스윙저점"보다 높은 경우만 표시(Higher Low)
                         </div>
                     </div>
                     <div class="row">
@@ -187,20 +235,42 @@
                     </div>
                     <div>
                         <label>동시 요청(Concurrency)</label><br />
-                        <input id="inpConcurrency" type="number" min="1" max="20" value="4" style="width: 140px;" />
+                        <input
+                            id="inpConcurrency"
+                            type="number"
+                            min="1"
+                            max="20"
+                            value="4"
+                            style="width: 140px;"
+                        />
                     </div>
                     <div>
                         <label>요청 타임아웃(ms)</label><br />
-                        <input id="inpTimeout" type="number" min="2000" max="60000" value="12000" style="width: 140px;" />
+                        <input
+                            id="inpTimeout"
+                            type="number"
+                            min="2000"
+                            max="60000"
+                            value="12000"
+                            style="width: 140px;"
+                        />
                     </div>
                     <div>
                         <label>재시도 횟수</label><br />
-                        <input id="inpRetries" type="number" min="0" max="10" value="3" style="width: 140px;" />
+                        <input
+                            id="inpRetries"
+                            type="number"
+                            min="0"
+                            max="10"
+                            value="3"
+                            style="width: 140px;"
+                        />
                     </div>
 
                     <div class="right row" style="gap: 8px;">
                         <label>정렬</label>
                         <select id="selSort">
+                            <option value="custom">TH 클릭 정렬</option>
                             <option value="score_desc" selected>추천순(Score) ↓</option>
                             <option value="qv_desc">24h 거래대금(QuoteVol) ↓</option>
                             <option value="support_asc">SupportDist% ↑(저점 가까운)</option>
@@ -229,21 +299,68 @@
 
                 <div class="muted" id="resultSummary" style="margin-top: 8px;">아직 결과가 없어.</div>
 
-                <div style="overflow: auto; max-height: 420px; border: 1px solid #1e2a44; border-radius: 12px; margin-top: 10px;">
+                <div
+                    style="
+                        overflow: auto;
+                        max-height: 420px;
+                        border: 1px solid #1e2a44;
+                        border-radius: 12px;
+                        margin-top: 10px;
+                    "
+                >
                     <table id="tblResults">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Symbol</th>
-                                <th>TF</th>
-                                <th>Score</th>
-                                <th>24h QuoteVol(USDT)</th>
-                                <th>SupportDist%</th>
-                                <th>Upside%</th>
-                                <th>LowAge(d)</th>
-                                <th>SwH</th>
-                                <th>SwL</th>
-                                <th>마지막 완성봉(UTC)</th>
+                                <th class="sortable" data-sort-key="rank">
+                                    <span class="thLabel"># <span class="sortMark" data-sort-mark="rank"></span></span>
+                                </th>
+                                <th class="sortable" data-sort-key="symbol">
+                                    <span class="thLabel"
+                                        >Symbol <span class="sortMark" data-sort-mark="symbol"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="tf">
+                                    <span class="thLabel">TF <span class="sortMark" data-sort-mark="tf"></span></span>
+                                </th>
+                                <th class="sortable" data-sort-key="score">
+                                    <span class="thLabel"
+                                        >Score <span class="sortMark" data-sort-mark="score"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="quoteVolume">
+                                    <span class="thLabel"
+                                        >24h QuoteVol(USDT)
+                                        <span class="sortMark" data-sort-mark="quoteVolume"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="supportDistPct">
+                                    <span class="thLabel"
+                                        >SupportDist%
+                                        <span class="sortMark" data-sort-mark="supportDistPct"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="upsidePct">
+                                    <span class="thLabel"
+                                        >Upside% <span class="sortMark" data-sort-mark="upsidePct"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="lowAgeDays">
+                                    <span class="thLabel"
+                                        >LowAge(d) <span class="sortMark" data-sort-mark="lowAgeDays"></span
+                                    ></span>
+                                </th>
+                                <th class="sortable" data-sort-key="swH">
+                                    <span class="thLabel">SwH <span class="sortMark" data-sort-mark="swH"></span></span>
+                                </th>
+                                <th class="sortable" data-sort-key="swL">
+                                    <span class="thLabel">SwL <span class="sortMark" data-sort-mark="swL"></span></span>
+                                </th>
+                                <th class="sortable" data-sort-key="lastOpenTime">
+                                    <span class="thLabel"
+                                        >마지막 완성봉(UTC)
+                                        <span class="sortMark" data-sort-mark="lastOpenTime"></span
+                                    ></span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -255,8 +372,17 @@
                 <div class="row" style="justify-content: space-between;">
                     <div style="font-size: 16px; font-weight: 800;">차트</div>
                     <div class="row">
+                        <button id="btnZoomIn" disabled>Zoom In</button>
+                        <button id="btnZoomOut" disabled>Zoom Out</button>
                         <button id="btnResetZoom" disabled>Reset Zoom</button>
-                        <a id="btnBinance" class="pill" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit; display: none;">Binance</a>
+                        <a
+                            id="btnBinance"
+                            class="pill"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="text-decoration: none; color: inherit; display: none;"
+                            >Binance</a
+                        >
                     </div>
                 </div>
 
@@ -266,7 +392,9 @@
                     - (종가/지그재그/추세선/V-lows 없음)
                 </div>
 
-                <canvas id="chart"></canvas>
+                <div class="chartBox">
+                    <canvas id="chart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -280,6 +408,8 @@
             const btnStart = $("#btnStart");
             const btnStop = $("#btnStop");
             const btnCsv = $("#btnCsv");
+            const btnZoomIn = $("#btnZoomIn");
+            const btnZoomOut = $("#btnZoomOut");
             const btnResetZoom = $("#btnResetZoom");
             const btnBinance = $("#btnBinance");
 
@@ -306,6 +436,9 @@
                 resultsMap: new Map(),    // symbol -> result
                 filtered: [],             // filtered + sorted view for UI
                 selectedTf: "4h",
+
+                // TH 클릭 정렬 상태
+                sort: { key: "score", dir: "desc" }, // 기본: score desc
             };
 
             // -----------------------------
@@ -321,6 +454,27 @@
             };
 
             const isoDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+            const fmtUtc = (ms) => {
+                if (!Number.isFinite(ms)) return "-";
+                const d = new Date(ms);
+                const yyyy = d.getUTCFullYear();
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
+                const hh = String(d.getUTCHours()).padStart(2, "0");
+                const mi = String(d.getUTCMinutes()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+            };
+
+            const fmtPrice = (p) => {
+                if (!Number.isFinite(p)) return "-";
+                const abs = Math.abs(p);
+                if (abs >= 1000) return p.toFixed(2);
+                if (abs >= 100) return p.toFixed(3);
+                if (abs >= 1) return p.toFixed(4);
+                if (abs >= 0.01) return p.toFixed(6);
+                return p.toFixed(8);
+            };
 
             const fmtNum = (n) => {
                 if (!Number.isFinite(n)) return "-";
@@ -347,6 +501,15 @@
                 if (tf === "1d") return "month";
                 if (tf === "1w") return "quarter";
                 return "month";
+            };
+
+            const getIntervalMs = (tf) => {
+                if (tf === "15m") return 15 * 60 * 1000;
+                if (tf === "1h") return 60 * 60 * 1000;
+                if (tf === "4h") return 4 * 60 * 60 * 1000;
+                if (tf === "1d") return 24 * 60 * 60 * 1000;
+                if (tf === "1w") return 7 * 24 * 60 * 60 * 1000;
+                return 60 * 60 * 1000;
             };
 
             const anySignal = (signals) => {
@@ -447,7 +610,7 @@
                     };
                 });
 
-                // 진행 중(완성 전) 캔들 제거: closeTime이 서버시간보다 미래면 pop
+                // 진행 중(완성 전) 캔들 제거
                 if (candles.length > 0) {
                     const last = candles[candles.length - 1];
                     if (Number.isFinite(last.closeTime) && last.closeTime > serverTime) {
@@ -462,7 +625,6 @@
             // Conditions / Swing detection
             // -----------------------------
             const passesVShapeLast5Lows = (candles) => {
-                // a[-5].low > a[-4].low > a[-3].low < a[-2].low < a[-1].low
                 if (!candles || candles.length < 5) return false;
 
                 const m = candles.length;
@@ -476,6 +638,15 @@
                 if (![l5, l4, l3, l2, l1].every(Number.isFinite)) return false;
 
                 return (l5 > l4) && (l4 > l3) && (l3 < l2) && (l2 < l1);
+            };
+
+            // 1단계에서 확인한 "스윙저점"을 명확히 뽑기: a[-3]
+            const getStage1SwingLowFromLast5 = (candles) => {
+                if (!candles || candles.length < 5) return null;
+                const m = candles.length;
+                const c = candles[m - 3];
+                if (!c || !Number.isFinite(c.openTime) || !Number.isFinite(c.low)) return null;
+                return { t: c.openTime, price: c.low };
             };
 
             const detectSwings = (candles200) => {
@@ -521,6 +692,33 @@
                 return { swingHighs, swingLows };
             };
 
+            const findClosestSwingLowByTime = (swingLows, targetTime, tfIntervalMs) => {
+                if (!Array.isArray(swingLows) || swingLows.length === 0) return null;
+                if (!Number.isFinite(targetTime)) return null;
+
+                // 1) 정확히 같은 시간 우선
+                for (let i = swingLows.length - 1; i >= 0; i -= 1) {
+                    if (swingLows[i].t === targetTime) return swingLows[i];
+                }
+
+                // 2) 근접 매칭(오차: intervalMs의 0.6배)
+                const tol = Math.max(1, Math.floor(tfIntervalMs * 0.6));
+                let best = null;
+                let bestAbs = Infinity;
+
+                for (const p of swingLows) {
+                    if (!Number.isFinite(p.t)) continue;
+                    const d = Math.abs(p.t - targetTime);
+                    if (d < bestAbs) {
+                        bestAbs = d;
+                        best = p;
+                    }
+                }
+
+                if (best && bestAbs <= tol) return best;
+                return null;
+            };
+
             const findTargetHighAbove = (swingHighs, lastClose, afterTime) => {
                 if (!Array.isArray(swingHighs) || swingHighs.length === 0) return null;
 
@@ -531,7 +729,6 @@
 
                 if (candidates.length > 0) return candidates[0];
 
-                // fallback: 최고 스윙고점
                 let max = swingHighs[0];
                 for (const h of swingHighs) {
                     if (h.price > max.price) max = h;
@@ -587,7 +784,7 @@
             };
 
             // -----------------------------
-            // UI
+            // UI + Sorting
             // -----------------------------
             const setUiRunning = (running) => {
                 btnStart.disabled = running;
@@ -602,6 +799,12 @@
                 inpSearch.disabled = running;
             };
 
+            const setChartControlsEnabled = (enabled) => {
+                btnZoomIn.disabled = !enabled;
+                btnZoomOut.disabled = !enabled;
+                btnResetZoom.disabled = !enabled;
+            };
+
             const setSymbolSelect = (symbols) => {
                 selSymbol.innerHTML = `<option value="">(선택)</option>`;
                 for (const s of symbols) {
@@ -612,52 +815,114 @@
                 }
             };
 
+            const setSort = (key) => {
+                if (!key) return;
+
+                if (state.sort.key === key) {
+                    state.sort.dir = (state.sort.dir === "asc") ? "desc" : "asc";
+                } else {
+                    state.sort.key = key;
+                    // 기본 방향: 문자열(심볼/TF)=asc, 나머지=desc
+                    if (key === "symbol" || key === "tf") {
+                        state.sort.dir = "asc";
+                    } else if (key === "supportDistPct") {
+                        // "저점 가까운"은 보통 asc가 보기 좋으니 기본 asc
+                        state.sort.dir = "asc";
+                    } else {
+                        state.sort.dir = "desc";
+                    }
+                }
+
+                selSort.value = "custom";
+                updateSortMarks();
+                applySortAndFilter();
+            };
+
+            const updateSortMarks = () => {
+                const marks = document.querySelectorAll("[data-sort-mark]");
+                for (const el of marks) {
+                    el.textContent = "";
+                }
+
+                const key = state.sort.key;
+                const dir = state.sort.dir;
+                const target = document.querySelector(`[data-sort-mark="${CSS.escape(key)}"]`);
+                if (!target) return;
+
+                target.textContent = dir === "asc" ? "▲" : "▼";
+            };
+
+            const getSortValue = (r, key, rankIndex) => {
+                if (key === "rank") return rankIndex; // 현재 표시 순번 기준
+                if (key === "symbol") return String(r.symbol || "");
+                if (key === "tf") return String(r.tf || "");
+                if (key === "score") return r.score;
+                if (key === "quoteVolume") return r.quoteVolume;
+                if (key === "supportDistPct") return r.supportDistPct;
+                if (key === "upsidePct") return r.upsidePct;
+                if (key === "lowAgeDays") return r.lowAgeDays;
+                if (key === "swH") return (r.swingHighs ? r.swingHighs.length : 0);
+                if (key === "swL") return (r.swingLows ? r.swingLows.length : 0);
+                if (key === "lastOpenTime") return r.lastOpenTime;
+                return null;
+            };
+
+            const compareValues = (a, b, dir) => {
+                const asc = dir === "asc";
+
+                const aNum = (typeof a === "number") && Number.isFinite(a);
+                const bNum = (typeof b === "number") && Number.isFinite(b);
+
+                if (aNum && bNum) {
+                    const d = a - b;
+                    return asc ? d : -d;
+                }
+
+                // NaN / null 처리: 항상 뒤로
+                if ((a === null || a === undefined || (typeof a === "number" && !Number.isFinite(a))) &&
+                    (b === null || b === undefined || (typeof b === "number" && !Number.isFinite(b)))) {
+                    return 0;
+                }
+                if (a === null || a === undefined || (typeof a === "number" && !Number.isFinite(a))) return 1;
+                if (b === null || b === undefined || (typeof b === "number" && !Number.isFinite(b))) return -1;
+
+                const as = String(a);
+                const bs = String(b);
+                const d = as.localeCompare(bs);
+                return asc ? d : -d;
+            };
+
             const applySortAndFilter = () => {
                 const q = (inpSearch.value || "").trim().toUpperCase();
-                const sortKey = selSort.value;
 
                 let arr = [...state.results];
 
                 if (q) {
-                    arr = arr.filter((r) => r.symbol.toUpperCase().includes(q));
+                    arr = arr.filter((r) => String(r.symbol || "").toUpperCase().includes(q));
                 }
 
-                const getSafe = (v, fallback) => (Number.isFinite(v) ? v : fallback);
+                const key = state.sort.key;
+                const dir = state.sort.dir;
 
-                arr.sort((a, b) => {
-                    if (sortKey === "sym_asc") return a.symbol.localeCompare(b.symbol);
+                // 정렬 안정성을 위해 tie-breaker 추가
+                arr.sort((ra, rb) => {
+                    const aRankIdx = 0;
+                    const bRankIdx = 0;
 
-                    if (sortKey === "qv_desc") {
-                        const d = (b.quoteVolume - a.quoteVolume);
-                        if (Math.abs(d) > 1e-12) return d;
-                        return (b.score - a.score);
-                    }
+                    const va = getSortValue(ra, key, aRankIdx);
+                    const vb = getSortValue(rb, key, bRankIdx);
 
-                    if (sortKey === "support_asc") {
-                        const ad = getSafe(a.supportDistPct, 1e9);
-                        const bd = getSafe(b.supportDistPct, 1e9);
-                        const d = ad - bd;
-                        if (Math.abs(d) > 1e-12) return d;
-                        return (b.score - a.score);
-                    }
+                    const primary = compareValues(va, vb, dir);
+                    if (Math.abs(primary) > 1e-12) return primary;
 
-                    if (sortKey === "upside_desc") {
-                        const ad = getSafe(a.upsidePct, -1e9);
-                        const bd = getSafe(b.upsidePct, -1e9);
-                        const d = bd - ad;
-                        if (Math.abs(d) > 1e-12) return d;
-                        return (b.score - a.score);
-                    }
+                    // tie-break: score desc → quoteVolume desc → symbol asc
+                    const s = compareValues(ra.score, rb.score, "desc");
+                    if (Math.abs(s) > 1e-12) return s;
 
-                    const d1 = (b.score - a.score);
-                    if (Math.abs(d1) > 1e-12) return d1;
+                    const qv = compareValues(ra.quoteVolume, rb.quoteVolume, "desc");
+                    if (Math.abs(qv) > 1e-12) return qv;
 
-                    const d2 = (b.quoteVolume - a.quoteVolume);
-                    if (Math.abs(d2) > 1e-12) return d2;
-
-                    const ad = getSafe(a.supportDistPct, 1e9);
-                    const bd = getSafe(b.supportDistPct, 1e9);
-                    return ad - bd;
+                    return String(ra.symbol || "").localeCompare(String(rb.symbol || ""));
                 });
 
                 state.filtered = arr;
@@ -665,6 +930,8 @@
                 setSymbolSelect(arr.map((r) => r.symbol));
 
                 btnCsv.disabled = arr.length === 0;
+
+                updateSortMarks();
             };
 
             const renderTable = () => {
@@ -685,7 +952,7 @@
                         <td>${Number.isFinite(r.lowAgeDays) ? r.lowAgeDays.toFixed(1) : "-"}</td>
                         <td>${r.swingHighs.length}</td>
                         <td>${r.swingLows.length}</td>
-                        <td>${isoDate(r.candles[r.candles.length - 1].openTime)}</td>
+                        <td>${isoDate(r.lastOpenTime)}</td>
                     `;
 
                     tr.addEventListener("click", () => {
@@ -730,7 +997,7 @@
                         r.lowAgeDays,
                         r.swingHighs.length,
                         r.swingLows.length,
-                        isoDate(r.candles[r.candles.length - 1].openTime),
+                        isoDate(r.lastOpenTime),
                     ];
                 });
 
@@ -754,14 +1021,29 @@
             };
 
             // -----------------------------
-            // Chart (SwH/SwL lines only) + Zoom
+            // Chart (SwH/SwL lines only) + Zoom + 정확한 포인트 툴팁
             // -----------------------------
+            const resolveZoomPlugin = () => {
+                const cand =
+                    window.ChartZoom ||
+                    window.zoomPlugin ||
+                    window.ZoomPlugin ||
+                    window["chartjs-plugin-zoom"];
+
+                if (!cand) return null;
+
+                const plugin = cand.default ? cand.default : cand;
+                return plugin && typeof plugin === "object" ? plugin : null;
+            };
+
             const ensureChart = () => {
                 if (chart) return chart;
 
+                const zoomPlugin = resolveZoomPlugin();
+
                 try {
-                    if (window.ChartZoom) {
-                        Chart.register(window.ChartZoom);
+                    if (zoomPlugin && zoomPlugin.id) {
+                        Chart.register(zoomPlugin);
                     }
                 } catch (_) {}
 
@@ -769,6 +1051,7 @@
 
                 chart = new Chart(ctx, {
                     type: "line",
+                    plugins: zoomPlugin ? [zoomPlugin] : [],
                     data: {
                         datasets: [],
                     },
@@ -777,18 +1060,38 @@
                         maintainAspectRatio: false,
                         interaction: {
                             mode: "nearest",
-                            intersect: false,
+                            intersect: true,
+                        },
+                        hover: {
+                            mode: "nearest",
+                            intersect: true,
+                        },
+                        onHover: (evt, elements) => {
+                            const canvas = evt && evt.native && evt.native.target ? evt.native.target : null;
+                            if (!canvas) return;
+                            canvas.style.cursor = (elements && elements.length) ? "pointer" : "default";
                         },
                         plugins: {
                             legend: {
                                 labels: { color: "#e7eaf0" },
                             },
                             tooltip: {
+                                enabled: true,
+                                mode: "nearest",
+                                intersect: true,
+                                filter: (item) => {
+                                    return item && item.dataset && item.dataset.type === "scatter";
+                                },
                                 callbacks: {
+                                    title: (items) => {
+                                        const it = items && items[0] ? items[0] : null;
+                                        const x = it && it.parsed ? it.parsed.x : NaN;
+                                        return fmtUtc(x);
+                                    },
                                     label: (c) => {
-                                        const y = c.parsed && typeof c.parsed.y === "number" ? c.parsed.y : null;
-                                        if (y === null) return c.dataset.label || "";
-                                        return `${c.dataset.label}: ${y}`;
+                                        const y = c && c.parsed ? c.parsed.y : NaN;
+                                        const name = c && c.dataset && c.dataset.label ? c.dataset.label : "";
+                                        return `${name}: ${fmtPrice(y)}`;
                                     },
                                 },
                             },
@@ -837,7 +1140,6 @@
                 if (!data) return;
 
                 const c = ensureChart();
-
                 c.options.scales.x.time.unit = getTimeUnitForTf(state.selectedTf);
 
                 const swingHighLine = data.swingHighs.map((p) => ({ x: p.t, y: p.price }));
@@ -852,6 +1154,8 @@
                         data: swingHighLine,
                         borderWidth: 2,
                         pointRadius: 0,
+                        pointHoverRadius: 0,
+                        pointHitRadius: 0,
                         tension: 0,
                     },
                     {
@@ -859,27 +1163,35 @@
                         data: swingLowLine,
                         borderWidth: 2,
                         pointRadius: 0,
+                        pointHoverRadius: 0,
+                        pointHitRadius: 0,
                         tension: 0,
                     },
                     {
-                        label: "Swing High (points)",
+                        label: "Swing High",
                         type: "scatter",
                         data: swingHighPoints,
                         pointRadius: 4,
-                        pointHoverRadius: 6,
+                        pointHoverRadius: 7,
+                        hitRadius: 10,
                     },
                     {
-                        label: "Swing Low (points)",
+                        label: "Swing Low",
                         type: "scatter",
                         data: swingLowPoints,
                         pointRadius: 4,
-                        pointHoverRadius: 6,
+                        pointHoverRadius: 7,
+                        hitRadius: 10,
                     },
                 ];
 
                 c.update();
 
-                btnResetZoom.disabled = false;
+                requestAnimationFrame(() => {
+                    if (c && typeof c.resize === "function") c.resize();
+                });
+
+                setChartControlsEnabled(true);
 
                 btnBinance.href = `https://www.binance.com/en/futures/${encodeURIComponent(symbol)}`;
                 btnBinance.style.display = "inline-block";
@@ -896,6 +1208,8 @@
                 const timeoutMs = Math.max(2000, Math.min(60000, Number(inpTimeout.value) || 12000));
                 const retries = Math.max(0, Math.min(10, Number(inpRetries.value) || 3));
 
+                const tfIntervalMs = getIntervalMs(tf);
+
                 globalAbortController = new AbortController();
                 const signal = globalAbortController.signal;
 
@@ -908,7 +1222,8 @@
                 tblBody.innerHTML = "";
                 setSymbolSelect([]);
                 btnCsv.disabled = true;
-                btnResetZoom.disabled = true;
+
+                setChartControlsEnabled(false);
                 btnBinance.style.display = "none";
 
                 resultSummary.textContent = "스캔 중…";
@@ -955,7 +1270,7 @@
                         "1단계: 최근 5개 완성봉 저점 V-패턴 필터링…",
                     ]);
 
-                    // Stage1: fetch small
+                    // Stage1: fetch small + stage1 swing low (a[-3])
                     const stage1 = await mapWithConcurrency(
                         symbols,
                         concurrency,
@@ -964,10 +1279,13 @@
                             const raw = await getKlines(symbol, tf, 12, { timeoutMs, signal, retries });
                             const candles = normalizeKlines(raw, state.serverTime);
 
-                            if (candles.length < 5) return { symbol, pass: false };
-                            const pass = passesVShapeLast5Lows(candles);
+                            if (candles.length < 5) return { symbol, pass: false, stage1Low: null };
 
-                            return { symbol, pass };
+                            const pass = passesVShapeLast5Lows(candles);
+                            if (!pass) return { symbol, pass: false, stage1Low: null };
+
+                            const stage1Low = getStage1SwingLowFromLast5(candles);
+                            return { symbol, pass: true, stage1Low };
                         },
                         (done, total) => {
                             logStatus([
@@ -982,19 +1300,26 @@
 
                     if (signal.aborted) throw new Error("사용자 중지");
 
-                    const filteredSymbols = stage1
-                        .filter((r) => r && r.pass === true)
-                        .map((r) => r.symbol);
+                    const stage1Passed = stage1
+                        .filter((r) => r && r.pass === true && r.stage1Low && Number.isFinite(r.stage1Low.t))
+                        .map((r) => r);
+
+                    const stage1Map = new Map();
+                    for (const r of stage1Passed) {
+                        stage1Map.set(r.symbol, r.stage1Low);
+                    }
+
+                    const filteredSymbols = stage1Passed.map((r) => r.symbol);
 
                     logStatus([
                         `TF=${tf}`,
                         `1단계 통과: ${filteredSymbols.length} / ${symbols.length}`,
                         "",
                         "2단계: 통과 심볼만 최근 200개 완성봉 확보 후 스윙 계산…",
+                        "추가조건: 1단계 스윙저점이 이전 스윙저점보다 높아야 함(Higher Low).",
                         "200봉 미만 심볼은 제외됨.",
                     ]);
 
-                    // Stage2: fetch bigger (keep it moderate)
                     const stage2Limit = 600;
 
                     const stage2 = await mapWithConcurrency(
@@ -1014,18 +1339,50 @@
 
                             const { swingHighs, swingLows } = detectSwings(candles200);
 
-                            const lastClose = candles200[candles200.length - 1].close;
+                            const lastCandle = candles200[candles200.length - 1];
+                            const lastClose = lastCandle.close;
+                            const lastOpenTime = lastCandle.openTime;
 
-                            const lastSwingLow = swingLows.length > 0 ? swingLows[swingLows.length - 1] : null;
-                            const supportDistPct = lastSwingLow ? (lastClose - lastSwingLow.price) / lastClose : NaN;
-                            const lowAgeDays = lastSwingLow
-                                ? (candles200[candles200.length - 1].openTime - lastSwingLow.t) / 86400000
-                                : NaN;
+                            // ---- 추가 조건: stage1Low(=a[-3])를 swingLow로 찾고, 그 이전 swingLow보다 높은지
+                            const stage1Low = stage1Map.get(symbol);
+                            if (!stage1Low) {
+                                return { symbol, excluded: true, reason: "no_stage1Low" };
+                            }
+
+                            const stage1SwingLow = findClosestSwingLowByTime(swingLows, stage1Low.t, tfIntervalMs);
+                            if (!stage1SwingLow) {
+                                return { symbol, excluded: true, reason: "stage1Low_not_found_in_swings" };
+                            }
+
+                            let prevSwingLow = null;
+                            for (let i = swingLows.length - 1; i >= 0; i -= 1) {
+                                if (swingLows[i].t < stage1SwingLow.t) {
+                                    prevSwingLow = swingLows[i];
+                                    break;
+                                }
+                            }
+
+                            if (!prevSwingLow) {
+                                return { symbol, excluded: true, reason: "no_prev_swingLow" };
+                            }
+
+                            // 핵심: Higher Low 조건
+                            if (!(Number.isFinite(stage1SwingLow.price) && Number.isFinite(prevSwingLow.price))) {
+                                return { symbol, excluded: true, reason: "invalid_swingLow_price" };
+                            }
+
+                            if (!(stage1SwingLow.price > prevSwingLow.price)) {
+                                return { symbol, excluded: true, reason: "not_higher_low" };
+                            }
+
+                            // scoring/metrics는 "stage1SwingLow"를 기준으로 계산
+                            const supportDistPct = (lastClose - stage1SwingLow.price) / lastClose;
+                            const lowAgeDays = (lastOpenTime - stage1SwingLow.t) / 86400000;
 
                             const targetHigh = findTargetHighAbove(
                                 swingHighs,
                                 lastClose,
-                                lastSwingLow ? lastSwingLow.t : NaN
+                                stage1SwingLow.t
                             );
 
                             let upsidePct = NaN;
@@ -1052,6 +1409,11 @@
                                 upsidePct,
                                 lowAgeDays,
                                 score,
+                                lastOpenTime,
+
+                                // 디버깅/확인용으로 넣어둠(표시에는 안 씀)
+                                stage1SwingLow,
+                                prevSwingLow,
                             };
                         },
                         (done, total) => {
@@ -1076,6 +1438,12 @@
                         state.resultsMap.set(r.symbol, r);
                     }
 
+                    // 기본 정렬: select가 score_desc로 시작하므로 유지
+                    // (혹시 th 클릭 정렬이 이전에 있었다면 그대로 남아있을 수 있으니, 스캔 시작 시 기본값으로 리셋)
+                    state.sort = { key: "score", dir: "desc" };
+                    selSort.value = "score_desc";
+                    updateSortMarks();
+
                     applySortAndFilter();
 
                     logStatus([
@@ -1083,7 +1451,7 @@
                         `TF=${tf}`,
                         `총 심볼: ${symbols.length}`,
                         `1단계 통과: ${filteredSymbols.length}`,
-                        `최종(200봉 충족): ${finalResults.length}`,
+                        `최종(Higher Low + 200봉 충족): ${finalResults.length}`,
                         "",
                         "테이블 클릭 또는 심볼 선택으로 차트 확인 가능",
                     ]);
@@ -1125,6 +1493,22 @@
             });
 
             selSort.addEventListener("change", () => {
+                const v = selSort.value;
+
+                if (v === "custom") {
+                    // 그대로 두고 TH 클릭 사용
+                    updateSortMarks();
+                    applySortAndFilter();
+                    return;
+                }
+
+                if (v === "sym_asc") state.sort = { key: "symbol", dir: "asc" };
+                else if (v === "qv_desc") state.sort = { key: "quoteVolume", dir: "desc" };
+                else if (v === "support_asc") state.sort = { key: "supportDistPct", dir: "asc" };
+                else if (v === "upside_desc") state.sort = { key: "upsidePct", dir: "desc" };
+                else state.sort = { key: "score", dir: "desc" };
+
+                updateSortMarks();
                 applySortAndFilter();
             });
 
@@ -1136,13 +1520,41 @@
                 downloadCsv();
             });
 
+            btnZoomIn.addEventListener("click", () => {
+                if (!chart) return;
+                if (typeof chart.zoom === "function") chart.zoom({ x: 1.1 });
+            });
+
+            btnZoomOut.addEventListener("click", () => {
+                if (!chart) return;
+                if (typeof chart.zoom === "function") chart.zoom({ x: 0.9 });
+            });
+
             btnResetZoom.addEventListener("click", () => {
                 if (!chart) return;
                 if (typeof chart.resetZoom === "function") chart.resetZoom();
             });
 
-            // init chart
+            $("#chart").addEventListener("dblclick", () => {
+                if (!chart) return;
+                if (typeof chart.resetZoom === "function") chart.resetZoom();
+            });
+
+            // TH 클릭 정렬 이벤트 바인딩
+            const bindThSort = () => {
+                const ths = document.querySelectorAll("th.sortable[data-sort-key]");
+                for (const th of ths) {
+                    th.addEventListener("click", () => {
+                        const key = th.getAttribute("data-sort-key");
+                        setSort(key);
+                    });
+                }
+            };
+
+            // init chart + th sort
             ensureChart();
+            bindThSort();
+            updateSortMarks();
         </script>
     </body>
 </html>
