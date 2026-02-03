@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>USDT Perp 1H Funding Scanner</title>
+        <style>
+            :root {
+                --bg: #0b0f17;
+                --panel: #121a28;
+                --text: #e8eefc;
+                --muted: #9db0d0;
+                --line: rgba(255, 255, 255, 0.08);
+                --good: rgba(76, 175, 80, 0.18);
+                --bad: rgba(244, 67, 54, 0.18);
+                --warn: rgba(255, 193, 7, 0.18);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
+                background: var(--bg);
+                color: var(--text);
+            }
+
+            header {
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                background: linear-gradient(180deg, rgba(11, 15, 23, 0.98), rgba(11, 15, 23, 0.86));
+                border-bottom: 1px solid var(--line);
+                padding: 14px 16px;
+            }
+
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+
+            h1 {
+                font-size: 16px;
+                margin: 0 12px 0 0;
+                letter-spacing: 0.2px;
+            }
+
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 10px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid var(--line);
+                border-radius: 999px;
+                color: var(--muted);
+                font-size: 12px;
+            }
+
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 10px;
+            }
+
+            .control {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 10px;
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+            }
+
+            label {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            input[type="text"],
+            input[type="number"],
+            select {
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                color: var(--text);
+                padding: 6px 8px;
+                outline: none;
+                font-size: 12px;
+            }
+
+            input[type="checkbox"] {
+                transform: translateY(1px);
+            }
+
+            button {
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid var(--line);
+                color: var(--text);
+                border-radius: 10px;
+                padding: 8px 10px;
+                font-size: 12px;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background: rgba(255, 255, 255, 0.12);
+            }
+
+            main {
+                padding: 14px 16px 40px;
+            }
+
+            #status {
+                color: var(--muted);
+                font-size: 12px;
+                margin-bottom: 10px;
+                line-height: 1.4;
+                white-space: pre-line;
+            }
+
+            .table-wrap {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                overflow: hidden;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+            }
+
+            thead th {
+                text-align: left;
+                padding: 10px 10px;
+                background: rgba(255, 255, 255, 0.04);
+                border-bottom: 1px solid var(--line);
+                color: var(--muted);
+                position: sticky;
+                top: 118px;
+                z-index: 5;
+            }
+
+            tbody td {
+                padding: 9px 10px;
+                border-bottom: 1px solid var(--line);
+                vertical-align: middle;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            }
+
+            .right {
+                text-align: right;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 3px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.05);
+                color: var(--muted);
+            }
+
+            .pos {
+                background: var(--bad);
+                color: #ffd6d6;
+                border-color: rgba(244, 67, 54, 0.35);
+            }
+
+            .neg {
+                background: var(--good);
+                color: #d6ffe0;
+                border-color: rgba(76, 175, 80, 0.35);
+            }
+
+            .zero {
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--muted);
+            }
+
+            .small {
+                font-size: 11px;
+                color: var(--muted);
+            }
+
+            .nowrap {
+                white-space: nowrap;
+            }
+
+            .muted {
+                color: var(--muted);
+            }
+
+            .warn {
+                background: var(--warn);
+                border-color: rgba(255, 193, 7, 0.35);
+                color: #fff3c4;
+            }
+
+            @media (max-width: 900px) {
+                thead th {
+                    top: 152px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <div class="row">
+                <h1>USDT 무기한(Perp) — 1시간 펀딩 스캐너</h1>
+                <div class="pill">
+                    <span class="mono">/fapi/v1/fundingInfo</span>
+                    <span class="muted">+ premiumIndex + 24hr</span>
+                </div>
+                <div id="summary" class="pill">로딩 중…</div>
+            </div>
+
+            <div class="controls">
+                <div class="control">
+                    <label for="q">심볼 검색</label>
+                    <input id="q" type="text" placeholder="예: BTC, XAU, USDT…" />
+                </div>
+
+                <div class="control">
+                    <label for="minVol">최소 24h 거래대금(USDT)</label>
+                    <input id="minVol" type="number" min="0" step="1000000" value="0" style="width: 140px;" />
+                </div>
+
+                <div class="control">
+                    <label for="sortKey">정렬</label>
+                    <select id="sortKey">
+                        <option value="absFunding">|펀딩비| (기본)</option>
+                        <option value="funding">펀딩비</option>
+                        <option value="nextFunding">다음 펀딩 시각</option>
+                        <option value="volume">24h 거래대금</option>
+                        <option value="symbol">심볼</option>
+                    </select>
+                    <label class="nowrap"><input id="asc" type="checkbox" /> 오름차순</label>
+                </div>
+
+                <div class="control">
+                    <label for="refreshSec">갱신(초)</label>
+                    <input id="refreshSec" type="number" min="10" step="10" value="60" style="width: 90px;" />
+                    <label class="nowrap"><input id="auto" type="checkbox" checked /> 자동</label>
+                </div>
+
+                <div class="control">
+                    <label class="nowrap"><input id="with24h" type="checkbox" checked /> 24h 데이터 포함</label>
+                </div>
+
+                <button id="btnRefresh" type="button">지금 새로고침</button>
+                <button id="btnCopy" type="button">현재 표 CSV 복사</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="status">초기 로딩…</div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 110px;">심볼</th>
+                            <th style="width: 80px;">주기</th>
+                            <th style="width: 140px;">최신 펀딩비</th>
+                            <th style="width: 140px;">다음 펀딩(남은시간)</th>
+                            <th style="width: 140px;">다음 펀딩(UTC)</th>
+                            <th style="width: 140px;">다음 펀딩(로컬)</th>
+                            <th class="right" style="width: 120px;">마크가격</th>
+                            <th class="right" style="width: 160px;">24h 거래대금(USDT)</th>
+                            <th class="right" style="width: 120px;">24h 등락률</th>
+                            <th style="width: 160px;">캡/플로어(조정)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr>
+                            <td colspan="10" class="muted">로딩 중…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="small" style="margin-top: 10px;">
+                * 주의: 브라우저에서 직접 호출하므로 네트워크/지역/차단/레이트리밋에 따라 실패할 수 있음.  
+                * 24hr 티커는 무거워서(무심볼 호출 가중치 큼) 5분 캐시를 적용했음.
+            </div>
+        </main>
+
+        <script>
+            (() => {
+                "use strict";
+
+                const API_BASE = "https://fapi.binance.com";
+
+                const els = {
+                    summary: document.getElementById("summary"),
+                    status: document.getElementById("status"),
+                    tbody: document.getElementById("tbody"),
+                    q: document.getElementById("q"),
+                    minVol: document.getElementById("minVol"),
+                    sortKey: document.getElementById("sortKey"),
+                    asc: document.getElementById("asc"),
+                    refreshSec: document.getElementById("refreshSec"),
+                    auto: document.getElementById("auto"),
+                    with24h: document.getElementById("with24h"),
+                    btnRefresh: document.getElementById("btnRefresh"),
+                    btnCopy: document.getElementById("btnCopy"),
+                };
+
+                const state = {
+                    timer: null,
+                    exchangeInfoAt: 0,
+                    ticker24At: 0,
+                    exchange: new Map(),      // symbol -> { quoteAsset, contractType, status }
+                    premium: new Map(),       // symbol -> premiumIndex row
+                    ticker24: new Map(),      // symbol -> 24h row
+                    rows: [],
+                    lastRunAt: 0,
+                    lastError: "",
+                };
+
+                function fmtNumber(n, digits = 2) {
+                    if (!Number.isFinite(n)) return "-";
+                    return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+                }
+
+                function fmtPct(n, digits = 4) {
+                    if (!Number.isFinite(n)) return "-";
+                    return `${n.toFixed(digits)}%`;
+                }
+
+                function fmtDateUTC(ms) {
+                    if (!Number.isFinite(ms)) return "-";
+                    return new Date(ms).toISOString().replace("T", " ").replace(".000Z", "Z");
+                }
+
+                function fmtDateLocal(ms) {
+                    if (!Number.isFinite(ms)) return "-";
+                    const d = new Date(ms);
+                    return new Intl.DateTimeFormat(undefined, {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                    }).format(d);
+                }
+
+                function fmtCountdown(ms) {
+                    if (!Number.isFinite(ms)) return "-";
+                    const now = Date.now();
+                    let diff = ms - now;
+                    if (diff < 0) diff = 0;
+
+                    const s = Math.floor(diff / 1000);
+                    const hh = Math.floor(s / 3600);
+                    const mm = Math.floor((s % 3600) / 60);
+                    const ss = s % 60;
+
+                    const pad = v => String(v).padStart(2, "0");
+                    return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+                }
+
+                async function fetchJson(path, { timeoutMs = 12000 } = {}) {
+                    const url = `${API_BASE}${path}${path.includes("?") ? "&" : "?"}_=${Date.now()}`;
+                    const ctrl = new AbortController();
+                    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+
+                    try {
+                        const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+                        if (!res.ok) {
+                            const text = await res.text().catch(() => "");
+                            throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 200)}`);
+                        }
+                        return await res.json();
+                    } finally {
+                        clearTimeout(t);
+                    }
+                }
+
+                async function loadExchangeInfoIfNeeded() {
+                    const now = Date.now();
+                    const age = now - state.exchangeInfoAt;
+                    if (state.exchange.size > 0 && age < 60 * 60 * 1000) return;
+
+                    const data = await fetchJson("/fapi/v1/exchangeInfo");
+                    const map = new Map();
+
+                    const symbols = Array.isArray(data?.symbols) ? data.symbols : [];
+                    for (const s of symbols) {
+                        const symbol = String(s?.symbol || "");
+                        if (!symbol) continue;
+
+                        map.set(symbol, {
+                            quoteAsset: String(s?.quoteAsset || ""),
+                            contractType: String(s?.contractType || ""),
+                            status: String(s?.status || ""),
+                        });
+                    }
+
+                    state.exchange = map;
+                    state.exchangeInfoAt = now;
+                }
+
+                async function loadPremiumIndex() {
+                    const data = await fetchJson("/fapi/v1/premiumIndex");
+                    const arr = Array.isArray(data) ? data : [data];
+                    const map = new Map();
+
+                    for (const r of arr) {
+                        const symbol = String(r?.symbol || "");
+                        if (!symbol) continue;
+                        map.set(symbol, r);
+                    }
+
+                    state.premium = map;
+                }
+
+                async function loadTicker24IfNeeded() {
+                    if (!els.with24h.checked) {
+                        state.ticker24 = new Map();
+                        return;
+                    }
+
+                    const now = Date.now();
+                    const age = now - state.ticker24At;
+                    if (state.ticker24.size > 0 && age < 5 * 60 * 1000) return;
+
+                    const data = await fetchJson("/fapi/v1/ticker/24hr", { timeoutMs: 20000 });
+                    const arr = Array.isArray(data) ? data : [];
+                    const map = new Map();
+
+                    for (const r of arr) {
+                        const symbol = String(r?.symbol || "");
+                        if (!symbol) continue;
+                        map.set(symbol, r);
+                    }
+
+                    state.ticker24 = map;
+                    state.ticker24At = now;
+                }
+
+                function isUsdtPerpTrading(symbol) {
+                    const info = state.exchange.get(symbol);
+                    if (!info) return false;
+                    if (info.quoteAsset !== "USDT") return false;
+                    if (info.contractType !== "PERPETUAL") return false;
+                    if (info.status !== "TRADING") return false;
+                    return true;
+                }
+
+                function buildRows(fundingInfo) {
+                    const list = Array.isArray(fundingInfo) ? fundingInfo : [];
+                    const oneHour = list.filter(r => Number(r?.fundingIntervalHours) === 1);
+
+                    const rows = [];
+                    for (const r of oneHour) {
+                        const symbol = String(r?.symbol || "");
+                        if (!symbol) continue;
+                        if (!isUsdtPerpTrading(symbol)) continue;
+
+                        const p = state.premium.get(symbol);
+                        const t = state.ticker24.get(symbol);
+
+                        const lastFundingRate = p ? Number(p.lastFundingRate) : NaN; // fraction
+                        const nextFundingTime = p ? Number(p.nextFundingTime) : NaN;
+                        const markPrice = p ? Number(p.markPrice) : NaN;
+
+                        const quoteVolume = t ? Number(t.quoteVolume) : NaN;
+                        const priceChangePercent = t ? Number(t.priceChangePercent) : NaN;
+
+                        const cap = Number(r?.adjustedFundingRateCap);
+                        const floor = Number(r?.adjustedFundingRateFloor);
+
+                        rows.push({
+                            symbol,
+                            intervalHours: 1,
+                            lastFundingRate,
+                            nextFundingTime,
+                            markPrice,
+                            quoteVolume,
+                            priceChangePercent,
+                            cap,
+                            floor,
+                        });
+                    }
+
+                    return rows;
+                }
+
+                function applyFilterSort(rows) {
+                    const q = String(els.q.value || "").trim().toUpperCase();
+                    const minVol = Number(els.minVol.value || 0);
+                    const sortKey = String(els.sortKey.value || "absFunding");
+                    const asc = Boolean(els.asc.checked);
+
+                    let out = rows;
+
+                    if (q) {
+                        out = out.filter(r => r.symbol.includes(q));
+                    }
+
+                    if (Number.isFinite(minVol) && minVol > 0) {
+                        out = out.filter(r => Number.isFinite(r.quoteVolume) && r.quoteVolume >= minVol);
+                    }
+
+                    const dir = asc ? 1 : -1;
+
+                    out = out.slice().sort((a, b) => {
+                        const av = getSortValue(a, sortKey);
+                        const bv = getSortValue(b, sortKey);
+
+                        if (!Number.isFinite(av) && !Number.isFinite(bv)) return a.symbol.localeCompare(b.symbol) * dir;
+                        if (!Number.isFinite(av)) return 1;
+                        if (!Number.isFinite(bv)) return -1;
+
+                        if (av === bv) return a.symbol.localeCompare(b.symbol) * dir;
+                        return (av - bv) * dir;
+                    });
+
+                    return out;
+                }
+
+                function getSortValue(r, sortKey) {
+                    if (sortKey === "absFunding") return Math.abs(r.lastFundingRate);
+                    if (sortKey === "funding") return r.lastFundingRate;
+                    if (sortKey === "nextFunding") return r.nextFundingTime;
+                    if (sortKey === "volume") return r.quoteVolume;
+                    if (sortKey === "symbol") return 0;
+                    return Math.abs(r.lastFundingRate);
+                }
+
+                function fundingBadgeHtml(rateFraction) {
+                    if (!Number.isFinite(rateFraction)) return `<span class="badge zero mono">-</span>`;
+                    const pct = rateFraction * 100;
+                    const cls = pct > 0 ? "pos" : pct < 0 ? "neg" : "zero";
+                    const sign = pct > 0 ? "+" : "";
+                    return `<span class="badge ${cls} mono">${sign}${pct.toFixed(4)}%</span>`;
+                }
+
+                function capFloorHtml(capFraction, floorFraction) {
+                    if (!Number.isFinite(capFraction) && !Number.isFinite(floorFraction)) return `<span class="badge zero mono">-</span>`;
+                    const capPct = Number.isFinite(capFraction) ? (capFraction * 100).toFixed(2) : "-";
+                    const floorPct = Number.isFinite(floorFraction) ? (floorFraction * 100).toFixed(2) : "-";
+                    return `<span class="badge warn mono">cap ${capPct}% / floor ${floorPct}%</span>`;
+                }
+
+                function render(rows) {
+                    const filtered = applyFilterSort(rows);
+                    state.rows = filtered;
+
+                    const now = Date.now();
+                    const lastAt = state.lastRunAt ? fmtDateLocal(state.lastRunAt) : "-";
+
+                    const oneHourCount = rows.length;
+                    const shown = filtered.length;
+
+                    els.summary.textContent = `1H 페어 ${oneHourCount}개 · 표시 ${shown}개`;
+
+                    const lines = [];
+                    lines.push(`마지막 업데이트: ${lastAt}`);
+                    if (state.lastError) lines.push(`최근 오류: ${state.lastError}`);
+                    lines.push(`프리미엄인덱스: ${state.premium.size}개 / 24h티커: ${els.with24h.checked ? state.ticker24.size + "개" : "OFF"} / exchangeInfo: ${state.exchange.size}개`);
+                    lines.push(`다음 자동 갱신: ${els.auto.checked ? `${Number(els.refreshSec.value || 60)}초` : "OFF"}`);
+                    els.status.textContent = lines.join("\n");
+
+                    if (filtered.length === 0) {
+                        els.tbody.innerHTML = `
+                            <tr>
+                                <td colspan="10" class="muted">
+                                    현재 조건에 맞는 데이터가 없습니다.
+                                    (1시간 펀딩 심볼이 없거나, 필터/거래대금 조건에 의해 숨겨졌을 수 있음)
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
+
+                    const html = filtered
+                        .map(r => {
+                            const dailyPct = Number.isFinite(r.lastFundingRate) ? r.lastFundingRate * 24 * 100 : NaN;
+                            const annualPct = Number.isFinite(r.lastFundingRate) ? r.lastFundingRate * 24 * 365 * 100 : NaN;
+
+                            const vol = Number.isFinite(r.quoteVolume) ? fmtNumber(r.quoteVolume, 0) : "-";
+                            const chg = Number.isFinite(r.priceChangePercent) ? r.priceChangePercent : NaN;
+
+                            const chgBadge =
+                                Number.isFinite(chg)
+                                    ? `<span class="badge ${chg > 0 ? "pos" : chg < 0 ? "neg" : "zero"} mono">${chg > 0 ? "+" : ""}${chg.toFixed(2)}%</span>`
+                                    : `<span class="badge zero mono">-</span>`;
+
+                            return `
+                                <tr>
+                                    <td class="mono nowrap">${r.symbol}</td>
+                                    <td class="mono">1h</td>
+                                    <td class="nowrap">
+                                        ${fundingBadgeHtml(r.lastFundingRate)}
+                                        <div class="small muted mono">day ${fmtPct(dailyPct, 3)} · yr ${fmtPct(annualPct, 1)}</div>
+                                    </td>
+                                    <td class="mono nowrap">${fmtCountdown(r.nextFundingTime)}</td>
+                                    <td class="mono nowrap">${fmtDateUTC(r.nextFundingTime)}</td>
+                                    <td class="mono nowrap">${fmtDateLocal(r.nextFundingTime)}</td>
+                                    <td class="right mono">${Number.isFinite(r.markPrice) ? fmtNumber(r.markPrice, 6) : "-"}</td>
+                                    <td class="right mono">${vol}</td>
+                                    <td class="right">${chgBadge}</td>
+                                    <td class="nowrap">${capFloorHtml(r.cap, r.floor)}</td>
+                                </tr>
+                            `;
+                        })
+                        .join("");
+
+                    els.tbody.innerHTML = html;
+                }
+
+                function toCsv(rows) {
+                    const header = [
+                        "symbol",
+                        "intervalHours",
+                        "lastFundingRate(%)",
+                        "nextFundingTime(UTC)",
+                        "nextFundingTime(Local)",
+                        "markPrice",
+                        "quoteVolume(24h,USDT)",
+                        "priceChangePercent(24h,%)",
+                        "cap(%)",
+                        "floor(%)",
+                    ];
+
+                    const lines = [header.join(",")];
+
+                    for (const r of rows) {
+                        const row = [
+                            r.symbol,
+                            r.intervalHours,
+                            Number.isFinite(r.lastFundingRate) ? (r.lastFundingRate * 100).toFixed(6) : "",
+                            Number.isFinite(r.nextFundingTime) ? fmtDateUTC(r.nextFundingTime) : "",
+                            Number.isFinite(r.nextFundingTime) ? fmtDateLocal(r.nextFundingTime) : "",
+                            Number.isFinite(r.markPrice) ? String(r.markPrice) : "",
+                            Number.isFinite(r.quoteVolume) ? String(r.quoteVolume) : "",
+                            Number.isFinite(r.priceChangePercent) ? String(r.priceChangePercent) : "",
+                            Number.isFinite(r.cap) ? String(r.cap * 100) : "",
+                            Number.isFinite(r.floor) ? String(r.floor * 100) : "",
+                        ];
+                        lines.push(row.map(v => `"${String(v).replaceAll('"', '""')}"`).join(","));
+                    }
+
+                    return lines.join("\n");
+                }
+
+                async function copyCsv() {
+                    const csv = toCsv(state.rows);
+                    try {
+                        await navigator.clipboard.writeText(csv);
+                        els.btnCopy.textContent = "복사 완료!";
+                        setTimeout(() => (els.btnCopy.textContent = "현재 표 CSV 복사"), 1000);
+                    } catch (e) {
+                        alert("클립보드 복사가 막혀있습니다. (HTTPS 환경/권한 확인)");
+                    }
+                }
+
+                async function runOnce() {
+                    state.lastError = "";
+                    const startedAt = Date.now();
+
+                    await loadExchangeInfoIfNeeded();
+                    await Promise.all([loadPremiumIndex(), loadTicker24IfNeeded()]);
+
+                    const fundingInfo = await fetchJson("/fapi/v1/fundingInfo");
+                    const rows = buildRows(fundingInfo);
+
+                    state.lastRunAt = Date.now();
+                    render(rows);
+
+                    const elapsed = Date.now() - startedAt;
+                    if (els.with24h.checked && elapsed > 12000) {
+                        state.lastError = "응답이 느립니다. 갱신주기/24h옵션을 줄여보세요.";
+                    }
+                }
+
+                function scheduleNext() {
+                    if (state.timer) clearInterval(state.timer);
+                    state.timer = null;
+
+                    if (!els.auto.checked) return;
+
+                    const sec = Math.max(10, Number(els.refreshSec.value || 60));
+                    state.timer = setInterval(() => {
+                        runOnce().catch(err => {
+                            state.lastError = err?.message ? String(err.message) : String(err);
+                            render(state.rows);
+                        });
+                    }, sec * 1000);
+                }
+
+                function bindEvents() {
+                    const rerun = () => render(state.rows);
+
+                    els.q.addEventListener("input", rerun);
+                    els.minVol.addEventListener("input", rerun);
+                    els.sortKey.addEventListener("change", rerun);
+                    els.asc.addEventListener("change", rerun);
+
+                    els.refreshSec.addEventListener("change", scheduleNext);
+                    els.auto.addEventListener("change", scheduleNext);
+
+                    els.with24h.addEventListener("change", async () => {
+                        state.ticker24At = 0;
+                        state.ticker24 = new Map();
+                        await runOnce().catch(err => {
+                            state.lastError = err?.message ? String(err.message) : String(err);
+                            render(state.rows);
+                        });
+                    });
+
+                    els.btnRefresh.addEventListener("click", async () => {
+                        await runOnce().catch(err => {
+                            state.lastError = err?.message ? String(err.message) : String(err);
+                            render(state.rows);
+                        });
+                    });
+
+                    els.btnCopy.addEventListener("click", copyCsv);
+
+                    window.addEventListener("visibilitychange", () => {
+                        if (document.visibilityState === "visible" && els.auto.checked) {
+                            runOnce().catch(() => {});
+                        }
+                    });
+                }
+
+                async function boot() {
+                    bindEvents();
+
+                    try {
+                        await runOnce();
+                    } catch (err) {
+                        state.lastError = err?.message ? String(err.message) : String(err);
+                        els.tbody.innerHTML = `
+                            <tr>
+                                <td colspan="10" class="muted">
+                                    API 호출 실패: ${state.lastError}
+                                    <div class="small muted" style="margin-top: 6px;">
+                                        브라우저 네트워크/차단/CORS/레이트리밋 가능성이 있습니다.
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }
+
+                    scheduleNext();
+                }
+
+                boot().catch(() => {});
+            })();
+        </script>
+    </body>
+</html>
