@@ -1,0 +1,1330 @@
+<!doctype html>
+<html lang="ko-KR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp — X일 횡보(롱 반복형) 스캐너</title>
+        <style>
+            :root {
+                --bg: #0b1020;
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel2: rgba(255, 255, 255, 0.08);
+                --text: rgba(255, 255, 255, 0.92);
+                --muted: rgba(255, 255, 255, 0.65);
+                --line: rgba(255, 255, 255, 0.12);
+                --good: #7ee787;
+                --bad: #ff7b72;
+                --warn: #ffa657;
+                --btn: rgba(255, 255, 255, 0.10);
+                --btnHover: rgba(255, 255, 255, 0.16);
+                --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+                --radius: 14px;
+            }
+
+            * { box-sizing: border-box; }
+            body {
+                margin: 0;
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+                color: var(--text);
+                background: radial-gradient(1000px 600px at 10% 0%, rgba(99, 102, 241, 0.20), transparent 60%),
+                            radial-gradient(1000px 700px at 90% 10%, rgba(16, 185, 129, 0.12), transparent 60%),
+                            radial-gradient(900px 600px at 50% 100%, rgba(244, 63, 94, 0.10), transparent 60%),
+                            var(--bg);
+            }
+
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 22px 16px 40px;
+            }
+
+            header {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: flex-end;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin: 0;
+                letter-spacing: -0.3px;
+            }
+
+            .sub {
+                font-size: 12px;
+                color: var(--muted);
+                margin-top: 6px;
+                line-height: 1.55;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: 1.2fr 0.8fr;
+                gap: 14px;
+                align-items: start;
+            }
+
+            @media (max-width: 980px) {
+                .grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .card {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+
+            .cardHead {
+                padding: 14px 14px 10px;
+                border-bottom: 1px solid var(--line);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .cardTitle {
+                font-weight: 650;
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.88);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .badge {
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--muted);
+            }
+
+            .cardBody {
+                padding: 14px;
+            }
+
+            .controls {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px;
+            }
+
+            @media (max-width: 980px) {
+                .controls {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            .field label {
+                display: block;
+                font-size: 12px;
+                color: var(--muted);
+                margin: 0 0 6px;
+            }
+
+            select, input[type="number"], input[type="text"] {
+                width: 100%;
+                padding: 10px 10px;
+                border-radius: 10px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.25);
+                color: var(--text);
+                outline: none;
+            }
+
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 12px;
+                align-items: center;
+            }
+
+            .btn {
+                appearance: none;
+                border: 1px solid var(--line);
+                background: var(--btn);
+                color: var(--text);
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-weight: 650;
+                cursor: pointer;
+                transition: 140ms ease;
+            }
+
+            .btn:hover { background: var(--btnHover); }
+            .btn:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+            }
+
+            .btnPrimary {
+                border-color: rgba(16, 185, 129, 0.35);
+                background: rgba(16, 185, 129, 0.14);
+            }
+            .btnPrimary:hover { background: rgba(16, 185, 129, 0.20); }
+
+            .btnDanger {
+                border-color: rgba(244, 63, 94, 0.38);
+                background: rgba(244, 63, 94, 0.14);
+            }
+            .btnDanger:hover { background: rgba(244, 63, 94, 0.20); }
+
+            .switch {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12px;
+                color: var(--muted);
+                user-select: none;
+            }
+
+            .switch input {
+                width: 18px;
+                height: 18px;
+            }
+
+            .progressBox {
+                margin-top: 12px;
+                padding: 12px;
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                background: rgba(0, 0, 0, 0.18);
+            }
+
+            .progressTop {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+            }
+
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            }
+
+            .bar {
+                height: 10px;
+                border-radius: 999px;
+                overflow: hidden;
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid var(--line);
+            }
+
+            .bar > div {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, rgba(16, 185, 129, 0.9), rgba(99, 102, 241, 0.9));
+                transition: width 120ms ease;
+            }
+
+            .smallGrid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(10, 14, 28, 0.85);
+                backdrop-filter: blur(6px);
+                border-bottom: 1px solid var(--line);
+                padding: 10px 10px;
+                text-align: left;
+                color: rgba(255, 255, 255, 0.82);
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            tbody td {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 9px 10px;
+                vertical-align: middle;
+                white-space: nowrap;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 3px 9px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.06);
+                color: rgba(255, 255, 255, 0.86);
+                font-size: 12px;
+                white-space: nowrap;
+            }
+
+            .good { color: var(--good); }
+            .bad { color: var(--bad); }
+            .warn { color: var(--warn); }
+
+            .right { text-align: right; }
+            .muted { color: var(--muted); }
+
+            .kv {
+                display: grid;
+                grid-template-columns: 120px 1fr;
+                gap: 10px;
+                align-items: center;
+                font-size: 12px;
+                color: var(--muted);
+                margin-top: 8px;
+            }
+
+            .kv b {
+                color: rgba(255, 255, 255, 0.82);
+                font-weight: 700;
+            }
+
+            .log {
+                height: 200px;
+                overflow: auto;
+                padding: 10px;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.22);
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.80);
+                line-height: 1.5;
+                white-space: pre-wrap;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <header>
+                <div>
+                    <h1>바이낸스 USDT 무기한 — 최근 X일 “롱 반복형 횡보” 스캐너</h1>
+                    <div class="sub">
+                        최근 <b>X일</b> 동안 (1) 레인지가 좁고, (2) 드리프트가 작고, (3) <b>하단→중상단 리바운드(롱 사이클)</b>가 반복된 심볼만 필터링합니다.<br />
+                        정렬: <b>롱 사이클(Bounce) 횟수</b> ↓, 그 다음 <b>레인지 폭(%)</b> ↑(좁을수록 우선)
+                    </div>
+                </div>
+                <div class="pill mono">API: fapi.binance.com</div>
+            </header>
+
+            <div class="grid">
+                <section class="card">
+                    <div class="cardHead">
+                        <div class="cardTitle">
+                            설정
+                            <span class="badge">15m / 1h / 4h / 1d</span>
+                        </div>
+                        <div class="badge mono" id="statusBadge">IDLE</div>
+                    </div>
+                    <div class="cardBody">
+                        <div class="controls">
+                            <div class="field">
+                                <label>타임프레임</label>
+                                <select id="tfSelect">
+                                    <option value="15m">15m</option>
+                                    <option value="1h" selected>1h</option>
+                                    <option value="4h">4h</option>
+                                    <option value="1d">1d</option>
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label>최근 X일</label>
+                                <input id="daysInput" type="number" min="1" max="365" step="1" value="14" />
+                            </div>
+
+                            <div class="field">
+                                <label>Band (레인지 폭 % ≤)</label>
+                                <input id="bandInput" type="number" min="0.2" max="40" step="0.1" value="6.0" />
+                            </div>
+
+                            <div class="field">
+                                <label>Drift (시작~끝 변화% ≤)</label>
+                                <input id="driftInput" type="number" min="0.1" max="40" step="0.1" value="3.0" />
+                            </div>
+
+                            <div class="field">
+                                <label>Entry Zone 상단(레인지 %)</label>
+                                <input id="entryZoneInput" type="number" min="5" max="45" step="1" value="25" />
+                            </div>
+
+                            <div class="field">
+                                <label>Target Zone(레인지 %)</label>
+                                <input id="targetZoneInput" type="number" min="50" max="95" step="1" value="70" />
+                            </div>
+
+                            <div class="field">
+                                <label>Stop Buffer(저점 아래 %)</label>
+                                <input id="stopBufInput" type="number" min="0.0" max="10" step="0.1" value="1.0" />
+                            </div>
+
+                            <div class="field">
+                                <label>최소 롱 사이클 수(N)</label>
+                                <input id="minBouncesInput" type="number" min="1" max="50" step="1" value="3" />
+                            </div>
+
+                            <div class="field">
+                                <label>최소 레인지 폭(%) ≥</label>
+                                <input id="minRangeInput" type="number" min="0.0" max="40" step="0.1" value="1.2" />
+                            </div>
+
+                            <div class="field">
+                                <label>동시 요청(concurrency)</label>
+                                <input id="concInput" type="number" min="1" max="12" step="1" value="5" />
+                            </div>
+
+                            <div class="field">
+                                <label>요청 간 딜레이(ms)</label>
+                                <input id="delayInput" type="number" min="0" max="2000" step="10" value="120" />
+                            </div>
+
+                            <div class="field">
+                                <label>최대 페이지(499바/페이지)</label>
+                                <input id="maxPagesInput" type="number" min="1" max="12" step="1" value="2" />
+                            </div>
+
+                            <div class="field">
+                                <label>검색(심볼)</label>
+                                <input id="searchInput" type="text" placeholder="예: BTC, ETH, SOL..." />
+                            </div>
+
+                            <div class="field">
+                                <label>표시 Top N</label>
+                                <input id="topInput" type="number" min="10" max="500" step="10" value="120" />
+                            </div>
+
+                            <div class="field">
+                                <label>상태(TRADING만)</label>
+                                <select id="tradingSelect">
+                                    <option value="1" selected>TRADING만</option>
+                                    <option value="0">전체(비권장)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <label class="switch">
+                                <input id="wicksToggle" type="checkbox" checked />
+                                레인지 계산에 윅 포함(고/저) — 보수적
+                            </label>
+
+                            <label class="switch">
+                                <input id="liveToggle" type="checkbox" checked />
+                                실시간 표 갱신
+                            </label>
+                        </div>
+
+                        <div class="row">
+                            <button class="btn btnPrimary" id="startBtn">스캔 시작</button>
+                            <button class="btn btnDanger" id="stopBtn" disabled>중지</button>
+                            <button class="btn" id="clearBtn">초기화</button>
+                            <button class="btn" id="exportBtn" disabled>CSV 내보내기</button>
+                        </div>
+
+                        <div class="progressBox">
+                            <div class="progressTop">
+                                <div class="mono" id="progressText">대기 중</div>
+                                <div class="mono muted" id="progressMeta">0 / 0</div>
+                            </div>
+                            <div class="bar"><div id="progressBar"></div></div>
+
+                            <div class="kv">
+                                <b>횡보 판정</b>
+                                <span class="mono muted" id="ruleText">-</span>
+
+                                <b>주의</b>
+                                <span class="muted">
+                                    심볼이 많아 429(레이트리밋)이 뜰 수 있어요. 느리면 딜레이↑ / concurrency↓.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="cardHead">
+                        <div class="cardTitle">
+                            로그 / 상태
+                            <span class="badge">429 자동 백오프</span>
+                        </div>
+                        <div class="badge mono" id="elapsedText">00:00</div>
+                    </div>
+                    <div class="cardBody">
+                        <div class="smallGrid">
+                            <div class="pill">
+                                <span class="muted">심볼</span>
+                                <span class="mono" id="symCount">-</span>
+                            </div>
+                            <div class="pill">
+                                <span class="muted">성공</span>
+                                <span class="mono good" id="okCount">0</span>
+                            </div>
+                            <div class="pill">
+                                <span class="muted">실패</span>
+                                <span class="mono bad" id="errCount">0</span>
+                            </div>
+                            <div class="pill">
+                                <span class="muted">통과</span>
+                                <span class="mono" id="passCount">0</span>
+                            </div>
+                        </div>
+
+                        <div style="height: 10px;"></div>
+                        <div class="log mono" id="logBox"></div>
+                    </div>
+                </section>
+            </div>
+
+            <div style="height: 14px;"></div>
+
+            <section class="card">
+                <div class="cardHead">
+                    <div class="cardTitle">
+                        결과 (최근 X일 “롱 반복형 횡보” 통과)
+                        <span class="badge">Bounce ↓ / 폭 ↑</span>
+                    </div>
+                    <div class="badge mono" id="renderInfo">-</div>
+                </div>
+                <div class="cardBody" style="padding: 0;">
+                    <div style="overflow: auto; max-height: 600px;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="right">#</th>
+                                    <th>Symbol</th>
+                                    <th class="right">Bounce</th>
+                                    <th class="right">폭(%)</th>
+                                    <th class="right">Drift(%)</th>
+                                    <th class="right">Low</th>
+                                    <th class="right">High</th>
+                                    <th class="right">Entry≤</th>
+                                    <th class="right">Target≥</th>
+                                    <th class="right">Stop&lt;</th>
+                                    <th>윈도우 시작(서울)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody">
+                                <tr>
+                                    <td colspan="11" class="muted" style="padding: 14px;">
+                                        아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <script>
+            "use strict";
+
+            const BASE_URL = "https://fapi.binance.com";
+
+            const els = {
+                statusBadge: document.getElementById("statusBadge"),
+                elapsedText: document.getElementById("elapsedText"),
+
+                tfSelect: document.getElementById("tfSelect"),
+                daysInput: document.getElementById("daysInput"),
+                bandInput: document.getElementById("bandInput"),
+                driftInput: document.getElementById("driftInput"),
+                entryZoneInput: document.getElementById("entryZoneInput"),
+                targetZoneInput: document.getElementById("targetZoneInput"),
+                stopBufInput: document.getElementById("stopBufInput"),
+                minBouncesInput: document.getElementById("minBouncesInput"),
+                minRangeInput: document.getElementById("minRangeInput"),
+                concInput: document.getElementById("concInput"),
+                delayInput: document.getElementById("delayInput"),
+                maxPagesInput: document.getElementById("maxPagesInput"),
+                tradingSelect: document.getElementById("tradingSelect"),
+                searchInput: document.getElementById("searchInput"),
+                topInput: document.getElementById("topInput"),
+
+                wicksToggle: document.getElementById("wicksToggle"),
+                liveToggle: document.getElementById("liveToggle"),
+
+                startBtn: document.getElementById("startBtn"),
+                stopBtn: document.getElementById("stopBtn"),
+                clearBtn: document.getElementById("clearBtn"),
+                exportBtn: document.getElementById("exportBtn"),
+
+                progressText: document.getElementById("progressText"),
+                progressMeta: document.getElementById("progressMeta"),
+                progressBar: document.getElementById("progressBar"),
+                ruleText: document.getElementById("ruleText"),
+
+                symCount: document.getElementById("symCount"),
+                okCount: document.getElementById("okCount"),
+                errCount: document.getElementById("errCount"),
+                passCount: document.getElementById("passCount"),
+
+                logBox: document.getElementById("logBox"),
+                renderInfo: document.getElementById("renderInfo"),
+
+                tbody: document.getElementById("tbody")
+            };
+
+            const state = {
+                isRunning: false,
+                abortController: null,
+                startedAt: 0,
+                tickTimer: null,
+
+                symbols: [],
+                queue: [],
+                ok: 0,
+                err: 0,
+                done: 0,
+
+                passed: []      // 필터 통과한 것만
+            };
+
+            function logLine(msg, type = "info") {
+                const ts = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+                const prefix = type === "err" ? "[ERR]" : (type === "warn" ? "[WARN]" : "[LOG]");
+                els.logBox.textContent += `${ts} ${prefix} ${msg}\n`;
+                els.logBox.scrollTop = els.logBox.scrollHeight;
+            }
+
+            function clampNum(n, min, max, fallback) {
+                const x = Number(n);
+                if (!Number.isFinite(x)) return fallback;
+                return Math.min(max, Math.max(min, x));
+            }
+
+            function intervalToMs(interval) {
+                const m = String(interval).match(/^(\d+)([mhdwM])$/);
+                if (!m) return null;
+                const num = Number(m[1]);
+                const unit = m[2];
+
+                if (unit === "m") return num * 60 * 1000;
+                if (unit === "h") return num * 60 * 60 * 1000;
+                if (unit === "d") return num * 24 * 60 * 60 * 1000;
+                if (unit === "w") return num * 7 * 24 * 60 * 60 * 1000;
+                if (unit === "M") return num * 30 * 24 * 60 * 60 * 1000;
+                return null;
+            }
+
+            function widthPct(minVal, maxVal) {
+                const mid = (minVal + maxVal) / 2;
+                if (!Number.isFinite(mid) || mid === 0) return Infinity;
+                return ((maxVal - minVal) / mid) * 100;
+            }
+
+            function toSeoul(ts) {
+                try {
+                    return new Date(ts).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+                } catch (_) {
+                    return new Date(ts).toISOString().replace(".000Z", "Z");
+                }
+            }
+
+            async function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            async function fetchJsonWithBackoff(url, signal, maxRetries = 6) {
+                let attempt = 0;
+
+                while (true) {
+                    attempt += 1;
+
+                    let res;
+                    try {
+                        res = await fetch(url, { method: "GET", headers: { "accept": "application/json" }, signal });
+                    } catch (e) {
+                        if (signal && signal.aborted) {
+                            throw new Error("aborted");
+                        }
+                        throw e;
+                    }
+
+                    if (res.ok) {
+                        return res.json();
+                    }
+
+                    const status = res.status;
+                    const retryAfterHeader = res.headers.get("retry-after");
+                    const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+
+                    let bodyText = "";
+                    try {
+                        bodyText = await res.text();
+                    } catch (_) {
+                        bodyText = "";
+                    }
+
+                    const isRate = (status === 429 || status === 418);
+                    if (isRate && attempt <= maxRetries) {
+                        let waitSec = retryAfterSec;
+                        if (!Number.isFinite(waitSec) || waitSec <= 0) {
+                            waitSec = Math.min(60, Math.pow(1.8, attempt));
+                        }
+                        logLine(`${status} 레이트리밋 감지 → ${waitSec.toFixed(1)}s 백오프`, "warn");
+                        await sleep(Math.floor(waitSec * 1000));
+                        continue;
+                    }
+
+                    throw new Error(`HTTP ${status} :: ${bodyText.slice(0, 240)}`);
+                }
+            }
+
+            async function getUsdtPerpSymbols(signal, onlyTrading) {
+                const url = `${BASE_URL}/fapi/v1/exchangeInfo`;
+                const data = await fetchJsonWithBackoff(url, signal);
+
+                const list = Array.isArray(data?.symbols) ? data.symbols : [];
+                const syms = list
+                    .filter((s) => {
+                        if (!s) return false;
+                        if (s.contractType !== "PERPETUAL") return false;
+                        if (s.quoteAsset !== "USDT") return false;
+                        if (onlyTrading && s.status !== "TRADING") return false;
+                        return true;
+                    })
+                    .map((s) => s.symbol);
+
+                return Array.from(new Set(syms));
+            }
+
+            async function getKlinesPage(symbol, interval, limit, endTime, signal) {
+                const qs = new URLSearchParams({
+                    symbol,
+                    interval,
+                    limit: String(limit)
+                });
+                if (Number.isFinite(endTime) && endTime > 0) {
+                    qs.set("endTime", String(Math.floor(endTime)));
+                }
+                const url = `${BASE_URL}/fapi/v1/klines?${qs.toString()}`;
+                return fetchJsonWithBackoff(url, signal);
+            }
+
+            function calcBarsNeeded(days, interval) {
+                const ms = intervalToMs(interval);
+                if (!ms) return 0;
+                const dayMs = 24 * 60 * 60 * 1000;
+                return Math.ceil((days * dayMs) / ms);
+            }
+
+            async function fetchKlinesPaged(symbol, interval, barsNeeded, maxPages, signal) {
+                const pageCap = 499;
+                const maxBars = maxPages * pageCap;
+                const want = Math.min(barsNeeded, maxBars);
+
+                let endTime = Date.now();
+                let all = [];
+                let pages = 0;
+
+                while (all.length < want && pages < maxPages) {
+                    pages += 1;
+
+                    const remaining = want - all.length;
+                    const limit = Math.min(pageCap, remaining);
+
+                    const batch = await getKlinesPage(symbol, interval, limit, endTime, signal);
+                    if (!Array.isArray(batch) || batch.length === 0) {
+                        break;
+                    }
+
+                    // batch is chronological ascending
+                    // we are paging backwards using endTime, so we unshift at front to keep overall chronological
+                    all = batch.concat(all);
+
+                    const firstOpen = Number(batch[0]?.[0]);
+                    if (!Number.isFinite(firstOpen)) break;
+
+                    endTime = firstOpen - 1;
+
+                    // safety: if server returns same firstOpen repeatedly, break
+                    if (pages >= 2 && batch.length > 0) {
+                        const newFirst = Number(all[0]?.[0]);
+                        if (Number.isFinite(newFirst) && newFirst === firstOpen) {
+                            break;
+                        }
+                    }
+                }
+
+                if (all.length > want) {
+                    all = all.slice(all.length - want);
+                }
+
+                return {
+                    candles: all,
+                    effectiveBars: all.length,
+                    capped: (barsNeeded > maxBars),
+                    maxBars
+                };
+            }
+
+            function computeLongCycleRangeStats(klines, cfg) {
+                // Klines format:
+                // [ openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, ... ]
+                const n = klines.length;
+                if (n < 30) return null;
+
+                const highs = new Array(n);
+                const lows = new Array(n);
+                const closes = new Array(n);
+                const times = new Array(n);
+
+                for (let i = 0; i < n; i += 1) {
+                    const k = klines[i];
+                    times[i] = Number(k[0]);
+                    highs[i] = Number(k[2]);
+                    lows[i] = Number(k[3]);
+                    closes[i] = Number(k[4]);
+                }
+
+                const rangeLow = cfg.useWicks ? Math.min(...lows) : Math.min(...closes);
+                const rangeHigh = cfg.useWicks ? Math.max(...highs) : Math.max(...closes);
+
+                if (!Number.isFinite(rangeLow) || !Number.isFinite(rangeHigh) || rangeLow <= 0 || rangeHigh <= 0) {
+                    return null;
+                }
+
+                const rangeWidth = widthPct(rangeLow, rangeHigh);
+
+                const firstClose = closes[0];
+                const lastClose = closes[n - 1];
+                const drift = (Number.isFinite(firstClose) && firstClose > 0)
+                    ? (Math.abs(lastClose - firstClose) / firstClose) * 100
+                    : Infinity;
+
+                const rangeAbs = rangeHigh - rangeLow;
+                const entryFrac = cfg.entryZonePct / 100;
+                const targetFrac = cfg.targetZonePct / 100;
+
+                const entryUpper = rangeLow + rangeAbs * entryFrac;
+                const targetLevel = rangeLow + rangeAbs * targetFrac;
+                const stopLevel = rangeLow * (1 - cfg.stopBufferPct / 100);
+
+                // Long cycle counting (롱 반복):
+                // Entry trigger: close <= entryUpper
+                // Success: 이후 high >= targetLevel BEFORE (low < stopLevel)
+                // After success, next search continues after that bar.
+                let bounceCount = 0;
+                let i = 0;
+
+                while (i < n) {
+                    while (i < n && !(closes[i] <= entryUpper)) {
+                        i += 1;
+                    }
+                    if (i >= n) break;
+
+                    const entryPrice = closes[i];
+                    let j = i + 1;
+                    let succeeded = false;
+
+                    while (j < n) {
+                        if (cfg.useWicks) {
+                            if (lows[j] < stopLevel) {
+                                break; // fail cycle
+                            }
+                            if (highs[j] >= targetLevel) {
+                                succeeded = true;
+                                break;
+                            }
+                        } else {
+                            // close-based stop/target (덜 엄격)
+                            if (closes[j] < stopLevel) {
+                                break;
+                            }
+                            if (closes[j] >= targetLevel) {
+                                succeeded = true;
+                                break;
+                            }
+                        }
+                        j += 1;
+                    }
+
+                    if (succeeded) {
+                        // optional: ensure profit potential is not tiny relative to entry
+                        const profitPct = (entryPrice > 0) ? ((targetLevel - entryPrice) / entryPrice) * 100 : 0;
+                        if (profitPct >= cfg.minProfitPct) {
+                            bounceCount += 1;
+                        }
+                        i = j + 1; // continue searching after target hit
+                    } else {
+                        i = j + 1; // continue after failure/break
+                    }
+                }
+
+                return {
+                    rangeLow,
+                    rangeHigh,
+                    rangeWidthPct: rangeWidth,
+                    driftPct: drift,
+                    entryUpper,
+                    targetLevel,
+                    stopLevel,
+                    bounceCount,
+                    windowStartTime: times[0]
+                };
+            }
+
+            function setRunningUI(running) {
+                els.startBtn.disabled = running;
+                els.stopBtn.disabled = !running;
+                els.exportBtn.disabled = running || state.passed.length === 0;
+                els.statusBadge.textContent = running ? "RUNNING" : "IDLE";
+            }
+
+            function updateCountersUI() {
+                els.symCount.textContent = state.symbols.length ? String(state.symbols.length) : "-";
+                els.okCount.textContent = String(state.ok);
+                els.errCount.textContent = String(state.err);
+                els.passCount.textContent = String(state.passed.length);
+            }
+
+            function updateProgressUI() {
+                const total = state.symbols.length || 0;
+                const done = state.done || 0;
+                const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+
+                els.progressMeta.textContent = `${done} / ${total}`;
+                els.progressBar.style.width = `${pct.toFixed(2)}%`;
+
+                if (!state.isRunning) {
+                    els.progressText.textContent = "대기 중";
+                } else {
+                    els.progressText.textContent = `스캔 중... (${pct.toFixed(1)}%)`;
+                }
+            }
+
+            function tickElapsed() {
+                const sec = Math.floor((Date.now() - state.startedAt) / 1000);
+                const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+                const ss = String(sec % 60).padStart(2, "0");
+                els.elapsedText.textContent = `${mm}:${ss}`;
+            }
+
+            function getConfig() {
+                const interval = els.tfSelect.value;
+                const days = Math.floor(clampNum(els.daysInput.value, 1, 365, 14));
+                const bandPct = clampNum(els.bandInput.value, 0.2, 40, 6.0);
+                const driftMaxPct = clampNum(els.driftInput.value, 0.1, 40, 3.0);
+
+                const entryZonePct = Math.floor(clampNum(els.entryZoneInput.value, 5, 45, 25));
+                const targetZonePct = Math.floor(clampNum(els.targetZoneInput.value, 50, 95, 70));
+
+                const stopBufferPct = clampNum(els.stopBufInput.value, 0.0, 10, 1.0);
+                const minBounces = Math.floor(clampNum(els.minBouncesInput.value, 1, 50, 3));
+
+                const minRangePct = clampNum(els.minRangeInput.value, 0.0, 40, 1.2);
+
+                const concurrency = Math.floor(clampNum(els.concInput.value, 1, 12, 5));
+                const delayMs = Math.floor(clampNum(els.delayInput.value, 0, 2000, 120));
+                const maxPages = Math.floor(clampNum(els.maxPagesInput.value, 1, 12, 2));
+
+                const onlyTrading = els.tradingSelect.value === "1";
+                const useWicks = !!els.wicksToggle.checked;
+                const liveRender = !!els.liveToggle.checked;
+                const topN = Math.floor(clampNum(els.topInput.value, 10, 500, 120));
+
+                // Profit potential guard for counting cycle (너무 미세하면 “수익 반복” 의미가 줄어서 제외)
+                // 기본은 0.3% 정도 (수수료/슬리피지 감안)
+                const minProfitPct = 0.3;
+
+                els.daysInput.value = String(days);
+                els.bandInput.value = String(bandPct);
+                els.driftInput.value = String(driftMaxPct);
+                els.entryZoneInput.value = String(entryZonePct);
+                els.targetZoneInput.value = String(targetZonePct);
+                els.stopBufInput.value = String(stopBufferPct);
+                els.minBouncesInput.value = String(minBounces);
+                els.minRangeInput.value = String(minRangePct);
+                els.concInput.value = String(concurrency);
+                els.delayInput.value = String(delayMs);
+                els.maxPagesInput.value = String(maxPages);
+                els.topInput.value = String(topN);
+
+                const wicksText = useWicks ? "윅 포함(고/저)" : "종가 기준";
+                els.ruleText.textContent = `최근 ${days}일 · ${wicksText} · 폭≤${bandPct}% · drift≤${driftMaxPct}% · entry≤하단${entryZonePct}% · target≥${targetZonePct}% · stop=${stopBufferPct}% · bounce≥${minBounces}`;
+
+                return {
+                    interval,
+                    days,
+                    bandPct,
+                    driftMaxPct,
+                    entryZonePct,
+                    targetZonePct,
+                    stopBufferPct,
+                    minBounces,
+                    minRangePct,
+                    concurrency,
+                    delayMs,
+                    maxPages,
+                    onlyTrading,
+                    useWicks,
+                    liveRender,
+                    topN,
+                    minProfitPct
+                };
+            }
+
+            function sortAndFilterPassed(cfg) {
+                const q = String(els.searchInput.value || "").trim().toUpperCase();
+
+                let arr = state.passed.slice();
+                if (q) {
+                    arr = arr.filter((r) => r.symbol.includes(q));
+                }
+
+                arr.sort((a, b) => {
+                    if (b.bounceCount !== a.bounceCount) return b.bounceCount - a.bounceCount;
+                    if (a.rangeWidthPct !== b.rangeWidthPct) return a.rangeWidthPct - b.rangeWidthPct;
+                    if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
+                    return a.symbol.localeCompare(b.symbol);
+                });
+
+                return arr.slice(0, cfg.topN);
+            }
+
+            function renderTable() {
+                const cfg = getConfig();
+                const view = sortAndFilterPassed(cfg);
+
+                els.renderInfo.textContent = `표시 ${view.length} / 통과 ${state.passed.length} / 전체 ${state.symbols.length}`;
+
+                if (view.length === 0) {
+                    els.tbody.innerHTML = `
+                        <tr>
+                            <td colspan="11" class="muted" style="padding: 14px;">
+                                통과 결과가 없습니다. (Band/Drift/Entry/Target/Stop/N 값을 완화해보세요)
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                let html = "";
+                for (let i = 0; i < view.length; i += 1) {
+                    const r = view[i];
+                    html += `
+                        <tr>
+                            <td class="right mono muted">${i + 1}</td>
+                            <td class="mono"><b>${r.symbol}</b></td>
+                            <td class="right mono">${r.bounceCount}</td>
+                            <td class="right mono">${r.rangeWidthPct.toFixed(3)}</td>
+                            <td class="right mono muted">${r.driftPct.toFixed(3)}</td>
+                            <td class="right mono">${r.rangeLow.toFixed(6)}</td>
+                            <td class="right mono">${r.rangeHigh.toFixed(6)}</td>
+                            <td class="right mono muted">${r.entryUpper.toFixed(6)}</td>
+                            <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
+                            <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
+                            <td class="mono muted">${toSeoul(r.windowStartTime)}</td>
+                        </tr>
+                    `;
+                }
+
+                els.tbody.innerHTML = html;
+            }
+
+            function toCsv(rows) {
+                const header = [
+                    "symbol",
+                    "bounceCount",
+                    "rangeWidthPct",
+                    "driftPct",
+                    "rangeLow",
+                    "rangeHigh",
+                    "entryUpper",
+                    "targetLevel",
+                    "stopLevel",
+                    "windowStartSeoul"
+                ];
+
+                const lines = [header.join(",")];
+
+                for (const r of rows) {
+                    const line = [
+                        r.symbol,
+                        r.bounceCount,
+                        r.rangeWidthPct.toFixed(6),
+                        r.driftPct.toFixed(6),
+                        r.rangeLow,
+                        r.rangeHigh,
+                        r.entryUpper,
+                        r.targetLevel,
+                        r.stopLevel,
+                        `"${toSeoul(r.windowStartTime)}"`
+                    ].join(",");
+                    lines.push(line);
+                }
+
+                return lines.join("\n");
+            }
+
+            function downloadText(filename, text) {
+                const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                URL.revokeObjectURL(url);
+            }
+
+            async function workerLoop(cfg) {
+                const signal = state.abortController.signal;
+
+                while (state.queue.length > 0 && state.isRunning) {
+                    if (signal.aborted) break;
+
+                    const symbol = state.queue.shift();
+                    if (!symbol) continue;
+
+                    try {
+                        if (cfg.delayMs > 0) {
+                            await sleep(cfg.delayMs);
+                        }
+
+                        const barsNeeded = calcBarsNeeded(cfg.days, cfg.interval);
+                        const pageInfo = await fetchKlinesPaged(symbol, cfg.interval, barsNeeded, cfg.maxPages, signal);
+
+                        const klines = pageInfo.candles;
+                        if (!Array.isArray(klines) || klines.length < Math.min(30, barsNeeded)) {
+                            state.err += 1;
+                            state.done += 1;
+                            updateCountersUI();
+                            updateProgressUI();
+                            continue;
+                        }
+
+                        if (pageInfo.capped) {
+                            // 너무 큰 X일/너무 작은 maxPages일 때 경고. (로그 스팸 방지를 위해 가끔만)
+                            if (state.done % 60 === 0) {
+                                logLine(`주의: barsNeeded=${barsNeeded} > cap=${pageInfo.maxBars} (maxPages=${cfg.maxPages}) → 윈도우가 일부만 반영될 수 있음`, "warn");
+                            }
+                        }
+
+                        const stats = computeLongCycleRangeStats(klines, cfg);
+                        if (!stats) {
+                            state.err += 1;
+                            state.done += 1;
+                            updateCountersUI();
+                            updateProgressUI();
+                            continue;
+                        }
+
+                        const pass =
+                            stats.rangeWidthPct <= cfg.bandPct &&
+                            stats.rangeWidthPct >= cfg.minRangePct &&
+                            stats.driftPct <= cfg.driftMaxPct &&
+                            stats.bounceCount >= cfg.minBounces;
+
+                        if (pass) {
+                            state.passed.push({
+                                symbol,
+                                bounceCount: stats.bounceCount,
+                                rangeWidthPct: stats.rangeWidthPct,
+                                driftPct: stats.driftPct,
+                                rangeLow: stats.rangeLow,
+                                rangeHigh: stats.rangeHigh,
+                                entryUpper: stats.entryUpper,
+                                targetLevel: stats.targetLevel,
+                                stopLevel: stats.stopLevel,
+                                windowStartTime: stats.windowStartTime
+                            });
+                        }
+
+                        state.ok += 1;
+                        state.done += 1;
+
+                        if (cfg.liveRender && (state.done % 10 === 0 || state.done === state.symbols.length)) {
+                            renderTable();
+                        }
+                    } catch (e) {
+                        const msg = e?.message || String(e);
+                        if (msg === "aborted") {
+                            break;
+                        }
+                        state.err += 1;
+                        state.done += 1;
+                        logLine(`${symbol}: ${msg}`, "err");
+                    } finally {
+                        updateCountersUI();
+                        updateProgressUI();
+                    }
+                }
+            }
+
+            async function startScan() {
+                const cfg = getConfig();
+                if (state.isRunning) return;
+
+                if (cfg.targetZonePct <= cfg.entryZonePct + 5) {
+                    logLine("Target Zone은 Entry Zone보다 충분히 커야 해요. (권장: Entry 20~30, Target 65~80)", "warn");
+                }
+
+                state.isRunning = true;
+                state.abortController = new AbortController();
+                state.startedAt = Date.now();
+
+                setRunningUI(true);
+                els.exportBtn.disabled = true;
+
+                state.symbols = [];
+                state.queue = [];
+                state.ok = 0;
+                state.err = 0;
+                state.done = 0;
+                state.passed = [];
+                els.logBox.textContent = "";
+                els.tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="muted" style="padding: 14px;">
+                            스캔 준비 중...
+                        </td>
+                    </tr>
+                `;
+
+                updateCountersUI();
+                updateProgressUI();
+
+                logLine(`스캔 시작 · TF=${cfg.interval}, 최근=${cfg.days}일, Band≤${cfg.bandPct}%, Drift≤${cfg.driftMaxPct}%`);
+                logLine(`Entry 하단${cfg.entryZonePct}% · Target ${cfg.targetZonePct}% · StopBuf=${cfg.stopBufferPct}% · Bounce≥${cfg.minBounces}`);
+                logLine(`minRange≥${cfg.minRangePct}% · useWicks=${cfg.useWicks ? "ON" : "OFF"} · concurrency=${cfg.concurrency} · delayMs=${cfg.delayMs} · maxPages=${cfg.maxPages}`);
+
+                state.tickTimer = setInterval(() => {
+                    if (state.isRunning) tickElapsed();
+                }, 250);
+
+                try {
+                    els.progressText.textContent = "심볼 목록 불러오는 중...";
+                    state.symbols = await getUsdtPerpSymbols(state.abortController.signal, cfg.onlyTrading);
+                    state.queue = state.symbols.slice();
+                    updateCountersUI();
+                    updateProgressUI();
+                    logLine(`심볼 ${state.symbols.length}개 로드 완료`);
+
+                    const workers = [];
+                    for (let i = 0; i < cfg.concurrency; i += 1) {
+                        workers.push(workerLoop(cfg));
+                    }
+
+                    await Promise.all(workers);
+
+                    if (state.isRunning) {
+                        logLine("스캔 완료");
+                    } else {
+                        logLine("스캔 중지됨", "warn");
+                    }
+                } catch (e) {
+                    logLine(`전체 오류: ${e?.message || String(e)}`, "err");
+                } finally {
+                    stopScan(false);
+                    renderTable();
+                    els.exportBtn.disabled = state.passed.length === 0;
+                    updateCountersUI();
+                    updateProgressUI();
+                }
+            }
+
+            function stopScan(userClick = true) {
+                if (!state.isRunning && userClick) return;
+
+                state.isRunning = false;
+
+                if (state.abortController) {
+                    try { state.abortController.abort(); } catch (_) {}
+                }
+                state.abortController = null;
+
+                if (state.tickTimer) {
+                    clearInterval(state.tickTimer);
+                    state.tickTimer = null;
+                }
+
+                setRunningUI(false);
+                els.exportBtn.disabled = state.passed.length === 0;
+
+                if (userClick) {
+                    logLine("중지 요청", "warn");
+                }
+            }
+
+            function clearAll() {
+                if (state.isRunning) stopScan(true);
+
+                state.symbols = [];
+                state.queue = [];
+                state.ok = 0;
+                state.err = 0;
+                state.done = 0;
+                state.passed = [];
+
+                els.logBox.textContent = "";
+                els.progressText.textContent = "대기 중";
+                els.progressMeta.textContent = "0 / 0";
+                els.progressBar.style.width = "0%";
+                els.elapsedText.textContent = "00:00";
+                els.renderInfo.textContent = "-";
+
+                els.tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="muted" style="padding: 14px;">
+                            아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
+                        </td>
+                    </tr>
+                `;
+
+                setRunningUI(false);
+                updateCountersUI();
+                getConfig();
+                logLine("초기화 완료");
+            }
+
+            // Events
+            els.startBtn.addEventListener("click", () => startScan());
+            els.stopBtn.addEventListener("click", () => stopScan(true));
+            els.clearBtn.addEventListener("click", () => clearAll());
+
+            els.searchInput.addEventListener("input", () => renderTable());
+            els.topInput.addEventListener("change", () => renderTable());
+
+            els.exportBtn.addEventListener("click", () => {
+                const cfg = getConfig();
+                const rows = sortAndFilterPassed(cfg);
+                const csv = toCsv(rows);
+                const name = `range_long_cycles_${cfg.interval}_${cfg.days}d_band${cfg.bandPct}_drift${cfg.driftMaxPct}_b${cfg.minBounces}.csv`;
+                downloadText(name, csv);
+            });
+
+            // Init
+            function init() {
+                setRunningUI(false);
+                updateCountersUI();
+                getConfig();
+                logLine("준비 완료. 스캔 시작을 누르세요.");
+            }
+            init();
+        </script>
+    </body>
+</html>
