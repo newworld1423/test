@@ -33,7 +33,7 @@
             }
 
             .wrap {
-                max-width: 1320px;
+                max-width: 1380px;
                 margin: 0 auto;
                 padding: 22px 16px 40px;
             }
@@ -304,8 +304,9 @@
                 <div>
                     <h1>바이낸스 USDT 무기한 — “현재까지 이어지는 횡보” 스캐너</h1>
                     <div class="sub">
-                        설정한 최근 <b>X일</b> 윈도우 안에서, <b>마지막 캔들(현재)까지 이어지는 횡보 구간</b>을 심볼별로 1개씩 찾습니다.<br />
-                        그리고 그 구간의 <b>길이(바 수)</b>가 긴 순서대로 정렬합니다. (동률이면 폭 좁은 순)
+                        최근 <b>X일</b> 윈도우 안에서, <b>마지막 캔들(현재)까지 이어지는 횡보 구간</b>을 심볼별로 1개씩 찾습니다.<br />
+                        정렬: <b>현재까지 이어지는 횡보 길이(바 수)</b> 긴 순 → (동률이면) <b>폭 좁은 순</b>.
+                        표에는 <b>현재가(최근 종가)</b>, <b>레인지 내 위치%</b>, <b>진입라인/타겟/스탑</b>도 같이 표시됩니다.
                     </div>
                 </div>
                 <div class="pill mono">API: fapi.binance.com</div>
@@ -431,9 +432,9 @@
                                 <b>횡보 판정</b>
                                 <span class="mono muted" id="ruleText">-</span>
 
-                                <b>주의</b>
+                                <b>Entry Suggested</b>
                                 <span class="muted">
-                                    429(레이트리밋)이 뜨면 자동 백오프합니다. 느리면 딜레이↑ 또는 concurrency↓.
+                                    현재가가 Entry Zone 안이면 “현재가”, 아니면 “Entry Line(지정가 대기)”로 표시합니다.
                                 </span>
                             </div>
                         </div>
@@ -485,7 +486,7 @@
                     <div class="badge mono" id="renderInfo">-</div>
                 </div>
                 <div class="cardBody" style="padding: 0;">
-                    <div style="overflow: auto; max-height: 640px;">
+                    <div style="overflow: auto; max-height: 680px;">
                         <table>
                             <thead>
                                 <tr>
@@ -496,6 +497,12 @@
                                     <th class="right">폭%</th>
                                     <th class="right">Drift%</th>
                                     <th class="right">Bounce</th>
+                                    <th class="right">Now(종가)</th>
+                                    <th class="right">Pos%</th>
+                                    <th class="right">Entry Sug</th>
+                                    <th class="right">Entry Line</th>
+                                    <th class="right">Target</th>
+                                    <th class="right">Stop</th>
                                     <th class="right">Low</th>
                                     <th class="right">High</th>
                                     <th>시작(서울)</th>
@@ -503,7 +510,7 @@
                             </thead>
                             <tbody id="tbody">
                                 <tr>
-                                    <td colspan="10" class="muted" style="padding: 14px;">
+                                    <td colspan="16" class="muted" style="padding: 14px;">
                                         아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                                     </td>
                                 </tr>
@@ -575,7 +582,7 @@
                 err: 0,
                 done: 0,
 
-                results: [] // 최종 결과만(각 심볼당 0~1개)
+                results: [] // 심볼당 0~1개
             };
 
             function logLine(msg, type = "info") {
@@ -642,6 +649,10 @@
                 const mid = (minVal + maxVal) / 2;
                 if (!Number.isFinite(mid) || mid === 0) return Infinity;
                 return ((maxVal - minVal) / mid) * 100;
+            }
+
+            function clamp(x, min, max) {
+                return Math.min(max, Math.max(min, x));
             }
 
             async function fetchJsonWithBackoff(url, signal, maxRetries = 6) {
@@ -722,7 +733,6 @@
             }
 
             async function fetchKlinesWindow(symbol, interval, barsNeeded, signal) {
-                // 자동 페이지 수 계산 (최대 12페이지 cap)
                 const maxPages = Math.min(12, Math.max(1, Math.ceil(barsNeeded / PAGE_LIMIT)));
                 const want = Math.min(barsNeeded, maxPages * PAGE_LIMIT);
 
@@ -755,16 +765,11 @@
                     candles: all,
                     effectiveBars: all.length,
                     pagesUsed: pages,
-                    maxPages,
-                    capped: barsNeeded > maxPages * PAGE_LIMIT
+                    maxPages
                 };
             }
 
             function countBouncesInSegment(klines, segStartIdx, rangeLow, rangeHigh, cfg) {
-                // Bounce 정의:
-                // Entry: close <= entryUpper
-                // Success: 이후 target hit BEFORE stop breach
-                // stop/target 체크는 useWicks에 따라 (wicks: high/low, else: close)
                 const n = klines.length;
                 const last = n - 1;
 
@@ -783,7 +788,7 @@
                 let i = segStartIdx;
 
                 while (i < n) {
-                    // find entry
+                    // Entry trigger: close <= entryUpper
                     while (i < n) {
                         const close = Number(klines[i][4]);
                         if (Number.isFinite(close) && close <= entryUpper) break;
@@ -870,8 +875,7 @@
 
                 const lastClose = closes[n - 1];
 
-                // 후보 start index들을 "길이 긴 순(=i가 작은 순)"으로 검사하되,
-                // Bounce 필터가 ON이면 bounce 조건을 만족하는 최장 후보를 선택.
+                // 후보 start index (i가 작을수록 더 긴 구간)
                 const candidateIdx = [];
                 for (let i = 0; i < n - 1; i += 1) {
                     const rangeLow = sufMin[i];
@@ -897,13 +901,12 @@
 
                 if (candidateIdx.length === 0) return null;
 
-                // 가장 긴 후보부터 검사 (i 오름차순)
-                // 무한히 검사하면 느려질 수 있어 상위 K개만 bounce 체크 (정확성-속도 균형)
+                // Bounce 필터 ON이면 상위 K개만 bounce 체크
                 const K = cfg.bounceFilterEnabled ? 50 : 1;
                 const limit = Math.min(K, candidateIdx.length);
 
                 for (let c = 0; c < limit; c += 1) {
-                    const i = candidateIdx[c]; // i가 작은 게 더 긴 구간
+                    const i = candidateIdx[c];
                     const rangeLow = sufMin[i];
                     const rangeHigh = sufMax[i];
 
@@ -913,12 +916,24 @@
                         ? (Math.abs(lastClose - startClose) / startClose) * 100
                         : Infinity;
 
+                    const rangeAbs = rangeHigh - rangeLow;
+                    if (!(rangeAbs > 0)) continue;
+
+                    const entryLine = rangeLow + rangeAbs * (cfg.entryZonePct / 100);
+                    const targetLevel = rangeLow + rangeAbs * (cfg.targetZonePct / 100);
+                    const stopLevel = rangeLow * (1 - cfg.stopBufferPct / 100);
+
+                    const posPct = clamp(((lastClose - rangeLow) / rangeAbs) * 100, 0, 100);
+
                     let bounces = 0;
                     if (cfg.bounceFilterEnabled || cfg.alwaysComputeBounce) {
                         bounces = countBouncesInSegment(klines, i, rangeLow, rangeHigh, cfg);
                     }
 
                     if (!cfg.bounceFilterEnabled || bounces >= cfg.minBounces) {
+                        // Entry Suggested: 지금이 Entry Zone이면 Now, 아니면 Entry Line(대기)
+                        const entrySuggested = (Number.isFinite(lastClose) && lastClose <= entryLine) ? lastClose : entryLine;
+
                         return {
                             startIndex: i,
                             startTime: times[i],
@@ -927,13 +942,17 @@
                             driftPct: drift,
                             bounces,
                             rangeLow,
-                            rangeHigh
+                            rangeHigh,
+                            lastClose,
+                            posPct,
+                            entrySuggested,
+                            entryLine,
+                            targetLevel,
+                            stopLevel
                         };
                     }
                 }
 
-                // Bounce 조건이 너무 빡센 경우: (필터 ON인데 전부 실패)
-                // -> null 반환 (요청대로 “롱 반복형 횡보”로만 걸러줌)
                 return null;
             }
 
@@ -991,17 +1010,16 @@
                 const bounceFilterEnabled = !!els.bounceFilterToggle.checked;
                 const liveRender = !!els.liveToggle.checked;
 
-                // “수익 반복” 최소 의미 확보용 (너무 미세하면 bounce로 세도 의미가 적음)
+                // 너무 미세한 bounce는 의미가 적어서 가드
                 const minProfitPct = 0.3;
 
-                // 성능: 필터 OFF면 bounce 계산 안 해도 되지만, 표에는 bounce를 보여주고 싶을 수도 있음
+                // 표에 bounce를 보여주기 위해 기본 true
                 const alwaysComputeBounce = true;
 
                 const barsNeeded = calcBarsNeeded(days, interval);
                 const pagesNeeded = Math.min(12, Math.max(1, Math.ceil(barsNeeded / PAGE_LIMIT)));
-                const capped = barsNeeded > pagesNeeded * PAGE_LIMIT;
 
-                els.barsInfo.textContent = `${barsNeeded} bars (auto pages=${pagesNeeded}${capped ? ", capped" : ""})`;
+                els.barsInfo.textContent = `${barsNeeded} bars (auto pages=${pagesNeeded})`;
                 els.ruleText.textContent =
                     `윈도우=${days}d · 폭 ${minRangePct}~${bandPct}% · drift≤${driftMaxPct}% · entry≤${entryZonePct}% · target≥${targetZonePct}% · stop=${stopBufferPct}% · bounce≥${minBounces}${bounceFilterEnabled ? "" : " (OFF)"}`;
 
@@ -1028,7 +1046,6 @@
             }
 
             function sortResults(arr) {
-                // 요구사항: "현재까지 횡보 길이" 긴 순
                 const out = arr.slice();
                 out.sort((a, b) => {
                     if (b.lenBars !== a.lenBars) return b.lenBars - a.lenBars;
@@ -1057,8 +1074,8 @@
                 if (view.length === 0) {
                     els.tbody.innerHTML = `
                         <tr>
-                            <td colspan="10" class="muted" style="padding: 14px;">
-                                결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 권장)
+                            <td colspan="16" class="muted" style="padding: 14px;">
+                                결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 유지 권장)
                             </td>
                         </tr>
                     `;
@@ -1077,6 +1094,12 @@
                             <td class="right mono">${r.widthPct.toFixed(3)}</td>
                             <td class="right mono muted">${r.driftPct.toFixed(3)}</td>
                             <td class="right mono">${r.bounces}</td>
+                            <td class="right mono">${r.lastClose.toFixed(6)}</td>
+                            <td class="right mono muted">${r.posPct.toFixed(1)}</td>
+                            <td class="right mono">${r.entrySuggested.toFixed(6)}</td>
+                            <td class="right mono muted">${r.entryLine.toFixed(6)}</td>
+                            <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
+                            <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
                             <td class="right mono">${r.rangeLow.toFixed(6)}</td>
                             <td class="right mono">${r.rangeHigh.toFixed(6)}</td>
                             <td class="mono muted">${toSeoul(r.startTime)}</td>
@@ -1095,6 +1118,12 @@
                     "widthPct",
                     "driftPct",
                     "bounces",
+                    "lastClose",
+                    "posPct",
+                    "entrySuggested",
+                    "entryLine",
+                    "targetLevel",
+                    "stopLevel",
                     "rangeLow",
                     "rangeHigh",
                     "rangeStartSeoul"
@@ -1109,6 +1138,12 @@
                         r.widthPct.toFixed(6),
                         r.driftPct.toFixed(6),
                         r.bounces,
+                        r.lastClose,
+                        r.posPct.toFixed(3),
+                        r.entrySuggested,
+                        r.entryLine,
+                        r.targetLevel,
+                        r.stopLevel,
                         r.rangeLow,
                         r.rangeHigh,
                         `"${toSeoul(r.startTime)}"`
@@ -1209,7 +1244,7 @@
                 els.logBox.textContent = "";
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" class="muted" style="padding: 14px;">
+                        <td colspan="16" class="muted" style="padding: 14px;">
                             스캔 준비 중...
                         </td>
                     </tr>
@@ -1218,10 +1253,10 @@
                 updateCountersUI();
                 updateProgressUI();
 
-                logLine(`스캔 시작 · TF=${cfg.interval}, 최근=${cfg.days}일(${cfg.barsNeeded} bars), auto pages=${Math.min(12, Math.ceil(cfg.barsNeeded / PAGE_LIMIT))}`);
+                logLine(`스캔 시작 · TF=${cfg.interval}, 최근=${cfg.days}일(${cfg.barsNeeded} bars)`);
                 logLine(`폭 ${cfg.minRangePct}~${cfg.bandPct}%, drift≤${cfg.driftMaxPct}%, wicks=${cfg.useWicks ? "ON" : "OFF"}`);
-                logLine(`Entry≤${cfg.entryZonePct}%, Target≥${cfg.targetZonePct}%, StopBuf=${cfg.stopBufferPct}%, BounceFilter=${cfg.bounceFilterEnabled ? `ON(bounce≥${cfg.minBounces})` : "OFF"}`);
-                logLine(`concurrency=${cfg.concurrency}, delayMs=${cfg.delayMs}`);
+                logLine(`Entry≤${cfg.entryZonePct}%, Target≥${cfg.targetZonePct}%, StopBuf=${cfg.stopBufferPct}%`);
+                logLine(`BounceFilter=${cfg.bounceFilterEnabled ? `ON(bounce≥${cfg.minBounces})` : "OFF"} · concurrency=${cfg.concurrency}, delayMs=${cfg.delayMs}`);
 
                 state.tickTimer = setInterval(() => {
                     if (state.isRunning) tickElapsed();
@@ -1299,7 +1334,7 @@
 
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" class="muted" style="padding: 14px;">
+                        <td colspan="16" class="muted" style="padding: 14px;">
                             아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                         </td>
                     </tr>
@@ -1315,7 +1350,6 @@
             els.startBtn.addEventListener("click", () => startScan());
             els.stopBtn.addEventListener("click", () => stopScan(true));
             els.clearBtn.addEventListener("click", () => clearAll());
-
             els.searchInput.addEventListener("input", () => renderTable());
 
             els.exportBtn.addEventListener("click", () => {
@@ -1327,7 +1361,6 @@
                 downloadText(filename, csv);
             });
 
-            // Init
             function init() {
                 setRunningUI(false);
                 updateCountersUI();
@@ -1335,6 +1368,7 @@
                 logLine("준비 완료. 기본값은 15m 추천 세팅입니다.");
                 logLine("결과가 너무 적으면: (1) Bounce 조건 OFF, (2) Band/Drift 완화, (3) wicks OFF 유지 권장");
             }
+
             init();
         </script>
     </body>
