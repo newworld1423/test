@@ -33,7 +33,7 @@
             }
 
             .wrap {
-                max-width: 1380px;
+                max-width: 1420px;
                 margin: 0 auto;
                 padding: 22px 16px 40px;
             }
@@ -104,6 +104,33 @@
                 border: 1px solid var(--line);
                 background: rgba(255, 255, 255, 0.06);
                 color: var(--muted);
+            }
+
+            .tag {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                padding: 3px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.06);
+                color: rgba(255, 255, 255, 0.86);
+                white-space: nowrap;
+            }
+
+            .tagNow {
+                border-color: rgba(126, 231, 135, 0.45);
+                background: rgba(126, 231, 135, 0.16);
+                color: var(--good);
+                font-weight: 700;
+            }
+
+            .tagWait {
+                border-color: rgba(255, 166, 87, 0.40);
+                background: rgba(255, 166, 87, 0.14);
+                color: var(--warn);
+                font-weight: 700;
             }
 
             .cardBody { padding: 14px; }
@@ -296,6 +323,11 @@
             }
 
             tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+
+            .cellNow {
+                color: var(--good);
+                font-weight: 800;
+            }
         </style>
     </head>
     <body>
@@ -305,8 +337,8 @@
                     <h1>바이낸스 USDT 무기한 — “현재까지 이어지는 횡보” 스캐너</h1>
                     <div class="sub">
                         최근 <b>X일</b> 윈도우 안에서, <b>마지막 캔들(현재)까지 이어지는 횡보 구간</b>을 심볼별로 1개씩 찾습니다.<br />
-                        정렬: <b>현재까지 이어지는 횡보 길이(바 수)</b> 긴 순 → (동률이면) <b>폭 좁은 순</b>.
-                        표에는 <b>현재가(최근 종가)</b>, <b>레인지 내 위치%</b>, <b>진입라인/타겟/스탑</b>도 같이 표시됩니다.
+                        정렬: <b>현재까지 이어지는 횡보 길이(바 수)</b> 긴 순 → (동률이면) <b>폭 좁은 순</b>.<br />
+                        <b>Entry Mode</b>: <span class="tag tagNow">NOW</span> = 현재가가 Entry Zone 안(Entry Suggested = Now), <span class="tag tagWait">WAIT</span> = Entry Line까지 대기.
                     </div>
                 </div>
                 <div class="pill mono">API: fapi.binance.com</div>
@@ -432,9 +464,9 @@
                                 <b>횡보 판정</b>
                                 <span class="mono muted" id="ruleText">-</span>
 
-                                <b>Entry Suggested</b>
+                                <b>Entry Mode</b>
                                 <span class="muted">
-                                    현재가가 Entry Zone 안이면 “현재가”, 아니면 “Entry Line(지정가 대기)”로 표시합니다.
+                                    <span class="tag tagNow">NOW</span>면 Entry Suggested가 “Now(최근 종가)”로 표시됩니다.
                                 </span>
                             </div>
                         </div>
@@ -486,7 +518,7 @@
                     <div class="badge mono" id="renderInfo">-</div>
                 </div>
                 <div class="cardBody" style="padding: 0;">
-                    <div style="overflow: auto; max-height: 680px;">
+                    <div style="overflow: auto; max-height: 720px;">
                         <table>
                             <thead>
                                 <tr>
@@ -499,6 +531,7 @@
                                     <th class="right">Bounce</th>
                                     <th class="right">Now(종가)</th>
                                     <th class="right">Pos%</th>
+                                    <th>Entry Mode</th>
                                     <th class="right">Entry Sug</th>
                                     <th class="right">Entry Line</th>
                                     <th class="right">Target</th>
@@ -510,7 +543,7 @@
                             </thead>
                             <tbody id="tbody">
                                 <tr>
-                                    <td colspan="16" class="muted" style="padding: 14px;">
+                                    <td colspan="17" class="muted" style="padding: 14px;">
                                         아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                                     </td>
                                 </tr>
@@ -582,7 +615,7 @@
                 err: 0,
                 done: 0,
 
-                results: [] // 심볼당 0~1개
+                results: []
             };
 
             function logLine(msg, type = "info") {
@@ -839,7 +872,6 @@
             }
 
             function findOngoingRangeSegment(klines, cfg) {
-                // “최근 X일 윈도우 안에서, 마지막 캔들까지 이어지는 최장 횡보 구간” 찾기
                 const n = klines.length;
                 if (n < 50) return null;
 
@@ -859,7 +891,6 @@
                 const useMin = (idx) => (cfg.useWicks ? lows[idx] : closes[idx]);
                 const useMax = (idx) => (cfg.useWicks ? highs[idx] : closes[idx]);
 
-                // suffix min/max (i..end)
                 const sufMin = new Array(n);
                 const sufMax = new Array(n);
 
@@ -875,7 +906,6 @@
 
                 const lastClose = closes[n - 1];
 
-                // 후보 start index (i가 작을수록 더 긴 구간)
                 const candidateIdx = [];
                 for (let i = 0; i < n - 1; i += 1) {
                     const rangeLow = sufMin[i];
@@ -901,7 +931,6 @@
 
                 if (candidateIdx.length === 0) return null;
 
-                // Bounce 필터 ON이면 상위 K개만 bounce 체크
                 const K = cfg.bounceFilterEnabled ? 50 : 1;
                 const limit = Math.min(K, candidateIdx.length);
 
@@ -931,8 +960,9 @@
                     }
 
                     if (!cfg.bounceFilterEnabled || bounces >= cfg.minBounces) {
-                        // Entry Suggested: 지금이 Entry Zone이면 Now, 아니면 Entry Line(대기)
-                        const entrySuggested = (Number.isFinite(lastClose) && lastClose <= entryLine) ? lastClose : entryLine;
+                        const nowInEntryZone = (Number.isFinite(lastClose) && lastClose <= entryLine);
+                        const entryMode = nowInEntryZone ? "NOW" : "WAIT";
+                        const entrySuggested = nowInEntryZone ? lastClose : entryLine;
 
                         return {
                             startIndex: i,
@@ -945,6 +975,8 @@
                             rangeHigh,
                             lastClose,
                             posPct,
+                            entryMode,
+                            nowInEntryZone,
                             entrySuggested,
                             entryLine,
                             targetLevel,
@@ -1010,10 +1042,7 @@
                 const bounceFilterEnabled = !!els.bounceFilterToggle.checked;
                 const liveRender = !!els.liveToggle.checked;
 
-                // 너무 미세한 bounce는 의미가 적어서 가드
                 const minProfitPct = 0.3;
-
-                // 표에 bounce를 보여주기 위해 기본 true
                 const alwaysComputeBounce = true;
 
                 const barsNeeded = calcBarsNeeded(days, interval);
@@ -1074,7 +1103,7 @@
                 if (view.length === 0) {
                     els.tbody.innerHTML = `
                         <tr>
-                            <td colspan="16" class="muted" style="padding: 14px;">
+                            <td colspan="17" class="muted" style="padding: 14px;">
                                 결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 유지 권장)
                             </td>
                         </tr>
@@ -1085,6 +1114,12 @@
                 let html = "";
                 for (let i = 0; i < view.length; i += 1) {
                     const r = view[i];
+                    const modeTag = r.entryMode === "NOW"
+                        ? `<span class="tag tagNow">NOW</span>`
+                        : `<span class="tag tagWait">WAIT</span>`;
+
+                    const entrySugClass = r.entryMode === "NOW" ? "cellNow" : "";
+
                     html += `
                         <tr>
                             <td class="right mono muted">${i + 1}</td>
@@ -1096,7 +1131,8 @@
                             <td class="right mono">${r.bounces}</td>
                             <td class="right mono">${r.lastClose.toFixed(6)}</td>
                             <td class="right mono muted">${r.posPct.toFixed(1)}</td>
-                            <td class="right mono">${r.entrySuggested.toFixed(6)}</td>
+                            <td>${modeTag}</td>
+                            <td class="right mono ${entrySugClass}">${r.entrySuggested.toFixed(6)}</td>
                             <td class="right mono muted">${r.entryLine.toFixed(6)}</td>
                             <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
                             <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
@@ -1120,6 +1156,7 @@
                     "bounces",
                     "lastClose",
                     "posPct",
+                    "entryMode",
                     "entrySuggested",
                     "entryLine",
                     "targetLevel",
@@ -1140,6 +1177,7 @@
                         r.bounces,
                         r.lastClose,
                         r.posPct.toFixed(3),
+                        `"${r.entryMode}"`,
                         r.entrySuggested,
                         r.entryLine,
                         r.targetLevel,
@@ -1244,7 +1282,7 @@
                 els.logBox.textContent = "";
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="16" class="muted" style="padding: 14px;">
+                        <td colspan="17" class="muted" style="padding: 14px;">
                             스캔 준비 중...
                         </td>
                     </tr>
@@ -1334,7 +1372,7 @@
 
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="16" class="muted" style="padding: 14px;">
+                        <td colspan="17" class="muted" style="padding: 14px;">
                             아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                         </td>
                     </tr>
@@ -1366,6 +1404,7 @@
                 updateCountersUI();
                 getConfig();
                 logLine("준비 완료. 기본값은 15m 추천 세팅입니다.");
+                logLine("표의 Entry Mode가 NOW면: Entry Suggested = Now(최근 종가)로 표시됩니다.");
                 logLine("결과가 너무 적으면: (1) Bounce 조건 OFF, (2) Band/Drift 완화, (3) wicks OFF 유지 권장");
             }
 
