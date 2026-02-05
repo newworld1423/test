@@ -315,6 +315,28 @@
                 white-space: nowrap;
             }
 
+            /* ✅ sortable header */
+            thead th.sortable {
+                cursor: pointer;
+                user-select: none;
+            }
+
+            thead th.sortable:hover {
+                background: rgba(255, 255, 255, 0.06);
+            }
+
+            thead th.sortable:focus {
+                outline: 2px solid rgba(99, 102, 241, 0.50);
+                outline-offset: -2px;
+            }
+
+            thead th .sortIcon {
+                display: inline-block;
+                margin-left: 6px;
+                font-size: 11px;
+                opacity: 0.85;
+            }
+
             tbody td {
                 border-bottom: 1px solid rgba(255, 255, 255, 0.08);
                 padding: 9px 10px;
@@ -523,22 +545,70 @@
                             <thead>
                                 <tr>
                                     <th class="right">#</th>
-                                    <th>Symbol</th>
-                                    <th class="right">Len(bars)</th>
-                                    <th class="right">Len(시간)</th>
-                                    <th class="right">폭%</th>
-                                    <th class="right">Drift%</th>
-                                    <th class="right">Bounce</th>
-                                    <th class="right">Now(종가)</th>
-                                    <th class="right">Pos%</th>
-                                    <th>Entry Mode</th>
-                                    <th class="right">Entry Sug</th>
-                                    <th class="right">Entry Line</th>
-                                    <th class="right">Target</th>
-                                    <th class="right">Stop</th>
-                                    <th class="right">Low</th>
-                                    <th class="right">High</th>
-                                    <th>시작(서울)</th>
+
+                                    <th class="sortable" data-key="symbol" data-type="string" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Symbol<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="lenBars" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Len(bars)<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="lenDuration" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Len(시간)<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="widthPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        폭%<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="driftPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Drift%<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="bounces" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Bounce<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="lastClose" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Now(종가)<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="posPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Pos%<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="sortable" data-key="entryMode" data-type="enum" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Entry Mode<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="entrySuggested" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Entry Sug<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="entryLine" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Entry Line<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="targetLevel" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Target<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="stopLevel" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Stop<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="rangeLow" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Low<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="rangeHigh" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        High<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="sortable" data-key="startTime" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        시작(서울)<span class="sortIcon"></span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="tbody">
@@ -559,6 +629,11 @@
 
             const BASE_URL = "https://fapi.binance.com";
             const PAGE_LIMIT = 499;
+
+            const DEFAULT_SORT = {
+                key: "lenBars",
+                dir: "desc"
+            };
 
             const els = {
                 statusBadge: document.getElementById("statusBadge"),
@@ -615,7 +690,11 @@
                 err: 0,
                 done: 0,
 
-                results: []
+                results: [],
+
+                // ✅ sorting
+                sortKey: DEFAULT_SORT.key,
+                sortDir: DEFAULT_SORT.dir
             };
 
             function logLine(msg, type = "info") {
@@ -1074,30 +1153,140 @@
                 };
             }
 
-            function sortResults(arr) {
-                const out = arr.slice();
-                out.sort((a, b) => {
-                    if (b.lenBars !== a.lenBars) return b.lenBars - a.lenBars;
-                    if (a.widthPct !== b.widthPct) return a.widthPct - b.widthPct;
-                    if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
-                    if (b.bounces !== a.bounces) return b.bounces - a.bounces;
-                    return a.symbol.localeCompare(b.symbol);
-                });
-                return out;
-            }
-
             function filterResults(arr, q) {
                 const query = String(q || "").trim().toUpperCase();
                 if (!query) return arr;
                 return arr.filter((r) => r.symbol.includes(query));
             }
 
+            function getSortValue(r, key, cfg) {
+                if (!r) return null;
+
+                if (key === "lenDuration") {
+                    const ms = intervalToMs(cfg.interval) || 0;
+                    return r.lenBars * ms;
+                }
+
+                if (key === "entryMode") {
+                    // NOW 먼저(0), WAIT 나중(1)
+                    return r.entryMode === "NOW" ? 0 : 1;
+                }
+
+                return r[key];
+            }
+
+            function defaultSortComparator(a, b) {
+                if (b.lenBars !== a.lenBars) return b.lenBars - a.lenBars;
+                if (a.widthPct !== b.widthPct) return a.widthPct - b.widthPct;
+                if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
+                if (b.bounces !== a.bounces) return b.bounces - a.bounces;
+                return a.symbol.localeCompare(b.symbol);
+            }
+
+            function sortResults(arr, cfg) {
+                const out = arr.slice();
+
+                const key = state.sortKey;
+                const dir = state.sortDir;
+
+                if (!key) {
+                    out.sort(defaultSortComparator);
+                    return out;
+                }
+
+                const th = document.querySelector(`thead th[data-key="${CSS && CSS.escape ? CSS.escape(key) : key}"]`);
+                const type = th?.dataset?.type || "auto";
+
+                out.sort((a, b) => {
+                    const va = getSortValue(a, key, cfg);
+                    const vb = getSortValue(b, key, cfg);
+
+                    let cmp = 0;
+
+                    if (type === "string") {
+                        cmp = String(va ?? "").localeCompare(String(vb ?? ""));
+                    } else {
+                        const na = Number(va);
+                        const nb = Number(vb);
+
+                        const fa = Number.isFinite(na);
+                        const fb = Number.isFinite(nb);
+
+                        if (!fa && !fb) cmp = 0;
+                        else if (!fa) cmp = 1;
+                        else if (!fb) cmp = -1;
+                        else cmp = na - nb;
+                    }
+
+                    if (cmp === 0) {
+                        // tie-breakers
+                        cmp = a.symbol.localeCompare(b.symbol);
+                        if (cmp === 0) cmp = defaultSortComparator(a, b);
+                    }
+
+                    return dir === "asc" ? cmp : -cmp;
+                });
+
+                return out;
+            }
+
+            function updateSortIcons() {
+                const ths = document.querySelectorAll("thead th.sortable[data-key]");
+                ths.forEach((th) => {
+                    const key = th.dataset.key;
+                    const icon = th.querySelector(".sortIcon");
+                    if (!icon) return;
+
+                    if (key === state.sortKey) {
+                        const isAsc = state.sortDir === "asc";
+                        icon.textContent = isAsc ? "▲" : "▼";
+                        th.setAttribute("aria-sort", isAsc ? "ascending" : "descending");
+                    } else {
+                        icon.textContent = "";
+                        th.setAttribute("aria-sort", "none");
+                    }
+                });
+            }
+
+            function onSortHeaderClick(th) {
+                const key = th?.dataset?.key;
+                if (!key) return;
+
+                const defaultDir = th.dataset.defaultDir || ((th.dataset.type === "string") ? "asc" : "desc");
+
+                if (state.sortKey === key) {
+                    state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+                } else {
+                    state.sortKey = key;
+                    state.sortDir = defaultDir;
+                }
+
+                updateSortIcons();
+                renderTable();
+            }
+
+            function bindSortingHeaders() {
+                const ths = document.querySelectorAll("thead th.sortable[data-key]");
+                ths.forEach((th) => {
+                    th.addEventListener("click", () => onSortHeaderClick(th));
+                    th.addEventListener("keydown", (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSortHeaderClick(th);
+                        }
+                    });
+                });
+
+                updateSortIcons();
+            }
+
             function renderTable() {
                 const cfg = getConfig();
-                const sorted = sortResults(state.results);
+                const sorted = sortResults(state.results, cfg);
                 const filtered = filterResults(sorted, els.searchInput.value);
                 const view = filtered.slice(0, cfg.topN);
 
+                updateSortIcons();
                 els.renderInfo.textContent = `표시 ${view.length} / 필터 ${filtered.length} / 전체 ${state.results.length}`;
 
                 if (view.length === 0) {
@@ -1363,6 +1552,10 @@
                 state.done = 0;
                 state.results = [];
 
+                // ✅ reset sorting to default
+                state.sortKey = DEFAULT_SORT.key;
+                state.sortDir = DEFAULT_SORT.dir;
+
                 els.logBox.textContent = "";
                 els.progressText.textContent = "대기 중";
                 els.progressMeta.textContent = "0 / 0";
@@ -1381,6 +1574,7 @@
                 setRunningUI(false);
                 updateCountersUI();
                 getConfig();
+                updateSortIcons();
                 logLine("초기화 완료");
             }
 
@@ -1392,7 +1586,7 @@
 
             els.exportBtn.addEventListener("click", () => {
                 const cfg = getConfig();
-                const sorted = sortResults(state.results);
+                const sorted = sortResults(state.results, cfg);
                 const filtered = filterResults(sorted, els.searchInput.value);
                 const csv = toCsv(filtered, cfg.interval);
                 const filename = `ongoing_range_${cfg.interval}_${cfg.days}d_band${cfg.bandPct}_drift${cfg.driftMaxPct}.csv`;
@@ -1403,6 +1597,8 @@
                 setRunningUI(false);
                 updateCountersUI();
                 getConfig();
+                bindSortingHeaders();
+
                 logLine("준비 완료. 기본값은 15m 추천 세팅입니다.");
                 logLine("표의 Entry Mode가 NOW면: Entry Suggested = Now(최근 종가)로 표시됩니다.");
                 logLine("결과가 너무 적으면: (1) Bounce 조건 OFF, (2) Band/Drift 완화, (3) wicks OFF 유지 권장");
