@@ -315,7 +315,6 @@
                 white-space: nowrap;
             }
 
-            /* ✅ sortable header */
             thead th.sortable {
                 cursor: pointer;
                 user-select: none;
@@ -586,6 +585,11 @@
                                         Entry Sug<span class="sortIcon"></span>
                                     </th>
 
+                                    <!-- ✅ RR column -->
+                                    <th class="right sortable" data-key="rr" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        RR<span class="sortIcon"></span>
+                                    </th>
+
                                     <th class="right sortable" data-key="entryLine" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
                                         Entry Line<span class="sortIcon"></span>
                                     </th>
@@ -613,7 +617,7 @@
                             </thead>
                             <tbody id="tbody">
                                 <tr>
-                                    <td colspan="17" class="muted" style="padding: 14px;">
+                                    <td colspan="18" class="muted" style="padding: 14px;">
                                         아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                                     </td>
                                 </tr>
@@ -692,7 +696,7 @@
 
                 results: [],
 
-                // ✅ sorting
+                // sorting
                 sortKey: DEFAULT_SORT.key,
                 sortDir: DEFAULT_SORT.dir
             };
@@ -765,6 +769,21 @@
 
             function clamp(x, min, max) {
                 return Math.min(max, Math.max(min, x));
+            }
+
+            function calcRR(entrySuggested, targetLevel, stopLevel) {
+                const e = Number(entrySuggested);
+                const t = Number(targetLevel);
+                const s = Number(stopLevel);
+
+                if (!Number.isFinite(e) || !Number.isFinite(t) || !Number.isFinite(s)) return NaN;
+
+                const reward = t - e;
+                const risk = e - s;
+
+                if (!(reward > 0) || !(risk > 0)) return NaN;
+
+                return reward / risk;
             }
 
             async function fetchJsonWithBackoff(url, signal, maxRetries = 6) {
@@ -900,7 +919,6 @@
                 let i = segStartIdx;
 
                 while (i < n) {
-                    // Entry trigger: close <= entryUpper
                     while (i < n) {
                         const close = Number(klines[i][4]);
                         if (Number.isFinite(close) && close <= entryUpper) break;
@@ -1168,8 +1186,11 @@
                 }
 
                 if (key === "entryMode") {
-                    // NOW 먼저(0), WAIT 나중(1)
                     return r.entryMode === "NOW" ? 0 : 1;
+                }
+
+                if (key === "rr") {
+                    return calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
                 }
 
                 return r[key];
@@ -1194,7 +1215,8 @@
                     return out;
                 }
 
-                const th = document.querySelector(`thead th[data-key="${CSS && CSS.escape ? CSS.escape(key) : key}"]`);
+                const safeKey = (CSS && CSS.escape) ? CSS.escape(key) : key;
+                const th = document.querySelector(`thead th[data-key="${safeKey}"]`);
                 const type = th?.dataset?.type || "auto";
 
                 out.sort((a, b) => {
@@ -1219,7 +1241,6 @@
                     }
 
                     if (cmp === 0) {
-                        // tie-breakers
                         cmp = a.symbol.localeCompare(b.symbol);
                         if (cmp === 0) cmp = defaultSortComparator(a, b);
                     }
@@ -1292,7 +1313,7 @@
                 if (view.length === 0) {
                     els.tbody.innerHTML = `
                         <tr>
-                            <td colspan="17" class="muted" style="padding: 14px;">
+                            <td colspan="18" class="muted" style="padding: 14px;">
                                 결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 유지 권장)
                             </td>
                         </tr>
@@ -1303,11 +1324,15 @@
                 let html = "";
                 for (let i = 0; i < view.length; i += 1) {
                     const r = view[i];
+
                     const modeTag = r.entryMode === "NOW"
                         ? `<span class="tag tagNow">NOW</span>`
                         : `<span class="tag tagWait">WAIT</span>`;
 
                     const entrySugClass = r.entryMode === "NOW" ? "cellNow" : "";
+
+                    const rrVal = calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
+                    const rrText = Number.isFinite(rrVal) ? rrVal.toFixed(2) : "—";
 
                     html += `
                         <tr>
@@ -1322,6 +1347,7 @@
                             <td class="right mono muted">${r.posPct.toFixed(1)}</td>
                             <td>${modeTag}</td>
                             <td class="right mono ${entrySugClass}">${r.entrySuggested.toFixed(6)}</td>
+                            <td class="right mono">${rrText}</td>
                             <td class="right mono muted">${r.entryLine.toFixed(6)}</td>
                             <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
                             <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
@@ -1347,6 +1373,7 @@
                     "posPct",
                     "entryMode",
                     "entrySuggested",
+                    "rr",
                     "entryLine",
                     "targetLevel",
                     "stopLevel",
@@ -1357,6 +1384,9 @@
                 const lines = [header.join(",")];
 
                 for (const r of rows) {
+                    const rrVal = calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
+                    const rrOut = Number.isFinite(rrVal) ? rrVal : "";
+
                     const line = [
                         r.symbol,
                         r.lenBars,
@@ -1368,6 +1398,7 @@
                         r.posPct.toFixed(3),
                         `"${r.entryMode}"`,
                         r.entrySuggested,
+                        rrOut,
                         r.entryLine,
                         r.targetLevel,
                         r.stopLevel,
@@ -1471,7 +1502,7 @@
                 els.logBox.textContent = "";
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="17" class="muted" style="padding: 14px;">
+                        <td colspan="18" class="muted" style="padding: 14px;">
                             스캔 준비 중...
                         </td>
                     </tr>
@@ -1552,7 +1583,6 @@
                 state.done = 0;
                 state.results = [];
 
-                // ✅ reset sorting to default
                 state.sortKey = DEFAULT_SORT.key;
                 state.sortDir = DEFAULT_SORT.dir;
 
@@ -1565,7 +1595,7 @@
 
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="17" class="muted" style="padding: 14px;">
+                        <td colspan="18" class="muted" style="padding: 14px;">
                             아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                         </td>
                     </tr>
@@ -1578,7 +1608,6 @@
                 logLine("초기화 완료");
             }
 
-            // Events
             els.startBtn.addEventListener("click", () => startScan());
             els.stopBtn.addEventListener("click", () => stopScan(true));
             els.clearBtn.addEventListener("click", () => clearAll());
@@ -1602,6 +1631,7 @@
                 logLine("준비 완료. 기본값은 15m 추천 세팅입니다.");
                 logLine("표의 Entry Mode가 NOW면: Entry Suggested = Now(최근 종가)로 표시됩니다.");
                 logLine("결과가 너무 적으면: (1) Bounce 조건 OFF, (2) Band/Drift 완화, (3) wicks OFF 유지 권장");
+                logLine("RR 컬럼 추가됨: RR = (Target - EntrySug) / (EntrySug - Stop). RR 헤더 클릭으로 정렬 가능.");
             }
 
             init();
