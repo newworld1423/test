@@ -229,6 +229,19 @@
                 color: #cfe0ff;
                 white-space: pre-wrap;
             }
+
+            .subhead {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin: 14px 0 8px;
+            }
+
+            .subhead b {
+                font-size: 14px;
+            }
         </style>
     </head>
     <body>
@@ -241,7 +254,9 @@
                         <div>
                             <div class="small">
                                 조건: 현재봉을 a라고 하면 <b>a[-2] (두 달 전 봉)의 저가(low)가</b> 해당 심볼의 <b>전체 1M 히스토리 최저 저가(ATL)</b>와 같을 때만
-                                결과에 포함.
+                                결과에 포함.<br />
+                                추가 분리: <b>현재봉 Low(a)</b>가 <b>a[-1] Low(전월 Low)</b>보다 <b>낮으면 아래 테이블</b>, <b>같거나 높으면 위 테이블</b>에 표시.
+                                (현재봉은 진행 중이라 Low는 업데이트될 수 있음)
                             </div>
                         </div>
                         <div class="row">
@@ -336,15 +351,21 @@
                 <div class="row" style="justify-content: space-between; align-items: flex-end;">
                     <div>
                         <b>결과 테이블</b>
-                        <div class="small">a[-2] low가 올타임로우인 심볼만 표시</div>
+                        <div class="small">a[-2] low가 올타임로우(ATL)인 심볼만 표시</div>
                     </div>
                     <div class="row">
                         <span class="tag">정렬: a[-2] 저가 오름차순</span>
-                        <span class="tag">표시: 심볼 / a[-2] 저가 / a[-2] 날짜 / ATL / 캔들수</span>
+                        <span class="tag">분리: 현재봉 Low(a) vs a[-1] Low</span>
                     </div>
                 </div>
 
-                <div style="height: 10px;"></div>
+                <div class="subhead">
+                    <div class="row">
+                        <b>위: 현재봉 Low(a) ≥ a[-1] Low</b>
+                        <span class="tag">Count: <span id="countHigh">0</span></span>
+                    </div>
+                    <div class="small">전월 저점 아래로는 아직 안 깼음(상대적으로 방어 중)</div>
+                </div>
 
                 <table>
                     <thead>
@@ -356,13 +377,46 @@
                             <th>ATL Low</th>
                             <th>ATL Date (UTC)</th>
                             <th>캔들 수(1M)</th>
-                            <th>판정</th>
+                            <th>a Low(현재)</th>
+                            <th>a[-1] Low</th>
+                            <th>비교</th>
                             <th>비고</th>
                         </tr>
                     </thead>
-                    <tbody id="tbody">
+                    <tbody id="tbodyHigh">
                         <tr>
-                            <td colspan="9" style="color: var(--muted);">아직 결과 없음</td>
+                            <td colspan="11" style="color: var(--muted);">아직 결과 없음</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="subhead" style="margin-top: 18px;">
+                    <div class="row">
+                        <b>아래: 현재봉 Low(a) &lt; a[-1] Low</b>
+                        <span class="tag">Count: <span id="countLow">0</span></span>
+                    </div>
+                    <div class="small">전월 저점 하향 돌파(추세 하방 지속 신호일 수 있어 더 보수적으로)</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Symbol</th>
+                            <th>a[-2] Low</th>
+                            <th>a[-2] Date (UTC)</th>
+                            <th>ATL Low</th>
+                            <th>ATL Date (UTC)</th>
+                            <th>캔들 수(1M)</th>
+                            <th>a Low(현재)</th>
+                            <th>a[-1] Low</th>
+                            <th>비교</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyLow">
+                        <tr>
+                            <td colspan="11" style="color: var(--muted);">아직 결과 없음</td>
                         </tr>
                     </tbody>
                 </table>
@@ -392,7 +446,10 @@
                 statLast: $("statLast"),
                 statErr: $("statErr"),
                 bar: $("bar"),
-                tbody: $("tbody"),
+                tbodyHigh: $("tbodyHigh"),
+                tbodyLow: $("tbodyLow"),
+                countHigh: $("countHigh"),
+                countLow: $("countLow"),
                 log: $("log"),
                 apiStatus: $("apiStatus"),
             };
@@ -546,6 +603,7 @@
              * 판정:
              * - 캔들 최소 3개 이상 필요 (a[-2] 존재)
              * - a[-2] low가 전체 low 중 최저(ATL)인지
+             * - 추가: 현재봉 low(a) vs a[-1] low 비교값 제공
              */
             function judgeAminus2IsATL(klines) {
                 if (!Array.isArray(klines) || klines.length < 3) {
@@ -553,11 +611,20 @@
                 }
 
                 const idxA = klines.length - 1; // current candle a
+                const idxPrev = idxA - 1; // a[-1]
                 const idxTarget = idxA - 2; // a[-2]
+
+                const cur = klines[idxA];
+                const prev = klines[idxPrev];
                 const target = klines[idxTarget];
 
-                const targetLow = Number(target[3]); // low
+                const currentLow = Number(cur[3]);
+                const prevLow = Number(prev[3]);
+                const targetLow = Number(target[3]);
+
                 if (!Number.isFinite(targetLow)) return { ok: false, reason: "a[-2] low 파싱 실패" };
+                if (!Number.isFinite(currentLow)) return { ok: false, reason: "a low(현재) 파싱 실패" };
+                if (!Number.isFinite(prevLow)) return { ok: false, reason: "a[-1] low 파싱 실패" };
 
                 let atl = Infinity;
                 let atlTime = null;
@@ -574,7 +641,7 @@
 
                 if (!Number.isFinite(atl)) return { ok: false, reason: "ATL 계산 실패" };
 
-                // 부동소수점 비교 안전: 문자열/숫자 섞여있어도 숫자로 비교
+                // 부동소수점 비교: 바이낸스 low는 문자열 decimal이라 Number 변환 후 동일값이면 대개 안전
                 const ok = targetLow === atl;
 
                 return {
@@ -584,7 +651,11 @@
                     atlLow: atl,
                     atlTime,
                     candles: klines.length,
-                    idxTarget,
+                    currentLow,
+                    currentTime: Number(cur[0]),
+                    prevLow,
+                    prevTime: Number(prev[0]),
+                    curBelowPrev: currentLow < prevLow,
                 };
             }
 
@@ -598,49 +669,71 @@
             }
 
             function renderTable() {
-                const tbody = el.tbody;
-                tbody.innerHTML = "";
+                const tbodyHigh = el.tbodyHigh;
+                const tbodyLow = el.tbodyLow;
 
-                if (hits.length === 0) {
+                tbodyHigh.innerHTML = "";
+                tbodyLow.innerHTML = "";
+
+                const sorted = [...hits].sort((a, b) => a.targetLow - b.targetLow);
+
+                const high = sorted.filter((r) => r.currentLow >= r.prevLow);
+                const low = sorted.filter((r) => r.currentLow < r.prevLow);
+
+                el.countHigh.textContent = String(high.length);
+                el.countLow.textContent = String(low.length);
+
+                function renderEmpty(tbody) {
                     const tr = document.createElement("tr");
                     const td = document.createElement("td");
-                    td.colSpan = 9;
+                    td.colSpan = 11;
                     td.style.color = "var(--muted)";
                     td.textContent = "아직 결과 없음";
                     tr.appendChild(td);
                     tbody.appendChild(tr);
-                    return;
                 }
 
-                const sorted = [...hits].sort((a, b) => a.targetLow - b.targetLow);
-
-                let i = 1;
-                for (const r of sorted) {
-                    const tr = document.createElement("tr");
-
-                    const cells = [
-                        String(i),
-                        r.symbol,
-                        num(r.targetLow),
-                        toUtcDateStr(r.targetTime),
-                        num(r.atlLow),
-                        r.atlTime ? toUtcDateStr(r.atlTime) : "-",
-                        String(r.candles),
-                        r.ok ? "OK" : "NO",
-                        r.note || "",
-                    ];
-
-                    for (let c = 0; c < cells.length; c += 1) {
-                        const td = document.createElement("td");
-                        td.textContent = cells[c];
-                        if (c === 1) td.classList.add("mono");
-                        if (c === 7) td.classList.add(r.ok ? "ok" : "no");
-                        tr.appendChild(td);
+                function renderRows(tbody, arr) {
+                    if (arr.length === 0) {
+                        renderEmpty(tbody);
+                        return;
                     }
 
-                    tbody.appendChild(tr);
-                    i += 1;
+                    let i = 1;
+                    for (const r of arr) {
+                        const tr = document.createElement("tr");
+
+                        const compareText = r.currentLow < r.prevLow ? "a < a[-1]" : "a ≥ a[-1]";
+
+                        const cells = [
+                            String(i),
+                            r.symbol,
+                            num(r.targetLow),
+                            toUtcDateStr(r.targetTime),
+                            num(r.atlLow),
+                            r.atlTime ? toUtcDateStr(r.atlTime) : "-",
+                            String(r.candles),
+                            num(r.currentLow),
+                            num(r.prevLow),
+                            compareText,
+                            r.note || "",
+                        ];
+
+                        for (let c = 0; c < cells.length; c += 1) {
+                            const td = document.createElement("td");
+                            td.textContent = cells[c];
+                            if (c === 1) td.classList.add("mono");
+                            if (c === 9) td.classList.add(r.currentLow < r.prevLow ? "no" : "ok");
+                            tr.appendChild(td);
+                        }
+
+                        tbody.appendChild(tr);
+                        i += 1;
+                    }
                 }
+
+                renderRows(tbodyHigh, high);
+                renderRows(tbodyLow, low);
             }
 
             function exportCsv() {
@@ -653,6 +746,9 @@
                     "atl_low",
                     "atl_date_utc",
                     "monthly_candles",
+                    "a_current_low",
+                    "a_minus_1_low",
+                    "a_low_lt_a_minus_1_low",
                     "note",
                 ];
 
@@ -666,6 +762,9 @@
                         String(r.atlLow),
                         r.atlTime ? toUtcDateStr(r.atlTime) : "",
                         String(r.candles),
+                        String(r.currentLow),
+                        String(r.prevLow),
+                        r.currentLow < r.prevLow ? "true" : "false",
                         (r.note || "").replaceAll('"', '""'),
                     ];
                     rows.push(line.map((x) => `"${x}"`).join(","));
@@ -676,7 +775,7 @@
 
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = `binance_usdtperp_1M_a-2_ATL_${new Date().toISOString().slice(0, 10)}.csv`;
+                a.download = `binance_usdtperp_1M_a-2_ATL_split_${new Date().toISOString().slice(0, 10)}.csv`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -706,12 +805,20 @@
                                 atlLow: judged.atlLow,
                                 atlTime: judged.atlTime,
                                 candles: judged.candles,
-                                note: "a[-2] low = ATL",
+                                currentLow: judged.currentLow,
+                                prevLow: judged.prevLow,
+                                note: judged.currentLow < judged.prevLow ? "a[-2] low = ATL / a low < a[-1] low" : "a[-2] low = ATL / a low ≥ a[-1] low",
                             });
-                            logLine(`✅ HIT ${symbol} :: a[-2] low(${judged.targetLow}) = ATL`);
+
+                            if (judged.currentLow < judged.prevLow) {
+                                logLine(`⚠️ HIT ${symbol} :: a[-2] low=ATL & 현재 low(${judged.currentLow}) < 전월 low(${judged.prevLow})`);
+                            } else {
+                                logLine(`✅ HIT ${symbol} :: a[-2] low=ATL & 현재 low(${judged.currentLow}) ≥ 전월 low(${judged.prevLow})`);
+                            }
+
                             renderTable();
                         } else {
-                            // 필요하면 NO 케이스도 로그를 더 자세히 남길 수 있음
+                            // 필요하면 NO 케이스 로그 추가 가능
                         }
                     } catch (e) {
                         errCount += 1;
