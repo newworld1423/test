@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp 1M a[-2] 올타임하이(ATH) 스캐너</title>
+        <style>
+            :root {
+                --bg: #0b1220;
+                --panel: #101a30;
+                --panel2: #0f1a2f;
+                --text: #e7eefc;
+                --muted: #9bb0d0;
+                --line: rgba(255, 255, 255, 0.09);
+                --good: #44d19d;
+                --bad: #ff6b6b;
+                --warn: #ffcc66;
+                --btn: #1b2a4a;
+                --btn2: #223a66;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+                background: radial-gradient(1200px 800px at 20% 0%, #142449 0%, var(--bg) 45%, #070b14 100%);
+                color: var(--text);
+            }
+
+            .wrap {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+
+            h1 {
+                margin: 0 0 14px;
+                font-size: 20px;
+                letter-spacing: -0.2px;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: 1.2fr 0.8fr;
+                gap: 14px;
+            }
+
+            .card {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 14px;
+            }
+
+            .row {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            label {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            input[type="number"],
+            input[type="text"],
+            select {
+                background: rgba(0, 0, 0, 0.25);
+                color: var(--text);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+                padding: 10px 10px;
+                outline: none;
+                min-width: 140px;
+            }
+
+            input[type="checkbox"] {
+                transform: translateY(1px);
+            }
+
+            button {
+                background: var(--btn);
+                color: var(--text);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+                padding: 10px 12px;
+                cursor: pointer;
+                transition: 0.15s;
+                font-weight: 600;
+            }
+
+            button:hover {
+                background: var(--btn2);
+            }
+
+            button:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+            }
+
+            .small {
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+
+            .stat {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-top: 10px;
+            }
+
+            .pill {
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 10px;
+                background: rgba(0, 0, 0, 0.18);
+            }
+
+            .pill b {
+                display: block;
+                font-size: 12px;
+                color: var(--muted);
+                margin-bottom: 4px;
+            }
+
+            .pill span {
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+            .progress {
+                width: 100%;
+                height: 10px;
+                background: rgba(255, 255, 255, 0.08);
+                border-radius: 999px;
+                overflow: hidden;
+                margin-top: 10px;
+                border: 1px solid var(--line);
+            }
+
+            .progress > div {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, rgba(68, 209, 157, 0.9), rgba(91, 170, 255, 0.9));
+                transition: width 0.2s;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                overflow: hidden;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+            }
+
+            thead th {
+                text-align: left;
+                font-size: 12px;
+                color: var(--muted);
+                background: rgba(0, 0, 0, 0.25);
+                padding: 10px;
+                border-bottom: 1px solid var(--line);
+                white-space: nowrap;
+            }
+
+            tbody td {
+                padding: 10px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                font-size: 13px;
+                vertical-align: top;
+            }
+
+            tbody tr:hover td {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            .ok {
+                color: var(--good);
+                font-weight: 800;
+            }
+
+            .no {
+                color: var(--bad);
+                font-weight: 800;
+            }
+
+            .tag {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.18);
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            }
+
+            .footer {
+                margin-top: 10px;
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            .log {
+                height: 170px;
+                overflow: auto;
+                background: rgba(0, 0, 0, 0.22);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 10px;
+                font-size: 12px;
+                line-height: 1.5;
+                color: #cfe0ff;
+                white-space: pre-wrap;
+            }
+
+            .subhead {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin: 14px 0 8px;
+            }
+
+            .subhead b {
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <h1>Binance USDT Perp — 1달봉(1M) 전체 스캔: a[-2] 고점이 올타임하이(ATH)인 심볼만</h1>
+
+            <div class="grid">
+                <div class="card">
+                    <div class="row" style="justify-content: space-between;">
+                        <div>
+                            <div class="small">
+                                조건: 현재봉을 a라고 하면 <b>a[-2] (두 달 전 봉)의 고점(high)이</b> 해당 심볼의 <b>전체 1M 히스토리 최고 고점(ATH)</b>와 같을 때만
+                                결과에 포함.<br />
+                                추가 분리: <b>현재봉 High(a)</b>가 <b>a[-1] High(전월 High)</b>보다 <b>높으면 아래</b>, <b>같거나 낮으면 위</b>에 표시.
+                                (현재봉은 진행 중이라 High는 업데이트될 수 있음)
+                            </div>
+                        </div>
+                        <div class="row">
+                            <button id="btnStart">스캔 시작</button>
+                            <button id="btnStop" disabled>중단</button>
+                            <button id="btnExport" disabled>CSV 내보내기</button>
+                        </div>
+                    </div>
+
+                    <hr style="border: 0; border-top: 1px solid var(--line); margin: 12px 0;" />
+
+                    <div class="row">
+                        <div>
+                            <label>동시 처리 개수(권장 2~5)</label><br />
+                            <input id="concurrency" type="number" min="1" max="10" value="3" />
+                        </div>
+                        <div>
+                            <label>최대 심볼 수(0=전체)</label><br />
+                            <input id="maxSymbols" type="number" min="0" value="0" />
+                        </div>
+                        <div>
+                            <label>캔들 페이지당 limit (최대 1500)</label><br />
+                            <input id="pageLimit" type="number" min="200" max="1500" value="1500" />
+                        </div>
+                        <div>
+                            <label>재시도 횟수</label><br />
+                            <input id="retries" type="number" min="0" max="10" value="4" />
+                        </div>
+                        <div>
+                            <label>페이지간 딜레이(ms)</label><br />
+                            <input id="pageDelay" type="number" min="0" max="2000" value="120" />
+                        </div>
+                        <div style="min-width: 220px;">
+                            <label>필터</label><br />
+                            <div class="row" style="gap: 12px; margin-top: 8px;">
+                                <label class="tag">
+                                    <input id="onlyTrading" type="checkbox" checked />
+                                    TRADING만
+                                </label>
+                                <label class="tag">
+                                    <input id="excludeBUSD" type="checkbox" checked />
+                                    BUSD/USDC 등 제외(USDT만)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat">
+                        <div class="pill">
+                            <b>진행</b>
+                            <span id="statProgress">-</span>
+                        </div>
+                        <div class="pill">
+                            <b>조건 충족(결과)</b>
+                            <span id="statHits">0</span>
+                        </div>
+                        <div class="pill">
+                            <b>마지막 처리 심볼</b>
+                            <span id="statLast">-</span>
+                        </div>
+                        <div class="pill">
+                            <b>에러</b>
+                            <span id="statErr">0</span>
+                        </div>
+                    </div>
+
+                    <div class="progress">
+                        <div id="bar"></div>
+                    </div>
+
+                    <div class="footer">
+                        <div class="small">
+                            Binance Futures API: <span class="mono">https://fapi.binance.com</span><br />
+                            * 너무 오래 걸리면 동시 처리 수를 낮추거나, max 심볼 수를 제한해봐.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="row" style="justify-content: space-between;">
+                        <div><b>로그</b></div>
+                        <div class="tag mono" id="apiStatus">idle</div>
+                    </div>
+                    <div style="height: 10px;"></div>
+                    <div id="log" class="log"></div>
+                </div>
+            </div>
+
+            <div style="height: 14px;"></div>
+
+            <div class="card">
+                <div class="row" style="justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <b>결과 테이블</b>
+                        <div class="small">a[-2] high가 올타임하이(ATH)인 심볼만 표시</div>
+                    </div>
+                    <div class="row">
+                        <span class="tag">정렬: a[-2] 고점 내림차순</span>
+                        <span class="tag">분리: 현재봉 High(a) vs a[-1] High</span>
+                    </div>
+                </div>
+
+                <div class="subhead">
+                    <div class="row">
+                        <b>위: 현재봉 High(a) ≤ a[-1] High</b>
+                        <span class="tag">Count: <span id="countUpper">0</span></span>
+                    </div>
+                    <div class="small">전월 고점을 못 넘김(모멘텀 약화 / “고점형” 관점에선 더 유리할 수 있음)</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Symbol</th>
+                            <th>a[-2] High</th>
+                            <th>a[-2] Date (UTC)</th>
+                            <th>ATH High</th>
+                            <th>ATH Date (UTC)</th>
+                            <th>캔들 수(1M)</th>
+                            <th>a High(현재)</th>
+                            <th>a[-1] High</th>
+                            <th>비교</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyUpper">
+                        <tr>
+                            <td colspan="11" style="color: var(--muted);">아직 결과 없음</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="subhead" style="margin-top: 18px;">
+                    <div class="row">
+                        <b>아래: 현재봉 High(a) &gt; a[-1] High</b>
+                        <span class="tag">Count: <span id="countLower">0</span></span>
+                    </div>
+                    <div class="small">전월 고점 돌파(계속 강함 / “고점형” 관점에선 더 보수적으로)</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Symbol</th>
+                            <th>a[-2] High</th>
+                            <th>a[-2] Date (UTC)</th>
+                            <th>ATH High</th>
+                            <th>ATH Date (UTC)</th>
+                            <th>캔들 수(1M)</th>
+                            <th>a High(현재)</th>
+                            <th>a[-1] High</th>
+                            <th>비교</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyLower">
+                        <tr>
+                            <td colspan="11" style="color: var(--muted);">아직 결과 없음</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <script>
+            "use strict";
+
+            const API_BASE = "https://fapi.binance.com";
+
+            const $ = (id) => document.getElementById(id);
+
+            const el = {
+                btnStart: $("btnStart"),
+                btnStop: $("btnStop"),
+                btnExport: $("btnExport"),
+                concurrency: $("concurrency"),
+                maxSymbols: $("maxSymbols"),
+                pageLimit: $("pageLimit"),
+                retries: $("retries"),
+                pageDelay: $("pageDelay"),
+                onlyTrading: $("onlyTrading"),
+                excludeBUSD: $("excludeBUSD"),
+                statProgress: $("statProgress"),
+                statHits: $("statHits"),
+                statLast: $("statLast"),
+                statErr: $("statErr"),
+                bar: $("bar"),
+                tbodyUpper: $("tbodyUpper"),
+                tbodyLower: $("tbodyLower"),
+                countUpper: $("countUpper"),
+                countLower: $("countLower"),
+                log: $("log"),
+                apiStatus: $("apiStatus"),
+            };
+
+            let isRunning = false;
+            let abortFlag = false;
+
+            const hits = [];
+            let totalSymbols = 0;
+            let doneSymbols = 0;
+            let errCount = 0;
+
+            function logLine(msg) {
+                const t = new Date().toISOString().replace("T", " ").replace("Z", "Z");
+                el.log.textContent += `[${t}] ${msg}\n`;
+                el.log.scrollTop = el.log.scrollHeight;
+            }
+
+            function setStatus(text) {
+                el.apiStatus.textContent = text;
+            }
+
+            function sleep(ms) {
+                return new Promise((r) => setTimeout(r, ms));
+            }
+
+            function toUtcDateStr(ms) {
+                const d = new Date(ms);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const day = String(d.getUTCDate()).padStart(2, "0");
+                return `${y}-${m}-${day}`;
+            }
+
+            function num(n) {
+                const x = Number(n);
+                if (!Number.isFinite(x)) return "-";
+                return x.toLocaleString(undefined, { maximumFractionDigits: 12 });
+            }
+
+            async function fetchJsonWithRetry(url, retryMax) {
+                let attempt = 0;
+                let lastErr = null;
+
+                while (attempt <= retryMax) {
+                    if (abortFlag) throw new Error("aborted");
+                    try {
+                        const res = await fetch(url, { cache: "no-store" });
+                        if (!res.ok) {
+                            const text = await res.text().catch(() => "");
+                            throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 200)}`);
+                        }
+                        return await res.json();
+                    } catch (e) {
+                        lastErr = e;
+                        const wait = Math.min(1500 * Math.pow(2, attempt), 12000);
+                        logLine(`요청 실패(시도 ${attempt + 1}/${retryMax + 1}) → ${String(e.message || e)} / ${Math.round(wait)}ms 후 재시도`);
+                        await sleep(wait);
+                        attempt += 1;
+                    }
+                }
+
+                throw lastErr || new Error("fetch failed");
+            }
+
+            async function getUsdtPerpSymbols() {
+                const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+                const data = await fetchJsonWithRetry(url, Number(el.retries.value));
+
+                const onlyTrading = el.onlyTrading.checked;
+                const excludeBUSD = el.excludeBUSD.checked;
+
+                const list = (data.symbols || [])
+                    .filter((s) => s && s.contractType === "PERPETUAL")
+                    .filter((s) => (excludeBUSD ? s.quoteAsset === "USDT" : true))
+                    .filter((s) => (onlyTrading ? s.status === "TRADING" : true))
+                    .map((s) => s.symbol)
+                    .sort((a, b) => a.localeCompare(b));
+
+                return list;
+            }
+
+            async function fetchAllMonthlyKlines(symbol) {
+                const limit = Math.max(200, Math.min(1500, Number(el.pageLimit.value) || 1500));
+                const retryMax = Number(el.retries.value) || 0;
+                const pageDelay = Math.max(0, Number(el.pageDelay.value) || 0);
+
+                let endTime = null;
+                const all = [];
+
+                while (true) {
+                    if (abortFlag) break;
+
+                    const qs = new URLSearchParams();
+                    qs.set("symbol", symbol);
+                    qs.set("interval", "1M");
+                    qs.set("limit", String(limit));
+                    if (endTime !== null) qs.set("endTime", String(endTime));
+
+                    const url = `${API_BASE}/fapi/v1/klines?${qs.toString()}`;
+                    const page = await fetchJsonWithRetry(url, retryMax);
+
+                    if (!Array.isArray(page) || page.length === 0) break;
+
+                    for (const k of page) {
+                        if (!Array.isArray(k)) continue;
+                        const openTime = Number(k[0]);
+                        if (!Number.isFinite(openTime)) continue;
+                        all.push(k);
+                    }
+
+                    let minOpen = Infinity;
+                    for (const k of page) {
+                        const openTime = Number(k[0]);
+                        if (Number.isFinite(openTime) && openTime < minOpen) minOpen = openTime;
+                    }
+
+                    if (!Number.isFinite(minOpen) || page.length < limit) break;
+
+                    endTime = minOpen - 1;
+
+                    if (pageDelay > 0) await sleep(pageDelay);
+                }
+
+                const map = new Map();
+                for (const k of all) {
+                    const t = Number(k[0]);
+                    if (!Number.isFinite(t)) continue;
+                    if (!map.has(t)) map.set(t, k);
+                }
+
+                const merged = Array.from(map.entries())
+                    .sort((a, b) => a[0] - b[0])
+                    .map((x) => x[1]);
+
+                return merged;
+            }
+
+            function judgeAminus2IsATH(klines) {
+                if (!Array.isArray(klines) || klines.length < 3) {
+                    return { ok: false, reason: "1M 캔들 수 부족(<3)" };
+                }
+
+                const idxA = klines.length - 1;
+                const idxPrev = idxA - 1;
+                const idxTarget = idxA - 2;
+
+                const cur = klines[idxA];
+                const prev = klines[idxPrev];
+                const target = klines[idxTarget];
+
+                const currentHigh = Number(cur[2]);
+                const prevHigh = Number(prev[2]);
+                const targetHigh = Number(target[2]);
+
+                if (!Number.isFinite(targetHigh)) return { ok: false, reason: "a[-2] high 파싱 실패" };
+                if (!Number.isFinite(currentHigh)) return { ok: false, reason: "a high(현재) 파싱 실패" };
+                if (!Number.isFinite(prevHigh)) return { ok: false, reason: "a[-1] high 파싱 실패" };
+
+                let ath = -Infinity;
+                let athTime = null;
+
+                for (const k of klines) {
+                    const high = Number(k[2]);
+                    const openTime = Number(k[0]);
+                    if (!Number.isFinite(high)) continue;
+                    if (high > ath) {
+                        ath = high;
+                        athTime = Number.isFinite(openTime) ? openTime : null;
+                    }
+                }
+
+                if (!Number.isFinite(ath)) return { ok: false, reason: "ATH 계산 실패" };
+
+                const ok = targetHigh === ath;
+
+                return {
+                    ok,
+                    targetHigh,
+                    targetTime: Number(target[0]),
+                    athHigh: ath,
+                    athTime,
+                    candles: klines.length,
+                    currentHigh,
+                    currentTime: Number(cur[0]),
+                    prevHigh,
+                    prevTime: Number(prev[0]),
+                    curAbovePrev: currentHigh > prevHigh,
+                };
+            }
+
+            function updateStats() {
+                el.statProgress.textContent = `${doneSymbols.toLocaleString()} / ${totalSymbols.toLocaleString()}`;
+                el.statHits.textContent = hits.length.toLocaleString();
+                el.statErr.textContent = errCount.toLocaleString();
+                const pct = totalSymbols > 0 ? Math.min(100, (doneSymbols / totalSymbols) * 100) : 0;
+                el.bar.style.width = `${pct.toFixed(2)}%`;
+                el.btnExport.disabled = hits.length === 0;
+            }
+
+            function renderTable() {
+                el.tbodyUpper.innerHTML = "";
+                el.tbodyLower.innerHTML = "";
+
+                const sorted = [...hits].sort((a, b) => b.targetHigh - a.targetHigh);
+
+                const upper = sorted.filter((r) => r.currentHigh <= r.prevHigh);
+                const lower = sorted.filter((r) => r.currentHigh > r.prevHigh);
+
+                el.countUpper.textContent = String(upper.length);
+                el.countLower.textContent = String(lower.length);
+
+                function renderEmpty(tbody) {
+                    const tr = document.createElement("tr");
+                    const td = document.createElement("td");
+                    td.colSpan = 11;
+                    td.style.color = "var(--muted)";
+                    td.textContent = "아직 결과 없음";
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                }
+
+                function renderRows(tbody, arr) {
+                    if (arr.length === 0) {
+                        renderEmpty(tbody);
+                        return;
+                    }
+
+                    let i = 1;
+                    for (const r of arr) {
+                        const tr = document.createElement("tr");
+
+                        const compareText = r.currentHigh > r.prevHigh ? "a > a[-1]" : "a ≤ a[-1]";
+
+                        const cells = [
+                            String(i),
+                            r.symbol,
+                            num(r.targetHigh),
+                            toUtcDateStr(r.targetTime),
+                            num(r.athHigh),
+                            r.athTime ? toUtcDateStr(r.athTime) : "-",
+                            String(r.candles),
+                            num(r.currentHigh),
+                            num(r.prevHigh),
+                            compareText,
+                            r.note || "",
+                        ];
+
+                        for (let c = 0; c < cells.length; c += 1) {
+                            const td = document.createElement("td");
+                            td.textContent = cells[c];
+                            if (c === 1) td.classList.add("mono");
+                            if (c === 9) td.classList.add(r.currentHigh > r.prevHigh ? "no" : "ok");
+                            tr.appendChild(td);
+                        }
+
+                        tbody.appendChild(tr);
+                        i += 1;
+                    }
+                }
+
+                renderRows(el.tbodyUpper, upper);
+                renderRows(el.tbodyLower, lower);
+            }
+
+            function exportCsv() {
+                const sorted = [...hits].sort((a, b) => b.targetHigh - a.targetHigh);
+
+                const header = [
+                    "symbol",
+                    "a_minus_2_high",
+                    "a_minus_2_date_utc",
+                    "ath_high",
+                    "ath_date_utc",
+                    "monthly_candles",
+                    "a_current_high",
+                    "a_minus_1_high",
+                    "a_high_gt_a_minus_1_high",
+                    "note",
+                ];
+
+                const rows = [header.join(",")];
+
+                for (const r of sorted) {
+                    const line = [
+                        r.symbol,
+                        String(r.targetHigh),
+                        toUtcDateStr(r.targetTime),
+                        String(r.athHigh),
+                        r.athTime ? toUtcDateStr(r.athTime) : "",
+                        String(r.candles),
+                        String(r.currentHigh),
+                        String(r.prevHigh),
+                        r.currentHigh > r.prevHigh ? "true" : "false",
+                        (r.note || "").replaceAll('"', '""'),
+                    ];
+                    rows.push(line.map((x) => `"${x}"`).join(","));
+                }
+
+                const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `binance_usdtperp_1M_a-2_ATH_split_${new Date().toISOString().slice(0, 10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                URL.revokeObjectURL(url);
+            }
+
+            async function worker(symbolQueue) {
+                while (symbolQueue.length > 0) {
+                    if (abortFlag) break;
+
+                    const symbol = symbolQueue.shift();
+                    if (!symbol) break;
+
+                    el.statLast.textContent = symbol;
+
+                    try {
+                        const klines = await fetchAllMonthlyKlines(symbol);
+                        const judged = judgeAminus2IsATH(klines);
+
+                        if (judged.ok) {
+                            const note = judged.currentHigh > judged.prevHigh
+                                ? "a[-2] high = ATH / a high > a[-1] high"
+                                : "a[-2] high = ATH / a high ≤ a[-1] high";
+
+                            hits.push({
+                                symbol,
+                                ok: true,
+                                targetHigh: judged.targetHigh,
+                                targetTime: judged.targetTime,
+                                athHigh: judged.athHigh,
+                                athTime: judged.athTime,
+                                candles: judged.candles,
+                                currentHigh: judged.currentHigh,
+                                prevHigh: judged.prevHigh,
+                                note,
+                            });
+
+                            if (judged.currentHigh > judged.prevHigh) {
+                                logLine(`⚠️ HIT ${symbol} :: a[-2] high=ATH & 현재 high(${judged.currentHigh}) > 전월 high(${judged.prevHigh})`);
+                            } else {
+                                logLine(`✅ HIT ${symbol} :: a[-2] high=ATH & 현재 high(${judged.currentHigh}) ≤ 전월 high(${judged.prevHigh})`);
+                            }
+
+                            renderTable();
+                        }
+                    } catch (e) {
+                        errCount += 1;
+                        logLine(`❌ ERROR ${symbol} :: ${String(e.message || e)}`);
+                    } finally {
+                        doneSymbols += 1;
+                        updateStats();
+                    }
+                }
+            }
+
+            async function startScan() {
+                isRunning = true;
+                abortFlag = false;
+                hits.length = 0;
+                errCount = 0;
+                doneSymbols = 0;
+                totalSymbols = 0;
+
+                el.btnStart.disabled = true;
+                el.btnStop.disabled = false;
+                setStatus("running");
+                el.log.textContent = "";
+                el.statLast.textContent = "-";
+                updateStats();
+                renderTable();
+
+                try {
+                    logLine("exchangeInfo 로딩...");
+                    const symbols = await getUsdtPerpSymbols();
+
+                    const maxSymbols = Math.max(0, Number(el.maxSymbols.value) || 0);
+                    const finalSymbols = maxSymbols > 0 ? symbols.slice(0, maxSymbols) : symbols;
+
+                    totalSymbols = finalSymbols.length;
+                    updateStats();
+
+                    logLine(`대상 심볼 수: ${totalSymbols.toLocaleString()}`);
+                    logLine("스캔 시작... (1M 전체 페이지네이션)");
+
+                    const q = [...finalSymbols];
+                    const conc = Math.max(1, Math.min(10, Number(el.concurrency.value) || 3));
+
+                    const workers = [];
+                    for (let i = 0; i < conc; i += 1) {
+                        workers.push(worker(q));
+                    }
+
+                    await Promise.allSettled(workers);
+
+                    if (abortFlag) {
+                        logLine("⛔ 사용자 중단됨");
+                        setStatus("aborted");
+                    } else {
+                        logLine("✅ 스캔 완료");
+                        setStatus("done");
+                    }
+                } catch (e) {
+                    logLine(`치명 오류: ${String(e.message || e)}`);
+                    setStatus("error");
+                } finally {
+                    isRunning = false;
+                    el.btnStart.disabled = false;
+                    el.btnStop.disabled = true;
+                    updateStats();
+                    renderTable();
+                }
+            }
+
+            function stopScan() {
+                if (!isRunning) return;
+                abortFlag = true;
+                setStatus("stopping...");
+                logLine("중단 요청됨(진행 중 요청 완료 후 종료)");
+                el.btnStop.disabled = true;
+            }
+
+            el.btnStart.addEventListener("click", () => {
+                if (isRunning) return;
+                startScan();
+            });
+
+            el.btnStop.addEventListener("click", () => {
+                stopScan();
+            });
+
+            el.btnExport.addEventListener("click", () => {
+                exportCsv();
+            });
+
+            logLine("대기 중. [스캔 시작]을 누르면 USDT 무기한 전 종목을 1M 전체 히스토리로 스캔합니다.");
+        </script>
+    </body>
+</html>
