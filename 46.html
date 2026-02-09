@@ -1,0 +1,1223 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp — 1D 올-히스토리 Extreme(a[-2]) 스캐너 (롱/숏 + 백테스트)</title>
+        <style>
+            :root {
+                --bg: #0b1020;
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel2: rgba(255, 255, 255, 0.08);
+                --text: rgba(255, 255, 255, 0.92);
+                --muted: rgba(255, 255, 255, 0.65);
+                --line: rgba(255, 255, 255, 0.12);
+                --good: #4ade80;
+                --bad: #fb7185;
+                --warn: #fbbf24;
+                --btn: #60a5fa;
+                --btn2: #a78bfa;
+                --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo",
+                    "Malgun Gothic", sans-serif;
+                background: radial-gradient(1200px 600px at 20% 0%, rgba(96, 165, 250, 0.15), transparent 60%),
+                    radial-gradient(900px 500px at 80% 10%, rgba(167, 139, 250, 0.14), transparent 55%),
+                    radial-gradient(800px 600px at 40% 90%, rgba(74, 222, 128, 0.10), transparent 60%),
+                    var(--bg);
+                color: var(--text);
+            }
+
+            .wrap {
+                max-width: 1300px;
+                margin: 28px auto 70px;
+                padding: 0 16px;
+            }
+
+            .header {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 16px;
+            }
+
+            .title {
+                font-size: 20px;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+            }
+
+            .sub {
+                color: var(--muted);
+                font-size: 13px;
+                line-height: 1.45;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: 420px 1fr;
+                gap: 14px;
+            }
+
+            @media (max-width: 980px) {
+                .grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .card {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.05));
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+
+            .card .hd {
+                padding: 14px 14px 10px;
+                border-bottom: 1px solid var(--line);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+            }
+
+            .card .hd .hdt {
+                font-weight: 800;
+                letter-spacing: -0.02em;
+            }
+
+            .card .bd {
+                padding: 14px;
+            }
+
+            .row {
+                display: grid;
+                grid-template-columns: 120px 1fr;
+                gap: 10px;
+                margin-bottom: 10px;
+                align-items: center;
+            }
+
+            .row label {
+                color: var(--muted);
+                font-size: 13px;
+            }
+
+            .row input[type="number"],
+            .row input[type="date"],
+            .row select {
+                width: 100%;
+                padding: 10px 10px;
+                border-radius: 10px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.18);
+                color: var(--text);
+                outline: none;
+            }
+
+            .row input[type="number"]:focus,
+            .row input[type="date"]:focus,
+            .row select:focus {
+                border-color: rgba(96, 165, 250, 0.9);
+                box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+            }
+
+            .check {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                user-select: none;
+                margin: 8px 0 12px;
+            }
+
+            .check input {
+                width: 18px;
+                height: 18px;
+                accent-color: var(--btn);
+            }
+
+            .btns {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-top: 10px;
+            }
+
+            button {
+                border: 0;
+                border-radius: 12px;
+                padding: 10px 12px;
+                cursor: pointer;
+                color: #0b1020;
+                font-weight: 800;
+                letter-spacing: -0.01em;
+                transition: transform 0.08s ease, filter 0.12s ease;
+            }
+
+            button:active {
+                transform: translateY(1px);
+            }
+
+            .btn-primary {
+                background: linear-gradient(90deg, rgba(96, 165, 250, 0.95), rgba(167, 139, 250, 0.92));
+            }
+
+            .btn-ghost {
+                background: rgba(255, 255, 255, 0.10);
+                color: var(--text);
+                border: 1px solid var(--line);
+            }
+
+            .btn-warn {
+                background: rgba(251, 191, 36, 0.95);
+            }
+
+            .btn-danger {
+                background: rgba(251, 113, 133, 0.95);
+            }
+
+            button:disabled {
+                cursor: not-allowed;
+                opacity: 0.55;
+                filter: grayscale(0.2);
+            }
+
+            .status {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                margin-top: 10px;
+            }
+
+            .pill {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.18);
+                color: var(--muted);
+                font-size: 12px;
+            }
+
+            .pill b {
+                color: var(--text);
+                font-weight: 800;
+            }
+
+            .bar {
+                height: 10px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.10);
+                border: 1px solid var(--line);
+                overflow: hidden;
+            }
+
+            .bar > i {
+                display: block;
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, rgba(74, 222, 128, 0.95), rgba(96, 165, 250, 0.92));
+            }
+
+            .log {
+                height: 210px;
+                overflow: auto;
+                padding: 10px;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.22);
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 11px;
+                color: rgba(255, 255, 255, 0.82);
+                line-height: 1.45;
+                white-space: pre-wrap;
+            }
+
+            .table-wrap {
+                overflow: auto;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 1000px;
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(10, 15, 32, 0.95);
+                border-bottom: 1px solid var(--line);
+                padding: 10px 10px;
+                text-align: left;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.86);
+                cursor: pointer;
+                user-select: none;
+                white-space: nowrap;
+            }
+
+            thead th .sort {
+                opacity: 0.65;
+                margin-left: 6px;
+                font-size: 11px;
+            }
+
+            tbody td {
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 10px 10px;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.88);
+                white-space: nowrap;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.05);
+            }
+
+            .side {
+                font-weight: 900;
+                letter-spacing: -0.02em;
+            }
+
+            .side.long {
+                color: var(--good);
+            }
+
+            .side.short {
+                color: var(--bad);
+            }
+
+            .muted {
+                color: var(--muted);
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.08);
+                padding: 4px 8px;
+                border-radius: 999px;
+                font-size: 11px;
+                color: rgba(255, 255, 255, 0.85);
+            }
+
+            .kpi {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .kpi .badge b {
+                color: var(--text);
+            }
+
+            .hint {
+                margin-top: 10px;
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.55;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="header">
+                <div class="title">Binance USDT Perp — 1D Extreme(a[-2]) 스캐너 (롱/숏 + 백테스트)</div>
+                <div class="sub">
+                    • 일반 스캔: 현재 진행중인 봉을 a로 보고, <b>a[-2]</b>가 “전체 히스토리 최저저점/최고고점”이면 신호로 잡음<br />
+                    • 백테스트: 선택 날짜의 봉을 a로 보고(그 시점까지의 데이터만), a[-2]가 최저/최고이면 신호 + (지정한 방식으로) 수익률% 계산<br />
+                    • th 클릭 정렬(오름/내림) 지원, 기본 정렬은 “승률 높게 가져가려는 가정” 점수(Score) 기준
+                </div>
+            </div>
+
+            <div class="grid">
+                <div class="card">
+                    <div class="hd">
+                        <div class="hdt">설정</div>
+                        <div class="kpi" id="kpi"></div>
+                    </div>
+                    <div class="bd">
+                        <div class="check">
+                            <input type="checkbox" id="backtestToggle" />
+                            <label for="backtestToggle"><b>백테스팅</b> 사용</label>
+                        </div>
+
+                        <div class="row">
+                            <label>백테스트 날짜</label>
+                            <input type="date" id="backtestDate" disabled />
+                        </div>
+
+                        <div class="row">
+                            <label>동시 요청(큐)</label>
+                            <input type="number" id="concurrency" min="1" max="8" value="3" />
+                        </div>
+
+                        <div class="row">
+                            <label>재시도 횟수</label>
+                            <input type="number" id="retries" min="0" max="10" value="6" />
+                        </div>
+
+                        <div class="row">
+                            <label>요청 딜레이(ms)</label>
+                            <input type="number" id="delayMs" min="0" max="2000" value="120" />
+                        </div>
+
+                        <div class="row">
+                            <label>심볼 필터</label>
+                            <select id="symbolFilter">
+                                <option value="ALL">전체 USDT Perp</option>
+                                <option value="TOP_LIQ_200">유동성 상위 200 (가속)</option>
+                                <option value="TOP_LIQ_100">유동성 상위 100 (가속)</option>
+                            </select>
+                        </div>
+
+                        <div class="btns">
+                            <button class="btn-primary" id="startBtn">스캔 시작</button>
+                            <button class="btn-danger" id="stopBtn" disabled>중단</button>
+                            <button class="btn-ghost" id="clearBtn">결과/로그 초기화</button>
+                        </div>
+
+                        <div class="status">
+                            <div class="pill">
+                                <span>진행</span>
+                                <span><b id="progressText">대기</b></span>
+                            </div>
+                            <div class="bar"><i id="progressBar"></i></div>
+                            <div class="pill">
+                                <span>현재 심볼</span>
+                                <span><b id="currentSymbol">-</b></span>
+                            </div>
+                        </div>
+
+                        <div class="hint">
+                            <b>중요</b>: 1D “전체 히스토리”를 모든 USDT Perp에 대해 긁기 때문에 매우 오래 걸릴 수 있어. 대신 끊김 방지를 위해
+                            <b>재시도/큐/딜레이/중단</b>을 넣었고, 도중에 에러가 나도 가능한 한 끝까지 진행하게 구성했어.<br />
+                            속도가 너무 느리면 “유동성 상위 100/200”로 먼저 돌린 뒤 전체로 확장해.
+                        </div>
+
+                        <div style="height: 10px;"></div>
+                        <div class="log" id="log"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="hd">
+                        <div class="hdt">결과</div>
+                        <div class="badge" id="resultSummary">0건</div>
+                    </div>
+                    <div class="bd">
+                        <div class="table-wrap">
+                            <table id="resultTable">
+                                <thead>
+                                    <tr id="theadRow"></tr>
+                                </thead>
+                                <tbody id="tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="hint">
+                            • th 클릭 시 오름/내림 정렬이 바뀜<br />
+                            • 기본 정렬(Score)은 “승률을 높게 가져가려는 가정”으로: <b>유동성(Avg QuoteVol30)</b> 높고, <b>변동성(ATR30%)</b> 낮고,
+                            <b>극단성(Gap%)</b>이 큰 신호를 우선하도록 구성
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                // ---------------------------
+                // Binance Futures REST
+                // ---------------------------
+                const BASE = "https://fapi.binance.com";
+                const ENDPOINT_EXCHANGE_INFO = "/fapi/v1/exchangeInfo";
+                const ENDPOINT_KLINES = "/fapi/v1/klines"; // interval=1d
+
+                // ---------------------------
+                // UI
+                // ---------------------------
+                const el = {
+                    backtestToggle: document.getElementById("backtestToggle"),
+                    backtestDate: document.getElementById("backtestDate"),
+                    concurrency: document.getElementById("concurrency"),
+                    retries: document.getElementById("retries"),
+                    delayMs: document.getElementById("delayMs"),
+                    symbolFilter: document.getElementById("symbolFilter"),
+                    startBtn: document.getElementById("startBtn"),
+                    stopBtn: document.getElementById("stopBtn"),
+                    clearBtn: document.getElementById("clearBtn"),
+                    log: document.getElementById("log"),
+                    progressText: document.getElementById("progressText"),
+                    progressBar: document.getElementById("progressBar"),
+                    currentSymbol: document.getElementById("currentSymbol"),
+                    tbody: document.getElementById("tbody"),
+                    theadRow: document.getElementById("theadRow"),
+                    resultSummary: document.getElementById("resultSummary"),
+                    kpi: document.getElementById("kpi")
+                };
+
+                const COLUMNS = [
+                    { key: "score", label: "Score", type: "number", desc: "기본 정렬(승률 가정): 유동성↑, 변동성↓, Gap↑" },
+                    { key: "side", label: "Side", type: "string", desc: "LONG / SHORT" },
+                    { key: "symbol", label: "Symbol", type: "string", desc: "USDT Perp" },
+                    { key: "aDate", label: "a Date(UTC)", type: "string", desc: "일반=현재진행봉, 백테스트=선택날짜 봉" },
+                    { key: "sigDate", label: "a[-2] Date(UTC)", type: "string", desc: "신호 기준 봉 날짜" },
+                    { key: "entry", label: "Entry(a[-2])", type: "number", desc: "LONG=저점, SHORT=고점" },
+                    { key: "exit", label: "Exit(a)", type: "number", desc: "백테스트만: LONG= a.low, SHORT= a.high" },
+                    { key: "pnlPct", label: "PnL %", type: "number", desc: "지정한 방식으로 계산한 수익률%" },
+                    { key: "gapPct", label: "Gap %", type: "number", desc: "극단성: (2nd extreme 대비 a[-2])" },
+                    { key: "atr30Pct", label: "ATR30 %", type: "number", desc: "최근 30봉 평균(range/close*100)" },
+                    { key: "avgQuoteVol30", label: "Avg QuoteVol30", type: "number", desc: "최근 30봉 평균(대략 volume*close)" },
+                    { key: "count", label: "Candles", type: "number", desc: "사용한 1D 캔들 수" },
+                    { key: "note", label: "Note", type: "string", desc: "메모/예외" }
+                ];
+
+                let sortState = {
+                    key: "score",
+                    dir: "desc"
+                };
+
+                let aborter = null;
+                let results = [];
+                let scanned = 0;
+                let total = 0;
+                let errors = 0;
+
+                // ---------------------------
+                // Helpers
+                // ---------------------------
+                const sleep = async (ms) => {
+                    if (!ms || ms <= 0) return;
+                    await new Promise((r) => setTimeout(r, ms));
+                };
+
+                const fmtNum = (v, digits = 6) => {
+                    if (v == null || !Number.isFinite(v)) return "-";
+                    const abs = Math.abs(v);
+                    if (abs >= 1000) return v.toFixed(2);
+                    if (abs >= 1) return v.toFixed(4);
+                    return v.toFixed(digits);
+                };
+
+                const fmtPct = (v) => {
+                    if (v == null || !Number.isFinite(v)) return "-";
+                    return `${v.toFixed(2)}%`;
+                };
+
+                const utcDate = (ms) => {
+                    const d = new Date(ms);
+                    const yy = d.getUTCFullYear();
+                    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                    const dd = String(d.getUTCDate()).padStart(2, "0");
+                    return `${yy}-${mm}-${dd}`;
+                };
+
+                const logLine = (msg) => {
+                    const t = new Date();
+                    const hh = String(t.getHours()).padStart(2, "0");
+                    const mi = String(t.getMinutes()).padStart(2, "0");
+                    const ss = String(t.getSeconds()).padStart(2, "0");
+                    el.log.textContent += `[${hh}:${mi}:${ss}] ${msg}\n`;
+                    el.log.scrollTop = el.log.scrollHeight;
+                };
+
+                const setProgress = (text, ratio) => {
+                    el.progressText.textContent = text;
+                    const p = Math.max(0, Math.min(1, ratio || 0));
+                    el.progressBar.style.width = `${(p * 100).toFixed(2)}%`;
+                };
+
+                const setKpi = () => {
+                    el.kpi.innerHTML = "";
+                    const items = [
+                        { k: "총 심볼", v: total },
+                        { k: "스캔 완료", v: scanned },
+                        { k: "결과", v: results.length },
+                        { k: "에러", v: errors }
+                    ];
+                    for (const it of items) {
+                        const span = document.createElement("span");
+                        span.className = "badge";
+                        span.innerHTML = `${it.k}: <b>${it.v}</b>`;
+                        el.kpi.appendChild(span);
+                    }
+                };
+
+                const setButtons = (running) => {
+                    el.startBtn.disabled = running;
+                    el.stopBtn.disabled = !running;
+                    el.backtestToggle.disabled = running;
+                    el.backtestDate.disabled = running || !el.backtestToggle.checked;
+                    el.concurrency.disabled = running;
+                    el.retries.disabled = running;
+                    el.delayMs.disabled = running;
+                    el.symbolFilter.disabled = running;
+                };
+
+                // ---------------------------
+                // Fetch with retry
+                // ---------------------------
+                const fetchJson = async (url, { signal, retries, delayMs }) => {
+                    let attempt = 0;
+                    let lastErr = null;
+
+                    while (attempt <= retries) {
+                        try {
+                            const res = await fetch(url, { signal });
+                            if (!res.ok) {
+                                const text = await res.text().catch(() => "");
+                                const err = new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 200)}`);
+                                err.httpStatus = res.status;
+                                throw err;
+                            }
+                            const data = await res.json();
+                            return data;
+                        } catch (e) {
+                            lastErr = e;
+                            if (signal && signal.aborted) throw e;
+
+                            // 429/418 등 레이트리밋이면 더 길게 쉼
+                            const status = e && e.httpStatus ? e.httpStatus : 0;
+                            const base = delayMs || 120;
+                            const backoff = Math.min(6000, base * (1.6 ** attempt));
+                            const extra = status === 429 || status === 418 ? 1200 : 0;
+
+                            attempt += 1;
+                            if (attempt > retries) break;
+
+                            await sleep(backoff + extra);
+                        }
+                    }
+
+                    throw lastErr;
+                };
+
+                // ---------------------------
+                // Binance: symbols
+                // ---------------------------
+                const getUsdtPerpSymbols = async ({ signal, retries, delayMs }) => {
+                    const url = `${BASE}${ENDPOINT_EXCHANGE_INFO}`;
+                    const data = await fetchJson(url, { signal, retries, delayMs });
+
+                    const list = [];
+                    for (const s of data.symbols || []) {
+                        const isPerp = s.contractType === "PERPETUAL";
+                        const isTrading = s.status === "TRADING";
+                        const isUsdt = s.quoteAsset === "USDT";
+                        if (isPerp && isTrading && isUsdt) {
+                            list.push(s.symbol);
+                        }
+                    }
+                    return list;
+                };
+
+                // ---------------------------
+                // Binance: klines (full history via pagination)
+                // limit=1500, paginate by startTime
+                // ---------------------------
+                const fetchAllDailyKlines = async (symbol, { signal, retries, delayMs }) => {
+                    const limit = 1500;
+                    let startTime = 0;
+                    let all = [];
+                    let guard = 0;
+
+                    while (true) {
+                        guard += 1;
+                        // guard: 무한루프 방지(너무 오래되면 컷)
+                        if (guard > 80) {
+                            // 80 * 1500 = 120,000일 이상(현실상 충분)
+                            break;
+                        }
+
+                        const url = `${BASE}${ENDPOINT_KLINES}?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=${limit}${
+                            startTime > 0 ? `&startTime=${startTime}` : ""
+                        }`;
+
+                        const chunk = await fetchJson(url, { signal, retries, delayMs });
+                        if (!Array.isArray(chunk) || chunk.length === 0) break;
+
+                        all = all.concat(chunk);
+
+                        if (chunk.length < limit) break;
+
+                        // 다음 startTime: 마지막 봉 openTime + 1ms
+                        const lastOpen = Number(chunk[chunk.length - 1][0]);
+                        if (!Number.isFinite(lastOpen)) break;
+
+                        startTime = lastOpen + 1;
+                        await sleep(delayMs);
+                    }
+
+                    // openTime 중복 제거(안전)
+                    const map = new Map();
+                    for (const k of all) {
+                        const t = Number(k[0]);
+                        if (!map.has(t)) map.set(t, k);
+                    }
+                    const sorted = Array.from(map.entries())
+                        .sort((a, b) => a[0] - b[0])
+                        .map((x) => x[1]);
+
+                    return sorted;
+                };
+
+                // ---------------------------
+                // Candle parsing + metrics
+                // kline: [
+                // 0 openTime, 1 open, 2 high, 3 low, 4 close, 5 volume, 6 closeTime, 7 quoteAssetVolume, ...
+                // ]
+                // ---------------------------
+                const toCandles = (klines) => {
+                    const out = [];
+                    for (const k of klines) {
+                        const openTime = Number(k[0]);
+                        const open = Number(k[1]);
+                        const high = Number(k[2]);
+                        const low = Number(k[3]);
+                        const close = Number(k[4]);
+                        const volume = Number(k[5]);
+                        const closeTime = Number(k[6]);
+
+                        if (!Number.isFinite(openTime) || !Number.isFinite(high) || !Number.isFinite(low) || !Number.isFinite(close)) {
+                            continue;
+                        }
+
+                        out.push({
+                            openTime,
+                            closeTime,
+                            open,
+                            high,
+                            low,
+                            close,
+                            volume
+                        });
+                    }
+                    return out;
+                };
+
+                const avgQuoteVol30 = (candles, endIdxInclusive) => {
+                    const end = Math.min(endIdxInclusive, candles.length - 1);
+                    const start = Math.max(0, end - 29);
+                    let sum = 0;
+                    let n = 0;
+                    for (let i = start; i <= end; i += 1) {
+                        const c = candles[i];
+                        const qv = (Number.isFinite(c.volume) ? c.volume : 0) * (Number.isFinite(c.close) ? c.close : 0);
+                        if (Number.isFinite(qv)) {
+                            sum += qv;
+                            n += 1;
+                        }
+                    }
+                    return n > 0 ? sum / n : 0;
+                };
+
+                const atr30Pct = (candles, endIdxInclusive) => {
+                    const end = Math.min(endIdxInclusive, candles.length - 1);
+                    const start = Math.max(0, end - 29);
+                    let sum = 0;
+                    let n = 0;
+                    for (let i = start; i <= end; i += 1) {
+                        const c = candles[i];
+                        const range = c.high - c.low;
+                        const base = c.close || 0;
+                        if (base > 0 && Number.isFinite(range)) {
+                            sum += (range / base) * 100;
+                            n += 1;
+                        }
+                    }
+                    return n > 0 ? sum / n : 0;
+                };
+
+                // gapPct: extreme vs second extreme
+                // LONG: gap = (2ndMinLow - minLow)/minLow * 100 (bigger is more "unique extreme")
+                // SHORT: gap = (maxHigh - 2ndMaxHigh)/maxHigh * 100
+                const gapPctExtreme = (candles, endIdxInclusive, side) => {
+                    const end = Math.min(endIdxInclusive, candles.length - 1);
+                    if (end < 2) return 0;
+
+                    if (side === "LONG") {
+                        let min1 = Infinity;
+                        let min2 = Infinity;
+                        for (let i = 0; i <= end; i += 1) {
+                            const v = candles[i].low;
+                            if (v < min1) {
+                                min2 = min1;
+                                min1 = v;
+                            } else if (v < min2) {
+                                min2 = v;
+                            }
+                        }
+                        if (!Number.isFinite(min1) || !Number.isFinite(min2) || min1 <= 0) return 0;
+                        return ((min2 - min1) / min1) * 100;
+                    }
+
+                    // SHORT
+                    let max1 = -Infinity;
+                    let max2 = -Infinity;
+                    for (let i = 0; i <= end; i += 1) {
+                        const v = candles[i].high;
+                        if (v > max1) {
+                            max2 = max1;
+                            max1 = v;
+                        } else if (v > max2) {
+                            max2 = v;
+                        }
+                    }
+                    if (!Number.isFinite(max1) || !Number.isFinite(max2) || max1 <= 0) return 0;
+                    return ((max1 - max2) / max1) * 100;
+                };
+
+                // ---------------------------
+                // Signal detection
+                // ---------------------------
+                const findIndexByUtcDate = (candles, yyyyMmDd) => {
+                    // candles openTime 기준 UTC date match
+                    for (let i = 0; i < candles.length; i += 1) {
+                        if (utcDate(candles[i].openTime) === yyyyMmDd) return i;
+                    }
+                    return -1;
+                };
+
+                const detectSignal = ({ candles, isBacktest, backtestDate }) => {
+                    if (!candles || candles.length < 3) {
+                        return { ok: false, reason: "캔들 수 부족" };
+                    }
+
+                    let aIdx = candles.length - 1; // 일반 스캔: 마지막(현재 진행중) 봉
+                    if (isBacktest) {
+                        aIdx = findIndexByUtcDate(candles, backtestDate);
+                        if (aIdx < 0) return { ok: false, reason: "선택 날짜 캔들을 찾지 못함(UTC 기준)" };
+                        if (aIdx < 2) return { ok: false, reason: "선택 날짜 기준 a[-2]가 존재하지 않음" };
+                    }
+
+                    const sigIdx = aIdx - 2;
+                    const a = candles[aIdx];
+                    const sig = candles[sigIdx];
+
+                    // 비교 범위:
+                    // 일반: 전체 히스토리(0..last)
+                    // 백테스트: 그 시점까지(0..aIdx)
+                    const end = isBacktest ? aIdx : candles.length - 1;
+
+                    // LONG 조건: a[-2].low === minLow(0..end)
+                    // SHORT 조건: a[-2].high === maxHigh(0..end)
+                    let minLow = Infinity;
+                    let maxHigh = -Infinity;
+
+                    for (let i = 0; i <= end; i += 1) {
+                        const c = candles[i];
+                        if (c.low < minLow) minLow = c.low;
+                        if (c.high > maxHigh) maxHigh = c.high;
+                    }
+
+                    const longHit = Math.abs(sig.low - minLow) <= 0; // exact
+                    const shortHit = Math.abs(sig.high - maxHigh) <= 0; // exact
+
+                    // 둘 다 걸릴 확률은 거의 없지만 혹시 모르니 처리
+                    if (!longHit && !shortHit) {
+                        return { ok: false, reason: "조건 미충족" };
+                    }
+
+                    // 수익률 계산(요구대로)
+                    // LONG: entry = sig.low, exit = a.low
+                    // SHORT: entry = sig.high, exit = a.high, profit = (entry-exit)/entry*100
+                    const calcPnL = (side) => {
+                        if (!isBacktest) return null;
+                        if (side === "LONG") {
+                            const entry = sig.low;
+                            const exit = a.low;
+                            if (entry <= 0) return null;
+                            return ((exit - entry) / entry) * 100;
+                        }
+                        const entry = sig.high;
+                        const exit = a.high;
+                        if (entry <= 0) return null;
+                        return ((entry - exit) / entry) * 100;
+                    };
+
+                    const makeItem = (side) => {
+                        const gap = gapPctExtreme(candles, end, side);
+                        const atr = atr30Pct(candles, end);
+                        const qv = avgQuoteVol30(candles, end);
+
+                        // "승률 높게" 가정 점수:
+                        // 유동성↑(로그), 변동성↓, gap↑
+                        // score = log10(1+qv)*0.55 + gap*0.35 - atr*0.25
+                        const qvScore = Math.log10(1 + Math.max(0, qv));
+                        const score = qvScore * 0.55 + gap * 0.35 - atr * 0.25;
+
+                        const entry = side === "LONG" ? sig.low : sig.high;
+                        const exit = isBacktest ? (side === "LONG" ? a.low : a.high) : null;
+                        const pnlPct = calcPnL(side);
+
+                        return {
+                            score,
+                            side,
+                            symbol: "",
+                            aDate: utcDate(a.openTime),
+                            sigDate: utcDate(sig.openTime),
+                            entry,
+                            exit,
+                            pnlPct,
+                            gapPct: gap,
+                            atr30Pct: atr,
+                            avgQuoteVol30: qv,
+                            count: end + 1,
+                            note: isBacktest ? "Backtest" : "Live"
+                        };
+                    };
+
+                    const out = [];
+                    if (longHit) out.push(makeItem("LONG"));
+                    if (shortHit) out.push(makeItem("SHORT"));
+
+                    return {
+                        ok: true,
+                        items: out
+                    };
+                };
+
+                // ---------------------------
+                // Table render + sorting
+                // ---------------------------
+                const renderHead = () => {
+                    el.theadRow.innerHTML = "";
+                    for (const col of COLUMNS) {
+                        const th = document.createElement("th");
+                        th.dataset.key = col.key;
+                        const isActive = sortState.key === col.key;
+                        const arrow = isActive ? (sortState.dir === "asc" ? "▲" : "▼") : "↕";
+                        th.title = col.desc || "";
+                        th.innerHTML = `${col.label}<span class="sort">${arrow}</span>`;
+                        th.addEventListener("click", () => {
+                            if (sortState.key === col.key) {
+                                sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+                            } else {
+                                sortState.key = col.key;
+                                sortState.dir = col.type === "string" ? "asc" : "desc";
+                            }
+                            sortAndRender();
+                        });
+                        el.theadRow.appendChild(th);
+                    }
+                };
+
+                const compare = (a, b, key, dir, type) => {
+                    const mul = dir === "asc" ? 1 : -1;
+                    const va = a[key];
+                    const vb = b[key];
+
+                    if (type === "string") {
+                        const sa = va == null ? "" : String(va);
+                        const sb = vb == null ? "" : String(vb);
+                        return sa.localeCompare(sb) * mul;
+                    }
+
+                    const na = Number.isFinite(Number(va)) ? Number(va) : -Infinity;
+                    const nb = Number.isFinite(Number(vb)) ? Number(vb) : -Infinity;
+                    if (na === nb) return 0;
+                    return (na > nb ? 1 : -1) * mul;
+                };
+
+                const sortAndRender = () => {
+                    const col = COLUMNS.find((c) => c.key === sortState.key) || COLUMNS[0];
+                    results.sort((a, b) => compare(a, b, sortState.key, sortState.dir, col.type));
+                    renderHead();
+                    renderBody();
+                };
+
+                const renderBody = () => {
+                    el.tbody.innerHTML = "";
+                    for (const r of results) {
+                        const tr = document.createElement("tr");
+
+                        for (const col of COLUMNS) {
+                            const td = document.createElement("td");
+                            const v = r[col.key];
+
+                            if (col.key === "side") {
+                                const span = document.createElement("span");
+                                span.className = `side ${String(v).toLowerCase()}`;
+                                span.textContent = v;
+                                td.appendChild(span);
+                            } else if (col.key === "score") {
+                                td.textContent = fmtNum(v, 6);
+                            } else if (col.key === "entry" || col.key === "exit") {
+                                td.textContent = v == null ? "-" : fmtNum(v, 8);
+                            } else if (col.key === "pnlPct" || col.key === "gapPct" || col.key === "atr30Pct") {
+                                td.textContent = v == null ? "-" : fmtPct(v);
+                            } else if (col.key === "avgQuoteVol30") {
+                                td.textContent = v == null ? "-" : fmtNum(v, 2);
+                            } else {
+                                td.textContent = v == null ? "-" : String(v);
+                            }
+
+                            tr.appendChild(td);
+                        }
+
+                        el.tbody.appendChild(tr);
+                    }
+
+                    el.resultSummary.textContent = `${results.length}건`;
+                    setKpi();
+                };
+
+                // ---------------------------
+                // Concurrency queue
+                // ---------------------------
+                const runQueue = async ({ items, worker, concurrency, signal }) => {
+                    const queue = items.slice();
+                    const workers = [];
+
+                    for (let i = 0; i < concurrency; i += 1) {
+                        workers.push(
+                            (async () => {
+                                while (queue.length > 0) {
+                                    if (signal && signal.aborted) return;
+                                    const it = queue.shift();
+                                    await worker(it);
+                                }
+                            })()
+                        );
+                    }
+
+                    await Promise.all(workers);
+                };
+
+                // ---------------------------
+                // Symbol pre-filter by liquidity (fast mode)
+                // - we approximate liquidity by last 2 daily klines (limit=2) quoteVol ~ volume*close
+                // ---------------------------
+                const estimateLiquidity = async (symbol, { signal, retries, delayMs }) => {
+                    const url = `${BASE}${ENDPOINT_KLINES}?symbol=${encodeURIComponent(symbol)}&interval=1d&limit=2`;
+                    const chunk = await fetchJson(url, { signal, retries, delayMs });
+                    const candles = toCandles(chunk);
+                    if (candles.length === 0) return 0;
+                    const c = candles[candles.length - 1];
+                    const qv = (Number.isFinite(c.volume) ? c.volume : 0) * (Number.isFinite(c.close) ? c.close : 0);
+                    return Number.isFinite(qv) ? qv : 0;
+                };
+
+                const filterSymbolsByLiquidity = async (symbols, topN, opts) => {
+                    logLine(`유동성 상위 ${topN} 선별 시작(빠르게 1D limit=2 조회)...`);
+                    const scored = [];
+                    let done = 0;
+
+                    await runQueue({
+                        items: symbols,
+                        concurrency: Math.min(6, Math.max(1, Number(el.concurrency.value) || 3)),
+                        signal: opts.signal,
+                        worker: async (sym) => {
+                            try {
+                                const v = await estimateLiquidity(sym, opts);
+                                scored.push({ sym, v });
+                            } catch (e) {
+                                // 무시(선별 단계)
+                            } finally {
+                                done += 1;
+                                setProgress(`유동성 선별 ${done}/${symbols.length}`, done / Math.max(1, symbols.length));
+                            }
+                        }
+                    });
+
+                    scored.sort((a, b) => b.v - a.v);
+                    const picked = scored.slice(0, topN).map((x) => x.sym);
+                    logLine(`유동성 선별 완료: ${picked.length}개`);
+                    return picked;
+                };
+
+                // ---------------------------
+                // Scan workflow
+                // ---------------------------
+                const startScan = async () => {
+                    results = [];
+                    scanned = 0;
+                    total = 0;
+                    errors = 0;
+                    el.currentSymbol.textContent = "-";
+                    el.tbody.innerHTML = "";
+                    el.resultSummary.textContent = "0건";
+                    setKpi();
+                    setProgress("준비중...", 0);
+
+                    aborter = new AbortController();
+                    const signal = aborter.signal;
+
+                    const retries = Math.max(0, Number(el.retries.value) || 0);
+                    const delayMs = Math.max(0, Number(el.delayMs.value) || 0);
+                    const concurrency = Math.max(1, Math.min(8, Number(el.concurrency.value) || 3));
+                    const isBacktest = !!el.backtestToggle.checked;
+                    const backtestDate = el.backtestDate.value;
+
+                    if (isBacktest && !backtestDate) {
+                        alert("백테스팅 체크 시 날짜를 선택해줘. (UTC 기준으로 해당 날짜 봉을 a로 사용)");
+                        aborter = null;
+                        return;
+                    }
+
+                    setButtons(true);
+                    renderHead();
+                    logLine("스캔 시작");
+
+                    try {
+                        setProgress("심볼 목록 불러오는 중...", 0.01);
+
+                        let symbols = await getUsdtPerpSymbols({ signal, retries, delayMs });
+
+                        const filterMode = el.symbolFilter.value;
+                        if (filterMode === "TOP_LIQ_200") {
+                            symbols = await filterSymbolsByLiquidity(symbols, 200, { signal, retries, delayMs });
+                        } else if (filterMode === "TOP_LIQ_100") {
+                            symbols = await filterSymbolsByLiquidity(symbols, 100, { signal, retries, delayMs });
+                        }
+
+                        total = symbols.length;
+                        setKpi();
+                        logLine(`대상 심볼: ${total}개`);
+
+                        const worker = async (symbol) => {
+                            if (signal.aborted) return;
+
+                            el.currentSymbol.textContent = symbol;
+
+                            try {
+                                // 스캔 딜레이(요청 간 간격)
+                                await sleep(delayMs);
+
+                                const klines = await fetchAllDailyKlines(symbol, { signal, retries, delayMs });
+                                const candles = toCandles(klines);
+
+                                const det = detectSignal({
+                                    candles,
+                                    isBacktest,
+                                    backtestDate
+                                });
+
+                                if (det.ok) {
+                                    for (const it of det.items) {
+                                        it.symbol = symbol;
+                                        results.push(it);
+                                    }
+                                }
+                            } catch (e) {
+                                errors += 1;
+                                logLine(`ERROR ${symbol}: ${e && e.message ? e.message : String(e)}`);
+                            } finally {
+                                scanned += 1;
+                                const ratio = scanned / Math.max(1, total);
+                                setProgress(`스캔 ${scanned}/${total}`, ratio);
+                                setKpi();
+
+                                // 중간중간 렌더(너무 잦으면 느려져서 배치로)
+                                if (scanned % 10 === 0 || scanned === total) {
+                                    sortAndRender();
+                                }
+                            }
+                        };
+
+                        await runQueue({
+                            items: symbols,
+                            worker,
+                            concurrency,
+                            signal
+                        });
+
+                        if (signal.aborted) {
+                            logLine("중단됨");
+                            setProgress("중단됨", scanned / Math.max(1, total));
+                        } else {
+                            logLine("스캔 완료");
+                            setProgress("완료", 1);
+                        }
+
+                        sortAndRender();
+                    } catch (e) {
+                        if (signal.aborted) {
+                            logLine("중단됨");
+                            setProgress("중단됨", scanned / Math.max(1, total));
+                        } else {
+                            logLine(`치명 오류: ${e && e.message ? e.message : String(e)}`);
+                            setProgress("오류로 종료", scanned / Math.max(1, total));
+                        }
+                    } finally {
+                        setButtons(false);
+                        aborter = null;
+                        el.currentSymbol.textContent = "-";
+                        setKpi();
+                    }
+                };
+
+                const stopScan = () => {
+                    if (aborter) {
+                        aborter.abort();
+                        logLine("중단 요청");
+                    }
+                };
+
+                const clearAll = () => {
+                    results = [];
+                    scanned = 0;
+                    total = 0;
+                    errors = 0;
+                    el.log.textContent = "";
+                    el.tbody.innerHTML = "";
+                    el.resultSummary.textContent = "0건";
+                    el.currentSymbol.textContent = "-";
+                    sortState = { key: "score", dir: "desc" };
+                    renderHead();
+                    setKpi();
+                    setProgress("대기", 0);
+                };
+
+                // ---------------------------
+                // Events
+                // ---------------------------
+                el.backtestToggle.addEventListener("change", () => {
+                    el.backtestDate.disabled = !el.backtestToggle.checked || el.startBtn.disabled;
+                    if (el.backtestToggle.checked) {
+                        // 기본값: 오늘 UTC 날짜(브라우저 로컬이지만 값만 세팅)
+                        const now = new Date();
+                        const yyyy = now.getUTCFullYear();
+                        const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+                        const dd = String(now.getUTCDate()).padStart(2, "0");
+                        const v = `${yyyy}-${mm}-${dd}`;
+                        if (!el.backtestDate.value) el.backtestDate.value = v;
+                    }
+                });
+
+                el.startBtn.addEventListener("click", () => {
+                    startScan();
+                });
+
+                el.stopBtn.addEventListener("click", () => {
+                    stopScan();
+                });
+
+                el.clearBtn.addEventListener("click", () => {
+                    clearAll();
+                });
+
+                // init
+                renderHead();
+                clearAll();
+                logLine("준비 완료");
+                logLine("팁: 너무 느리면 '유동성 상위 100/200' 먼저 돌려서 후보를 좁혀봐.");
+                logLine("주의: 백테스트 날짜는 UTC 기준으로 해당 날짜의 1D 봉을 찾는다.");
+            })();
+        </script>
+    </body>
+</html>
