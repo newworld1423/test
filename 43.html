@@ -358,8 +358,9 @@
                     <h1>바이낸스 USDT 무기한 — “현재까지 이어지는 횡보” 스캐너</h1>
                     <div class="sub">
                         최근 <b>X일</b> 윈도우 안에서, <b>마지막 캔들(현재)까지 이어지는 횡보 구간</b>을 심볼별로 1개씩 찾습니다.<br />
-                        정렬: <b>현재까지 이어지는 횡보 길이(바 수)</b> 긴 순 → (동률이면) <b>폭 좁은 순</b>.<br />
-                        <b>Entry Mode</b>: <span class="tag tagNow">NOW</span> = 현재가가 Entry Zone 안(Entry Suggested = Now), <span class="tag tagWait">WAIT</span> = Entry Line까지 대기.
+                        기본 정렬: <b>WinScore(승률우선)</b> 높은 순 → (동률이면) <b>NOW 우선</b> → <b>Bounce</b> 높은 순 → <b>Drift</b> 낮은 순 → <b>폭</b> 좁은 순.<br />
+                        <b>Entry Mode</b>: <span class="tag tagNow">NOW</span> = 현재가가 Entry Zone 안(Entry Suggested = Now), <span class="tag tagWait">WAIT</span> = Entry Line까지 대기.<br />
+                        <b>TP%/SL%</b>: Entry Suggested(진입가) 기준 목표/손절 도달 시 수익률·손실률(%)
                     </div>
                 </div>
                 <div class="pill mono">API: fapi.binance.com</div>
@@ -533,8 +534,8 @@
             <section class="card">
                 <div class="cardHead">
                     <div class="cardTitle">
-                        결과 (현재까지 이어지는 횡보 길이 순)
-                        <span class="badge">Len ↓ / 폭 ↑</span>
+                        결과 (승률우선 WinScore 정렬)
+                        <span class="badge">WinScore ↓</span>
                     </div>
                     <div class="badge mono" id="renderInfo">-</div>
                 </div>
@@ -547,6 +548,10 @@
 
                                     <th class="sortable" data-key="symbol" data-type="string" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
                                         Symbol<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="winScore" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        WinScore<span class="sortIcon"></span>
                                     </th>
 
                                     <th class="right sortable" data-key="lenBars" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
@@ -585,9 +590,16 @@
                                         Entry Sug<span class="sortIcon"></span>
                                     </th>
 
-                                    <!-- ✅ RR column -->
                                     <th class="right sortable" data-key="rr" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
                                         RR<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="tpPct" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        TP%<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="slPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        SL%<span class="sortIcon"></span>
                                     </th>
 
                                     <th class="right sortable" data-key="entryLine" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
@@ -617,7 +629,7 @@
                             </thead>
                             <tbody id="tbody">
                                 <tr>
-                                    <td colspan="18" class="muted" style="padding: 14px;">
+                                    <td colspan="21" class="muted" style="padding: 14px;">
                                         아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                                     </td>
                                 </tr>
@@ -635,7 +647,7 @@
             const PAGE_LIMIT = 499;
 
             const DEFAULT_SORT = {
-                key: "lenBars",
+                key: "winScore",
                 dir: "desc"
             };
 
@@ -784,6 +796,61 @@
                 if (!(reward > 0) || !(risk > 0)) return NaN;
 
                 return reward / risk;
+            }
+
+            function calcTpPct(entrySuggested, targetLevel) {
+                const e = Number(entrySuggested);
+                const t = Number(targetLevel);
+                if (!Number.isFinite(e) || !Number.isFinite(t) || !(e > 0)) return NaN;
+                return ((t - e) / e) * 100;
+            }
+
+            function calcSlPct(entrySuggested, stopLevel) {
+                const e = Number(entrySuggested);
+                const s = Number(stopLevel);
+                if (!Number.isFinite(e) || !Number.isFinite(s) || !(e > 0)) return NaN;
+                return ((e - s) / e) * 100;
+            }
+
+            function calcWinScore(r, cfg) {
+                if (!r || !cfg) return NaN;
+
+                const entryNow = r.entryMode === "NOW" ? 1 : 0;
+
+                const bounceBase = Math.max(1, cfg.minBounces + 3);
+                const bounceScore = clamp((Number(r.bounces) || 0) / bounceBase, 0, 1);
+
+                const driftDen = Math.max(0.0001, cfg.driftMaxPct);
+                const driftScore = 1 - clamp((Number(r.driftPct) || 0) / driftDen, 0, 1);
+
+                const widthDen = Math.max(0.0001, (cfg.bandPct - cfg.minRangePct));
+                const widthNorm = ((Number(r.widthPct) || 0) - cfg.minRangePct) / widthDen;
+                const widthScore = 1 - clamp(widthNorm, 0, 1);
+
+                const posDen = Math.max(1, cfg.entryZonePct);
+                const posScore = 1 - clamp((Number(r.posPct) || 0) / posDen, 0, 1);
+
+                const lenDen = Math.max(1, cfg.barsNeeded);
+                const lenScore = clamp((Number(r.lenBars) || 0) / lenDen, 0, 1);
+
+                const rr = calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
+                let rrScore = 0.5;
+                if (Number.isFinite(rr)) {
+                    const d = Math.abs(rr - 1.2);
+                    rrScore = 1 - clamp(d / 1.2, 0, 1);
+                }
+
+                const score = 100 * (
+                    0.18 * entryNow +
+                    0.22 * bounceScore +
+                    0.18 * driftScore +
+                    0.14 * widthScore +
+                    0.14 * posScore +
+                    0.10 * lenScore +
+                    0.04 * rrScore
+                );
+
+                return score;
             }
 
             async function fetchJsonWithBackoff(url, signal, maxRetries = 6) {
@@ -1193,14 +1260,39 @@
                     return calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
                 }
 
+                if (key === "tpPct") {
+                    return calcTpPct(r.entrySuggested, r.targetLevel);
+                }
+
+                if (key === "slPct") {
+                    return calcSlPct(r.entrySuggested, r.stopLevel);
+                }
+
+                if (key === "winScore") {
+                    return calcWinScore(r, cfg);
+                }
+
                 return r[key];
             }
 
-            function defaultSortComparator(a, b) {
-                if (b.lenBars !== a.lenBars) return b.lenBars - a.lenBars;
-                if (a.widthPct !== b.widthPct) return a.widthPct - b.widthPct;
-                if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
+            function defaultSortComparator(a, b, cfg) {
+                const sa = calcWinScore(a, cfg);
+                const sb = calcWinScore(b, cfg);
+
+                const fa = Number.isFinite(sa);
+                const fb = Number.isFinite(sb);
+
+                if (fa && fb && sb !== sa) return sb - sa;
+                if (fa && !fb) return -1;
+                if (!fa && fb) return 1;
+
+                // 동률 우선순위: NOW > WAIT, Bounce desc, Drift asc, Width asc, Pos asc, Len desc
+                if (a.entryMode !== b.entryMode) return (a.entryMode === "NOW" ? -1 : 1);
                 if (b.bounces !== a.bounces) return b.bounces - a.bounces;
+                if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
+                if (a.widthPct !== b.widthPct) return a.widthPct - b.widthPct;
+                if (a.posPct !== b.posPct) return a.posPct - b.posPct;
+                if (b.lenBars !== a.lenBars) return b.lenBars - a.lenBars;
                 return a.symbol.localeCompare(b.symbol);
             }
 
@@ -1211,7 +1303,7 @@
                 const dir = state.sortDir;
 
                 if (!key) {
-                    out.sort(defaultSortComparator);
+                    out.sort((a, b) => defaultSortComparator(a, b, cfg));
                     return out;
                 }
 
@@ -1242,7 +1334,7 @@
 
                     if (cmp === 0) {
                         cmp = a.symbol.localeCompare(b.symbol);
-                        if (cmp === 0) cmp = defaultSortComparator(a, b);
+                        if (cmp === 0) cmp = defaultSortComparator(a, b, cfg);
                     }
 
                     return dir === "asc" ? cmp : -cmp;
@@ -1313,7 +1405,7 @@
                 if (view.length === 0) {
                     els.tbody.innerHTML = `
                         <tr>
-                            <td colspan="18" class="muted" style="padding: 14px;">
+                            <td colspan="21" class="muted" style="padding: 14px;">
                                 결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 유지 권장)
                             </td>
                         </tr>
@@ -1334,10 +1426,20 @@
                     const rrVal = calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
                     const rrText = Number.isFinite(rrVal) ? rrVal.toFixed(2) : "—";
 
+                    const tpVal = calcTpPct(r.entrySuggested, r.targetLevel);
+                    const tpText = Number.isFinite(tpVal) ? tpVal.toFixed(2) : "—";
+
+                    const slVal = calcSlPct(r.entrySuggested, r.stopLevel);
+                    const slText = Number.isFinite(slVal) ? slVal.toFixed(2) : "—";
+
+                    const wsVal = calcWinScore(r, cfg);
+                    const wsText = Number.isFinite(wsVal) ? wsVal.toFixed(1) : "—";
+
                     html += `
                         <tr>
                             <td class="right mono muted">${i + 1}</td>
                             <td class="mono"><b>${r.symbol}</b></td>
+                            <td class="right mono">${wsText}</td>
                             <td class="right mono">${r.lenBars}</td>
                             <td class="right mono muted">${fmtDuration(r.lenBars, cfg.interval)}</td>
                             <td class="right mono">${r.widthPct.toFixed(3)}</td>
@@ -1348,6 +1450,8 @@
                             <td>${modeTag}</td>
                             <td class="right mono ${entrySugClass}">${r.entrySuggested.toFixed(6)}</td>
                             <td class="right mono">${rrText}</td>
+                            <td class="right mono">${tpText}</td>
+                            <td class="right mono muted">${slText}</td>
                             <td class="right mono muted">${r.entryLine.toFixed(6)}</td>
                             <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
                             <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
@@ -1361,9 +1465,10 @@
                 els.tbody.innerHTML = html;
             }
 
-            function toCsv(rows, interval) {
+            function toCsv(rows, interval, cfg) {
                 const header = [
                     "symbol",
+                    "winScore",
                     "lenBars",
                     "lenDuration",
                     "widthPct",
@@ -1374,6 +1479,8 @@
                     "entryMode",
                     "entrySuggested",
                     "rr",
+                    "tpPct",
+                    "slPct",
                     "entryLine",
                     "targetLevel",
                     "stopLevel",
@@ -1387,8 +1494,18 @@
                     const rrVal = calcRR(r.entrySuggested, r.targetLevel, r.stopLevel);
                     const rrOut = Number.isFinite(rrVal) ? rrVal : "";
 
+                    const tpVal = calcTpPct(r.entrySuggested, r.targetLevel);
+                    const tpOut = Number.isFinite(tpVal) ? tpVal : "";
+
+                    const slVal = calcSlPct(r.entrySuggested, r.stopLevel);
+                    const slOut = Number.isFinite(slVal) ? slVal : "";
+
+                    const wsVal = calcWinScore(r, cfg);
+                    const wsOut = Number.isFinite(wsVal) ? wsVal : "";
+
                     const line = [
                         r.symbol,
+                        wsOut,
                         r.lenBars,
                         `"${fmtDuration(r.lenBars, interval)}"`,
                         r.widthPct.toFixed(6),
@@ -1399,6 +1516,8 @@
                         `"${r.entryMode}"`,
                         r.entrySuggested,
                         rrOut,
+                        tpOut,
+                        slOut,
                         r.entryLine,
                         r.targetLevel,
                         r.stopLevel,
@@ -1502,7 +1621,7 @@
                 els.logBox.textContent = "";
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="18" class="muted" style="padding: 14px;">
+                        <td colspan="21" class="muted" style="padding: 14px;">
                             스캔 준비 중...
                         </td>
                     </tr>
@@ -1595,7 +1714,7 @@
 
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="18" class="muted" style="padding: 14px;">
+                        <td colspan="21" class="muted" style="padding: 14px;">
                             아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                         </td>
                     </tr>
@@ -1617,8 +1736,8 @@
                 const cfg = getConfig();
                 const sorted = sortResults(state.results, cfg);
                 const filtered = filterResults(sorted, els.searchInput.value);
-                const csv = toCsv(filtered, cfg.interval);
-                const filename = `ongoing_range_${cfg.interval}_${cfg.days}d_band${cfg.bandPct}_drift${cfg.driftMaxPct}.csv`;
+                const csv = toCsv(filtered, cfg.interval, cfg);
+                const filename = `ongoing_range_${cfg.interval}_${cfg.days}d_winscore.csv`;
                 downloadText(filename, csv);
             });
 
@@ -1629,9 +1748,10 @@
                 bindSortingHeaders();
 
                 logLine("준비 완료. 기본값은 15m 추천 세팅입니다.");
+                logLine("기본 정렬: WinScore(승률우선) 내림차순. (헤더 클릭으로 원하는 기준 정렬 가능)");
                 logLine("표의 Entry Mode가 NOW면: Entry Suggested = Now(최근 종가)로 표시됩니다.");
+                logLine("TP%/SL% 추가됨: Entry Suggested 기준 목표/손절 도달 시 ±% 표시");
                 logLine("결과가 너무 적으면: (1) Bounce 조건 OFF, (2) Band/Drift 완화, (3) wicks OFF 유지 권장");
-                logLine("RR 컬럼 추가됨: RR = (Target - EntrySug) / (EntrySug - Stop). RR 헤더 클릭으로 정렬 가능.");
             }
 
             init();
