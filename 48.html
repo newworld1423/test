@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ko-KR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp — 15m 직전봉 상승률 정렬 스캐너</title>
+        <style>
+            :root {
+                --bg: #0b1020;
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel2: rgba(255, 255, 255, 0.04);
+                --text: rgba(255, 255, 255, 0.92);
+                --muted: rgba(255, 255, 255, 0.68);
+                --line: rgba(255, 255, 255, 0.10);
+                --good: #44d19d;
+                --bad: #ff6b6b;
+                --warn: #ffcc66;
+                --btn: #2b4cff;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR",
+                    "Apple SD Gothic Neo", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+                background: radial-gradient(1200px 600px at 20% 0%, rgba(43, 76, 255, 0.20), transparent 60%),
+                    radial-gradient(900px 500px at 80% 20%, rgba(68, 209, 157, 0.16), transparent 65%),
+                    var(--bg);
+                color: var(--text);
+            }
+
+            .wrap {
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 18px 14px 40px;
+            }
+
+            .top {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 12px;
+            }
+
+            .title {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+
+            .title h1 {
+                margin: 0;
+                font-size: 16px;
+                letter-spacing: -0.2px;
+            }
+
+            .title .sub {
+                margin: 0;
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
+                justify-content: flex-end;
+            }
+
+            .btn {
+                border: 1px solid var(--line);
+                background: var(--panel);
+                color: var(--text);
+                padding: 10px 12px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-weight: 700;
+                font-size: 13px;
+                transition: transform 0.08s ease, background 0.15s ease;
+                user-select: none;
+            }
+
+            .btn:active {
+                transform: scale(0.98);
+            }
+
+            .btn.primary {
+                background: linear-gradient(180deg, rgba(43, 76, 255, 0.95), rgba(43, 76, 255, 0.75));
+                border-color: rgba(43, 76, 255, 0.8);
+            }
+
+            .btn.danger {
+                background: rgba(255, 107, 107, 0.15);
+                border-color: rgba(255, 107, 107, 0.35);
+            }
+
+            .field {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                background: var(--panel2);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+                padding: 8px 10px;
+            }
+
+            .field label {
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            .field input {
+                width: 110px;
+                background: transparent;
+                border: none;
+                outline: none;
+                color: var(--text);
+                font-weight: 700;
+                font-size: 13px;
+            }
+
+            .field input::placeholder {
+                color: rgba(255, 255, 255, 0.35);
+                font-weight: 600;
+            }
+
+            .panel {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                overflow: hidden;
+            }
+
+            .meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px 12px;
+                border-bottom: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.12);
+            }
+
+            .meta .left,
+            .meta .right {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+
+            .pill {
+                font-size: 12px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--muted);
+            }
+
+            .progress {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            thead th {
+                text-align: left;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.78);
+                padding: 10px 12px;
+                border-bottom: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.10);
+            }
+
+            tbody td {
+                padding: 10px 12px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                font-size: 13px;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.04);
+            }
+
+            .mono {
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum" 1;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+                    monospace;
+            }
+
+            .pct.up {
+                color: var(--good);
+                font-weight: 800;
+            }
+
+            .pct.down {
+                color: var(--bad);
+                font-weight: 800;
+            }
+
+            .muted {
+                color: var(--muted);
+            }
+
+            .hint {
+                padding: 12px;
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+
+            @media (max-width: 560px) {
+                .field input {
+                    width: 90px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="top">
+                <div class="title">
+                    <h1>Binance USDT Perp — 15m 직전봉 상승률 정렬 스캐너</h1>
+                    <p class="sub">모든 USDT 무기한(Perpetual) 페어 · 현재봉의 직전봉(완성 1개)만 사용</p>
+                </div>
+
+                <div class="controls">
+                    <div class="field" title="너무 많으면 API 부담이 커서 상위 N개만 표시할 수 있어요.">
+                        <label for="limitRows">표시개수</label>
+                        <input id="limitRows" type="number" min="10" step="10" placeholder="200" value="200" />
+                    </div>
+
+                    <div class="field" title="Quote Volume(USDT) 기준 최소 거래량 필터 (비워두면 필터 없음)">
+                        <label for="minQv">최소 거래량(USDT)</label>
+                        <input id="minQv" type="number" min="0" step="100000" placeholder="예: 1000000" />
+                    </div>
+
+                    <button id="btnScan" class="btn primary" type="button">스캔 시작</button>
+                    <button id="btnStop" class="btn danger" type="button" disabled>중지</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="meta">
+                    <div class="left">
+                        <span class="pill">Timeframe: <b class="mono">15m</b></span>
+                        <span class="pill">대상: <b>USDT Perpetual</b></span>
+                        <span class="pill">정렬: <b>직전봉 상승률 ↓</b></span>
+                    </div>
+                    <div class="right">
+                        <span id="status" class="progress">대기 중</span>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 42%">심볼</th>
+                            <th style="width: 28%">직전봉 상승률(%)</th>
+                            <th style="width: 30%">직전봉 거래량(USDT)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+
+                <div class="hint">
+                    - “직전봉” = <b>현재 진행 중인 15분봉 바로 이전(완성된) 15분봉</b> 1개만 사용<br />
+                    - 거래량은 비교 용이하게 <b>Quote Volume(USDT)</b> 기준으로 표시합니다.
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const API_BASE = "https://fapi.binance.com";
+
+            const $ = (sel) => document.querySelector(sel);
+
+            const tbody = $("#tbody");
+            const statusEl = $("#status");
+            const btnScan = $("#btnScan");
+            const btnStop = $("#btnStop");
+            const limitRowsEl = $("#limitRows");
+            const minQvEl = $("#minQv");
+
+            let abortController = null;
+            let running = false;
+
+            function setStatus(text) {
+                statusEl.textContent = text;
+            }
+
+            function formatNumber(n, digits = 0) {
+                const v = Number(n);
+                if (!Number.isFinite(v)) return "-";
+                return v.toLocaleString("en-US", {
+                    maximumFractionDigits: digits,
+                    minimumFractionDigits: digits,
+                });
+            }
+
+            function formatPct(n) {
+                const v = Number(n);
+                if (!Number.isFinite(v)) return "-";
+                const s = (Math.round(v * 1000) / 1000).toFixed(3);
+                return s;
+            }
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            async function fetchJson(url, signal) {
+                const res = await fetch(url, { signal });
+                if (!res.ok) {
+                    const t = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${t.slice(0, 160)}`);
+                }
+                return res.json();
+            }
+
+            async function getAllUsdtPerpSymbols(signal) {
+                const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+                const data = await fetchJson(url, signal);
+
+                const symbols = (data.symbols || [])
+                    .filter((s) => s && s.status === "TRADING")
+                    .filter((s) => s.contractType === "PERPETUAL")
+                    .filter((s) => s.quoteAsset === "USDT")
+                    .map((s) => s.symbol);
+
+                // 흔한 예외: 중복 제거
+                return Array.from(new Set(symbols));
+            }
+
+            // klines: [ openTime, open, high, low, close, volume, closeTime, quoteVolume, trades, ... ]
+            async function fetchPrev15mCandleStat(symbol, signal) {
+                const url = `${API_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=15m&limit=3`;
+                const arr = await fetchJson(url, signal);
+
+                if (!Array.isArray(arr) || arr.length < 2) return null;
+
+                // 마지막은 현재 진행 봉, 그 직전이 완성 봉
+                const prev = arr[arr.length - 2];
+
+                const open = Number(prev[1]);
+                const close = Number(prev[4]);
+                const quoteVol = Number(prev[7]); // USDT 기준 거래량
+
+                if (!Number.isFinite(open) || open <= 0 || !Number.isFinite(close) || !Number.isFinite(quoteVol)) {
+                    return null;
+                }
+
+                const pct = ((close - open) / open) * 100;
+
+                return {
+                    symbol,
+                    pct,
+                    quoteVol,
+                };
+            }
+
+            async function runPool(items, workerFn, options) {
+                const concurrency = options.concurrency ?? 12;
+                const delayMs = options.delayMs ?? 0;
+                const onProgress = options.onProgress ?? (() => {});
+                const signal = options.signal;
+
+                let idx = 0;
+                let done = 0;
+                const results = [];
+
+                async function worker(workerId) {
+                    while (true) {
+                        if (signal?.aborted) return;
+
+                        const myIdx = idx;
+                        if (myIdx >= items.length) return;
+                        idx += 1;
+
+                        const item = items[myIdx];
+
+                        try {
+                            const r = await workerFn(item, signal);
+                            if (r != null) results.push(r);
+                        } catch (e) {
+                            // 심볼 단위 실패는 무시(레이트리밋/일시 오류 대비)
+                            // 필요하면 콘솔 확인
+                            // console.warn(workerId, item, e);
+                        } finally {
+                            done += 1;
+                            onProgress(done, items.length);
+                            if (delayMs > 0) await sleep(delayMs);
+                        }
+                    }
+                }
+
+                const workers = [];
+                for (let i = 0; i < concurrency; i += 1) {
+                    workers.push(worker(i));
+                }
+                await Promise.all(workers);
+
+                return results;
+            }
+
+            function renderTable(rows, limitRows) {
+                const frag = document.createDocumentFragment();
+
+                const sliced = rows.slice(0, limitRows);
+
+                for (const r of sliced) {
+                    const tr = document.createElement("tr");
+
+                    const tdSym = document.createElement("td");
+                    tdSym.className = "mono";
+                    tdSym.textContent = r.symbol;
+
+                    const tdPct = document.createElement("td");
+                    const pctClass = r.pct >= 0 ? "up" : "down";
+                    tdPct.className = `mono pct ${pctClass}`;
+                    tdPct.textContent = formatPct(r.pct);
+
+                    const tdVol = document.createElement("td");
+                    tdVol.className = "mono muted";
+                    tdVol.textContent = formatNumber(r.quoteVol, 0);
+
+                    tr.appendChild(tdSym);
+                    tr.appendChild(tdPct);
+                    tr.appendChild(tdVol);
+
+                    frag.appendChild(tr);
+                }
+
+                tbody.innerHTML = "";
+                tbody.appendChild(frag);
+            }
+
+            async function scanOnce() {
+                abortController = new AbortController();
+                const signal = abortController.signal;
+
+                running = true;
+                btnScan.disabled = true;
+                btnStop.disabled = false;
+                tbody.innerHTML = "";
+                setStatus("심볼 목록 불러오는 중...");
+
+                const symbols = await getAllUsdtPerpSymbols(signal);
+                setStatus(`심볼 ${symbols.length.toLocaleString("en-US")}개 스캔 준비...`);
+
+                const limitRows = Math.max(10, Number(limitRowsEl.value || 200));
+                const minQv = Number(minQvEl.value || 0);
+
+                let lastProgressText = "";
+                const rows = await runPool(
+                    symbols,
+                    async (sym, sig) => {
+                        const r = await fetchPrev15mCandleStat(sym, sig);
+                        if (!r) return null;
+                        if (Number.isFinite(minQv) && minQv > 0 && r.quoteVol < minQv) return null;
+                        return r;
+                    },
+                    {
+                        concurrency: 12,
+                        delayMs: 0,
+                        signal,
+                        onProgress: (done, total) => {
+                            const txt = `스캔 중... ${done.toLocaleString("en-US")} / ${total.toLocaleString(
+                                "en-US"
+                            )}`;
+                            if (txt !== lastProgressText) {
+                                lastProgressText = txt;
+                                setStatus(txt);
+                            }
+                        },
+                    }
+                );
+
+                // 정렬: 직전봉 상승률 내림차순
+                rows.sort((a, b) => b.pct - a.pct);
+
+                renderTable(rows, limitRows);
+
+                setStatus(
+                    `완료: ${rows.length.toLocaleString("en-US")}개 표시 가능 (상위 ${Math.min(
+                        limitRows,
+                        rows.length
+                    ).toLocaleString("en-US")}개 렌더링)`
+                );
+
+                running = false;
+                btnScan.disabled = false;
+                btnStop.disabled = true;
+            }
+
+            function stopScan() {
+                if (abortController) abortController.abort();
+                abortController = null;
+
+                running = false;
+                btnScan.disabled = false;
+                btnStop.disabled = true;
+                setStatus("중지됨");
+            }
+
+            btnScan.addEventListener("click", async () => {
+                if (running) return;
+                try {
+                    await scanOnce();
+                } catch (e) {
+                    if (String(e?.name) === "AbortError") {
+                        setStatus("중지됨");
+                        return;
+                    }
+                    console.error(e);
+                    setStatus(`오류: ${String(e?.message || e)}`);
+                    running = false;
+                    btnScan.disabled = false;
+                    btnStop.disabled = true;
+                }
+            });
+
+            btnStop.addEventListener("click", () => {
+                stopScan();
+            });
+        </script>
+    </body>
+</html>
