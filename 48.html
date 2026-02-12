@@ -183,6 +183,24 @@
                 padding: 10px 12px;
                 border-bottom: 1px solid var(--line);
                 background: rgba(0, 0, 0, 0.10);
+                position: sticky;
+                top: 0;
+                z-index: 1;
+            }
+
+            thead th.sortable {
+                cursor: pointer;
+                user-select: none;
+            }
+
+            thead th.sortable:hover {
+                background: rgba(255, 255, 255, 0.06);
+            }
+
+            .sort-indicator {
+                margin-left: 6px;
+                opacity: 0.75;
+                font-size: 11px;
             }
 
             tbody td {
@@ -259,7 +277,7 @@
                     <div class="left">
                         <span class="pill">Timeframe: <b class="mono">15m</b></span>
                         <span class="pill">대상: <b>USDT Perpetual</b></span>
-                        <span class="pill">정렬: <b>직전봉 상승률 ↓</b></span>
+                        <span id="sortPill" class="pill">정렬: <b>직전봉 상승률 ↓</b></span>
                     </div>
                     <div class="right">
                         <span id="status" class="progress">대기 중</span>
@@ -269,9 +287,15 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 42%">심볼</th>
-                            <th style="width: 28%">직전봉 상승률(%)</th>
-                            <th style="width: 30%">직전봉 거래량(USDT)</th>
+                            <th class="sortable" data-key="symbol" style="width: 42%">
+                                심볼 <span class="sort-indicator" id="ind-symbol"></span>
+                            </th>
+                            <th class="sortable" data-key="pct" style="width: 28%">
+                                직전봉 상승률(%) <span class="sort-indicator" id="ind-pct"></span>
+                            </th>
+                            <th class="sortable" data-key="quoteVol" style="width: 30%">
+                                직전봉 거래량(USDT) <span class="sort-indicator" id="ind-quoteVol"></span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="tbody"></tbody>
@@ -295,9 +319,21 @@
             const btnStop = $("#btnStop");
             const limitRowsEl = $("#limitRows");
             const minQvEl = $("#minQv");
+            const sortPill = $("#sortPill");
+
+            const indicatorMap = {
+                symbol: $("#ind-symbol"),
+                pct: $("#ind-pct"),
+                quoteVol: $("#ind-quoteVol"),
+            };
 
             let abortController = null;
             let running = false;
+
+            // ===== 정렬 상태 =====
+            let allRows = []; // 스캔 결과 전체
+            let sortKey = "pct";
+            let sortDir = "desc"; // 'asc' | 'desc'
 
             function setStatus(text) {
                 statusEl.textContent = text;
@@ -342,7 +378,6 @@
                     .filter((s) => s.quoteAsset === "USDT")
                     .map((s) => s.symbol);
 
-                // 흔한 예외: 중복 제거
                 return Array.from(new Set(symbols));
             }
 
@@ -397,8 +432,6 @@
                             const r = await workerFn(item, signal);
                             if (r != null) results.push(r);
                         } catch (e) {
-                            // 심볼 단위 실패는 무시(레이트리밋/일시 오류 대비)
-                            // 필요하면 콘솔 확인
                             // console.warn(workerId, item, e);
                         } finally {
                             done += 1;
@@ -417,12 +450,17 @@
                 return results;
             }
 
-            function renderTable(rows, limitRows) {
+            function getLimitRows() {
+                return Math.max(10, Number(limitRowsEl.value || 200));
+            }
+
+            function renderTableFromAllRows() {
+                const limitRows = getLimitRows();
+                const rows = allRows.slice(0, limitRows);
+
                 const frag = document.createDocumentFragment();
 
-                const sliced = rows.slice(0, limitRows);
-
-                for (const r of sliced) {
+                for (const r of rows) {
                     const tr = document.createElement("tr");
 
                     const tdSym = document.createElement("td");
@@ -447,6 +485,71 @@
 
                 tbody.innerHTML = "";
                 tbody.appendChild(frag);
+
+                setSortUI();
+            }
+
+            function compare(a, b, key) {
+                const av = a[key];
+                const bv = b[key];
+
+                if (key === "symbol") {
+                    return String(av).localeCompare(String(bv));
+                }
+
+                const an = Number(av);
+                const bn = Number(bv);
+                if (!Number.isFinite(an) && !Number.isFinite(bn)) return 0;
+                if (!Number.isFinite(an)) return 1;
+                if (!Number.isFinite(bn)) return -1;
+                return an - bn;
+            }
+
+            function applySort(key, dir) {
+                sortKey = key;
+                sortDir = dir;
+
+                allRows.sort((a, b) => {
+                    const base = compare(a, b, sortKey);
+                    return sortDir === "asc" ? base : -base;
+                });
+
+                renderTableFromAllRows();
+            }
+
+            function toggleSort(key) {
+                if (sortKey === key) {
+                    sortDir = sortDir === "desc" ? "asc" : "desc";
+                } else {
+                    sortKey = key;
+                    // 숫자 컬럼은 기본 desc, 심볼은 기본 asc
+                    sortDir = key === "symbol" ? "asc" : "desc";
+                }
+                applySort(sortKey, sortDir);
+            }
+
+            function setSortUI() {
+                // 인디케이터 초기화
+                for (const k of Object.keys(indicatorMap)) {
+                    indicatorMap[k].textContent = "";
+                }
+
+                const arrow = sortDir === "desc" ? "▼" : "▲";
+                if (indicatorMap[sortKey]) indicatorMap[sortKey].textContent = arrow;
+
+                const label =
+                    sortKey === "symbol" ? "심볼" : sortKey === "pct" ? "직전봉 상승률" : "직전봉 거래량";
+                sortPill.innerHTML = `정렬: <b>${label} ${arrow}</b>`;
+            }
+
+            function stopScan() {
+                if (abortController) abortController.abort();
+                abortController = null;
+
+                running = false;
+                btnScan.disabled = false;
+                btnStop.disabled = true;
+                setStatus("중지됨");
             }
 
             async function scanOnce() {
@@ -456,13 +559,14 @@
                 running = true;
                 btnScan.disabled = true;
                 btnStop.disabled = false;
+
                 tbody.innerHTML = "";
+                allRows = [];
                 setStatus("심볼 목록 불러오는 중...");
 
                 const symbols = await getAllUsdtPerpSymbols(signal);
                 setStatus(`심볼 ${symbols.length.toLocaleString("en-US")}개 스캔 준비...`);
 
-                const limitRows = Math.max(10, Number(limitRowsEl.value || 200));
                 const minQv = Number(minQvEl.value || 0);
 
                 let lastProgressText = "";
@@ -490,16 +594,16 @@
                     }
                 );
 
-                // 정렬: 직전봉 상승률 내림차순
-                rows.sort((a, b) => b.pct - a.pct);
+                allRows = rows;
 
-                renderTable(rows, limitRows);
+                // 초기 정렬: 상승률 desc
+                applySort("pct", "desc");
 
                 setStatus(
-                    `완료: ${rows.length.toLocaleString("en-US")}개 표시 가능 (상위 ${Math.min(
-                        limitRows,
-                        rows.length
-                    ).toLocaleString("en-US")}개 렌더링)`
+                    `완료: ${allRows.length.toLocaleString("en-US")}개 (상위 ${Math.min(
+                        getLimitRows(),
+                        allRows.length
+                    ).toLocaleString("en-US")}개 표시)`
                 );
 
                 running = false;
@@ -507,16 +611,7 @@
                 btnStop.disabled = true;
             }
 
-            function stopScan() {
-                if (abortController) abortController.abort();
-                abortController = null;
-
-                running = false;
-                btnScan.disabled = false;
-                btnStop.disabled = true;
-                setStatus("중지됨");
-            }
-
+            // ===== 이벤트 바인딩 =====
             btnScan.addEventListener("click", async () => {
                 if (running) return;
                 try {
@@ -536,6 +631,25 @@
 
             btnStop.addEventListener("click", () => {
                 stopScan();
+            });
+
+            // 헤더 클릭 정렬
+            document.querySelectorAll("thead th.sortable").forEach((th) => {
+                th.addEventListener("click", () => {
+                    if (!allRows || allRows.length === 0) return;
+                    const key = th.getAttribute("data-key");
+                    if (!key) return;
+                    toggleSort(key);
+                });
+            });
+
+            // 표시개수 변경 시 즉시 재렌더
+            limitRowsEl.addEventListener("change", () => {
+                if (!allRows || allRows.length === 0) return;
+                renderTableFromAllRows();
+                setStatus(
+                    `표시 변경: 상위 ${Math.min(getLimitRows(), allRows.length).toLocaleString("en-US")}개 표시`
+                );
             });
         </script>
     </body>
