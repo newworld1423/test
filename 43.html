@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 횡보 하단 롱 반복 스캐너 (RepeatScore)</title>
+        <title>Binance USDT Perp — 횡보 하단 롱 반복 스캐너 (WinRate/AvgR Score)</title>
         <style>
             :root {
                 --bg: #0b1020;
@@ -355,12 +355,11 @@
         <div class="wrap">
             <header>
                 <div>
-                    <h1>바이낸스 USDT 무기한 — “횡보 하단 롱 반복” 스캐너 (RepeatScore)</h1>
+                    <h1>바이낸스 USDT 무기한 — “횡보 하단 롱 반복” 스캐너 (WinRate/AvgR Score)</h1>
                     <div class="sub">
-                        최근 <b>X일</b> 윈도우 안에서, <b>마지막 캔들(현재)까지 이어지는 횡보</b>를 심볼별로 1개씩 찾습니다.<br />
-                        기본 정렬: <b>RepeatScore</b> 높은 순 (하단 롱 → 상단 익절 반복 적합도).<br />
-                        <b>TP%/SL%</b>: Entry Suggested(진입가) 기준 목표/손절 도달 시 수익률·손실률(%).<br />
-                        <b>Entry Mode</b>: <span class="tag tagNow">NOW</span> = 현재가가 하단 진입존(Entry Suggested = Now), <span class="tag tagWait">WAIT</span> = Entry Line까지 대기.
+                        네 전략에 맞게 <b>과거 시도(Attempts) 대비 승률(WinRate) + 평균 기대R(AvgR)</b>을 계산해 점수를 매깁니다.<br />
+                        기본 정렬: <b>RepeatScore</b> 높은 순 (하단 롱 반복 적합도).<br />
+                        <b>TP%/SL%</b>: Entry(진입가) 기준 목표/손절 도달 시 수익률·손실률(%).
                     </div>
                 </div>
                 <div class="pill mono">API: fapi.binance.com</div>
@@ -428,6 +427,16 @@
                             </div>
 
                             <div class="field">
+                                <label>최소 Attempts(시도)</label>
+                                <input id="minAttemptsInput" type="number" min="0" max="100" step="1" value="3" />
+                            </div>
+
+                            <div class="field">
+                                <label>Min WinRate(%)</label>
+                                <input id="minWinRateInput" type="number" min="0" max="100" step="1" value="55" />
+                            </div>
+
+                            <div class="field">
                                 <label>표시 Top N</label>
                                 <input id="topInput" type="number" min="10" max="500" step="10" value="150" />
                             </div>
@@ -456,7 +465,12 @@
 
                             <label class="switch">
                                 <input id="bounceFilterToggle" type="checkbox" checked />
-                                Bounce 조건 적용 (하단→상단 반복 필터)
+                                Bounce 조건 적용
+                            </label>
+
+                            <label class="switch">
+                                <input id="winrateFilterToggle" type="checkbox" checked />
+                                WinRate/Attempts 필터 적용(권장)
                             </label>
 
                             <label class="switch">
@@ -488,7 +502,7 @@
 
                                 <b>RepeatScore</b>
                                 <span class="muted">
-                                    Bounce(성공 반복) + Entry 근접 + TP/RR + 안정성(Drift/폭/Vol) − 하단체류(LowStreak) 패널티
+                                    WinRate·AvgR·Entry근접·안정성(Drift/폭/Vol) − 하단체류/하방침범 패널티
                                 </span>
                             </div>
                         </div>
@@ -535,7 +549,7 @@
                 <div class="cardHead">
                     <div class="cardTitle">
                         결과 (RepeatScore 높은 순)
-                        <span class="badge">RepeatScore ↓</span>
+                        <span class="badge">Score ↓</span>
                     </div>
                     <div class="badge mono" id="renderInfo">-</div>
                 </div>
@@ -562,16 +576,24 @@
                                         Gap%<span class="sortIcon"></span>
                                     </th>
 
-                                    <th class="right sortable" data-key="bounces" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
-                                        Bounce<span class="sortIcon"></span>
+                                    <th class="right sortable" data-key="attempts" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Attempts<span class="sortIcon"></span>
                                     </th>
 
-                                    <th class="right sortable" data-key="avgHitBars" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
-                                        AvgHit(bars)<span class="sortIcon"></span>
+                                    <th class="right sortable" data-key="winRatePct" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        WinRate%<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="avgR" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        AvgR<span class="sortIcon"></span>
+                                    </th>
+
+                                    <th class="right sortable" data-key="bounces" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
+                                        Wins(Bounce)<span class="sortIcon"></span>
                                     </th>
 
                                     <th class="right sortable" data-key="lastBounceAgo" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
-                                        LastHitAgo<span class="sortIcon"></span>
+                                        LastWinAgo<span class="sortIcon"></span>
                                     </th>
 
                                     <th class="right sortable" data-key="entrySuggested" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
@@ -594,10 +616,6 @@
                                         Len(bars)<span class="sortIcon"></span>
                                     </th>
 
-                                    <th class="right sortable" data-key="lenDuration" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
-                                        Len(시간)<span class="sortIcon"></span>
-                                    </th>
-
                                     <th class="right sortable" data-key="widthPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
                                         폭%<span class="sortIcon"></span>
                                     </th>
@@ -618,28 +636,12 @@
                                         LowStreak<span class="sortIcon"></span>
                                     </th>
 
+                                    <th class="right sortable" data-key="breachDepthPct" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
+                                        Breach%<span class="sortIcon"></span>
+                                    </th>
+
                                     <th class="right sortable" data-key="lastClose" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
                                         Now(종가)<span class="sortIcon"></span>
-                                    </th>
-
-                                    <th class="right sortable" data-key="entryLine" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
-                                        EntryLine<span class="sortIcon"></span>
-                                    </th>
-
-                                    <th class="right sortable" data-key="targetLevel" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
-                                        Target<span class="sortIcon"></span>
-                                    </th>
-
-                                    <th class="right sortable" data-key="stopLevel" data-type="number" data-default-dir="desc" tabindex="0" role="button" aria-sort="none">
-                                        Stop<span class="sortIcon"></span>
-                                    </th>
-
-                                    <th class="right sortable" data-key="rangeLow" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
-                                        Low<span class="sortIcon"></span>
-                                    </th>
-
-                                    <th class="right sortable" data-key="rangeHigh" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
-                                        High<span class="sortIcon"></span>
                                     </th>
 
                                     <th class="sortable" data-key="startTime" data-type="number" data-default-dir="asc" tabindex="0" role="button" aria-sort="none">
@@ -649,7 +651,7 @@
                             </thead>
                             <tbody id="tbody">
                                 <tr>
-                                    <td colspan="26" class="muted" style="padding: 14px;">
+                                    <td colspan="23" class="muted" style="padding: 14px;">
                                         아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                                     </td>
                                 </tr>
@@ -684,6 +686,8 @@
                 stopBufInput: document.getElementById("stopBufInput"),
                 minRangeInput: document.getElementById("minRangeInput"),
                 minBouncesInput: document.getElementById("minBouncesInput"),
+                minAttemptsInput: document.getElementById("minAttemptsInput"),
+                minWinRateInput: document.getElementById("minWinRateInput"),
                 topInput: document.getElementById("topInput"),
                 concInput: document.getElementById("concInput"),
                 delayInput: document.getElementById("delayInput"),
@@ -691,6 +695,7 @@
 
                 wicksToggle: document.getElementById("wicksToggle"),
                 bounceFilterToggle: document.getElementById("bounceFilterToggle"),
+                winrateFilterToggle: document.getElementById("winrateFilterToggle"),
                 liveToggle: document.getElementById("liveToggle"),
 
                 startBtn: document.getElementById("startBtn"),
@@ -774,20 +779,6 @@
                 return Math.ceil((days * dayMs) / ms);
             }
 
-            function fmtDuration(bars, interval) {
-                const ms = intervalToMs(interval);
-                if (!ms) return "-";
-                const totalMin = Math.floor((bars * ms) / 60000);
-
-                const days = Math.floor(totalMin / (60 * 24));
-                const hours = Math.floor((totalMin - days * 60 * 24) / 60);
-                const mins = totalMin % 60;
-
-                if (days > 0) return `${days}d ${hours}h`;
-                if (hours > 0) return `${hours}h ${mins}m`;
-                return `${mins}m`;
-            }
-
             function toSeoul(ts) {
                 try {
                     return new Date(ts).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
@@ -802,10 +793,10 @@
                 return ((maxVal - minVal) / mid) * 100;
             }
 
-            function calcRR(entrySuggested, targetLevel, stopLevel) {
-                const e = Number(entrySuggested);
-                const t = Number(targetLevel);
-                const s = Number(stopLevel);
+            function calcRR(entry, target, stop) {
+                const e = Number(entry);
+                const t = Number(target);
+                const s = Number(stop);
 
                 if (!Number.isFinite(e) || !Number.isFinite(t) || !Number.isFinite(s)) return NaN;
 
@@ -817,16 +808,16 @@
                 return reward / risk;
             }
 
-            function calcTpPct(entrySuggested, targetLevel) {
-                const e = Number(entrySuggested);
-                const t = Number(targetLevel);
+            function calcTpPct(entry, target) {
+                const e = Number(entry);
+                const t = Number(target);
                 if (!Number.isFinite(e) || !Number.isFinite(t) || !(e > 0)) return NaN;
                 return ((t - e) / e) * 100;
             }
 
-            function calcSlPct(entrySuggested, stopLevel) {
-                const e = Number(entrySuggested);
-                const s = Number(stopLevel);
+            function calcSlPct(entry, stop) {
+                const e = Number(entry);
+                const s = Number(stop);
                 if (!Number.isFinite(e) || !Number.isFinite(s) || !(e > 0)) return NaN;
                 return ((e - s) / e) * 100;
             }
@@ -841,35 +832,51 @@
 
             function getRepeatLookbackBars(cfg) {
                 const ms = intervalToMs(cfg.interval) || 0;
-                const targetMs = 36 * 60 * 60 * 1000; // 36h
+                const targetMs = 36 * 60 * 60 * 1000;
                 let bars = ms > 0 ? Math.floor(targetMs / ms) : 60;
                 bars = Math.floor(clamp(bars, 12, 120));
                 return bars;
             }
 
-            function analyzeBouncesInSegment(klines, segStartIdx, rangeLow, rangeHigh, cfg) {
+            function analyzeAttemptsAndWins(klines, segStartIdx, rangeLow, rangeHigh, cfg) {
                 const n = klines.length;
                 const last = n - 1;
 
                 if (segStartIdx >= last) {
-                    return { bounces: 0, avgHitBars: NaN, lastBounceAgo: NaN };
+                    return {
+                        wins: 0,
+                        losses: 0,
+                        attempts: 0,
+                        winRatePct: NaN,
+                        avgR: NaN,
+                        lastWinAgo: NaN
+                    };
                 }
 
                 const rangeAbs = rangeHigh - rangeLow;
                 if (!(rangeAbs > 0)) {
-                    return { bounces: 0, avgHitBars: NaN, lastBounceAgo: NaN };
+                    return {
+                        wins: 0,
+                        losses: 0,
+                        attempts: 0,
+                        winRatePct: NaN,
+                        avgR: NaN,
+                        lastWinAgo: NaN
+                    };
                 }
 
                 const entryUpper = rangeLow + rangeAbs * (cfg.entryZonePct / 100);
                 const targetLevel = rangeLow + rangeAbs * (cfg.targetZonePct / 100);
                 const stopLevel = rangeLow * (1 - cfg.stopBufferPct / 100);
 
-                const minProfitPct = cfg.minProfitPct;
+                let wins = 0;
+                let losses = 0;
+                let attempts = 0;
 
-                let bounces = 0;
-                let hitBarsSum = 0;
-                let hitCount = 0;
-                let lastHitIndex = -1;
+                let rSum = 0;
+                let rCount = 0;
+
+                let lastWinIndex = -1;
 
                 let i = segStartIdx;
 
@@ -883,8 +890,16 @@
 
                     const entryIdx = i;
                     const entryPrice = Number(klines[i][4]);
+                    if (!Number.isFinite(entryPrice) || !(entryPrice > 0)) {
+                        i += 1;
+                        continue;
+                    }
+
+                    const rr = calcRR(entryPrice, targetLevel, stopLevel);
+                    const isRRFinite = Number.isFinite(rr) && rr > 0;
+
                     let j = i + 1;
-                    let succeeded = false;
+                    let outcome = "none";
 
                     while (j < n) {
                         const high = Number(klines[j][2]);
@@ -892,49 +907,75 @@
                         const close = Number(klines[j][4]);
 
                         if (cfg.useWicks) {
-                            if (Number.isFinite(low) && low < stopLevel) break;
+                            if (Number.isFinite(low) && low < stopLevel) {
+                                outcome = "loss";
+                                break;
+                            }
                             if (Number.isFinite(high) && high >= targetLevel) {
-                                succeeded = true;
+                                outcome = "win";
                                 break;
                             }
                         } else {
-                            if (Number.isFinite(close) && close < stopLevel) break;
+                            if (Number.isFinite(close) && close < stopLevel) {
+                                outcome = "loss";
+                                break;
+                            }
                             if (Number.isFinite(close) && close >= targetLevel) {
-                                succeeded = true;
+                                outcome = "win";
                                 break;
                             }
                         }
+
                         j += 1;
                     }
 
-                    if (succeeded) {
-                        const profitPct = (Number.isFinite(entryPrice) && entryPrice > 0)
-                            ? ((targetLevel - entryPrice) / entryPrice) * 100
-                            : 0;
+                    if (outcome === "win") {
+                        wins += 1;
+                        attempts += 1;
+                        lastWinIndex = j;
 
-                        if (profitPct >= minProfitPct) {
-                            bounces += 1;
-                            hitBarsSum += (j - entryIdx);
-                            hitCount += 1;
-                            lastHitIndex = j;
+                        if (isRRFinite) {
+                            rSum += rr;
+                            rCount += 1;
                         }
+
                         i = j + 1;
-                    } else {
-                        i = j + 1;
+                        continue;
                     }
+
+                    if (outcome === "loss") {
+                        losses += 1;
+                        attempts += 1;
+
+                        rSum += -1;
+                        rCount += 1;
+
+                        i = j + 1;
+                        continue;
+                    }
+
+                    i = n;
                 }
 
-                const avgHitBars = hitCount > 0 ? (hitBarsSum / hitCount) : NaN;
-                const lastBounceAgo = lastHitIndex >= 0 ? (n - 1 - lastHitIndex) : NaN;
+                const winRatePct = attempts > 0 ? (wins / attempts) * 100 : NaN;
+                const avgR = rCount > 0 ? (rSum / rCount) : NaN;
+                const lastWinAgo = lastWinIndex >= 0 ? (n - 1 - lastWinIndex) : NaN;
 
-                return { bounces, avgHitBars, lastBounceAgo };
+                return {
+                    wins,
+                    losses,
+                    attempts,
+                    winRatePct,
+                    avgR,
+                    lastWinAgo
+                };
             }
 
-            function computeVolAndLowStreak(klines, seg, cfg) {
+            function computeVolStreakBreach(klines, seg, cfg) {
                 const n = klines.length;
                 const rangeAbs = seg.rangeHigh - seg.rangeLow;
                 if (!(rangeAbs > 0)) {
-                    return { volRatio: NaN, volRangePct: NaN, lowStreakEnd: 0 };
+                    return { volRatio: NaN, volRangePct: NaN, lowStreakEnd: 0, breachDepthPct: NaN };
                 }
 
                 const lookback = Math.min(getRepeatLookbackBars(cfg), Math.max(1, seg.lenBars));
@@ -942,13 +983,16 @@
 
                 let sumHL = 0;
                 let cntHL = 0;
+                let minLow = Infinity;
 
                 for (let i = from; i < n; i += 1) {
                     const hi = Number(klines[i][2]);
                     const lo = Number(klines[i][3]);
+
                     if (Number.isFinite(hi) && Number.isFinite(lo) && hi > 0 && lo > 0) {
                         sumHL += (hi - lo);
                         cntHL += 1;
+                        minLow = Math.min(minLow, lo);
                     }
                 }
 
@@ -958,9 +1002,8 @@
 
                 let streak = 0;
                 for (let i = n - 1; i >= 0; i -= 1) {
-                    const k = klines[i];
-                    const close = Number(k[4]);
-                    const low = Number(k[3]);
+                    const close = Number(klines[i][4]);
+                    const low = Number(klines[i][3]);
 
                     const touchedLow = cfg.useWicks
                         ? (Number.isFinite(low) && low <= seg.entryLine)
@@ -970,24 +1013,19 @@
                     else break;
                 }
 
-                return { volRatio, volRangePct, lowStreakEnd: streak };
+                const breachDepthPct = (Number.isFinite(minLow) && minLow < seg.rangeLow && seg.rangeLow > 0)
+                    ? ((seg.rangeLow - minLow) / seg.rangeLow) * 100
+                    : 0;
+
+                return { volRatio, volRangePct, lowStreakEnd: streak, breachDepthPct };
             }
 
             function calcRepeatScore(r, cfg) {
-                const rr = Number(r.rr);
-                const tp = Number(r.tpPct);
-                const sl = Number(r.slPct);
-
-                const bounceBase = Math.max(1, cfg.minBounces + 3);
-                const bounceScore = clamp((Number(r.bounces) || 0) / bounceBase, 0, 1);
+                const entryNow = r.entryMode === "NOW" ? 1 : 0;
 
                 const gap = Number(r.gapToEntryPct);
-                const entryNow = r.entryMode === "NOW" ? 1 : 0;
                 const gapDen = Math.max(0.15, Math.min(3.0, (Number(r.widthPct) || 1) * 0.60));
                 const proxScore = entryNow ? 1 : (Number.isFinite(gap) ? (1 - clamp(gap / gapDen, 0, 1)) : 0);
-
-                const posEntryDen = Math.max(1, cfg.entryZonePct);
-                const posEntryScore = 1 - clamp((Number(r.posPct) || 0) / posEntryDen, 0, 1);
 
                 const driftDen = Math.max(0.0001, cfg.driftMaxPct);
                 const driftScore = 1 - clamp((Number(r.driftPct) || 0) / driftDen, 0, 1);
@@ -1001,36 +1039,52 @@
                     : 0.5;
 
                 const lookback = Math.max(12, Math.min(120, Number(r.repeatLookbackBars) || getRepeatLookbackBars(cfg)));
-                const speedScore = Number.isFinite(Number(r.avgHitBars))
-                    ? (1 - clamp(Number(r.avgHitBars) / lookback, 0, 1))
-                    : 0.5;
-
-                const recentScore = Number.isFinite(Number(r.lastBounceAgo))
-                    ? (1 - clamp(Number(r.lastBounceAgo) / lookback, 0, 1))
+                const recentScore = Number.isFinite(Number(r.lastWinAgo))
+                    ? (1 - clamp(Number(r.lastWinAgo) / lookback, 0, 1))
                     : 0.4;
 
+                const winRate = Number(r.winRatePct);
+                const winRateScore = Number.isFinite(winRate) ? clamp((winRate - 45) / 35, 0, 1) : 0;
+
+                const avgR = Number(r.avgR);
+                const avgRScore = Number.isFinite(avgR) ? clamp((avgR + 0.2) / 1.0, 0, 1) : 0;
+
+                const attempts = Number(r.attempts);
+                const minAttempts = Math.max(1, cfg.minAttempts);
+                const attemptsScore = Number.isFinite(attempts) ? clamp(attempts / Math.max(minAttempts, 3), 0, 1) : 0;
+
+                const rr = Number(r.rr);
                 const rrScore = Number.isFinite(rr) ? clamp((rr - 0.9) / 1.6, 0, 1) : 0;
+
+                const tp = Number(r.tpPct);
                 const tpScore = Number.isFinite(tp) ? clamp((tp - 0.25) / 1.5, 0, 1) : 0;
 
+                const sl = Number(r.slPct);
                 const slPenalty = Number.isFinite(sl) ? clamp((sl - 0.6) / 2.0, 0, 1) : 0.6;
+
                 const streakPenalty = Number.isFinite(Number(r.lowStreakEnd))
                     ? clamp(Number(r.lowStreakEnd) / Math.max(4, cfg.minBounces * 3), 0, 1)
                     : 0;
 
+                const breachPenalty = Number.isFinite(Number(r.breachDepthPct))
+                    ? clamp(Number(r.breachDepthPct) / Math.max(0.2, cfg.stopBufferPct), 0, 1)
+                    : 0;
+
                 let score = 100 * (
-                    0.18 * proxScore +
-                    0.18 * posEntryScore +
-                    0.24 * bounceScore +
-                    0.08 * speedScore +
-                    0.06 * recentScore +
+                    0.24 * winRateScore +
+                    0.18 * avgRScore +
+                    0.10 * attemptsScore +
+                    0.14 * proxScore +
                     0.08 * rrScore +
-                    0.10 * tpScore +
-                    0.08 * driftScore +
-                    0.06 * widthScore +
-                    0.04 * volScore
+                    0.08 * tpScore +
+                    0.06 * recentScore +
+                    0.06 * driftScore +
+                    0.04 * widthScore +
+                    0.02 * volScore
                 );
 
-                score -= 12 * streakPenalty;
+                score -= 16 * streakPenalty;
+                score -= 10 * breachPenalty;
                 score -= 8 * slPenalty;
 
                 return clamp(score, 0, 100);
@@ -1142,12 +1196,7 @@
                     all = all.slice(all.length - want);
                 }
 
-                return {
-                    candles: all,
-                    effectiveBars: all.length,
-                    pagesUsed: pages,
-                    maxPages
-                };
+                return { candles: all };
             }
 
             function findOngoingRangeSegment(klines, cfg) {
@@ -1210,15 +1259,17 @@
 
                 if (candidateIdx.length === 0) return null;
 
-                const K = cfg.bounceFilterEnabled ? 50 : 1;
+                const K = 50;
                 const limit = Math.min(K, candidateIdx.length);
 
                 for (let c = 0; c < limit; c += 1) {
                     const i = candidateIdx[c];
+
                     const rangeLow = sufMin[i];
                     const rangeHigh = sufMax[i];
 
                     const w = widthPct(rangeLow, rangeHigh);
+
                     const startClose = closes[i];
                     const drift = (Number.isFinite(startClose) && startClose > 0)
                         ? (Math.abs(lastClose - startClose) / startClose) * 100
@@ -1233,12 +1284,17 @@
 
                     const posPct = clamp(((lastClose - rangeLow) / rangeAbs) * 100, 0, 100);
 
-                    let bounceRes = { bounces: 0, avgHitBars: NaN, lastBounceAgo: NaN };
-                    if (cfg.bounceFilterEnabled || cfg.alwaysComputeBounce) {
-                        bounceRes = analyzeBouncesInSegment(klines, i, rangeLow, rangeHigh, cfg);
-                    }
+                    const stats = analyzeAttemptsAndWins(klines, i, rangeLow, rangeHigh, cfg);
 
-                    if (!cfg.bounceFilterEnabled || bounceRes.bounces >= cfg.minBounces) {
+                    const bounceOk = !cfg.bounceFilterEnabled || stats.wins >= cfg.minBounces;
+                    const winrateOk = !cfg.winrateFilterEnabled
+                        || (
+                            stats.attempts >= cfg.minAttempts
+                            && Number.isFinite(stats.winRatePct)
+                            && stats.winRatePct >= cfg.minWinRatePct
+                        );
+
+                    if (bounceOk && winrateOk) {
                         const nowInEntryZone = (Number.isFinite(lastClose) && lastClose <= entryLine);
                         const entryMode = nowInEntryZone ? "NOW" : "WAIT";
                         const entrySuggested = nowInEntryZone ? lastClose : entryLine;
@@ -1247,12 +1303,9 @@
                             startIndex: i,
                             startTime: times[i],
                             lenBars: n - i,
+
                             widthPct: w,
                             driftPct: drift,
-
-                            bounces: bounceRes.bounces,
-                            avgHitBars: bounceRes.avgHitBars,
-                            lastBounceAgo: bounceRes.lastBounceAgo,
 
                             rangeLow,
                             rangeHigh,
@@ -1260,12 +1313,18 @@
                             posPct,
 
                             entryMode,
-                            nowInEntryZone,
                             entrySuggested,
-
                             entryLine,
                             targetLevel,
-                            stopLevel
+                            stopLevel,
+
+                            // win/loss stats
+                            bounces: stats.wins,
+                            losses: stats.losses,
+                            attempts: stats.attempts,
+                            winRatePct: stats.winRatePct,
+                            avgR: stats.avgR,
+                            lastWinAgo: stats.lastWinAgo
                         };
                     }
                 }
@@ -1318,6 +1377,9 @@
                 const minRangePct = clampNum(els.minRangeInput.value, 0.0, 60, 0.9);
 
                 const minBounces = Math.floor(clampNum(els.minBouncesInput.value, 0, 50, 2));
+                const minAttempts = Math.floor(clampNum(els.minAttemptsInput.value, 0, 100, 3));
+                const minWinRatePct = clampNum(els.minWinRateInput.value, 0, 100, 55);
+
                 const topN = Math.floor(clampNum(els.topInput.value, 10, 500, 150));
 
                 const concurrency = Math.floor(clampNum(els.concInput.value, 1, 12, 4));
@@ -1325,17 +1387,15 @@
 
                 const useWicks = !!els.wicksToggle.checked;
                 const bounceFilterEnabled = !!els.bounceFilterToggle.checked;
+                const winrateFilterEnabled = !!els.winrateFilterToggle.checked;
                 const liveRender = !!els.liveToggle.checked;
-
-                const minProfitPct = 0.3;
-                const alwaysComputeBounce = true;
 
                 const barsNeeded = calcBarsNeeded(days, interval);
                 const pagesNeeded = Math.min(12, Math.max(1, Math.ceil(barsNeeded / PAGE_LIMIT)));
 
                 els.barsInfo.textContent = `${barsNeeded} bars (auto pages=${pagesNeeded})`;
                 els.ruleText.textContent =
-                    `윈도우=${days}d · 폭 ${minRangePct}~${bandPct}% · drift≤${driftMaxPct}% · entry≤${entryZonePct}% · target≥${targetZonePct}% · stop=${stopBufferPct}% · bounce≥${minBounces}${bounceFilterEnabled ? "" : " (OFF)"}`;
+                    `윈도우=${days}d · 폭 ${minRangePct}~${bandPct}% · drift≤${driftMaxPct}% · entry≤${entryZonePct}% · target≥${targetZonePct}% · stop=${stopBufferPct}% · wins≥${minBounces}${bounceFilterEnabled ? "" : " (OFF)"} · attempts≥${minAttempts}, winrate≥${minWinRatePct}%${winrateFilterEnabled ? "" : " (OFF)"}`;
 
                 return {
                     interval,
@@ -1352,17 +1412,18 @@
                     minRangePct,
 
                     minBounces,
-                    topN,
+                    minAttempts,
+                    minWinRatePct,
 
                     concurrency,
                     delayMs,
 
                     useWicks,
                     bounceFilterEnabled,
+                    winrateFilterEnabled,
                     liveRender,
 
-                    minProfitPct,
-                    alwaysComputeBounce
+                    topN
                 };
             }
 
@@ -1372,31 +1433,22 @@
                 return arr.filter((r) => r.symbol.includes(query));
             }
 
-            function getSortValue(r, key, cfg) {
+            function getSortValue(r, key) {
                 if (!r) return null;
-
-                if (key === "lenDuration") {
-                    const ms = intervalToMs(cfg.interval) || 0;
-                    return r.lenBars * ms;
-                }
-
-                if (key === "entryMode") {
-                    return r.entryMode === "NOW" ? 0 : 1;
-                }
-
+                if (key === "entryMode") return r.entryMode === "NOW" ? 0 : 1;
                 return r[key];
             }
 
             function defaultSortComparator(a, b) {
                 if (b.repeatScore !== a.repeatScore) return b.repeatScore - a.repeatScore;
                 if (a.entryMode !== b.entryMode) return (a.entryMode === "NOW" ? -1 : 1);
-                if (b.bounces !== a.bounces) return b.bounces - a.bounces;
-                if (a.driftPct !== b.driftPct) return a.driftPct - b.driftPct;
-                if (a.widthPct !== b.widthPct) return a.widthPct - b.widthPct;
+                if (b.winRatePct !== a.winRatePct) return (b.winRatePct || 0) - (a.winRatePct || 0);
+                if (b.avgR !== a.avgR) return (b.avgR || -999) - (a.avgR || -999);
+                if (b.attempts !== a.attempts) return (b.attempts || 0) - (a.attempts || 0);
                 return a.symbol.localeCompare(b.symbol);
             }
 
-            function sortResults(arr, cfg) {
+            function sortResults(arr) {
                 const out = arr.slice();
 
                 const key = state.sortKey;
@@ -1412,8 +1464,8 @@
                 const type = th?.dataset?.type || "auto";
 
                 out.sort((a, b) => {
-                    const va = getSortValue(a, key, cfg);
-                    const vb = getSortValue(b, key, cfg);
+                    const va = getSortValue(a, key);
+                    const vb = getSortValue(b, key);
 
                     let cmp = 0;
 
@@ -1495,7 +1547,7 @@
 
             function renderTable() {
                 const cfg = getConfig();
-                const sorted = sortResults(state.results, cfg);
+                const sorted = sortResults(state.results);
                 const filtered = filterResults(sorted, els.searchInput.value);
                 const view = filtered.slice(0, cfg.topN);
 
@@ -1505,8 +1557,8 @@
                 if (view.length === 0) {
                     els.tbody.innerHTML = `
                         <tr>
-                            <td colspan="26" class="muted" style="padding: 14px;">
-                                결과가 없습니다. (Band/Drift 완화, Bounce 조건 OFF, 또는 15m에서 wicks OFF 유지 권장)
+                            <td colspan="23" class="muted" style="padding: 14px;">
+                                결과가 없습니다. (필터를 완화하거나 WinRate/Attempts 필터 OFF를 시도해보세요)
                             </td>
                         </tr>
                     `;
@@ -1523,13 +1575,17 @@
 
                     const entrySugClass = r.entryMode === "NOW" ? "cellNow" : "";
 
+                    const gapText = Number.isFinite(Number(r.gapToEntryPct)) ? Number(r.gapToEntryPct).toFixed(2) : "—";
+                    const winText = Number.isFinite(Number(r.winRatePct)) ? Number(r.winRatePct).toFixed(1) : "—";
+                    const avgRText = Number.isFinite(Number(r.avgR)) ? Number(r.avgR).toFixed(2) : "—";
+                    const lastWinAgoText = Number.isFinite(Number(r.lastWinAgo)) ? String(Math.floor(Number(r.lastWinAgo))) : "—";
+
                     const tpText = Number.isFinite(Number(r.tpPct)) ? Number(r.tpPct).toFixed(2) : "—";
                     const slText = Number.isFinite(Number(r.slPct)) ? Number(r.slPct).toFixed(2) : "—";
                     const rrText = Number.isFinite(Number(r.rr)) ? Number(r.rr).toFixed(2) : "—";
-                    const gapText = Number.isFinite(Number(r.gapToEntryPct)) ? Number(r.gapToEntryPct).toFixed(2) : "—";
-                    const hitText = Number.isFinite(Number(r.avgHitBars)) ? Number(r.avgHitBars).toFixed(1) : "—";
-                    const agoText = Number.isFinite(Number(r.lastBounceAgo)) ? String(Math.floor(Number(r.lastBounceAgo))) : "—";
+
                     const volText = Number.isFinite(Number(r.volRangePct)) ? Number(r.volRangePct).toFixed(1) : "—";
+                    const breachText = Number.isFinite(Number(r.breachDepthPct)) ? Number(r.breachDepthPct).toFixed(2) : "—";
 
                     html += `
                         <tr>
@@ -1540,9 +1596,12 @@
                             <td class="right">${modeTag}</td>
                             <td class="right mono muted">${gapText}</td>
 
+                            <td class="right mono">${r.attempts}</td>
+                            <td class="right mono">${winText}</td>
+                            <td class="right mono">${avgRText}</td>
+
                             <td class="right mono">${r.bounces}</td>
-                            <td class="right mono muted">${hitText}</td>
-                            <td class="right mono muted">${agoText}</td>
+                            <td class="right mono muted">${lastWinAgoText}</td>
 
                             <td class="right mono ${entrySugClass}">${r.entrySuggested.toFixed(6)}</td>
                             <td class="right mono">${tpText}</td>
@@ -1550,19 +1609,14 @@
                             <td class="right mono">${rrText}</td>
 
                             <td class="right mono">${r.lenBars}</td>
-                            <td class="right mono muted">${fmtDuration(r.lenBars, cfg.interval)}</td>
                             <td class="right mono">${r.widthPct.toFixed(3)}</td>
                             <td class="right mono muted">${r.driftPct.toFixed(3)}</td>
                             <td class="right mono muted">${r.posPct.toFixed(1)}</td>
                             <td class="right mono muted">${volText}</td>
                             <td class="right mono muted">${r.lowStreakEnd}</td>
+                            <td class="right mono muted">${breachText}</td>
 
                             <td class="right mono">${r.lastClose.toFixed(6)}</td>
-                            <td class="right mono muted">${r.entryLine.toFixed(6)}</td>
-                            <td class="right mono muted">${r.targetLevel.toFixed(6)}</td>
-                            <td class="right mono muted">${r.stopLevel.toFixed(6)}</td>
-                            <td class="right mono">${r.rangeLow.toFixed(6)}</td>
-                            <td class="right mono">${r.rangeHigh.toFixed(6)}</td>
                             <td class="mono muted">${toSeoul(r.startTime)}</td>
                         </tr>
                     `;
@@ -1571,32 +1625,30 @@
                 els.tbody.innerHTML = html;
             }
 
-            function toCsv(rows, interval) {
+            function toCsv(rows) {
                 const header = [
                     "symbol",
                     "repeatScore",
                     "entryMode",
                     "gapToEntryPct",
-                    "bounces",
-                    "avgHitBars",
-                    "lastBounceAgo",
+                    "attempts",
+                    "winRatePct",
+                    "avgR",
+                    "wins",
+                    "losses",
+                    "lastWinAgo",
                     "entrySuggested",
                     "tpPct",
                     "slPct",
                     "rr",
                     "lenBars",
-                    "lenDuration",
                     "widthPct",
                     "driftPct",
                     "posPct",
                     "volRangePct",
                     "lowStreakEnd",
+                    "breachDepthPct",
                     "lastClose",
-                    "entryLine",
-                    "targetLevel",
-                    "stopLevel",
-                    "rangeLow",
-                    "rangeHigh",
                     "rangeStartSeoul"
                 ];
                 const lines = [header.join(",")];
@@ -1607,26 +1659,24 @@
                         r.repeatScore,
                         `"${r.entryMode}"`,
                         r.gapToEntryPct,
+                        r.attempts,
+                        r.winRatePct,
+                        r.avgR,
                         r.bounces,
-                        r.avgHitBars,
-                        r.lastBounceAgo,
+                        r.losses,
+                        r.lastWinAgo,
                         r.entrySuggested,
                         r.tpPct,
                         r.slPct,
                         r.rr,
                         r.lenBars,
-                        `"${fmtDuration(r.lenBars, interval)}"`,
                         r.widthPct,
                         r.driftPct,
                         r.posPct,
                         r.volRangePct,
                         r.lowStreakEnd,
+                        r.breachDepthPct,
                         r.lastClose,
-                        r.entryLine,
-                        r.targetLevel,
-                        r.stopLevel,
-                        r.rangeLow,
-                        r.rangeHigh,
                         `"${toSeoul(r.startTime)}"`
                     ].join(",");
                     lines.push(line);
@@ -1679,7 +1729,7 @@
                             const rr = calcRR(seg.entrySuggested, seg.targetLevel, seg.stopLevel);
                             const gapToEntryPct = calcGapToEntryPct(seg.lastClose, seg.entryLine);
 
-                            const volAndStreak = computeVolAndLowStreak(klines, seg, cfg);
+                            const vol = computeVolStreakBreach(klines, seg, cfg);
                             const repeatLookbackBars = Math.min(getRepeatLookbackBars(cfg), Math.max(1, seg.lenBars));
 
                             const tmp = {
@@ -1691,9 +1741,10 @@
                                 rr,
                                 gapToEntryPct,
 
-                                volRatio: volAndStreak.volRatio,
-                                volRangePct: volAndStreak.volRangePct,
-                                lowStreakEnd: volAndStreak.lowStreakEnd,
+                                volRatio: vol.volRatio,
+                                volRangePct: vol.volRangePct,
+                                lowStreakEnd: vol.lowStreakEnd,
+                                breachDepthPct: vol.breachDepthPct,
 
                                 repeatLookbackBars
                             };
@@ -1730,10 +1781,6 @@
                 const cfg = getConfig();
                 if (state.isRunning) return;
 
-                if (cfg.targetZonePct <= cfg.entryZonePct + 5) {
-                    logLine("Target(%)는 Entry(%)보다 충분히 커야 해요. (권장: Entry 30 / Target 65~70)", "warn");
-                }
-
                 state.isRunning = true;
                 state.abortController = new AbortController();
                 state.startedAt = Date.now();
@@ -1751,7 +1798,7 @@
                 els.logBox.textContent = "";
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="26" class="muted" style="padding: 14px;">
+                        <td colspan="23" class="muted" style="padding: 14px;">
                             스캔 준비 중...
                         </td>
                     </tr>
@@ -1761,10 +1808,7 @@
                 updateProgressUI();
 
                 logLine(`스캔 시작 · TF=${cfg.interval}, 최근=${cfg.days}일(${cfg.barsNeeded} bars)`);
-                logLine(`폭 ${cfg.minRangePct}~${cfg.bandPct}%, drift≤${cfg.driftMaxPct}%, wicks=${cfg.useWicks ? "ON" : "OFF"}`);
-                logLine(`Entry≤${cfg.entryZonePct}%, Target≥${cfg.targetZonePct}%, StopBuf=${cfg.stopBufferPct}%`);
-                logLine(`BounceFilter=${cfg.bounceFilterEnabled ? `ON(bounce≥${cfg.minBounces})` : "OFF"} · concurrency=${cfg.concurrency}, delayMs=${cfg.delayMs}`);
-                logLine("RepeatScore 기준: Entry 근접/NOW + Bounce 반복 + TP/RR + 안정성 − LowStreak/SL 패널티");
+                logLine(`WinRate/AvgR 기반 Score 적용 · WinRate 필터=${cfg.winrateFilterEnabled ? "ON" : "OFF"}`);
 
                 state.tickTimer = setInterval(() => {
                     if (state.isRunning) tickElapsed();
@@ -1845,7 +1889,7 @@
 
                 els.tbody.innerHTML = `
                     <tr>
-                        <td colspan="26" class="muted" style="padding: 14px;">
+                        <td colspan="23" class="muted" style="padding: 14px;">
                             아직 결과가 없습니다. “스캔 시작”을 눌러주세요.
                         </td>
                     </tr>
@@ -1865,10 +1909,10 @@
 
             els.exportBtn.addEventListener("click", () => {
                 const cfg = getConfig();
-                const sorted = sortResults(state.results, cfg);
+                const sorted = sortResults(state.results);
                 const filtered = filterResults(sorted, els.searchInput.value);
-                const csv = toCsv(filtered, cfg.interval);
-                const filename = `repeat_long_range_${cfg.interval}_${cfg.days}d.csv`;
+                const csv = toCsv(filtered);
+                const filename = `repeat_long_range_${cfg.interval}_${cfg.days}d_winrate.csv`;
                 downloadText(filename, csv);
             });
 
@@ -1878,10 +1922,9 @@
                 getConfig();
                 bindSortingHeaders();
 
-                logLine("준비 완료. 기본 정렬은 RepeatScore(하단 롱 반복 적합도) 내림차순입니다.");
-                logLine("Gap%: NOW면 0, WAIT이면 EntryLine까지 필요한 하락 거리(%). 낮을수록 진입 가까움.");
-                logLine("AvgHit(bars): 하단 진입존 → Target 도달 평균 바수(낮을수록 ‘되돌림’이 빠름).");
-                logLine("LowStreak: 최근 연속으로 하단(EntryLine) 아래를 터치한 바 수(길면 깨질 위험 패널티).");
+                logLine("준비 완료. 기본 정렬=RepeatScore 내림차순.");
+                logLine("중요: NOW라도 LowStreak/Breach%가 크면 ‘깨지는 레인지’일 확률이 있어 Score에서 강하게 패널티 줍니다.");
+                logLine("WinRate/Attempts 필터 ON(권장): 최소 시도수/승률 기준을 통과한 후보만 보여줍니다.");
             }
 
             init();
