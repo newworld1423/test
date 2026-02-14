@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — ULTRA EXTREME Winrate LONG Scanner</title>
+        <title>Binance USDT Perp — ULTRA EXTREME WINRATE (LONG+SHORT, Auto 2-PASS)</title>
         <style>
             :root {
                 --bg: #0b0f17;
@@ -46,7 +46,7 @@
             .wrap {
                 padding: 12px 16px 18px;
                 display: grid;
-                grid-template-columns: 450px 1fr;
+                grid-template-columns: 500px 1fr;
                 gap: 12px;
             }
             @media (max-width: 1120px) {
@@ -84,7 +84,8 @@
                 color: var(--muted);
             }
             input,
-            button {
+            button,
+            select {
                 width: 100%;
                 padding: 10px 10px;
                 border-radius: 10px;
@@ -93,7 +94,8 @@
                 color: var(--text);
                 outline: none;
             }
-            input:focus {
+            input:focus,
+            select:focus {
                 border-color: rgba(96, 165, 250, 0.45);
                 box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.12);
             }
@@ -227,150 +229,67 @@
             .pill2 b {
                 color: var(--text);
             }
+            .side-long {
+                color: rgba(34, 197, 94, 0.95);
+                font-weight: 900;
+            }
+            .side-short {
+                color: rgba(239, 68, 68, 0.95);
+                font-weight: 900;
+            }
         </style>
     </head>
     <body>
         <header>
-            <h1>ULTRA EXTREME Winrate LONG Scanner</h1>
+            <h1>ULTRA EXTREME WINRATE — LONG + SHORT (Auto 2-PASS)</h1>
             <div class="sub">
-                <b>목표:</b> 신호가 거의 사라져도 상관없다는 전제로 “승률/안정성”만 최대한 챙긴 후보만 남깁니다.
+                승률 최우선(신호 극소). <b>롱/숏 둘 다</b> 후보 생성. 한쪽이 0개면 그 방향만 <b>아주 소폭</b> 완화해 2-PASS를 자동 수행.
                 <br />
-                <b>중요:</b> 이 도구는 “후보 선별” 도구이고, <b>무조건/확실/절대손실 없음은 불가능</b>합니다.
+                스캔 타이밍: <b>15m 마감 직후</b>(00/15/30/45분 + 5~20초).
             </div>
         </header>
 
         <div class="wrap">
             <section class="card">
-                <div class="hd">극단 세팅</div>
+                <div class="hd">초고승률 고정 세팅(최종)</div>
                 <div class="bd">
                     <div class="grid">
                         <div class="row">
                             <label>대상 심볼 수(24h QVol 상위 N)</label>
-                            <input id="limitSymbols" type="number" min="20" step="10" value="200" />
+                            <input id="limitSymbols" type="number" min="20" step="10" value="260" />
                         </div>
                         <div class="row">
                             <label>24h 거래대금 하한(USDT)</label>
-                            <input id="minQuoteVol" type="number" min="0" step="10000000" value="80000000" />
+                            <input id="minQuoteVol" type="number" min="0" step="10000000" value="90000000" />
                         </div>
 
                         <div class="row">
-                            <label>레짐 필터: BTC 1D 추세 통과 필요(1=ON, 0=OFF)</label>
+                            <label>동시성(요청 수)</label>
+                            <input id="concurrency" type="number" min="1" step="1" value="4" />
+                        </div>
+                        <div class="row">
+                            <label>방향 후보 최소 목표(각 1개)</label>
+                            <input id="minPerSideTarget" type="number" min="1" max="3" step="1" value="1" />
+                        </div>
+
+                        <div class="row">
+                            <label>BTC 레짐 필수(1=ON)</label>
                             <input id="btcRegimeOn" type="number" min="0" max="1" step="1" value="1" />
                         </div>
                         <div class="row">
-                            <label>레짐 필터: ETH 1D 추세 통과 필요(1=ON, 0=OFF)</label>
+                            <label>ETH 레짐 필수(1=ON)</label>
                             <input id="ethRegimeOn" type="number" min="0" max="1" step="1" value="1" />
-                        </div>
-
-                        <div class="row">
-                            <label>펀딩 상한(과열 차단): funding% ≤</label>
-                            <input id="maxFundingPct" type="number" min="-5" step="0.001" value="0.006" />
-                        </div>
-                        <div class="row">
-                            <label>펀딩 하한(너무 약세 차단): funding% ≥</label>
-                            <input id="minFundingPct" type="number" min="-5" step="0.001" value="-0.020" />
-                        </div>
-
-                        <div class="row">
-                            <label>OI 동행(15m): OI% ≥</label>
-                            <input id="minOiChgPct" type="number" min="-50" step="0.1" value="0.50" />
-                        </div>
-                        <div class="row">
-                            <label>OI 동행(15m): 가격% ≥</label>
-                            <input id="minPxChgPct" type="number" min="-50" step="0.1" value="0.20" />
-                        </div>
-
-                        <div class="row">
-                            <label>15m: 바디 비중% ≥</label>
-                            <input id="minBodyPct" type="number" min="0" step="1" value="65" />
-                        </div>
-                        <div class="row">
-                            <label>15m: 직전봉 상승% ≥</label>
-                            <input id="minRetPct" type="number" min="0" step="0.05" value="0.50" />
-                        </div>
-
-                        <div class="row">
-                            <label>15m: 볼륨 스파이크 ≥</label>
-                            <input id="minVolSpike" type="number" min="1" step="0.1" value="2.2" />
-                        </div>
-                        <div class="row">
-                            <label>15m: “눌림 후 재돌파” 강제(1=ON, 0=OFF)</label>
-                            <input id="requirePullbackReclaim" type="number" min="0" max="1" step="1" value="1" />
-                        </div>
-
-                        <div class="row">
-                            <label>RSI 과열 차단: RSI(15m) ≤</label>
-                            <input id="maxRsi" type="number" min="40" step="1" value="68" />
-                        </div>
-                        <div class="row">
-                            <label>브레이크아웃 N(직전 고가 > 이전 N고가)</label>
-                            <input id="breakN" type="number" min="8" step="1" value="20" />
-                        </div>
-
-                        <div class="row">
-                            <label>ATR% 최소(너무 잔변동 차단) ≥</label>
-                            <input id="minAtrPct" type="number" min="0.01" step="0.01" value="0.18" />
-                        </div>
-                        <div class="row">
-                            <label>ATR% 최대(너무 난폭 차단) ≤</label>
-                            <input id="maxAtrPct" type="number" min="0.1" step="0.1" value="2.0" />
-                        </div>
-
-                        <div class="row">
-                            <label>TP = ATR * (승률↑ 보통 작게)</label>
-                            <input id="tpAtrMult" type="number" min="0.2" step="0.1" value="0.9" />
-                        </div>
-                        <div class="row">
-                            <label>SL = ATR * (손실폭 제한 목적)</label>
-                            <input id="slAtrMult" type="number" min="0.3" step="0.1" value="1.3" />
-                        </div>
-
-                        <div class="row">
-                            <label>BT: lookahead(신호 후 캔들 수)</label>
-                            <input id="btLookahead" type="number" min="8" step="1" value="20" />
-                        </div>
-                        <div class="row">
-                            <label>BT: 심볼당 최대 신호 수</label>
-                            <input id="btMaxSignals" type="number" min="10" step="10" value="120" />
-                        </div>
-
-                        <div class="row">
-                            <label>BT: 최소 표본 N ≥</label>
-                            <input id="btMinTrades" type="number" min="10" step="5" value="60" />
-                        </div>
-                        <div class="row">
-                            <label>BT: 최소 승률% ≥</label>
-                            <input id="btMinWinrate" type="number" min="40" step="0.5" value="74" />
-                        </div>
-
-                        <div class="row">
-                            <label>BT: 최근 절반 승률% ≥</label>
-                            <input id="btMinWrHalf" type="number" min="40" step="0.5" value="72" />
-                        </div>
-                        <div class="row">
-                            <label>BT: 최대 연속손실(MaxConsecLoss) ≤</label>
-                            <input id="btMaxConsecLoss" type="number" min="0" step="1" value="2" />
-                        </div>
-
-                        <div class="row">
-                            <label>추세 최소점수(1D+4H+1H) ≥</label>
-                            <input id="minTrendScore" type="number" min="0" step="1" value="78" />
-                        </div>
-                        <div class="row">
-                            <label>BT 기대값(간이) ≥ (0이면 비활성)</label>
-                            <input id="minExpectancy" type="number" min="0" step="0.01" value="0.02" />
                         </div>
                     </div>
 
                     <div class="actions">
-                        <button id="btnScan" class="primary">Scan (Ultra Extreme)</button>
+                        <button id="btnScan" class="primary">Scan (Extreme Winrate)</button>
                         <button id="btnStop" class="danger" disabled>Stop</button>
                     </div>
 
                     <div class="note">
-                        <div class="pill"><b>레짐필터</b> BTC/ETH 1D가 약세면 전체 신호를 막음</div>
-                        <div class="pill"><b>승률 착시 방지</b> 최근 절반 승률 + 연속손실 제한 + 기대값 기준</div>
-                        <div class="pill"><b>실전</b> 결과가 떠도 “즉시”가 아니라 <b>체크리스트</b> 통과 후</div>
+                        <div class="pill"><b>핵심</b> Trend(1D/4H/1H) + Trigger(15m) + OI + Funding + RSI + ATR + Backtest</div>
+                        <div class="pill"><b>정상</b> 결과 0개/1개 매우 흔함(승률 극단 모드)</div>
                     </div>
                 </div>
             </section>
@@ -384,6 +303,8 @@
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <span class="pill2">API: <b id="apiState">idle</b></span>
+                        <span class="pill2">LONG: <b id="countLong">0</b></span>
+                        <span class="pill2">SHORT: <b id="countShort">0</b></span>
                     </div>
                 </div>
 
@@ -391,12 +312,14 @@
                     <div>대기 중…</div>
                 </div>
 
-                <div style="overflow:auto; max-height: calc(100dvh - 210px);">
+                <div style="overflow:auto; max-height: calc(100dvh - 220px);">
                     <table id="tbl">
                         <thead>
                             <tr>
                                 <th data-key="score">Score</th>
+                                <th data-key="side">Side</th>
                                 <th data-key="symbol">Symbol</th>
+                                <th data-key="pass">Pass</th>
                                 <th data-key="winrate">BT Win%</th>
                                 <th data-key="trades">BT N</th>
                                 <th data-key="wrHalf">BT Half%</th>
@@ -440,14 +363,14 @@
                 const hh = String(kst.getHours()).padStart(2, "0");
                 const mm = String(kst.getMinutes()).padStart(2, "0");
                 const ss = String(kst.getSeconds()).padStart(2, "0");
-                return `${y}-${m}-${day} ${hh}:${mm}:${ss} KST`;
+                return y + "-" + m + "-" + day + " " + hh + ":" + mm + ":" + ss + " KST";
             }
 
             async function fetchJson(url, signal) {
                 const res = await fetch(url, { method: "GET", signal });
                 if (!res.ok) {
                     const text = await res.text().catch(() => "");
-                    throw new Error(`HTTP ${res.status} ${res.statusText} :: ${text.slice(0, 200)}`);
+                    throw new Error("HTTP " + res.status + " " + res.statusText + " :: " + text.slice(0, 200));
                 }
                 return res.json();
             }
@@ -501,29 +424,32 @@
                 return out;
             }
 
-            function rsi14(close, period = 14) {
+            function rsi14(close, period) {
+                const p = period || 14;
                 const n = close.length;
-                if (n < period + 2) return new Array(n).fill(50);
                 const out = new Array(n).fill(50);
+                if (n < p + 2) return out;
+
                 let gain = 0;
                 let loss = 0;
 
-                for (let i = 1; i <= period; i += 1) {
+                for (let i = 1; i <= p; i += 1) {
                     const d = close[i] - close[i - 1];
                     if (d >= 0) gain += d;
                     else loss -= d;
                 }
 
-                let avgGain = gain / period;
-                let avgLoss = loss / period;
-                out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+                let avgGain = gain / p;
+                let avgLoss = loss / p;
 
-                for (let i = period + 1; i < n; i += 1) {
+                out[p] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+                for (let i = p + 1; i < n; i += 1) {
                     const d = close[i] - close[i - 1];
                     const g = d > 0 ? d : 0;
                     const l = d < 0 ? -d : 0;
-                    avgGain = (avgGain * (period - 1) + g) / period;
-                    avgLoss = (avgLoss * (period - 1) + l) / period;
+                    avgGain = (avgGain * (p - 1) + g) / p;
+                    avgLoss = (avgLoss * (p - 1) + l) / p;
 
                     if (avgLoss === 0) out[i] = 100;
                     else {
@@ -542,7 +468,8 @@
                 const l = [];
                 const c = [];
                 const v = [];
-                for (const k of raw) {
+                for (let i = 0; i < raw.length; i += 1) {
+                    const k = raw[i];
                     t.push(Number(k[0]));
                     o.push(Number(k[1]));
                     h.push(Number(k[2]));
@@ -553,46 +480,81 @@
                 return { t, o, h, l, c, v };
             }
 
+            function candleQuality(oo, hh, ll, cc) {
+                const range = Math.max(1e-12, hh - ll);
+                const body = Math.abs(cc - oo);
+                const bodyPct = (body / range) * 100;
+
+                const upper = hh - Math.max(oo, cc);
+                const lower = Math.min(oo, cc) - ll;
+                const upperPct = (upper / range) * 100;
+                const lowerPct = (lower / range) * 100;
+
+                const clv = (cc - ll) / range; // 0~1 (종가 위치)
+                return { bodyPct, upperPct, lowerPct, clv };
+            }
+
             async function getSymbolsUSDTPerp(signal) {
-                const ex = await fetchJson(`${BASE}/fapi/v1/exchangeInfo`, signal);
-                return (ex.symbols || [])
-                    .filter((s) => s.contractType === "PERPETUAL")
-                    .filter((s) => s.quoteAsset === "USDT")
-                    .filter((s) => s.status === "TRADING")
-                    .map((s) => s.symbol);
+                const ex = await fetchJson(BASE + "/fapi/v1/exchangeInfo", signal);
+                const out = [];
+                const arr = ex.symbols || [];
+                for (let i = 0; i < arr.length; i += 1) {
+                    const s = arr[i];
+                    if (s.contractType !== "PERPETUAL") continue;
+                    if (s.quoteAsset !== "USDT") continue;
+                    if (s.status !== "TRADING") continue;
+                    out.push(s.symbol);
+                }
+                return out;
             }
 
             async function getTickers24h(signal) {
-                return fetchJson(`${BASE}/fapi/v1/ticker/24hr`, signal);
+                return fetchJson(BASE + "/fapi/v1/ticker/24hr", signal);
             }
 
             async function getLastPrices(signal) {
-                const arr = await fetchJson(`${BASE}/fapi/v1/ticker/price`, signal);
+                const arr = await fetchJson(BASE + "/fapi/v1/ticker/price", signal);
                 const map = new Map();
-                for (const x of arr) map.set(x.symbol, Number(x.price));
+                for (let i = 0; i < arr.length; i += 1) {
+                    const x = arr[i];
+                    map.set(x.symbol, Number(x.price));
+                }
                 return map;
             }
 
             async function getKlines(symbol, interval, limit, signal) {
-                const url = `${BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+                const url =
+                    BASE +
+                    "/fapi/v1/klines?symbol=" +
+                    encodeURIComponent(symbol) +
+                    "&interval=" +
+                    encodeURIComponent(interval) +
+                    "&limit=" +
+                    encodeURIComponent(String(limit));
                 return fetchJson(url, signal);
             }
 
             async function getPremiumIndex(symbol, signal) {
-                const url = `${BASE}/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`;
+                const url = BASE + "/fapi/v1/premiumIndex?symbol=" + encodeURIComponent(symbol);
                 return fetchJson(url, signal);
             }
 
             async function getOpenInterestHist(symbol, period, limit, signal) {
                 const url =
-                    `${BASE}/futures/data/openInterestHist?symbol=${encodeURIComponent(symbol)}` +
-                    `&period=${encodeURIComponent(period)}&limit=${encodeURIComponent(String(limit))}`;
+                    BASE +
+                    "/futures/data/openInterestHist?symbol=" +
+                    encodeURIComponent(symbol) +
+                    "&period=" +
+                    encodeURIComponent(period) +
+                    "&limit=" +
+                    encodeURIComponent(String(limit));
                 return fetchJson(url, signal);
             }
 
-            function fmtNum(x, digits = 2) {
+            function fmtNum(x, digits) {
+                const d = digits == null ? 2 : digits;
                 if (!isFinite(x)) return "-";
-                return Number(x).toFixed(digits);
+                return Number(x).toFixed(d);
             }
 
             function fmtInt(x) {
@@ -608,35 +570,18 @@
             const el = {
                 limitSymbols: document.getElementById("limitSymbols"),
                 minQuoteVol: document.getElementById("minQuoteVol"),
+                concurrency: document.getElementById("concurrency"),
+                minPerSideTarget: document.getElementById("minPerSideTarget"),
                 btcRegimeOn: document.getElementById("btcRegimeOn"),
                 ethRegimeOn: document.getElementById("ethRegimeOn"),
-                maxFundingPct: document.getElementById("maxFundingPct"),
-                minFundingPct: document.getElementById("minFundingPct"),
-                minOiChgPct: document.getElementById("minOiChgPct"),
-                minPxChgPct: document.getElementById("minPxChgPct"),
-                minBodyPct: document.getElementById("minBodyPct"),
-                minRetPct: document.getElementById("minRetPct"),
-                minVolSpike: document.getElementById("minVolSpike"),
-                requirePullbackReclaim: document.getElementById("requirePullbackReclaim"),
-                maxRsi: document.getElementById("maxRsi"),
-                breakN: document.getElementById("breakN"),
-                minAtrPct: document.getElementById("minAtrPct"),
-                maxAtrPct: document.getElementById("maxAtrPct"),
-                tpAtrMult: document.getElementById("tpAtrMult"),
-                slAtrMult: document.getElementById("slAtrMult"),
-                btLookahead: document.getElementById("btLookahead"),
-                btMaxSignals: document.getElementById("btMaxSignals"),
-                btMinTrades: document.getElementById("btMinTrades"),
-                btMinWinrate: document.getElementById("btMinWinrate"),
-                btMinWrHalf: document.getElementById("btMinWrHalf"),
-                btMaxConsecLoss: document.getElementById("btMaxConsecLoss"),
-                minTrendScore: document.getElementById("minTrendScore"),
-                minExpectancy: document.getElementById("minExpectancy"),
+
                 btnScan: document.getElementById("btnScan"),
                 btnStop: document.getElementById("btnStop"),
                 statusBox: document.getElementById("statusBox"),
                 tbody: document.getElementById("tbody"),
                 resultCount: document.getElementById("resultCount"),
+                countLong: document.getElementById("countLong"),
+                countShort: document.getElementById("countShort"),
                 lastUpdated: document.getElementById("lastUpdated"),
                 apiState: document.getElementById("apiState"),
                 sortLabel: document.getElementById("sortLabel"),
@@ -649,11 +594,27 @@
             let aborter = null;
 
             function setStatus(lines) {
-                el.statusBox.innerHTML = lines.map((x) => `<div>${x}</div>`).join("");
+                let html = "";
+                for (let i = 0; i < lines.length; i += 1) {
+                    html += "<div>" + lines[i] + "</div>";
+                }
+                el.statusBox.innerHTML = html;
+            }
+
+            function countSides(rows) {
+                let l = 0;
+                let s = 0;
+                for (let i = 0; i < rows.length; i += 1) {
+                    if (rows[i].side === "LONG") l += 1;
+                    else if (rows[i].side === "SHORT") s += 1;
+                }
+                el.countLong.textContent = String(l);
+                el.countShort.textContent = String(s);
             }
 
             function render(rows) {
-                const sorted = [...rows].sort((a, b) => {
+                const sorted = rows.slice();
+                sorted.sort((a, b) => {
                     const av = a[sortKey];
                     const bv = b[sortKey];
                     if (av === bv) return 0;
@@ -662,38 +623,41 @@
                 });
 
                 el.resultCount.textContent = String(sorted.length);
+                countSides(sorted);
 
-                const html = sorted
-                    .map((r) => {
-                        const wrClass = r.winrate >= 80 ? "good" : r.winrate >= 74 ? "warnc" : "badc";
-                        const halfClass = r.wrHalf >= 80 ? "good" : r.wrHalf >= 72 ? "warnc" : "badc";
-                        const clClass = r.maxConsecLoss <= 1 ? "good" : r.maxConsecLoss <= 2 ? "warnc" : "badc";
-                        const expClass = r.expectancy >= 0.06 ? "good" : r.expectancy >= 0.02 ? "warnc" : "badc";
+                let html = "";
+                for (let i = 0; i < sorted.length; i += 1) {
+                    const r = sorted[i];
 
-                        return `
-                        <tr>
-                            <td class="mono"><b>${fmtNum(r.score, 1)}</b></td>
-                            <td class="mono"><b>${r.symbol}</b></td>
-                            <td class="mono ${wrClass}">${fmtNum(r.winrate, 1)}</td>
-                            <td class="mono">${fmtInt(r.trades)}</td>
-                            <td class="mono ${halfClass}">${fmtNum(r.wrHalf, 1)}</td>
-                            <td class="mono ${clClass}">${fmtInt(r.maxConsecLoss)}</td>
-                            <td class="mono ${expClass}">${fmtNum(r.expectancy, 3)}</td>
-                            <td class="mono">${fmtNum(r.price, r.price < 1 ? 6 : 3)}</td>
-                            <td class="mono">${fmtNum(r.fundingPct, 3)}</td>
-                            <td class="mono">${fmtNum(r.oiChgPct, 2)}</td>
-                            <td class="mono">${fmtNum(r.pxChgPct, 2)}</td>
-                            <td class="mono">${fmtNum(r.rsi, 1)}</td>
-                            <td class="mono">${fmtNum(r.atrPct, 2)}</td>
-                            <td class="mono">${fmtNum(r.trendScore, 0)}</td>
-                            <td class="mono">${fmtNum(r.tp, r.price < 1 ? 6 : 3)}</td>
-                            <td class="mono">${fmtNum(r.sl, r.price < 1 ? 6 : 3)}</td>
-                            <td class="mono">${fmtMoney(r.qv24)}</td>
-                            <td class="small">${r.why}</td>
-                        </tr>
-                        `;
-                    })
-                    .join("");
+                    const wrClass = r.winrate >= 82 ? "good" : r.winrate >= 78 ? "warnc" : "badc";
+                    const halfClass = r.wrHalf >= 80 ? "good" : r.wrHalf >= 76 ? "warnc" : "badc";
+                    const clClass = r.maxConsecLoss <= 1 ? "good" : r.maxConsecLoss <= 2 ? "warnc" : "badc";
+                    const expClass = r.expectancy >= 0.06 ? "good" : r.expectancy >= 0.03 ? "warnc" : "badc";
+                    const sideClass = r.side === "LONG" ? "side-long" : "side-short";
+
+                    html += "<tr>";
+                    html += '<td class="mono"><b>' + fmtNum(r.score, 1) + "</b></td>";
+                    html += '<td class="mono ' + sideClass + '">' + r.side + "</td>";
+                    html += '<td class="mono"><b>' + r.symbol + "</b></td>";
+                    html += '<td class="mono">' + r.pass + "</td>";
+                    html += '<td class="mono ' + wrClass + '">' + fmtNum(r.winrate, 1) + "</td>";
+                    html += '<td class="mono">' + fmtInt(r.trades) + "</td>";
+                    html += '<td class="mono ' + halfClass + '">' + fmtNum(r.wrHalf, 1) + "</td>";
+                    html += '<td class="mono ' + clClass + '">' + fmtInt(r.maxConsecLoss) + "</td>";
+                    html += '<td class="mono ' + expClass + '">' + fmtNum(r.expectancy, 3) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.price, r.price < 1 ? 6 : 3) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.fundingPct, 3) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.oiChgPct, 2) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.pxChgPct, 2) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.rsi, 1) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.atrPct, 2) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.trendScore, 0) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.tp, r.price < 1 ? 6 : 3) + "</td>";
+                    html += '<td class="mono">' + fmtNum(r.sl, r.price < 1 ? 6 : 3) + "</td>";
+                    html += '<td class="mono">' + fmtMoney(r.qv24) + "</td>";
+                    html += '<td class="small">' + r.why + "</td>";
+                    html += "</tr>";
+                }
 
                 el.tbody.innerHTML = html;
                 el.lastUpdated.textContent = nowKST();
@@ -703,17 +667,20 @@
                 th.addEventListener("click", () => {
                     const key = th.getAttribute("data-key");
                     if (!key) return;
-                    if (sortKey === key) sortDir = sortDir === "desc" ? "asc" : "desc";
-                    else {
+
+                    if (sortKey === key) {
+                        sortDir = sortDir === "desc" ? "asc" : "desc";
+                    } else {
                         sortKey = key;
                         sortDir = key === "symbol" ? "asc" : "desc";
                     }
-                    el.sortLabel.textContent = `${sortKey} ${sortDir === "desc" ? "↓" : "↑"}`;
+
+                    el.sortLabel.textContent = sortKey + " " + (sortDir === "desc" ? "↓" : "↑");
                     render(currentRows);
                 });
             });
 
-            function computeTrendScore(k1d, k4h, k1h, price) {
+            function computeTrendScoreDirectional(k1d, k4h, k1h, price, side) {
                 const e1d20 = ema(k1d.c, 20);
                 const e1d50 = ema(k1d.c, 50);
                 const e4h20 = ema(k4h.c, 20);
@@ -724,11 +691,8 @@
                 const i1d = k1d.c.length - 2;
                 const i4h = k4h.c.length - 2;
                 const i1h = k1h.c.length - 2;
-                if (i1d < 80 || i4h < 80 || i1h < 80) return { score: 0, detail: "not enough" };
 
-                const ok1d = e1d20[i1d] > e1d50[i1d] && price > e1d20[i1d];
-                const ok4h = e4h20[i4h] > e4h50[i4h] && price > e4h20[i4h];
-                const ok1h = e1h20[i1h] > e1h50[i1h] && price > e1h20[i1h];
+                if (i1d < 80 || i4h < 80 || i1h < 80) return { score: 0, detail: "not enough" };
 
                 function slopeUp(arr, idx, back) {
                     const j = idx - back;
@@ -736,115 +700,84 @@
                     return arr[idx] > arr[j];
                 }
 
-                const s1d = slopeUp(e1d20, i1d, 5);
-                const s4h = slopeUp(e4h20, i4h, 6);
-                const s1h = slopeUp(e1h20, i1h, 8);
+                function slopeDown(arr, idx, back) {
+                    const j = idx - back;
+                    if (j < 0) return false;
+                    return arr[idx] < arr[j];
+                }
 
-                const dist1h = (price - e1h20[i1h]) / Math.max(1e-12, e1h20[i1h]);
-                const over = Math.max(0, dist1h - 0.012);
-                const penaltyOver = clamp(over * 2500, 0, 18);
+                let ok1d = false;
+                let ok4h = false;
+                let ok1h = false;
+                let s1d = false;
+                let s4h = false;
+                let s1h = false;
+
+                if (side === "LONG") {
+                    ok1d = e1d20[i1d] > e1d50[i1d] && price > e1d20[i1d];
+                    ok4h = e4h20[i4h] > e4h50[i4h] && price > e4h20[i4h];
+                    ok1h = e1h20[i1h] > e1h50[i1h] && price > e1h20[i1h];
+                    s1d = slopeUp(e1d20, i1d, 6);
+                    s4h = slopeUp(e4h20, i4h, 6);
+                    s1h = slopeUp(e1h20, i1h, 10);
+                } else {
+                    ok1d = e1d20[i1d] < e1d50[i1d] && price < e1d20[i1d];
+                    ok4h = e4h20[i4h] < e4h50[i4h] && price < e4h20[i4h];
+                    ok1h = e1h20[i1h] < e1h50[i1h] && price < e1h20[i1h];
+                    s1d = slopeDown(e1d20, i1d, 6);
+                    s4h = slopeDown(e4h20, i4h, 6);
+                    s1h = slopeDown(e1h20, i1h, 10);
+                }
+
+                const dist1h = Math.abs((price - e1h20[i1h]) / Math.max(1e-12, e1h20[i1h]));
+                const over = Math.max(0, dist1h - 0.010);
+                const penalty = clamp(over * 3000, 0, 22);
 
                 let score = 0;
-                score += ok1d ? 36 : 0;
+                score += ok1d ? 38 : 0;
                 score += ok4h ? 30 : 0;
                 score += ok1h ? 22 : 0;
-                score += s1d ? 5 : 0;
-                score += s4h ? 4 : 0;
-                score += s1h ? 4 : 0;
-                score -= penaltyOver;
+                score += s1d ? 4 : 0;
+                score += s4h ? 3 : 0;
+                score += s1h ? 3 : 0;
+                score -= penalty;
 
                 score = clamp(score, 0, 100);
 
-                const detail = `${ok1d ? "1D↑" : "1D×"} ${ok4h ? "4H↑" : "4H×"} ${ok1h ? "1H↑" : "1H×"} slope:${
-                    s1d && s4h && s1h ? "OK" : "mix"
-                }`;
+                const detail =
+                    (side === "LONG" ? "LONG" : "SHORT") +
+                    " " +
+                    (ok1d ? "1D✓" : "1D×") +
+                    " " +
+                    (ok4h ? "4H✓" : "4H×") +
+                    " " +
+                    (ok1h ? "1H✓" : "1H×") +
+                    " slope:" +
+                    (s1d && s4h && s1h ? "OK" : "mix");
 
                 return { score, detail };
             }
 
-            function computeTrigger15m(k15, minBodyPct, minRetPct, minVolSpike, breakN, requirePullbackReclaim) {
-                const n = k15.c.length;
-                if (n < 120) return null;
-
-                const i = n - 2;
-                const open = k15.o[i];
-                const high = k15.h[i];
-                const low = k15.l[i];
-                const close = k15.c[i];
-
-                const range = Math.max(1e-12, high - low);
-                const bodyPct = (Math.abs(close - open) / range) * 100;
-                const retPct = pct(close, open);
-                const isGreen = close > open;
-
-                let sum = 0;
-                let cnt = 0;
-                for (let j = i - 1; j >= 0 && cnt < 20; j -= 1) {
-                    sum += k15.v[j];
-                    cnt += 1;
-                }
-                const volAvg = cnt > 0 ? sum / cnt : 0;
-                const volSpike = volAvg > 0 ? k15.v[i] / volAvg : 0;
-
-                let prevMax = -Infinity;
-                for (let j = i - 1; j >= 0 && j >= i - breakN; j -= 1) {
-                    prevMax = Math.max(prevMax, k15.h[j]);
-                }
-                const isBreakout = high > prevMax;
-
-                // “눌림 후 재돌파” 강제: 최근 8봉 중 최소 1봉이 EMA20 아래/근처 터치 후, 현재는 EMA20 위로 마감
-                let pullbackOk = true;
-                const e20 = ema(k15.c, 20);
-                if (requirePullbackReclaim === 1) {
-                    const emaNow = e20[i];
-                    const touchBand = emaNow * 0.0025; // 0.25% 밴드
-                    let touched = false;
-                    for (let j = i - 1; j >= 0 && j >= i - 8; j -= 1) {
-                        if (k15.l[j] <= e20[j] + touchBand) {
-                            touched = true;
-                            break;
-                        }
-                    }
-                    pullbackOk = touched && close > emaNow;
-                }
-
-                const pass =
-                    isGreen &&
-                    bodyPct >= minBodyPct &&
-                    retPct >= minRetPct &&
-                    volSpike >= minVolSpike &&
-                    isBreakout &&
-                    pullbackOk;
-
-                return { pass, bodyPct, retPct, volSpike, isBreakout, pullbackOk };
-            }
-
-            function proposeTPSL(k15, tpMult, slMult, entryNow) {
+            function proposeTPSLDirectional(k15, tpMult, slMult, entryNow, side) {
                 const a = atr(k15.h, k15.l, k15.c, 14);
                 const i = k15.c.length - 2;
                 const atr15 = a[i] || 0;
-                return {
-                    atr15,
-                    tp: entryNow + atr15 * tpMult,
-                    sl: entryNow - atr15 * slMult,
-                };
+
+                if (side === "LONG") {
+                    return { atr15, tp: entryNow + atr15 * tpMult, sl: entryNow - atr15 * slMult };
+                }
+                return { atr15, tp: entryNow - atr15 * tpMult, sl: entryNow + atr15 * slMult };
             }
 
-            function backtestUltra(k15, tpMult, slMult, lookahead, maxSignals, triggerFn) {
-                // 보수적 판정:
-                // - entry = 다음 캔들 시가
-                // - TP/SL 동봉 히트 => 손실 처리
-                // - outcome 없는 건 제외
-                // + max consecutive loss 계산
+            function backtestUltraDirectional(k15, tpMult, slMult, lookahead, maxSignals, side, triggerEvalAtIndex) {
                 const n = k15.c.length;
-                if (n < 300) return { winrate: 0, trades: 0, wrHalf: 0, maxConsecLoss: 999, expectancy: 0 };
+                if (n < 320) return { winrate: 0, trades: 0, wrHalf: 0, maxConsecLoss: 999, expectancy: 0 };
 
                 const a = atr(k15.h, k15.l, k15.c, 14);
 
                 const sig = [];
-                for (let i = 80; i < n - 2; i += 1) {
-                    const ok = triggerFn(i);
-                    if (ok) sig.push(i);
+                for (let i = 90; i < n - 2; i += 1) {
+                    if (triggerEvalAtIndex(i)) sig.push(i);
                 }
 
                 const picked = sig.slice(-maxSignals);
@@ -854,11 +787,10 @@
                     let losses = 0;
                     let consecLoss = 0;
                     let maxConsecLoss = 0;
-
-                    // expectancy(간이): win = +tpMult, loss = -slMult 로 가중 (ATR 단위)
                     let sumR = 0;
 
-                    for (const i of list) {
+                    for (let x = 0; x < list.length; x += 1) {
+                        const i = list[x];
                         const entryIdx = i + 1;
                         if (entryIdx >= n) continue;
 
@@ -866,16 +798,33 @@
                         const atrAt = a[i] || 0;
                         if (atrAt <= 0) continue;
 
-                        const tp = entry + atrAt * tpMult;
-                        const sl = entry - atrAt * slMult;
+                        let tp = 0;
+                        let sl = 0;
+
+                        if (side === "LONG") {
+                            tp = entry + atrAt * tpMult;
+                            sl = entry - atrAt * slMult;
+                        } else {
+                            tp = entry - atrAt * tpMult;
+                            sl = entry + atrAt * slMult;
+                        }
 
                         let outcome = 0;
+
                         for (let j = entryIdx; j < Math.min(n, entryIdx + lookahead); j += 1) {
                             const hh = k15.h[j];
                             const ll = k15.l[j];
 
-                            const hitTP = hh >= tp;
-                            const hitSL = ll <= sl;
+                            let hitTP = false;
+                            let hitSL = false;
+
+                            if (side === "LONG") {
+                                hitTP = hh >= tp;
+                                hitSL = ll <= sl;
+                            } else {
+                                hitTP = ll <= tp;
+                                hitSL = hh >= sl;
+                            }
 
                             if (hitTP && hitSL) {
                                 outcome = -1;
@@ -911,8 +860,8 @@
                 }
 
                 const all = evalList(picked);
-                const half = Math.max(1, Math.floor(picked.length / 2));
-                const halfList = picked.slice(-half);
+                const halfCount = Math.max(1, Math.floor(picked.length / 2));
+                const halfList = picked.slice(-halfCount);
                 const halfEval = evalList(halfList);
 
                 return {
@@ -927,27 +876,175 @@
             function scoreRow(trendScore, bt) {
                 const s1 = clamp(bt.winrate, 0, 95);
                 const s2 = clamp(bt.wrHalf, 0, 95);
-                const s3 = clamp(bt.trades, 0, 120);
-                const s4 = 100 - clamp(bt.maxConsecLoss * 18, 0, 80);
-                const s5 = clamp(bt.expectancy * 120, 0, 30);
-
-                const score = s1 * 0.38 + s2 * 0.20 + trendScore * 0.18 + s3 * 0.08 + s4 * 0.12 + s5 * 0.04;
+                const s3 = clamp(bt.trades, 0, 160);
+                const s4 = 100 - clamp(bt.maxConsecLoss * 22, 0, 85);
+                const s5 = clamp(bt.expectancy * 140, 0, 40);
+                const score = s1 * 0.40 + s2 * 0.20 + trendScore * 0.18 + s3 * 0.06 + s4 * 0.12 + s5 * 0.04;
                 return clamp(score, 0, 100);
             }
 
-            async function checkRegime(symbol, signal) {
-                const raw1d = await getKlines(symbol, "1d", 200, signal);
+            function buildSettings(passNo) {
+                // PASS1: 극단
+                // PASS2: 한쪽 0개일 때만 “아주 소폭” 완화 (BT 기준은 유지)
+
+                const base = {
+                    // Universe
+                    minOiChgPct: 0.70,
+                    minAbsPxChgPct: 0.25,
+
+                    // Trigger quality (15m)
+                    minBodyPct: 70,
+                    minAbsRetPct: 0.60,
+                    minVolSpike: 2.6,
+                    minCLVLong: 0.72,   // 종가가 캔들 상단에 가까움
+                    maxCLVShort: 0.28,  // 종가가 캔들 하단에 가까움
+                    maxOppWickPct: 22,  // 반대꼬리 너무 길면 제외
+                    breakN: 26,
+                    pullbackLookback: 10,
+                    pullbackBandBp: 28, // EMA20 band (bp)
+
+                    // RSI
+                    maxRsiLong: 64,
+                    minRsiShort: 36,
+
+                    // Funding (방향별 과밀 회피)
+                    minFundingLong: -0.030,
+                    maxFundingLong: 0.005,
+                    minFundingShort: -0.004,
+                    maxFundingShort: 0.035,
+
+                    // ATR filter
+                    minAtrPct: 0.22,
+                    maxAtrPct: 1.70,
+
+                    // TP/SL (승률 우선: TP 작게, SL 보수)
+                    tpAtrMult: 0.80,
+                    slAtrMult: 1.30,
+
+                    // Backtest (승률 극단)
+                    btLookahead: 22,
+                    btMaxSignals: 160,
+                    btMinTrades: 85,
+                    btMinWinrate: 78,
+                    btMinWrHalf: 76,
+                    btMaxConsecLoss: 2,
+                    minExpectancy: 0.03,
+
+                    // Trend
+                    minTrendScore: 82,
+                };
+
+                if (passNo === 1) return base;
+
+                return {
+                    ...base,
+                    // 아주 소폭 완화 (품질은 유지, 신호만 살짝 늘림)
+                    minOiChgPct: 0.60,
+                    minAbsPxChgPct: 0.20,
+                    minBodyPct: 66,
+                    minAbsRetPct: 0.50,
+                    minVolSpike: 2.2,
+                    breakN: 22,
+                    maxOppWickPct: 26,
+                    maxRsiLong: 66,
+                    minRsiShort: 34,
+                    maxAtrPct: 2.05,
+                    minTrendScore: 80,
+                };
+            }
+
+            function triggerAtIndexDirectional(k15, i, side, s) {
+                // i는 "완성된 캔들" 인덱스
+                if (i < 60 || i >= k15.c.length - 2) return false;
+
+                const oo = k15.o[i];
+                const hh = k15.h[i];
+                const ll = k15.l[i];
+                const cc = k15.c[i];
+
+                const q = candleQuality(oo, hh, ll, cc);
+
+                // 방향성 + 몸통 + 변화율
+                const retPct = pct(cc, oo);
+                if (q.bodyPct < s.minBodyPct) return false;
+                if (Math.abs(retPct) < s.minAbsRetPct) return false;
+
+                if (side === "LONG") {
+                    if (!(cc > oo && retPct > 0)) return false;
+                    if (q.clv < s.minCLVLong) return false;
+                    if (q.upperPct > s.maxOppWickPct) return false; // 위꼬리 과다(롱에 불리)
+                } else {
+                    if (!(cc < oo && retPct < 0)) return false;
+                    if (q.clv > s.maxCLVShort) return false;
+                    if (q.lowerPct > s.maxOppWickPct) return false; // 아래꼬리 과다(숏에 불리)
+                }
+
+                // 볼륨 스파이크
+                let sum = 0;
+                let cnt = 0;
+                for (let j = i - 1; j >= 0 && cnt < 20; j -= 1) {
+                    sum += k15.v[j];
+                    cnt += 1;
+                }
+                const volAvg = cnt > 0 ? sum / cnt : 0;
+                const volSpike = volAvg > 0 ? k15.v[i] / volAvg : 0;
+                if (volSpike < s.minVolSpike) return false;
+
+                // 브레이크아웃/브레이크다운
+                if (side === "LONG") {
+                    let prevMax = -Infinity;
+                    for (let j = i - 1; j >= 0 && j >= i - s.breakN; j -= 1) {
+                        prevMax = Math.max(prevMax, k15.h[j]);
+                    }
+                    if (!(hh > prevMax)) return false;
+                } else {
+                    let prevMin = Infinity;
+                    for (let j = i - 1; j >= 0 && j >= i - s.breakN; j -= 1) {
+                        prevMin = Math.min(prevMin, k15.l[j]);
+                    }
+                    if (!(ll < prevMin)) return false;
+                }
+
+                // EMA20 눌림 후 재개(휩쏘 감소)
+                const e20 = ema(k15.c, 20);
+                const emaNow = e20[i];
+                const band = emaNow * (s.pullbackBandBp / 10000);
+
+                if (side === "LONG") {
+                    let touched = false;
+                    for (let j = i - 1; j >= 0 && j >= i - s.pullbackLookback; j -= 1) {
+                        if (k15.l[j] <= e20[j] + band) {
+                            touched = true;
+                            break;
+                        }
+                    }
+                    if (!(touched && cc > emaNow)) return false;
+                } else {
+                    let touched = false;
+                    for (let j = i - 1; j >= 0 && j >= i - s.pullbackLookback; j -= 1) {
+                        if (k15.h[j] >= e20[j] - band) {
+                            touched = true;
+                            break;
+                        }
+                    }
+                    if (!(touched && cc < emaNow)) return false;
+                }
+
+                return true;
+            }
+
+            async function checkRegimeDirectional(symbol, side, signal) {
+                const raw1d = await getKlines(symbol, "1d", 240, signal);
                 const k1d = parseKlines(raw1d);
-                const last = k1d.c[k1d.c.length - 2];
-                const tr = computeTrendScore(k1d, k1d, k1d, last); // same series ok for regime
-                // 여기서는 간단히: EMA20>EMA50 & price>EMA20 조건이 점수에 반영됨
+                const price = k1d.c[k1d.c.length - 2];
+                const tr = computeTrendScoreDirectional(k1d, k1d, k1d, price, side);
                 return tr.score >= 70;
             }
 
             async function runScan() {
                 if (aborter) aborter.abort();
                 aborter = new AbortController();
-                const { signal } = aborter;
+                const signal = aborter.signal;
 
                 el.btnScan.disabled = true;
                 el.btnStop.disabled = false;
@@ -958,300 +1055,277 @@
 
                 const limitSymbols = Number(el.limitSymbols.value);
                 const minQuoteVol = Number(el.minQuoteVol.value);
+                const concurrency = Math.max(1, Number(el.concurrency.value));
+                const minPerSideTarget = Math.max(1, Number(el.minPerSideTarget.value));
+                const btcRegimeOn = Number(el.btcRegimeOn.value) === 1;
+                const ethRegimeOn = Number(el.ethRegimeOn.value) === 1;
 
-                const btcRegimeOn = Number(el.btcRegimeOn.value);
-                const ethRegimeOn = Number(el.ethRegimeOn.value);
-
-                const maxFundingPct = Number(el.maxFundingPct.value);
-                const minFundingPct = Number(el.minFundingPct.value);
-
-                const minOiChgPct = Number(el.minOiChgPct.value);
-                const minPxChgPct = Number(el.minPxChgPct.value);
-
-                const minBodyPct = Number(el.minBodyPct.value);
-                const minRetPct = Number(el.minRetPct.value);
-                const minVolSpike = Number(el.minVolSpike.value);
-                const requirePullbackReclaim = Number(el.requirePullbackReclaim.value);
-
-                const maxRsi = Number(el.maxRsi.value);
-                const breakN = Number(el.breakN.value);
-
-                const minAtrPct = Number(el.minAtrPct.value);
-                const maxAtrPct = Number(el.maxAtrPct.value);
-
-                const tpAtrMult = Number(el.tpAtrMult.value);
-                const slAtrMult = Number(el.slAtrMult.value);
-
-                const btLookahead = Number(el.btLookahead.value);
-                const btMaxSignals = Number(el.btMaxSignals.value);
-                const btMinTrades = Number(el.btMinTrades.value);
-                const btMinWinrate = Number(el.btMinWinrate.value);
-                const btMinWrHalf = Number(el.btMinWrHalf.value);
-                const btMaxConsecLoss = Number(el.btMaxConsecLoss.value);
-
-                const minTrendScore = Number(el.minTrendScore.value);
-                const minExpectancy = Number(el.minExpectancy.value);
+                const cache = new Map(); // symbol -> data cache
 
                 try {
-                    setStatus([`로딩… (exchangeInfo + ticker)`, `<span class="warn">※ 결과가 0개여도 정상입니다(극단 필터).</span>`]);
-
-                    if (btcRegimeOn === 1) {
-                        setStatus([`레짐 체크: BTCUSDT 1D…`, `<span class="muted">약세면 전체 신호 차단</span>`]);
-                        const ok = await checkRegime("BTCUSDT", signal);
-                        if (!ok) {
-                            setStatus([`<span class="bad">차단</span> BTC 1D 레짐 불합격 → 오늘은 “롱 후보 스캔 자체를 중단”`]);
-                            return;
-                        }
-                    }
-                    if (ethRegimeOn === 1) {
-                        setStatus([`레짐 체크: ETHUSDT 1D…`, `<span class="muted">약세면 전체 신호 차단</span>`]);
-                        const ok = await checkRegime("ETHUSDT", signal);
-                        if (!ok) {
-                            setStatus([`<span class="bad">차단</span> ETH 1D 레짐 불합격 → 오늘은 “롱 후보 스캔 자체를 중단”`]);
-                            return;
-                        }
-                    }
-
-                    const [symbols, tickers, lastPriceMap] = await Promise.all([
-                        getSymbolsUSDTPerp(signal),
-                        getTickers24h(signal),
-                        getLastPrices(signal),
+                    setStatus([
+                        "로딩… (레짐/심볼/티커)",
+                        '<span class="warn">승률 극단 모드: 결과 0~2개가 흔합니다.</span>',
                     ]);
+
+                    // 레짐: BTC/ETH가 LONG/SHORT 둘 다에 대해 “일방향”을 강제하지는 않음.
+                    // 대신 각 후보는 자기 방향(롱/숏)에 대해 TrendScore로 필터됨.
+                    // BTC/ETH 레짐 ON일 때는 “양쪽 다 완전 역행 레짐”이면 전체 후보 자체가 줄어듦.
+                    if (btcRegimeOn) {
+                        const btcLongOk = await checkRegimeDirectional("BTCUSDT", "LONG", signal);
+                        const btcShortOk = await checkRegimeDirectional("BTCUSDT", "SHORT", signal);
+                        if (!btcLongOk && !btcShortOk) {
+                            setStatus(['<span class="bad">차단</span> BTC 1D 레짐이 LONG/SHORT 모두 불합격(데이터 이상/극단 역행)']);
+                            return;
+                        }
+                    }
+
+                    if (ethRegimeOn) {
+                        const ethLongOk = await checkRegimeDirectional("ETHUSDT", "LONG", signal);
+                        const ethShortOk = await checkRegimeDirectional("ETHUSDT", "SHORT", signal);
+                        if (!ethLongOk && !ethShortOk) {
+                            setStatus(['<span class="bad">차단</span> ETH 1D 레짐이 LONG/SHORT 모두 불합격(데이터 이상/극단 역행)']);
+                            return;
+                        }
+                    }
+
+                    const symbols = await getSymbolsUSDTPerp(signal);
+                    const tickers = await getTickers24h(signal);
+                    const lastPriceMap = await getLastPrices(signal);
 
                     const tickerMap = new Map();
-                    for (const t of tickers) tickerMap.set(t.symbol, t);
+                    for (let i = 0; i < tickers.length; i += 1) tickerMap.set(tickers[i].symbol, tickers[i]);
 
-                    const ranked = symbols
-                        .map((s) => {
-                            const t = tickerMap.get(s);
-                            const qv24 = t ? Number(t.quoteVolume) : 0;
-                            return { symbol: s, qv24 };
-                        })
-                        .filter((x) => x.qv24 >= minQuoteVol)
-                        .sort((a, b) => b.qv24 - a.qv24)
-                        .slice(0, Math.max(20, limitSymbols));
+                    const ranked = [];
+                    for (let i = 0; i < symbols.length; i += 1) {
+                        const s = symbols[i];
+                        const t = tickerMap.get(s);
+                        const qv24 = t ? Number(t.quoteVolume) : 0;
+                        if (qv24 < minQuoteVol) continue;
+                        ranked.push({ symbol: s, qv24 });
+                    }
+                    ranked.sort((a, b) => b.qv24 - a.qv24);
+
+                    const target = ranked.slice(0, Math.max(20, limitSymbols));
 
                     setStatus([
-                        `대상: ${ranked.length}개 (24h QVol ≥ ${fmtMoney(minQuoteVol)})`,
-                        `<span class="muted">펀딩→OI→캔들→RSI/ATR→BT 순으로 극단 필터</span>`,
+                        "대상: " + target.length + "개 (24h QVol ≥ " + fmtMoney(minQuoteVol) + ")",
+                        '<span class="muted">PASS1(극단) → 부족한 방향만 PASS2(소폭 완화)</span>',
                     ]);
 
-                    const concurrency = 4;
-                    let idx = 0;
+                    const counts = { LONG: 0, SHORT: 0 };
 
-                    async function worker() {
-                        while (idx < ranked.length) {
-                            const my = idx;
-                            idx += 1;
+                    async function loadSymbolData(symbol, qv24) {
+                        if (cache.has(symbol)) return cache.get(symbol);
 
-                            const { symbol, qv24 } = ranked[my];
-                            if (signal.aborted) return;
+                        const prem = await getPremiumIndex(symbol, signal);
+                        const fundingPct = Number(prem.lastFundingRate || 0) * 100;
 
-                            try {
-                                // 1) funding filter
-                                const prem = await getPremiumIndex(symbol, signal);
-                                const fundingPct = Number(prem.lastFundingRate || 0) * 100;
-                                if (fundingPct > maxFundingPct) continue;
-                                if (fundingPct < minFundingPct) continue;
+                        const oiHist = await getOpenInterestHist(symbol, "15m", 3, signal);
+                        if (!Array.isArray(oiHist) || oiHist.length < 2) return null;
 
-                                // 2) OI confirm
-                                const oiHist = await getOpenInterestHist(symbol, "15m", 3, signal);
-                                if (!Array.isArray(oiHist) || oiHist.length < 2) continue;
+                        const oiPrev = Number(oiHist[oiHist.length - 2].sumOpenInterest || 0);
+                        const oiNow = Number(oiHist[oiHist.length - 1].sumOpenInterest || 0);
+                        if (!(oiPrev > 0 && oiNow > 0)) return null;
+                        const oiChgPct = pct(oiNow, oiPrev);
 
-                                const oiPrev = Number(oiHist[oiHist.length - 2].sumOpenInterest || 0);
-                                const oiNow = Number(oiHist[oiHist.length - 1].sumOpenInterest || 0);
-                                if (!(oiPrev > 0 && oiNow > 0)) continue;
+                        const k15raw = await getKlines(symbol, "15m", 720, signal);
+                        const k1hraw = await getKlines(symbol, "1h", 520, signal);
+                        const k4hraw = await getKlines(symbol, "4h", 420, signal);
+                        const k1draw = await getKlines(symbol, "1d", 340, signal);
 
-                                const oiChgPct = pct(oiNow, oiPrev);
-                                if (oiChgPct < minOiChgPct) continue;
+                        const k15 = parseKlines(k15raw);
+                        const k1h = parseKlines(k1hraw);
+                        const k4h = parseKlines(k4hraw);
+                        const k1d = parseKlines(k1draw);
 
-                                // 3) candles
-                                const [k15raw, k1hraw, k4hraw, k1draw] = await Promise.all([
-                                    getKlines(symbol, "15m", 700, signal),
-                                    getKlines(symbol, "1h", 520, signal),
-                                    getKlines(symbol, "4h", 420, signal),
-                                    getKlines(symbol, "1d", 320, signal),
-                                ]);
+                        const price = lastPriceMap.get(symbol) || k15.c[k15.c.length - 2] || 0;
+                        if (!isFinite(price) || price <= 0) return null;
 
-                                const k15 = parseKlines(k15raw);
-                                const k1h = parseKlines(k1hraw);
-                                const k4h = parseKlines(k4hraw);
-                                const k1d = parseKlines(k1draw);
+                        const out = { fundingPct, oiChgPct, k15, k1h, k4h, k1d, price, qv24 };
+                        cache.set(symbol, out);
+                        return out;
+                    }
 
-                                const price = lastPriceMap.get(symbol) || k15.c[k15.c.length - 2] || 0;
-                                if (!isFinite(price) || price <= 0) continue;
+                    function trySide(d, side, s, passTag) {
+                        // OI + 가격변화 최소
+                        if (d.oiChgPct < s.minOiChgPct) return null;
 
-                                // 4) trend strict
-                                const tr = computeTrendScore(k1d, k4h, k1h, price);
-                                if (tr.score < minTrendScore) continue;
+                        const k15 = d.k15;
+                        const i15 = k15.c.length - 2;
 
-                                // 5) 15m price change min
-                                const i15 = k15.c.length - 2;
-                                const pxChgPct = pct(k15.c[i15], k15.o[i15]);
-                                if (pxChgPct < minPxChgPct) continue;
+                        const pxChgPct = pct(k15.c[i15], k15.o[i15]);
+                        if (Math.abs(pxChgPct) < s.minAbsPxChgPct) return null;
 
-                                // 6) RSI anti-overheat
-                                const rsiArr = rsi14(k15.c, 14);
-                                const rsiNow = rsiArr[i15] || 50;
-                                if (rsiNow > maxRsi) continue;
+                        // RSI
+                        const rsiArr = rsi14(k15.c, 14);
+                        const rsiNow = rsiArr[i15] || 50;
+                        if (side === "LONG" && rsiNow > s.maxRsiLong) return null;
+                        if (side === "SHORT" && rsiNow < s.minRsiShort) return null;
 
-                                // 7) ATR% band
-                                const atrArr = atr(k15.h, k15.l, k15.c, 14);
-                                const atr15 = atrArr[i15] || 0;
-                                const atrPct = (atr15 / Math.max(1e-12, price)) * 100;
-                                if (atrPct < minAtrPct) continue;
-                                if (atrPct > maxAtrPct) continue;
+                        // Funding (과밀 회피)
+                        if (side === "LONG") {
+                            if (d.fundingPct < s.minFundingLong || d.fundingPct > s.maxFundingLong) return null;
+                        } else {
+                            if (d.fundingPct < s.minFundingShort || d.fundingPct > s.maxFundingShort) return null;
+                        }
 
-                                // 8) trigger ultra strict
-                                const trig = computeTrigger15m(
-                                    k15,
-                                    minBodyPct,
-                                    minRetPct,
-                                    minVolSpike,
-                                    breakN,
-                                    requirePullbackReclaim
-                                );
-                                if (!trig || !trig.pass) continue;
+                        // ATR%
+                        const atrArr = atr(k15.h, k15.l, k15.c, 14);
+                        const atr15 = atrArr[i15] || 0;
+                        const atrPct = (atr15 / Math.max(1e-12, d.price)) * 100;
+                        if (atrPct < s.minAtrPct) return null;
+                        if (atrPct > s.maxAtrPct) return null;
 
-                                // 9) backtest ultra strict
-                                const triggerFn = (i) => {
-                                    // evaluate trigger at candle i using same rules (approx)
-                                    const tmp = {
-                                        o: k15.o,
-                                        h: k15.h,
-                                        l: k15.l,
-                                        c: k15.c,
-                                        v: k15.v,
-                                    };
+                        // Trend (1D/4H/1H)
+                        const tr = computeTrendScoreDirectional(d.k1d, d.k4h, d.k1h, d.price, side);
+                        if (tr.score < s.minTrendScore) return null;
 
-                                    // reuse logic without re-ema for speed: keep pullback off in historical BT to avoid false negatives?
-                                    // 여기서는 동일 조건 유지(극단).
-                                    const slice = tmp; // full arrays
-                                    const n = slice.c.length;
-                                    if (i < 30 || i >= n - 2) return false;
+                        // Trigger(현재 완성 15m봉)
+                        const trigOk = triggerAtIndexDirectional(k15, i15, side, s);
+                        if (!trigOk) return null;
 
-                                    const open = slice.o[i];
-                                    const high = slice.h[i];
-                                    const low = slice.l[i];
-                                    const close = slice.c[i];
+                        // Backtest trigger eval
+                        const triggerEval = (i) => triggerAtIndexDirectional(k15, i, side, s);
 
-                                    const range = Math.max(1e-12, high - low);
-                                    const bodyPct2 = (Math.abs(close - open) / range) * 100;
-                                    const retPct2 = pct(close, open);
-                                    const isGreen2 = close > open;
+                        const bt = backtestUltraDirectional(
+                            k15,
+                            s.tpAtrMult,
+                            s.slAtrMult,
+                            s.btLookahead,
+                            s.btMaxSignals,
+                            side,
+                            triggerEval
+                        );
 
-                                    let sum = 0;
-                                    let cnt = 0;
-                                    for (let j = i - 1; j >= 0 && cnt < 20; j -= 1) {
-                                        sum += slice.v[j];
-                                        cnt += 1;
-                                    }
-                                    const volAvg = cnt > 0 ? sum / cnt : 0;
-                                    const volSpike2 = volAvg > 0 ? slice.v[i] / volAvg : 0;
+                        if (bt.trades < s.btMinTrades) return null;
+                        if (bt.winrate < s.btMinWinrate) return null;
+                        if (bt.wrHalf < s.btMinWrHalf) return null;
+                        if (bt.maxConsecLoss > s.btMaxConsecLoss) return null;
+                        if (bt.expectancy < s.minExpectancy) return null;
 
-                                    let prevMax = -Infinity;
-                                    for (let j = i - 1; j >= 0 && j >= i - breakN; j -= 1) {
-                                        prevMax = Math.max(prevMax, slice.h[j]);
-                                    }
-                                    const isBreakout2 = high > prevMax;
+                        const tpsl = proposeTPSLDirectional(k15, s.tpAtrMult, s.slAtrMult, d.price, side);
+                        const score = scoreRow(tr.score, bt);
 
-                                    let pullbackOk2 = true;
-                                    if (requirePullbackReclaim === 1) {
-                                        const e20 = ema(slice.c, 20);
-                                        const emaNow = e20[i];
-                                        const touchBand = emaNow * 0.0025;
-                                        let touched = false;
-                                        for (let j = i - 1; j >= 0 && j >= i - 8; j -= 1) {
-                                            if (slice.l[j] <= e20[j] + touchBand) {
-                                                touched = true;
-                                                break;
-                                            }
+                        return {
+                            score,
+                            side,
+                            symbol: null,
+                            pass: passTag,
+                            winrate: bt.winrate,
+                            trades: bt.trades,
+                            wrHalf: bt.wrHalf,
+                            maxConsecLoss: bt.maxConsecLoss,
+                            expectancy: bt.expectancy,
+                            price: d.price,
+                            fundingPct: d.fundingPct,
+                            oiChgPct: d.oiChgPct,
+                            pxChgPct,
+                            rsi: rsiNow,
+                            atrPct,
+                            trendScore: tr.score,
+                            tp: tpsl.tp,
+                            sl: tpsl.sl,
+                            qv24: d.qv24,
+                            why:
+                                "Trend " + tr.detail +
+                                " · Funding " + fmtNum(d.fundingPct, 3) + "%" +
+                                " · OI15m " + fmtNum(d.oiChgPct, 2) + "%" +
+                                " · Px15m " + fmtNum(pxChgPct, 2) + "%" +
+                                " · RSI " + fmtNum(rsiNow, 1) +
+                                " · ATR% " + fmtNum(atrPct, 2) +
+                                " · BT Win " + fmtNum(bt.winrate, 1) + "% (N=" + bt.trades + ")" +
+                                " · Half " + fmtNum(bt.wrHalf, 1) + "%" +
+                                " · MaxCL " + bt.maxConsecLoss +
+                                " · Exp " + fmtNum(bt.expectancy, 3),
+                        };
+                    }
+
+                    async function scanPass(passNo, needLong, needShort) {
+                        const s = buildSettings(passNo);
+                        let idx = 0;
+
+                        async function worker() {
+                            while (idx < target.length) {
+                                const my = idx;
+                                idx += 1;
+
+                                if (signal.aborted) return;
+
+                                const longNeed = needLong && counts.LONG < minPerSideTarget;
+                                const shortNeed = needShort && counts.SHORT < minPerSideTarget;
+                                if (!longNeed && !shortNeed) return;
+
+                                const symbol = target[my].symbol;
+                                const qv24 = target[my].qv24;
+
+                                try {
+                                    const d = await loadSymbolData(symbol, qv24);
+                                    if (!d) continue;
+
+                                    if (longNeed) {
+                                        const r = trySide(d, "LONG", s, passNo === 1 ? "P1" : "P2");
+                                        if (r) {
+                                            r.symbol = symbol;
+                                            currentRows.push(r);
+                                            counts.LONG += 1;
                                         }
-                                        pullbackOk2 = touched && close > emaNow;
                                     }
 
-                                    return (
-                                        isGreen2 &&
-                                        bodyPct2 >= minBodyPct &&
-                                        retPct2 >= minRetPct &&
-                                        volSpike2 >= minVolSpike &&
-                                        isBreakout2 &&
-                                        pullbackOk2
-                                    );
-                                };
+                                    if (shortNeed) {
+                                        const r = trySide(d, "SHORT", s, passNo === 1 ? "P1" : "P2");
+                                        if (r) {
+                                            r.symbol = symbol;
+                                            currentRows.push(r);
+                                            counts.SHORT += 1;
+                                        }
+                                    }
 
-                                const bt = backtestUltra(k15, tpAtrMult, slAtrMult, btLookahead, btMaxSignals, triggerFn);
+                                    if (my % 18 === 0) {
+                                        setStatus([
+                                            "PASS" + passNo + " 진행: " + (my + 1) + " / " + target.length,
+                                            '<span class="muted">LONG ' + counts.LONG + " / SHORT " + counts.SHORT + "</span>",
+                                        ]);
+                                    }
 
-                                if (bt.trades < btMinTrades) continue;
-                                if (bt.winrate < btMinWinrate) continue;
-                                if (bt.wrHalf < btMinWrHalf) continue;
-                                if (bt.maxConsecLoss > btMaxConsecLoss) continue;
-                                if (minExpectancy > 0 && bt.expectancy < minExpectancy) continue;
+                                    if (currentRows.length % 3 === 0) render(currentRows);
 
-                                const tpsl = proposeTPSL(k15, tpAtrMult, slAtrMult, price);
-                                const score = scoreRow(tr.score, bt);
-
-                                currentRows.push({
-                                    score,
-                                    symbol,
-                                    winrate: bt.winrate,
-                                    trades: bt.trades,
-                                    wrHalf: bt.wrHalf,
-                                    maxConsecLoss: bt.maxConsecLoss,
-                                    expectancy: bt.expectancy,
-                                    price,
-                                    fundingPct,
-                                    oiChgPct,
-                                    pxChgPct,
-                                    rsi: rsiNow,
-                                    atrPct,
-                                    trendScore: tr.score,
-                                    tp: tpsl.tp,
-                                    sl: tpsl.sl,
-                                    qv24,
-                                    why: [
-                                        `Trend ${tr.detail} (${fmtNum(tr.score, 0)})`,
-                                        `Funding ${fmtNum(fundingPct, 3)}%`,
-                                        `OI15m ${fmtNum(oiChgPct, 2)}% / Px15m ${fmtNum(pxChgPct, 2)}%`,
-                                        `Trigger OK(눌림후재돌파:${trig.pullbackOk ? "Y" : "N"})`,
-                                        `RSI ${fmtNum(rsiNow, 1)} / ATR% ${fmtNum(atrPct, 2)}`,
-                                        `BT Win ${fmtNum(bt.winrate, 1)}% (N=${bt.trades}) / Half ${fmtNum(bt.wrHalf, 1)}% / MaxCL ${bt.maxConsecLoss} / Exp ${fmtNum(
-                                            bt.expectancy,
-                                            3
-                                        )}`,
-                                    ].join(" · "),
-                                });
-
-                                if (currentRows.length % 3 === 0) render(currentRows);
-
-                                await sleep(70);
-                            } catch (err) {
-                                await sleep(90);
-                            } finally {
-                                if (my % 12 === 0) {
-                                    setStatus([
-                                        `진행: ${my + 1} / ${ranked.length}`,
-                                        `<span class="muted">통과: ${currentRows.length} (극단 필터)</span>`,
-                                        `<span class="warn">결과 0개면 정상입니다. (승률 최우선)</span>`,
-                                    ]);
+                                    await sleep(55);
+                                } catch (err) {
+                                    await sleep(90);
                                 }
                             }
                         }
+
+                        const workers = [];
+                        for (let i = 0; i < concurrency; i += 1) workers.push(worker());
+                        await Promise.all(workers);
                     }
 
-                    const workers = [];
-                    for (let i = 0; i < concurrency; i += 1) workers.push(worker());
-                    await Promise.all(workers);
+                    // PASS1: 극단
+                    await scanPass(1, true, true);
+
+                    // PASS2: 부족한 방향만 (소폭 완화)
+                    const needLong2 = counts.LONG < minPerSideTarget;
+                    const needShort2 = counts.SHORT < minPerSideTarget;
+
+                    if (needLong2 || needShort2) {
+                        setStatus([
+                            '<span class="warn">PASS2 시작</span> — 부족한 방향만 소폭 완화',
+                            '<span class="muted">BT 기준(승률/표본/연속손실/최근절반/기대값) 유지</span>',
+                        ]);
+                        await scanPass(2, needLong2, needShort2);
+                    }
 
                     render(currentRows);
+
                     setStatus([
-                        `<span class="ok">완료</span> — 결과 ${currentRows.length}개`,
-                        `<span class="muted">헤더 클릭 정렬 가능</span>`,
-                        `<span class="warn">중요: “후보”일 뿐, 무조건 수익 보장은 없습니다. 특히 뉴스/급락장에서는 신호가 무력화됩니다.</span>`,
+                        '<span class="ok">완료</span> — 총 ' + currentRows.length + "개",
+                        '<span class="muted">LONG ' + counts.LONG + " / SHORT " + counts.SHORT + "</span>",
                     ]);
                 } catch (err) {
                     const msg = err && err.message ? err.message : String(err);
-                    setStatus([`<span class="bad">에러</span> ${msg}`]);
+                    setStatus(['<span class="bad">에러</span> ' + msg]);
                 } finally {
                     el.btnScan.disabled = false;
                     el.btnStop.disabled = true;
@@ -1262,7 +1336,7 @@
             function stopScan() {
                 if (aborter) aborter.abort();
                 el.apiState.textContent = "stopped";
-                setStatus([`<span class="warn">중단됨</span> — 현재까지 결과 ${currentRows.length}개`]);
+                setStatus(['<span class="warn">중단됨</span> — 현재까지 결과 ' + currentRows.length + "개"]);
                 el.btnScan.disabled = false;
                 el.btnStop.disabled = true;
             }
@@ -1272,8 +1346,8 @@
 
             render([]);
             setStatus([
-                `설정 후 Scan을 누르세요.`,
-                `<span class="muted">극단 승률 모드라 결과 0개가 흔합니다. 그게 정상이에요.</span>`,
+                "Scan을 누르세요.",
+                '<span class="muted">PASS1(극단) → 부족한 방향만 PASS2(소폭 완화)</span>',
             ]);
         </script>
     </body>
