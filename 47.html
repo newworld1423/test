@@ -3,13 +3,12 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 15m 현재봉 (C>O 확률/기대수익·손실/최대레버리지) 스캐너</title>
+        <title>Binance USDT Perp — TF(15m/1h/4h/1d) 확률·기대값·최대레버리지 스캐너</title>
         <style>
             :root {
                 color-scheme: dark;
                 --bg: #0b0f17;
                 --panel: #0f1623;
-                --panel2: #121c2d;
                 --text: #e8eefc;
                 --muted: rgba(232, 238, 252, 0.65);
                 --line: rgba(232, 238, 252, 0.12);
@@ -35,14 +34,6 @@
                 max-width: 1280px;
                 margin: 0 auto;
                 padding: 18px 16px 42px;
-            }
-
-            .top {
-                display: flex;
-                gap: 12px;
-                align-items: flex-start;
-                justify-content: space-between;
-                flex-wrap: wrap;
             }
 
             h1 {
@@ -248,91 +239,105 @@
     </head>
     <body>
         <div class="wrap">
-            <div class="top">
-                <div class="panel" style="flex: 1; min-width: 280px;">
-                    <h1>Binance USDT Perp — 15m 현재봉 (C&gt;O 확률 / 기대수익·손실 / 최대레버리지) 스캐너</h1>
-                    <div class="sub">
-                        - 확률/기대값은 <b>과거 15분봉 통계 기반 “추정”</b>입니다.<br />
-                        - 가격은 웹소켓 <span class="mono">!miniTicker@arr</span>의 last price를 캔들 경계에서 스냅샷으로 사용합니다. :contentReference[oaicite:4]{index=4}
+            <div class="panel">
+                <h1>Binance USDT Perp — TF(15m/1h/4h/1d) 현재봉(C&gt;O) 확률 / 기대수익·손실 / 최대 레버리지(근사)</h1>
+                <div class="sub">
+                    - 확률/기대값은 <b>과거 봉 통계 기반 “추정”</b>입니다.<br />
+                    - 자동 스캔은 <b>Binance 서버시간(UTC) 캔들 경계</b>에 맞춰 동작합니다. (KST 기준: 4h는 01/05/09/13/17/21시, 1d는 09:00)
+                </div>
+
+                <div class="controls">
+                    <div>
+                        <label>타임프레임</label>
+                        <select id="timeframe">
+                            <option value="15m">15m</option>
+                            <option value="1h">1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d">1d</option>
+                        </select>
                     </div>
 
-                    <div class="controls">
-                        <div>
-                            <label>히스토리 캔들 수 (15m, 기본 480개 ≈ 5일)</label>
-                            <input id="historyLimit" type="number" min="120" max="1499" step="1" value="480" />
-                        </div>
-                        <div>
-                            <label>요청 동시성(초기 히스토리 로딩 속도)</label>
-                            <input id="concurrency" type="number" min="1" max="10" step="1" value="3" />
-                        </div>
-                        <div>
-                            <label>최소 24h 거래대금(USDT) 필터 (0이면 전체)</label>
-                            <input id="minQuoteVol" type="number" min="0" step="1000000" value="30000000" />
-                        </div>
-                        <div>
-                            <label>심볼 검색</label>
-                            <input id="search" type="text" placeholder="예: BTCUSDT" />
-                        </div>
-
-                        <div>
-                            <label>왕복 수수료(비율) 예: 0.0008 = 0.08%</label>
-                            <input id="feeRoundTrip" type="number" min="0" step="0.0001" value="0.0008" />
-                        </div>
-                        <div>
-                            <label>안전 버퍼(비율) 예: 0.002 = 0.2%</label>
-                            <input id="safetyBuffer" type="number" min="0" step="0.0005" value="0.002" />
-                        </div>
-                        <div>
-                            <label>유지증거금(근사, 비율) 예: 0.005 = 0.5%</label>
-                            <input id="mmr" type="number" min="0" step="0.0005" value="0.005" />
-                        </div>
-                        <div>
-                            <label>조건부(직전봉 방향) 통계 사용</label>
-                            <div class="row">
-                                <input id="useConditional" type="checkbox" checked />
-                                <span class="small muted">직전봉이 Up/Down일 때의 다음봉 통계를 우선 사용</span>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label>자동 스캔(00/15/30/45)</label>
-                            <div class="row">
-                                <input id="autoScan" type="checkbox" checked />
-                                <span class="small muted">Binance 서버시간으로 캔들 경계 정렬</span>
-                            </div>
-                        </div>
-
-                        <div style="grid-column: 1 / -1;">
-                            <div class="row">
-                                <button id="btnInit" class="btn">초기 히스토리 로딩/갱신</button>
-                                <button id="btnScan" class="btn secondary">지금 스캔</button>
-                                <button id="btnClear" class="btn secondary">캐시 삭제</button>
-                            </div>
-                        </div>
+                    <div>
+                        <label>히스토리 캔들 수 (타임프레임별 권장값 자동)</label>
+                        <input id="historyLimit" type="number" min="120" max="1499" step="1" value="480" />
                     </div>
 
-                    <div class="status">
-                        <div class="pill">
-                            <div class="k">웹소켓 상태</div>
-                            <div id="wsStatus" class="v">-</div>
-                        </div>
-                        <div class="pill">
-                            <div class="k">마지막 스캔</div>
-                            <div id="lastScan" class="v">-</div>
-                        </div>
-                        <div class="pill">
-                            <div class="k">다음 자동 스캔</div>
-                            <div id="nextScan" class="v">-</div>
-                        </div>
-                        <div class="pill">
-                            <div class="k">초기 로딩 진행</div>
-                            <div id="initProgress" class="v">-</div>
+                    <div>
+                        <label>요청 동시성(초기 히스토리 로딩 속도)</label>
+                        <input id="concurrency" type="number" min="1" max="6" step="1" value="2" />
+                    </div>
+
+                    <div>
+                        <label>최소 24h 거래대금(USDT) 필터 (0이면 전체)</label>
+                        <input id="minQuoteVol" type="number" min="0" step="1000000" value="30000000" />
+                    </div>
+
+                    <div>
+                        <label>왕복 수수료(비율) 예: 0.0008 = 0.08%</label>
+                        <input id="feeRoundTrip" type="number" min="0" step="0.0001" value="0.0008" />
+                    </div>
+
+                    <div>
+                        <label>안전 버퍼(비율) 예: 0.002 = 0.2%</label>
+                        <input id="safetyBuffer" type="number" min="0" step="0.0005" value="0.002" />
+                    </div>
+
+                    <div>
+                        <label>유지증거금(근사, 비율) 예: 0.005 = 0.5%</label>
+                        <input id="mmr" type="number" min="0" step="0.0005" value="0.005" />
+                    </div>
+
+                    <div>
+                        <label>심볼 검색</label>
+                        <input id="search" type="text" placeholder="예: BTCUSDT" />
+                    </div>
+
+                    <div>
+                        <label>조건부 통계 사용(직전봉 Up/Down)</label>
+                        <div class="row">
+                            <input id="useConditional" type="checkbox" checked />
+                            <span class="small muted">직전봉 방향에 따른 통계 샘플이 충분하면 우선 사용</span>
                         </div>
                     </div>
 
-                    <div class="foot">
-                        <b>주의</b>: 이 도구는 “통계 기반 추정”이며, 실제 시장은 분포가 바뀌고(레짐 변화), 슬리피지/스프레드/유지증거금 구간/포지션 크기에 따라 결과가 크게 달라질 수 있어요.
+                    <div>
+                        <label>자동 스캔(선택 TF 캔들 경계)</label>
+                        <div class="row">
+                            <input id="autoScan" type="checkbox" checked />
+                            <span class="small muted">15m/1h/4h/1d 경계 자동</span>
+                        </div>
                     </div>
+
+                    <div style="grid-column: 1 / -1;">
+                        <div class="row">
+                            <button id="btnInit" class="btn">초기 히스토리 로딩/갱신(현재 TF)</button>
+                            <button id="btnScan" class="btn secondary">지금 스캔</button>
+                            <button id="btnClear" class="btn secondary">캐시 삭제(전체 TF)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status">
+                    <div class="pill">
+                        <div class="k">웹소켓 상태</div>
+                        <div id="wsStatus" class="v">-</div>
+                    </div>
+                    <div class="pill">
+                        <div class="k">현재 TF 마지막 스캔</div>
+                        <div id="lastScan" class="v">-</div>
+                    </div>
+                    <div class="pill">
+                        <div class="k">현재 TF 다음 자동 스캔(UTC 기준)</div>
+                        <div id="nextScan" class="v">-</div>
+                    </div>
+                    <div class="pill">
+                        <div class="k">초기 로딩 진행</div>
+                        <div id="initProgress" class="v">-</div>
+                    </div>
+                </div>
+
+                <div class="foot">
+                    <b>주의</b>: Max Lev는 단순 근사치입니다. (격리/교차, 포지션 크기, 유지증거금 구간, 슬리피지 등에 따라 실제 청산과 다름)
                 </div>
             </div>
 
@@ -358,22 +363,27 @@
             </div>
 
             <div class="foot">
-                * Max Lev는 <span class="mono">1 / (예상손실률 + 유지증거금(근사) + 안전버퍼)</span> 기반의 근사치입니다. 실제 청산가 계산과 다를 수 있어요.
+                * Max Lev(근사): <span class="mono">floor( 1 / (E[-] + mmr + safetyBuffer) )</span>
             </div>
         </div>
 
         <script>
             "use strict";
 
-            // REST / WS endpoints (USDⓈ-M Futures)
-            // REST base: https://fapi.binance.com :contentReference[oaicite:5]{index=5}
-            // WS base: wss://fstream.binance.com, stream: !miniTicker@arr :contentReference[oaicite:6]{index=6}
             const REST_BASE = "https://fapi.binance.com";
             const WS_URL = "wss://fstream.binance.com/ws/!miniTicker@arr";
 
-            const KLINE_INTERVAL_MS = 15 * 60 * 1000;
+            const TIMEFRAMES = {
+                "15m": { label: "15m", interval: "15m", ms: 15 * 60 * 1000, defaultHistory: 480, condMinN: 60 },
+                "1h": { label: "1h", interval: "1h", ms: 60 * 60 * 1000, defaultHistory: 720, condMinN: 80 },
+                "4h": { label: "4h", interval: "4h", ms: 4 * 60 * 60 * 1000, defaultHistory: 540, condMinN: 80 },
+                "1d": { label: "1d", interval: "1d", ms: 24 * 60 * 60 * 1000, defaultHistory: 365, condMinN: 60 },
+            };
+
+            const CACHE_PREFIX = "binance_tf_prob_scanner_v2";
 
             const els = {
+                timeframe: document.getElementById("timeframe"),
                 historyLimit: document.getElementById("historyLimit"),
                 concurrency: document.getElementById("concurrency"),
                 minQuoteVol: document.getElementById("minQuoteVol"),
@@ -397,11 +407,6 @@
                 return Math.min(max, Math.max(min, value));
             }
 
-            function fmtNumber(n, digits = 2) {
-                if (!Number.isFinite(n)) return "-";
-                return n.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
-            }
-
             function fmtInt(n) {
                 if (!Number.isFinite(n)) return "-";
                 return n.toLocaleString();
@@ -422,19 +427,23 @@
 
             function msToKSTString(ms) {
                 if (!Number.isFinite(ms)) return "-";
-                const d = new Date(ms);
-                return d.toLocaleString("ko-KR", { hour12: false });
+                return new Date(ms).toLocaleString("ko-KR", { hour12: false });
             }
 
-            function bucketOpenTimeMs(t) {
-                return Math.floor(t / KLINE_INTERVAL_MS) * KLINE_INTERVAL_MS;
+            function msToUTCString(ms) {
+                if (!Number.isFinite(ms)) return "-";
+                return new Date(ms).toISOString().replace("T", " ").slice(0, 19) + "Z";
+            }
+
+            function bucketOpenTimeMs(serverMs, tfMs) {
+                return Math.floor(serverMs / tfMs) * tfMs;
             }
 
             function sleep(ms) {
                 return new Promise((resolve) => setTimeout(resolve, ms));
             }
 
-            async function fetchJson(url, { timeoutMs = 12000, retries = 2 } = {}) {
+            async function fetchJson(url, { timeoutMs = 15000, retries = 2 } = {}) {
                 let lastErr = null;
 
                 for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -455,7 +464,7 @@
                         clearTimeout(timer);
                         lastErr = err;
 
-                        const backoff = 350 * Math.pow(2, attempt);
+                        const backoff = 450 * Math.pow(2, attempt);
                         await sleep(backoff);
                     }
                 }
@@ -464,16 +473,14 @@
             }
 
             async function getServerTimeMs() {
-                // exchangeInfo docs recommend GET /fapi/v1/time for current server time :contentReference[oaicite:7]{index=7}
-                const data = await fetchJson(`${REST_BASE}/fapi/v1/time`);
+                const data = await fetchJson(`${REST_BASE}/fapi/v1/time`, { timeoutMs: 12000, retries: 2 });
                 return Number(data.serverTime);
             }
 
             async function getUsdtPerpSymbols() {
-                // GET /fapi/v1/exchangeInfo :contentReference[oaicite:8]{index=8}
-                const data = await fetchJson(`${REST_BASE}/fapi/v1/exchangeInfo`);
-                const symbols = Array.isArray(data.symbols) ? data.symbols : [];
-                return symbols
+                const data = await fetchJson(`${REST_BASE}/fapi/v1/exchangeInfo`, { timeoutMs: 20000, retries: 2 });
+                const list = Array.isArray(data.symbols) ? data.symbols : [];
+                return list
                     .filter((s) => s && s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING")
                     .map((s) => s.symbol)
                     .sort((a, b) => a.localeCompare(b));
@@ -532,44 +539,46 @@
                 stats.lastDir = dir;
             }
 
-            function finalizeStats(stats, lastCloseTimeMs) {
-                stats.lastCloseTime = Number(lastCloseTimeMs) || 0;
-                return stats;
-            }
-
-            function estimateFromStats(stats, useConditional) {
+            function estimateFromStats(stats, useConditional, condMinN) {
                 const overallN = stats.overall.up + stats.overall.down;
-                let pUp = 0.5;
-                let muUp = 0;
-                let muDown = 0;
-                let n = overallN;
-                let mode = "overall";
+
+                const laplace = (up, down) => {
+                    const n = up + down;
+                    if (n <= 0) return 0.5;
+                    return (up + 1) / (n + 2);
+                };
+
+                const calcBucket = (bucket) => {
+                    const n = bucket.up + bucket.down;
+                    const pUp = laplace(bucket.up, bucket.down);
+                    const muUp = bucket.up > 0 ? bucket.sumUp / bucket.up : 0;
+                    const muDown = bucket.down > 0 ? bucket.sumDown / bucket.down : 0;
+                    return { pUp, pDown: 1 - pUp, muUp, muDown, n };
+                };
 
                 if (useConditional && (stats.lastDir === 1 || stats.lastDir === -1)) {
                     const bucket = stats.lastDir === 1 ? stats.cond.prevUp : stats.cond.prevDown;
-                    const bucketN = bucket.up + bucket.down;
+                    const n = bucket.up + bucket.down;
 
-                    // 조건부 샘플이 너무 적으면 전체 통계로 폴백
-                    if (bucketN >= 60) {
-                        mode = stats.lastDir === 1 ? "cond(prevUp)" : "cond(prevDown)";
-                        n = bucketN;
-
-                        const denom = bucketN;
-                        pUp = denom > 0 ? bucket.up / denom : 0.5;
-                        muUp = bucket.up > 0 ? bucket.sumUp / bucket.up : 0;
-                        muDown = bucket.down > 0 ? bucket.sumDown / bucket.down : 0;
-
-                        return { pUp, pDown: 1 - pUp, muUp, muDown, n, mode };
+                    if (n >= condMinN) {
+                        const est = calcBucket(bucket);
+                        return {
+                            pUp: est.pUp,
+                            pDown: est.pDown,
+                            muUp: est.muUp,
+                            muDown: est.muDown,
+                            n: est.n,
+                            mode: stats.lastDir === 1 ? "cond(prevUp)" : "cond(prevDown)",
+                        };
                     }
                 }
 
                 if (overallN > 0) {
-                    pUp = stats.overall.up / overallN;
-                    muUp = stats.overall.up > 0 ? stats.overall.sumUp / stats.overall.up : 0;
-                    muDown = stats.overall.down > 0 ? stats.overall.sumDown / stats.overall.down : 0;
+                    const est = calcBucket(stats.overall);
+                    return { pUp: est.pUp, pDown: est.pDown, muUp: est.muUp, muDown: est.muDown, n: est.n, mode: "overall" };
                 }
 
-                return { pUp, pDown: 1 - pUp, muUp, muDown, n, mode };
+                return { pUp: 0.5, pDown: 0.5, muUp: 0, muDown: 0, n: 0, mode: "none" };
             }
 
             function calcMaxLeverageFromLoss(loss, mmr, safetyBuffer, cap = 125) {
@@ -580,20 +589,42 @@
                 return clamp(lev, 1, cap);
             }
 
-            // App state
+            function cacheKey(tfKey) {
+                return `${CACHE_PREFIX}__${tfKey}`;
+            }
+
+            function createTfState(tfKey) {
+                return {
+                    tfKey,
+                    statsBySymbol: new Map(),
+                    currentCandleOpen: new Map(),
+                    currentBucketTime: 0,
+                    openTimeCaptured: 0,
+                    lastScanAt: 0,
+                    lastInitAt: 0,
+                };
+            }
+
+            const tfStates = {
+                "15m": createTfState("15m"),
+                "1h": createTfState("1h"),
+                "4h": createTfState("4h"),
+                "1d": createTfState("1d"),
+            };
+
             let ws = null;
             let wsConnected = false;
 
             let allSymbols = [];
-            let latestTicker = new Map(); // symbol -> { lastPrice, quoteVol, eventTime }
-            let statsBySymbol = new Map(); // symbol -> stats
-            let currentCandleOpen = new Map(); // symbol -> { openTime, openPrice }
-            let currentBucketTime = 0;
+            let symbolsLoaded = false;
+
+            const latestTicker = new Map(); // symbol -> { lastPrice, quoteVol, eventTime }
 
             let sortKey = "ev";
             let sortAsc = false;
 
-            const CACHE_KEY = "binance_15m_stats_cache_v1";
+            let autoScheduleToken = 0;
+            let historyTouched = false;
 
             function setWsStatus(text, cls = "") {
                 els.wsStatus.textContent = text;
@@ -604,44 +635,45 @@
                 els.initProgress.textContent = text;
             }
 
-            function setLastScan(ms) {
-                els.lastScan.textContent = ms ? msToKSTString(ms) : "-";
+            function setLastScanForSelected() {
+                const tfKey = els.timeframe.value;
+                const st = tfStates[tfKey];
+                els.lastScan.textContent = st.lastScanAt ? msToKSTString(st.lastScanAt) : "-";
             }
 
-            function setNextScan(ms) {
-                els.nextScan.textContent = ms ? msToKSTString(ms) : "-";
+            function setNextScanText(msUtc) {
+                els.nextScan.textContent = msUtc ? msToUTCString(msUtc) : "-";
             }
 
-            function saveCache() {
-                const obj = {
-                    version: 1,
-                    savedAt: Date.now(),
-                    stats: {},
-                };
+            function saveCache(tfKey) {
+                const st = tfStates[tfKey];
+                const obj = { version: 2, savedAt: Date.now(), stats: {} };
 
-                for (const [sym, st] of statsBySymbol.entries()) {
-                    obj.stats[sym] = st;
+                for (const [sym, stats] of st.statsBySymbol.entries()) {
+                    obj.stats[sym] = stats;
                 }
 
                 try {
-                    localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
+                    localStorage.setItem(cacheKey(tfKey), JSON.stringify(obj));
                 } catch (err) {
                     // ignore
                 }
             }
 
-            function loadCache() {
+            function loadCache(tfKey) {
+                const st = tfStates[tfKey];
+
                 try {
-                    const raw = localStorage.getItem(CACHE_KEY);
+                    const raw = localStorage.getItem(cacheKey(tfKey));
                     if (!raw) return;
 
                     const obj = JSON.parse(raw);
-                    if (!obj || obj.version !== 1 || !obj.stats) return;
+                    if (!obj || obj.version !== 2 || !obj.stats) return;
 
                     for (const sym of Object.keys(obj.stats)) {
-                        const st = obj.stats[sym];
-                        if (st && st.overall && st.cond) {
-                            statsBySymbol.set(sym, st);
+                        const stats = obj.stats[sym];
+                        if (stats && stats.overall && stats.cond) {
+                            st.statsBySymbol.set(sym, stats);
                         }
                     }
                 } catch (err) {
@@ -649,13 +681,24 @@
                 }
             }
 
-            function clearCache() {
-                try {
-                    localStorage.removeItem(CACHE_KEY);
-                } catch (err) {
-                    // ignore
+            function clearAllCache() {
+                for (const tfKey of Object.keys(tfStates)) {
+                    try {
+                        localStorage.removeItem(cacheKey(tfKey));
+                    } catch (err) {
+                        // ignore
+                    }
+                    tfStates[tfKey].statsBySymbol.clear();
+                    tfStates[tfKey].currentCandleOpen.clear();
+                    tfStates[tfKey].currentBucketTime = 0;
+                    tfStates[tfKey].openTimeCaptured = 0;
+                    tfStates[tfKey].lastScanAt = 0;
+                    tfStates[tfKey].lastInitAt = 0;
                 }
-                statsBySymbol.clear();
+                setInitProgress("캐시 삭제 완료(전체 TF)");
+                render();
+                setLastScanForSelected();
+                setNextScanText(0);
             }
 
             function updateSortHints() {
@@ -702,14 +745,20 @@
             }
 
             function getRowData(sym) {
+                const tfKey = els.timeframe.value;
+                const tf = TIMEFRAMES[tfKey];
+                const st = tfStates[tfKey];
+
                 const ticker = latestTicker.get(sym) || null;
-                const stats = statsBySymbol.get(sym) || null;
+                const stats = st.statsBySymbol.get(sym) || null;
 
                 const lastPrice = ticker ? Number(ticker.lastPrice) : NaN;
                 const quoteVol = ticker ? Number(ticker.quoteVol) : NaN;
 
                 const useConditional = !!els.useConditional.checked;
-                const est = stats ? estimateFromStats(stats, useConditional) : { pUp: 0.5, pDown: 0.5, muUp: 0, muDown: 0, n: 0, mode: "none" };
+                const est = stats
+                    ? estimateFromStats(stats, useConditional, tf.condMinN)
+                    : { pUp: 0.5, pDown: 0.5, muUp: 0, muDown: 0, n: 0, mode: "none" };
 
                 const fee = Number(els.feeRoundTrip.value) || 0;
                 const ev = est.pUp * est.muUp - est.pDown * est.muDown - fee;
@@ -781,6 +830,12 @@
             }
 
             function render() {
+                if (!allSymbols.length) {
+                    els.tbody.replaceChildren();
+                    updateSortHints();
+                    return;
+                }
+
                 const rows = allSymbols.map(getRowData);
                 const filtered = applyFilters(rows);
                 const sorted = sortRows(filtered);
@@ -896,14 +951,11 @@
                             const sym = t && t.s;
                             if (!sym) continue;
 
-                            // !miniTicker@arr payload includes:
-                            // s: symbol, c: close price(last), q: quote volume, E: event time :contentReference[oaicite:9]{index=9}
                             const lastPrice = Number(t.c);
                             const quoteVol = Number(t.q);
                             const eventTime = Number(t.E) || now;
 
                             if (!Number.isFinite(lastPrice) || lastPrice <= 0) continue;
-
                             latestTicker.set(sym, { lastPrice, quoteVol, eventTime });
                         }
                     } catch (err) {
@@ -921,7 +973,6 @@
                         const i = idx;
                         idx += 1;
                         if (i >= arr.length) return;
-
                         results[i] = await worker(arr[i], i);
                     }
                 });
@@ -930,97 +981,128 @@
                 return results;
             }
 
-            async function loadHistoryAll() {
+            async function ensureSymbolsLoaded() {
+                if (symbolsLoaded && allSymbols.length) return;
+
+                setInitProgress("USDT 무기한 심볼 목록 가져오는 중...");
+                allSymbols = await getUsdtPerpSymbols();
+                symbolsLoaded = true;
+
+                setInitProgress(`심볼 ${allSymbols.length}개 로딩 완료`);
+                render();
+            }
+
+            function loadAllCachesOnce() {
+                for (const tfKey of Object.keys(tfStates)) {
+                    loadCache(tfKey);
+                }
+            }
+
+            async function loadHistorySelectedTf() {
+                const tfKey = els.timeframe.value;
+                const tf = TIMEFRAMES[tfKey];
+                const st = tfStates[tfKey];
+
                 els.btnInit.disabled = true;
                 els.btnScan.disabled = true;
 
                 try {
-                    setInitProgress("심볼 로딩 중...");
+                    await ensureSymbolsLoaded();
+
                     const serverTime = await getServerTimeMs();
-                    currentBucketTime = bucketOpenTimeMs(serverTime);
+                    const bucketTime = bucketOpenTimeMs(serverTime, tf.ms);
+                    const endTime = bucketTime - 1;
 
-                    setInitProgress("USDT 무기한 심볼 목록 가져오는 중...");
-                    allSymbols = await getUsdtPerpSymbols();
+                    const limit = clamp(Number(els.historyLimit.value) || tf.defaultHistory, 120, 1499);
+                    const conc = clamp(Number(els.concurrency.value) || 2, 1, 6);
 
-                    setInitProgress(`심볼 ${allSymbols.length}개 확인. 캐시 로딩...`);
-                    loadCache();
-
-                    // endTime을 현재 진행중 캔들 시작 직전으로 맞춰서 "닫힌 캔들"만 받기
-                    const endTime = currentBucketTime - 1;
-
-                    const limit = clamp(Number(els.historyLimit.value) || 480, 120, 1499);
-                    const conc = clamp(Number(els.concurrency.value) || 3, 1, 10);
+                    setInitProgress(`히스토리 로딩 시작 (TF=${tfKey}, limit=${limit}, concurrency=${conc})...`);
 
                     let done = 0;
 
-                    setInitProgress(`히스토리 로딩 시작 (limit=${limit}, concurrency=${conc})...`);
-
                     await mapLimit(allSymbols, conc, async (sym) => {
-                        // 이미 캐시에 있고, lastCloseTime이 최근이면 스킵(너무 공격적으로 스킵하면 안 되니 보수적으로만)
-                        const cached = statsBySymbol.get(sym);
-                        if (cached && Number.isFinite(cached.lastCloseTime) && cached.lastCloseTime >= endTime - KLINE_INTERVAL_MS * 2) {
+                        const cached = st.statsBySymbol.get(sym);
+
+                        if (cached && Number.isFinite(cached.lastCloseTime) && cached.lastCloseTime >= endTime - tf.ms * 2) {
                             done += 1;
                             if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length} (캐시 활용)`);
-
                             return;
                         }
 
-                        // Klines REST: GET /fapi/v1/klines (limit에 따라 weight 증가) :contentReference[oaicite:10]{index=10}
-                        const url = `${REST_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(sym)}&interval=15m&endTime=${endTime}&limit=${limit}`;
+                        const url =
+                            `${REST_BASE}/fapi/v1/klines?symbol=` +
+                            encodeURIComponent(sym) +
+                            `&interval=` +
+                            encodeURIComponent(tf.interval) +
+                            `&endTime=` +
+                            encodeURIComponent(String(endTime)) +
+                            `&limit=` +
+                            encodeURIComponent(String(limit));
+
                         let klines = null;
 
                         try {
-                            klines = await fetchJson(url, { timeoutMs: 15000, retries: 2 });
+                            klines = await fetchJson(url, { timeoutMs: 20000, retries: 2 });
                         } catch (err) {
-                            // 실패하면 빈 stats라도 넣어둠
-                            statsBySymbol.set(sym, makeEmptyStats());
+                            st.statsBySymbol.set(sym, makeEmptyStats());
                             done += 1;
                             if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length} (일부 실패)`);
 
-                            // 요청 폭주 완화
-                            await sleep(90);
+                            await sleep(180);
                             return;
                         }
 
-                        const st = makeEmptyStats();
+                        const stats = makeEmptyStats();
 
                         if (Array.isArray(klines)) {
                             for (const k of klines) {
                                 if (!Array.isArray(k) || k.length < 7) continue;
-                                const openTime = Number(k[0]);
+
                                 const open = Number(k[1]);
                                 const close = Number(k[4]);
                                 const closeTime = Number(k[6]);
 
-                                // 닫힌 캔들만 반영
                                 if (!Number.isFinite(closeTime) || closeTime > endTime) continue;
 
-                                addCandleToStats(st, open, close);
-                                st.lastCloseTime = closeTime;
+                                addCandleToStats(stats, open, close);
+                                stats.lastCloseTime = closeTime;
                             }
                         }
 
-                        statsBySymbol.set(sym, finalizeStats(st, st.lastCloseTime));
+                        st.statsBySymbol.set(sym, stats);
 
                         done += 1;
-                        if (done % 10 === 0) {
-                            setInitProgress(`${done} / ${allSymbols.length}`);
-                        }
+                        if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length}`);
 
-                        // REST 과속 방지(418 방지용으로 매우 약하게)
-                        await sleep(80);
+                        await sleep(140);
                     });
 
-                    saveCache();
-                    setInitProgress(`완료: ${allSymbols.length}개`);
+                    st.lastInitAt = Date.now();
+                    saveCache(tfKey);
+
+                    setInitProgress(`완료: TF=${tfKey}, ${allSymbols.length}개`);
                     render();
+
+                    // 오픈 스냅샷은 "정확한 경계"에서만 캡쳐하기 위해 초기화만 해둠
+                    st.currentBucketTime = 0;
+                    st.openTimeCaptured = 0;
+                    st.currentCandleOpen.clear();
+
+                    setLastScanForSelected();
+                    scheduleNextAutoScanSelected();
                 } finally {
                     els.btnInit.disabled = false;
                     els.btnScan.disabled = false;
                 }
             }
 
-            function snapshotOpenForAllSymbols(openTime) {
+            function snapshotOpenForAllSymbols(tfKey, openTime) {
+                const st = tfStates[tfKey];
+
+                if (!wsConnected) return;
+
+                st.currentCandleOpen.clear();
+
                 for (const sym of allSymbols) {
                     const t = latestTicker.get(sym);
                     if (!t) continue;
@@ -1028,91 +1110,126 @@
                     const p = Number(t.lastPrice);
                     if (!Number.isFinite(p) || p <= 0) continue;
 
-                    currentCandleOpen.set(sym, { openTime, openPrice: p });
+                    st.currentCandleOpen.set(sym, { openTime, openPrice: p });
                 }
+
+                st.openTimeCaptured = openTime;
             }
 
-            function closePrevCandleAndUpdateStats(prevOpenTime, closeTime, closePriceBySymbol) {
+            function closePrevCandleAndUpdateStats(tfKey, prevOpenTime, closeTime) {
+                const st = tfStates[tfKey];
+
+                if (st.openTimeCaptured !== prevOpenTime) return;
+
                 for (const sym of allSymbols) {
-                    const openInfo = currentCandleOpen.get(sym);
+                    const openInfo = st.currentCandleOpen.get(sym);
                     if (!openInfo) continue;
                     if (openInfo.openTime !== prevOpenTime) continue;
 
-                    const closePrice = closePriceBySymbol.get(sym);
+                    const t = latestTicker.get(sym);
+                    if (!t) continue;
+
+                    const closePrice = Number(t.lastPrice);
                     if (!Number.isFinite(closePrice) || closePrice <= 0) continue;
 
                     const openPrice = Number(openInfo.openPrice);
                     if (!Number.isFinite(openPrice) || openPrice <= 0) continue;
 
-                    const st = statsBySymbol.get(sym) || makeEmptyStats();
-                    addCandleToStats(st, openPrice, closePrice);
-                    st.lastCloseTime = closeTime;
-                    statsBySymbol.set(sym, st);
+                    const stats = st.statsBySymbol.get(sym) || makeEmptyStats();
+                    addCandleToStats(stats, openPrice, closePrice);
+                    stats.lastCloseTime = closeTime;
+                    st.statsBySymbol.set(sym, stats);
                 }
 
-                saveCache();
+                saveCache(tfKey);
             }
 
-            async function runScanNow(tag = "manual") {
-                const serverTime = await getServerTimeMs();
-                const bucketTime = bucketOpenTimeMs(serverTime);
+            async function tickScanForTf(tfKey, tag) {
+                const tf = TIMEFRAMES[tfKey];
+                const st = tfStates[tfKey];
 
-                // 캔들 경계가 바뀐 경우(자동/수동 모두), "이전 캔들"을 닫고 업데이트
-                if (currentBucketTime && bucketTime !== currentBucketTime) {
-                    const prevOpenTime = currentBucketTime;
+                if (!allSymbols.length) return;
+
+                const serverTime = await getServerTimeMs();
+                const bucketTime = bucketOpenTimeMs(serverTime, tf.ms);
+
+                if (st.currentBucketTime === 0) {
+                    st.currentBucketTime = bucketTime;
+                    st.openTimeCaptured = 0;
+                    st.currentCandleOpen.clear();
+
+                    // 첫 경계 동기화 시점에서는 "이전 봉 업데이트"를 하지 않고,
+                    // 다음 경계에서부터 정확히 open 스냅샷을 잡기 위해 대기
+                } else if (bucketTime !== st.currentBucketTime) {
+                    const prevOpenTime = st.currentBucketTime;
                     const closeTime = bucketTime - 1;
 
-                    const closePriceBySymbol = new Map();
-                    for (const sym of allSymbols) {
-                        const t = latestTicker.get(sym);
-                        if (!t) continue;
-                        const p = Number(t.lastPrice);
-                        if (!Number.isFinite(p) || p <= 0) continue;
-                        closePriceBySymbol.set(sym, p);
-                    }
+                    closePrevCandleAndUpdateStats(tfKey, prevOpenTime, closeTime);
 
-                    closePrevCandleAndUpdateStats(prevOpenTime, closeTime, closePriceBySymbol);
-
-                    // 새 캔들 오픈 스냅샷
-                    snapshotOpenForAllSymbols(bucketTime);
-                    currentBucketTime = bucketTime;
+                    st.currentBucketTime = bucketTime;
+                    st.openTimeCaptured = 0;
+                    st.currentCandleOpen.clear();
                 }
 
-                setLastScan(Date.now());
-                render();
+                // 경계 직후/근처에 실행될 때 open 스냅샷 캡쳐
+                // (auto 스캔이 캔들 경계에 맞춰 호출되므로, 이 타이밍에 open 캡쳐가 가장 정확)
+                if (st.openTimeCaptured !== bucketTime) {
+                    snapshotOpenForAllSymbols(tfKey, bucketTime);
+                }
 
-                // 다음 자동 스캔 시각 표시 업데이트
-                const next = (Math.floor(serverTime / KLINE_INTERVAL_MS) + 1) * KLINE_INTERVAL_MS;
-                setNextScan(next);
+                st.lastScanAt = Date.now();
 
-                // tag는 디버깅용(미사용)
+                if (els.timeframe.value === tfKey) {
+                    setLastScanForSelected();
+                    render();
+
+                    const next = (Math.floor(serverTime / tf.ms) + 1) * tf.ms;
+                    setNextScanText(next);
+                }
+
                 void tag;
             }
 
-            async function scheduleNextAutoScan() {
+            async function scheduleNextAutoScanSelected() {
+                autoScheduleToken += 1;
+                const token = autoScheduleToken;
+
                 if (!els.autoScan.checked) {
-                    setNextScan(0);
+                    setNextScanText(0);
                     return;
                 }
 
-                const serverTime = await getServerTimeMs();
-                const next = (Math.floor(serverTime / KLINE_INTERVAL_MS) + 1) * KLINE_INTERVAL_MS;
-                setNextScan(next);
+                const tfKey = els.timeframe.value;
+                const tf = TIMEFRAMES[tfKey];
 
-                const delay = clamp(next - serverTime + 80, 200, KLINE_INTERVAL_MS);
+                let serverTime = 0;
+
+                try {
+                    serverTime = await getServerTimeMs();
+                } catch (err) {
+                    // 서버시간 실패 시 5초 뒤 재시도
+                    setNextScanText(0);
+                    setTimeout(() => {
+                        if (token === autoScheduleToken) scheduleNextAutoScanSelected();
+                    }, 5000);
+                    return;
+                }
+
+                const next = (Math.floor(serverTime / tf.ms) + 1) * tf.ms;
+                setNextScanText(next);
+
+                const delay = clamp(next - serverTime + 120, 250, tf.ms);
 
                 setTimeout(async () => {
-                    if (!els.autoScan.checked) {
-                        setNextScan(0);
-                        return;
-                    }
+                    if (token !== autoScheduleToken) return;
+                    if (!els.autoScan.checked) return;
 
                     try {
-                        await runScanNow("auto");
+                        await tickScanForTf(tfKey, "auto");
                     } catch (err) {
                         // ignore
                     } finally {
-                        scheduleNextAutoScan();
+                        if (token === autoScheduleToken) scheduleNextAutoScanSelected();
                     }
                 }, delay);
             }
@@ -1136,6 +1253,15 @@
                 }
             }
 
+            function applyRecommendedHistoryIfUntouched() {
+                if (historyTouched) return;
+
+                const tfKey = els.timeframe.value;
+                const tf = TIMEFRAMES[tfKey];
+
+                els.historyLimit.value = String(tf.defaultHistory);
+            }
+
             function bindInputs() {
                 const rerender = () => render();
 
@@ -1146,43 +1272,33 @@
                 els.useConditional.addEventListener("change", rerender);
                 els.search.addEventListener("input", rerender);
 
+                els.historyLimit.addEventListener("input", () => {
+                    historyTouched = true;
+                });
+
+                els.timeframe.addEventListener("change", () => {
+                    applyRecommendedHistoryIfUntouched();
+                    setLastScanForSelected();
+                    scheduleNextAutoScanSelected();
+                    render();
+                });
+
                 els.autoScan.addEventListener("change", () => {
-                    scheduleNextAutoScan();
+                    scheduleNextAutoScanSelected();
                 });
 
                 els.btnInit.addEventListener("click", async () => {
-                    await loadHistoryAll();
-
-                    // 첫 오픈 스냅샷 (현재 진행중 캔들의 오픈을 늦게라도 잡아둠)
-                    try {
-                        const serverTime = await getServerTimeMs();
-                        currentBucketTime = bucketOpenTimeMs(serverTime);
-                        snapshotOpenForAllSymbols(currentBucketTime);
-                    } catch (err) {
-                        // ignore
-                    }
-
-                    scheduleNextAutoScan();
+                    await loadHistorySelectedTf();
                 });
 
                 els.btnScan.addEventListener("click", async () => {
-                    if (!allSymbols.length) {
-                        await loadHistoryAll();
-                        try {
-                            const serverTime = await getServerTimeMs();
-                            currentBucketTime = bucketOpenTimeMs(serverTime);
-                            snapshotOpenForAllSymbols(currentBucketTime);
-                        } catch (err) {
-                            // ignore
-                        }
-                    }
-                    await runScanNow("manual");
+                    await ensureSymbolsLoaded();
+                    const tfKey = els.timeframe.value;
+                    await tickScanForTf(tfKey, "manual");
                 });
 
                 els.btnClear.addEventListener("click", () => {
-                    clearCache();
-                    setInitProgress("캐시 삭제 완료");
-                    render();
+                    clearAllCache();
                 });
             }
 
@@ -1191,12 +1307,21 @@
                 bindTableSorting();
                 connectWs();
 
-                setInitProgress("대기 중 (초기 히스토리 로딩 버튼을 누르세요)");
+                setInitProgress("대기 중 (초기 히스토리 로딩/갱신을 누르면 해당 TF 통계가 채워집니다)");
                 setWsStatus("연결 시도...", "warn");
-                updateSortHints();
 
-                // 페이지가 켜진 채로 있으면 자동으로 다음 스캔 예약만 해둠 (히스토리 없으면 값이 빈 상태로 표시됨)
-                scheduleNextAutoScan();
+                loadAllCachesOnce();
+                applyRecommendedHistoryIfUntouched();
+
+                try {
+                    await ensureSymbolsLoaded();
+                } catch (err) {
+                    setInitProgress("심볼 로딩 실패: 네트워크/차단 여부 확인");
+                }
+
+                render();
+                setLastScanForSelected();
+                scheduleNextAutoScanSelected();
             }
 
             boot();
