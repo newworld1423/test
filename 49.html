@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — ULTRA EXTREME WINRATE (LONG+SHORT, Auto 2-PASS + HISTORY)</title>
+        <title>Binance USDT Perp — EXTREME WINRATE (LONG+SHORT, Auto 2-PASS + HISTORY) — Softened Lv1</title>
         <style>
             :root {
                 --bg: #0b0f17;
@@ -270,19 +270,19 @@
     </head>
     <body>
         <header>
-            <h1>ULTRA EXTREME WINRATE — LONG + SHORT (Auto 2-PASS + HISTORY)</h1>
+            <h1>EXTREME WINRATE — LONG + SHORT (Auto 2-PASS + HISTORY) — Softened Lv1</h1>
             <div class="sub">
-                ✅ 라이브/히스토리 모두 <b>동일 조건</b> + 히스토리는 <b>그 시점의 24h QVol 유니버스</b>를 15m klines로 재구성하여 동일하게 맞춤.
+                ✅ 라이브/히스토리 모두 <b>동일 조건</b> + 히스토리는 <b>그 시점의 24h QVol 유니버스</b>를 15m(or 1h) klines로 재구성.
                 <br />
-                스캔 타이밍: <b>15m 마감 직후</b>(00/15/30/45분 기준, 히스토리도 15m 마감 캔들만 평가).
+                ✅ 이번 버전은 “결과 0” 문제를 해결하기 위해 <b>한 단계만 완화</b> (Trigger/Trend/BT를 레벨 1만 낮춤).
                 <br />
-                주의: Binance가 과거 <span class="mono">/ticker/24hr</span> 스냅샷을 제공하지 않아, <b>24h QVol = Σ(15m volume * close)</b>로 재현합니다(시점 일치).
+                ※ STRICT SAME 모드 유지(라이브/히스토리 조건 완전 동일) → 과거 시점 funding/OI 재현 불가 이슈 때문에 funding/OI 필터는 제외.
             </div>
         </header>
 
         <div class="wrap">
             <section class="card">
-                <div class="hd">초고승률 고정 세팅(라이브 + 히스토리 동일)</div>
+                <div class="hd">세팅 (Softened Lv1)</div>
                 <div class="bd">
                     <div class="grid">
                         <div class="row">
@@ -300,7 +300,7 @@
                         </div>
                         <div class="row">
                             <label>방향 후보 최소 목표(각 1개)</label>
-                            <input id="minPerSideTarget" type="number" min="1" max="3" step="1" value="1" />
+                            <input id="minPerSideTarget" type="number" min="1" max="4" step="1" value="1" />
                         </div>
 
                         <div class="row">
@@ -314,7 +314,7 @@
                     </div>
 
                     <div class="actions">
-                        <button id="btnScan" class="primary">Live Scan (Extreme Winrate)</button>
+                        <button id="btnScan" class="primary">Live Scan (Softened Lv1)</button>
                         <button id="btnStop" class="danger" disabled>Stop</button>
                     </div>
 
@@ -334,7 +334,7 @@
 
                             <div class="twoCols" style="margin-top: 10px;">
                                 <div class="row">
-                                    <label>히스토리 모드 유니버스(24h QVol 재현)</label>
+                                    <label>히스토리 유니버스(24h QVol 재현)</label>
                                     <select id="histUniverseMode">
                                         <option value="15m_sum" selected>정밀(추천): 15m 96개 Σ(vol*close)</option>
                                         <option value="1h_sum">빠름(근사): 1h 24개 Σ(vol*close)</option>
@@ -359,9 +359,9 @@
                     </div>
 
                     <div class="note">
-                        <div class="pill"><b>핵심</b> Trend(1D/4H/1H) + Trigger(15m) + OI + Funding + RSI + ATR + Backtest</div>
-                        <div class="pill"><b>정상</b> 결과 0개/1개 매우 흔함(승률 극단 모드)</div>
-                        <div class="pill"><b>히스토리</b> 유니버스까지 “그 시점”으로 재현(현재 /ticker/24hr 사용 안 함)</div>
+                        <div class="pill"><b>Lv1 완화</b> Trigger/Trend/BT 기준을 “한 단계만” 낮춤</div>
+                        <div class="pill"><b>동일성</b> 라이브/히스토리 조건 동일 + 히스토리는 유니버스도 시점 동일</div>
+                        <div class="pill"><b>주의</b> 여전히 “고승률 모드”라 결과는 적게 나오는 게 정상</div>
                     </div>
                 </div>
             </section>
@@ -450,8 +450,6 @@
             }
 
             function parseDateTimeLocalToUTCms(value) {
-                // datetime-local은 로컬 타임존 기준 값으로 들어오므로
-                // new Date(value) 는 로컬 기준을 UTC ms로 바꿔줌
                 const t = new Date(value).getTime();
                 return isFinite(t) ? t : NaN;
             }
@@ -463,10 +461,6 @@
                 const d = String(now.getUTCDate()).padStart(2, "0");
                 const hh = String(now.getUTCHours()).padStart(2, "0");
                 const mm = String(now.getUTCMinutes()).padStart(2, "0");
-                // datetime-local 형식: YYYY-MM-DDTHH:MM (로컬) 이지만
-                // 여기서는 "UTC 기준"으로 쓰겠다고 했으니, 사용자가 UTC로 입력한다는 전제로
-                // 그대로 넣어준다(일관성). 실제로 로컬/UTC 혼동 싫으면 직접 입력 권장.
-                // 하지만 이 UI는 "UTC로 입력"이라고 라벨에 명시함.
                 return y + "-" + m + "-" + d + "T" + hh + ":" + mm;
             }
 
@@ -595,7 +589,7 @@
                 const upperPct = (upper / range) * 100;
                 const lowerPct = (lower / range) * 100;
 
-                const clv = (cc - ll) / range; // 0~1 (종가 위치)
+                const clv = (cc - ll) / range;
                 return { bodyPct, upperPct, lowerPct, clv };
             }
 
@@ -642,23 +636,6 @@
                 return fetchJson(url, signal);
             }
 
-            async function getPremiumIndex(symbol, signal) {
-                const url = BASE + "/fapi/v1/premiumIndex?symbol=" + encodeURIComponent(symbol);
-                return fetchJson(url, signal);
-            }
-
-            async function getOpenInterestHist(symbol, period, limit, signal) {
-                const url =
-                    BASE +
-                    "/futures/data/openInterestHist?symbol=" +
-                    encodeURIComponent(symbol) +
-                    "&period=" +
-                    encodeURIComponent(period) +
-                    "&limit=" +
-                    encodeURIComponent(String(limit));
-                return fetchJson(url, signal);
-            }
-
             function fmtNum(x, digits) {
                 const d = digits == null ? 2 : digits;
                 if (!isFinite(x)) return "-";
@@ -676,7 +653,6 @@
             }
 
             function binarySearchLastLE(arr, x) {
-                // arr: 오름차순
                 let lo = 0;
                 let hi = arr.length - 1;
                 let ans = -1;
@@ -728,7 +704,6 @@
             let currentRows = [];
             let aborter = null;
 
-            // 히스토리 결과: 후보가 나온 시간 목록
             let histTimes = [];
 
             function setStatus(lines) {
@@ -767,10 +742,10 @@
                 for (let i = 0; i < sorted.length; i += 1) {
                     const r = sorted[i];
 
-                    const wrClass = r.winrate >= 82 ? "good" : r.winrate >= 78 ? "warnc" : "badc";
-                    const halfClass = r.wrHalf >= 80 ? "good" : r.wrHalf >= 76 ? "warnc" : "badc";
-                    const clClass = r.maxConsecLoss <= 1 ? "good" : r.maxConsecLoss <= 2 ? "warnc" : "badc";
-                    const expClass = r.expectancy >= 0.06 ? "good" : r.expectancy >= 0.03 ? "warnc" : "badc";
+                    const wrClass = r.winrate >= 80 ? "good" : r.winrate >= 74 ? "warnc" : "badc";
+                    const halfClass = r.wrHalf >= 78 ? "good" : r.wrHalf >= 72 ? "warnc" : "badc";
+                    const clClass = r.maxConsecLoss <= 1 ? "good" : r.maxConsecLoss <= 3 ? "warnc" : "badc";
+                    const expClass = r.expectancy >= 0.03 ? "good" : r.expectancy >= 0.02 ? "warnc" : "badc";
                     const sideClass = r.side === "LONG" ? "side-long" : "side-short";
 
                     html += "<tr>";
@@ -819,7 +794,6 @@
             });
 
             function computeTrendScoreDirectional(k1d, k4h, k1h, idx1d, idx4h, idx1h, price, side) {
-                // idx들은 "완성된 캔들" 인덱스
                 if (idx1d < 80 || idx4h < 80 || idx1h < 80) return { score: 0, detail: "not enough" };
 
                 const e1d20 = ema(k1d.c, 20, idx1d + 1);
@@ -865,8 +839,8 @@
                 }
 
                 const dist1h = Math.abs((price - e1h20[idx1h]) / Math.max(1e-12, e1h20[idx1h]));
-                const over = Math.max(0, dist1h - 0.010);
-                const penalty = clamp(over * 3000, 0, 22);
+                const over = Math.max(0, dist1h - 0.012); // (완화) 0.010 -> 0.012
+                const penalty = clamp(over * 2600, 0, 18); // (완화) 패널티 약화
 
                 let score = 0;
                 score += ok1d ? 38 : 0;
@@ -904,7 +878,6 @@
             }
 
             function backtestUltraDirectional(k15, nEnd, tpMult, slMult, lookahead, maxSignals, side, triggerEvalAtIndex) {
-                // nEnd: 현재 시점까지 잘라서 BT (미래 사용 금지)
                 const n = nEnd;
                 if (n < 320) return { winrate: 0, trades: 0, wrHalf: 0, maxConsecLoss: 999, expectancy: 0 };
 
@@ -1012,69 +985,86 @@
                 const s1 = clamp(bt.winrate, 0, 95);
                 const s2 = clamp(bt.wrHalf, 0, 95);
                 const s3 = clamp(bt.trades, 0, 160);
-                const s4 = 100 - clamp(bt.maxConsecLoss * 22, 0, 85);
+                const s4 = 100 - clamp(bt.maxConsecLoss * 18, 0, 80); // (완화) 연속손실 패널티 약화
                 const s5 = clamp(bt.expectancy * 140, 0, 40);
                 const score = s1 * 0.40 + s2 * 0.20 + trendScore * 0.18 + s3 * 0.06 + s4 * 0.12 + s5 * 0.04;
                 return clamp(score, 0, 100);
             }
 
+            // =========================
+            // ✅ Softened Lv1 세팅
+            // =========================
             function buildSettings(passNo) {
+                // PASS1: "Lv1 완화"
                 const base = {
-                    minOiChgPct: 0.70,
-                    minAbsPxChgPct: 0.25,
+                    // Trigger (완화)
+                    minAbsPxChgPct: 0.20,     // 0.25 -> 0.20
+                    minBodyPct: 62,           // 70 -> 62
+                    minAbsRetPct: 0.45,       // 0.60 -> 0.45
+                    minVolSpike: 2.0,         // 2.6 -> 2.0
+                    minCLVLong: 0.68,         // 0.72 -> 0.68
+                    maxCLVShort: 0.32,        // 0.28 -> 0.32
+                    maxOppWickPct: 28,        // 22 -> 28
+                    breakN: 20,               // 26 -> 20
+                    pullbackLookback: 8,      // 10 -> 8
+                    pullbackBandBp: 34,       // 28 -> 34 (밴드 넓힘)
 
-                    minBodyPct: 70,
-                    minAbsRetPct: 0.60,
-                    minVolSpike: 2.6,
-                    minCLVLong: 0.72,
-                    maxCLVShort: 0.28,
-                    maxOppWickPct: 22,
-                    breakN: 26,
-                    pullbackLookback: 10,
-                    pullbackBandBp: 28,
+                    // RSI (완화)
+                    maxRsiLong: 68,           // 64 -> 68
+                    minRsiShort: 32,          // 36 -> 32
 
-                    maxRsiLong: 64,
-                    minRsiShort: 36,
+                    // ATR (완화)
+                    minAtrPct: 0.20,          // 0.22 -> 0.20
+                    maxAtrPct: 2.30,          // 1.70 -> 2.30
 
-                    minFundingLong: -0.030,
-                    maxFundingLong: 0.005,
-                    minFundingShort: -0.004,
-                    maxFundingShort: 0.035,
-
-                    minAtrPct: 0.22,
-                    maxAtrPct: 1.70,
-
+                    // TP/SL
                     tpAtrMult: 0.80,
                     slAtrMult: 1.30,
 
+                    // BT (완화)
                     btLookahead: 22,
                     btMaxSignals: 160,
-                    btMinTrades: 85,
-                    btMinWinrate: 78,
-                    btMinWrHalf: 76,
-                    btMaxConsecLoss: 2,
-                    minExpectancy: 0.03,
+                    btMinTrades: 55,          // 85 -> 55
+                    btMinWinrate: 74,         // 78 -> 74
+                    btMinWrHalf: 72,          // 76 -> 72
+                    btMaxConsecLoss: 3,       // 2 -> 3
+                    minExpectancy: 0.02,      // 0.03 -> 0.02
 
-                    minTrendScore: 82,
+                    // Trend (완화)
+                    minTrendScore: 78,        // 82 -> 78
                 };
 
                 if (passNo === 1) return base;
 
+                // PASS2: PASS1보다 “소폭 더 완화”(한 단계 더)
                 return {
                     ...base,
-                    minOiChgPct: 0.60,
-                    minAbsPxChgPct: 0.20,
-                    minBodyPct: 66,
-                    minAbsRetPct: 0.50,
-                    minVolSpike: 2.2,
-                    breakN: 22,
-                    maxOppWickPct: 26,
-                    maxRsiLong: 66,
-                    minRsiShort: 34,
-                    maxAtrPct: 2.05,
-                    minTrendScore: 80,
+                    minAbsPxChgPct: 0.18,
+                    minBodyPct: 58,
+                    minAbsRetPct: 0.40,
+                    minVolSpike: 1.8,
+                    maxOppWickPct: 32,
+                    breakN: 18,
+                    pullbackLookback: 7,
+                    pullbackBandBp: 40,
+
+                    maxRsiLong: 70,
+                    minRsiShort: 30,
+
+                    maxAtrPct: 2.70,
+
+                    btMinTrades: 45,
+                    btMinWinrate: 72,
+                    btMinWrHalf: 70,
+                    btMaxConsecLoss: 4,
+                    minExpectancy: 0.015,
+
+                    minTrendScore: 76,
                 };
             }
+
+            // STRICT SAME (라이브/히스토리 동일) 유지: funding/oi 필터 제거
+            const STRICT_SAME_MODE = true;
 
             function triggerAtIndexDirectional(k15, nEnd, i, side, s) {
                 if (i < 60 || i >= nEnd - 2) return false;
@@ -1151,17 +1141,40 @@
                 return true;
             }
 
-            async function checkRegimeDirectional(symbol, side, signal) {
-                const raw1d = await getKlines(symbol, "1d", 240, signal);
-                const k1d = parseKlines(raw1d);
-                const idx1d = k1d.c.length - 2;
-                const price = k1d.c[idx1d];
-                const tr = computeTrendScoreDirectional(k1d, k1d, k1d, idx1d, idx1d, idx1d, price, side);
-                return tr.score >= 70;
+            async function getKlinesPaged(symbol, interval, startTime, endTime, signal) {
+                const out = [];
+                let cursor = startTime;
+
+                const hardLimit = 1500;
+                const intervalMs =
+                    interval === "15m" ? 15 * 60 * 1000 :
+                    interval === "1h" ? 60 * 60 * 1000 :
+                    interval === "4h" ? 4 * 60 * 60 * 1000 :
+                    interval === "1d" ? 24 * 60 * 60 * 1000 :
+                    60 * 1000;
+
+                while (cursor <= endTime) {
+                    if (signal.aborted) break;
+
+                    const pageEnd = Math.min(endTime, cursor + intervalMs * (hardLimit - 1));
+                    const raw = await getKlines(symbol, interval, hardLimit, signal, cursor, pageEnd);
+                    if (!Array.isArray(raw) || raw.length === 0) break;
+
+                    for (let i = 0; i < raw.length; i += 1) out.push(raw[i]);
+
+                    const lastOpen = Number(raw[raw.length - 1][0]);
+                    const next = lastOpen + intervalMs;
+
+                    if (!isFinite(next) || next <= cursor) break;
+                    cursor = next;
+
+                    await sleep(35);
+                }
+
+                return out;
             }
 
             function computeRollingQVolFromKlines(k, windowBars) {
-                // qv[i] = sum_{j=i-windowBars+1..i} (v[j]*c[j])
                 const n = k.c.length;
                 const qv = new Array(n).fill(0);
                 let sum = 0;
@@ -1182,44 +1195,6 @@
                 return qv;
             }
 
-            async function fetchAllKlinesPaged(symbol, interval, startTime, endTime, signal) {
-                // Binance limit=1500. startTime/endTime 사용해서 페이지로 긁는다.
-                const out = [];
-                let cursor = startTime;
-                const hardLimit = 1500;
-
-                // interval ms
-                const intervalMs =
-                    interval === "15m" ? 15 * 60 * 1000 :
-                    interval === "1h" ? 60 * 60 * 1000 :
-                    interval === "4h" ? 4 * 60 * 60 * 1000 :
-                    interval === "1d" ? 24 * 60 * 60 * 1000 :
-                    60 * 1000;
-
-                while (cursor <= endTime) {
-                    if (signal.aborted) break;
-
-                    // endTime을 페이지 단위로 제한(너무 큰 구간 방지)
-                    const pageEnd = Math.min(endTime, cursor + intervalMs * (hardLimit - 1));
-                    const raw = await getKlines(symbol, interval, hardLimit, signal, cursor, pageEnd);
-
-                    if (!Array.isArray(raw) || raw.length === 0) break;
-
-                    for (let i = 0; i < raw.length; i += 1) out.push(raw[i]);
-
-                    const lastOpen = Number(raw[raw.length - 1][0]);
-                    const next = lastOpen + intervalMs;
-
-                    if (!isFinite(next) || next <= cursor) break;
-                    cursor = next;
-
-                    // 짧은 슬립(레이트리밋 완화)
-                    await sleep(40);
-                }
-
-                return out;
-            }
-
             function buildTargetFromTickerNow(symbols, tickers, minQuoteVol, limitSymbols) {
                 const tickerMap = new Map();
                 for (let i = 0; i < tickers.length; i += 1) tickerMap.set(tickers[i].symbol, tickers[i]);
@@ -1234,6 +1209,87 @@
                 }
                 ranked.sort((a, b) => b.qv24 - a.qv24);
                 return ranked.slice(0, Math.max(20, limitSymbols));
+            }
+
+            function scoreRowBuild(d, side, passTag, pxChgPct, rsiNow, atrPct, tr, bt, price, qv24, k15, idx15, s) {
+                const tpsl = proposeTPSLDirectional(k15, idx15, s.tpAtrMult, s.slAtrMult, price, side);
+                const score = scoreRow(tr.score, bt);
+
+                return {
+                    score,
+                    side,
+                    symbol: d.symbol,
+                    pass: passTag,
+                    winrate: bt.winrate,
+                    trades: bt.trades,
+                    wrHalf: bt.wrHalf,
+                    maxConsecLoss: bt.maxConsecLoss,
+                    expectancy: bt.expectancy,
+                    price,
+                    fundingPct: 0,
+                    oiChgPct: 0,
+                    pxChgPct,
+                    rsi: rsiNow,
+                    atrPct,
+                    trendScore: tr.score,
+                    tp: tpsl.tp,
+                    sl: tpsl.sl,
+                    qv24,
+                    why:
+                        "Trend " + tr.detail +
+                        " · Px15m " + fmtNum(pxChgPct, 2) + "%" +
+                        " · RSI " + fmtNum(rsiNow, 1) +
+                        " · ATR% " + fmtNum(atrPct, 2) +
+                        " · BT Win " + fmtNum(bt.winrate, 1) + "% (N=" + bt.trades + ")" +
+                        " · Half " + fmtNum(bt.wrHalf, 1) + "%" +
+                        " · MaxCL " + bt.maxConsecLoss +
+                        " · Exp " + fmtNum(bt.expectancy, 3),
+                };
+            }
+
+            function trySideLive(d, side, passNo, lastPrice, qv24) {
+                const s = buildSettings(passNo);
+
+                const k15 = d.k15;
+                const n15 = k15.c.length;
+                const idx15 = n15 - 2;
+
+                const price = lastPrice || k15.c[idx15] || 0;
+                if (!isFinite(price) || price <= 0) return null;
+
+                const pxChgPct = pct(k15.c[idx15], k15.o[idx15]);
+                if (Math.abs(pxChgPct) < s.minAbsPxChgPct) return null;
+
+                const rsiArr = rsi14(k15.c, 14, n15);
+                const rsiNow = rsiArr[idx15] || 50;
+                if (side === "LONG" && rsiNow > s.maxRsiLong) return null;
+                if (side === "SHORT" && rsiNow < s.minRsiShort) return null;
+
+                const atrArr = atr(k15.h, k15.l, k15.c, 14, n15);
+                const atr15 = atrArr[idx15] || 0;
+                const atrPct = (atr15 / Math.max(1e-12, price)) * 100;
+                if (atrPct < s.minAtrPct) return null;
+                if (atrPct > s.maxAtrPct) return null;
+
+                const idx1d = d.k1d.c.length - 2;
+                const idx4h = d.k4h.c.length - 2;
+                const idx1h = d.k1h.c.length - 2;
+                const tr = computeTrendScoreDirectional(d.k1d, d.k4h, d.k1h, idx1d, idx4h, idx1h, price, side);
+                if (tr.score < s.minTrendScore) return null;
+
+                const trigOk = triggerAtIndexDirectional(k15, n15, idx15, side, s);
+                if (!trigOk) return null;
+
+                const triggerEval = (i) => triggerAtIndexDirectional(k15, n15, i, side, s);
+                const bt = backtestUltraDirectional(k15, n15, s.tpAtrMult, s.slAtrMult, s.btLookahead, s.btMaxSignals, side, triggerEval);
+
+                if (bt.trades < s.btMinTrades) return null;
+                if (bt.winrate < s.btMinWinrate) return null;
+                if (bt.wrHalf < s.btMinWrHalf) return null;
+                if (bt.maxConsecLoss > s.btMaxConsecLoss) return null;
+                if (bt.expectancy < s.minExpectancy) return null;
+
+                return scoreRowBuild(d, side, passNo === 1 ? "P1" : "P2", pxChgPct, rsiNow, atrPct, tr, bt, price, qv24, k15, idx15, s);
             }
 
             async function runScan() {
@@ -1253,34 +1309,12 @@
                 const minQuoteVol = Number(el.minQuoteVol.value);
                 const concurrency = Math.max(1, Number(el.concurrency.value));
                 const minPerSideTarget = Math.max(1, Number(el.minPerSideTarget.value));
-                const btcRegimeOn = Number(el.btcRegimeOn.value) === 1;
-                const ethRegimeOn = Number(el.ethRegimeOn.value) === 1;
-
-                const cache = new Map(); // symbol -> data cache
 
                 try {
                     setStatus([
-                        "로딩… (레짐/심볼/티커/프라이스)",
-                        '<span class="warn">승률 극단 모드: 결과 0~2개가 흔합니다.</span>',
+                        '<span class="info">LIVE</span> 로딩… (심볼/티커/프라이스/klines)',
+                        '<span class="muted">Softened Lv1: 결과가 0이면 PASS2까지 자동 수행</span>',
                     ]);
-
-                    if (btcRegimeOn) {
-                        const btcLongOk = await checkRegimeDirectional("BTCUSDT", "LONG", signal);
-                        const btcShortOk = await checkRegimeDirectional("BTCUSDT", "SHORT", signal);
-                        if (!btcLongOk && !btcShortOk) {
-                            setStatus(['<span class="bad">차단</span> BTC 1D 레짐이 LONG/SHORT 모두 불합격']);
-                            return;
-                        }
-                    }
-
-                    if (ethRegimeOn) {
-                        const ethLongOk = await checkRegimeDirectional("ETHUSDT", "LONG", signal);
-                        const ethShortOk = await checkRegimeDirectional("ETHUSDT", "SHORT", signal);
-                        if (!ethLongOk && !ethShortOk) {
-                            setStatus(['<span class="bad">차단</span> ETH 1D 레짐이 LONG/SHORT 모두 불합격']);
-                            return;
-                        }
-                    }
 
                     const symbols = await getSymbolsUSDTPerp(signal);
                     const tickers = await getTickers24h(signal);
@@ -1289,190 +1323,80 @@
                     const target = buildTargetFromTickerNow(symbols, tickers, minQuoteVol, limitSymbols);
 
                     setStatus([
-                        "대상: " + target.length + "개 (현재 24h QVol ≥ " + fmtMoney(minQuoteVol) + ")",
-                        '<span class="muted">PASS1(극단) → 부족한 방향만 PASS2(소폭 완화)</span>',
+                        '<span class="info">LIVE</span> 대상: ' + target.length + "개 (현재 24h QVol ≥ " + fmtMoney(minQuoteVol) + ")",
+                        '<span class="muted">PASS1 → 부족하면 PASS2</span>',
                     ]);
 
-                    const counts = { LONG: 0, SHORT: 0 };
-
-                    async function loadSymbolData(symbol, qv24) {
+                    const cache = new Map();
+                    async function loadSymbolData(symbol) {
                         if (cache.has(symbol)) return cache.get(symbol);
-
-                        const prem = await getPremiumIndex(symbol, signal);
-                        const fundingPct = Number(prem.lastFundingRate || 0) * 100;
-
-                        const oiHist = await getOpenInterestHist(symbol, "15m", 3, signal);
-                        if (!Array.isArray(oiHist) || oiHist.length < 2) return null;
-
-                        const oiPrev = Number(oiHist[oiHist.length - 2].sumOpenInterest || 0);
-                        const oiNow = Number(oiHist[oiHist.length - 1].sumOpenInterest || 0);
-                        if (!(oiPrev > 0 && oiNow > 0)) return null;
-                        const oiChgPct = pct(oiNow, oiPrev);
 
                         const k15raw = await getKlines(symbol, "15m", 720, signal);
                         const k1hraw = await getKlines(symbol, "1h", 520, signal);
                         const k4hraw = await getKlines(symbol, "4h", 420, signal);
                         const k1draw = await getKlines(symbol, "1d", 340, signal);
 
-                        const k15 = parseKlines(k15raw);
-                        const k1h = parseKlines(k1hraw);
-                        const k4h = parseKlines(k4hraw);
-                        const k1d = parseKlines(k1draw);
-
-                        const price = lastPriceMap.get(symbol) || k15.c[k15.c.length - 2] || 0;
-                        if (!isFinite(price) || price <= 0) return null;
-
-                        const out = { fundingPct, oiChgPct, k15, k1h, k4h, k1d, price, qv24 };
-                        cache.set(symbol, out);
-                        return out;
-                    }
-
-                    function trySide(d, side, s, passTag) {
-                        if (d.oiChgPct < s.minOiChgPct) return null;
-
-                        const k15 = d.k15;
-                        const n15 = k15.c.length;
-                        const i15 = n15 - 2;
-
-                        const pxChgPct = pct(k15.c[i15], k15.o[i15]);
-                        if (Math.abs(pxChgPct) < s.minAbsPxChgPct) return null;
-
-                        const rsiArr = rsi14(k15.c, 14, n15);
-                        const rsiNow = rsiArr[i15] || 50;
-                        if (side === "LONG" && rsiNow > s.maxRsiLong) return null;
-                        if (side === "SHORT" && rsiNow < s.minRsiShort) return null;
-
-                        if (side === "LONG") {
-                            if (d.fundingPct < s.minFundingLong || d.fundingPct > s.maxFundingLong) return null;
-                        } else {
-                            if (d.fundingPct < s.minFundingShort || d.fundingPct > s.maxFundingShort) return null;
-                        }
-
-                        const atrArr = atr(k15.h, k15.l, k15.c, 14, n15);
-                        const atr15 = atrArr[i15] || 0;
-                        const atrPct = (atr15 / Math.max(1e-12, d.price)) * 100;
-                        if (atrPct < s.minAtrPct) return null;
-                        if (atrPct > s.maxAtrPct) return null;
-
-                        // Trend index: 최신 완성 캔들 인덱스(각 TF의 -2)
-                        const idx1d = d.k1d.c.length - 2;
-                        const idx4h = d.k4h.c.length - 2;
-                        const idx1h = d.k1h.c.length - 2;
-
-                        const tr = computeTrendScoreDirectional(d.k1d, d.k4h, d.k1h, idx1d, idx4h, idx1h, d.price, side);
-                        if (tr.score < s.minTrendScore) return null;
-
-                        const trigOk = triggerAtIndexDirectional(k15, n15, i15, side, s);
-                        if (!trigOk) return null;
-
-                        const triggerEval = (i) => triggerAtIndexDirectional(k15, n15, i, side, s);
-
-                        const bt = backtestUltraDirectional(
-                            k15,
-                            n15,
-                            s.tpAtrMult,
-                            s.slAtrMult,
-                            s.btLookahead,
-                            s.btMaxSignals,
-                            side,
-                            triggerEval
-                        );
-
-                        if (bt.trades < s.btMinTrades) return null;
-                        if (bt.winrate < s.btMinWinrate) return null;
-                        if (bt.wrHalf < s.btMinWrHalf) return null;
-                        if (bt.maxConsecLoss > s.btMaxConsecLoss) return null;
-                        if (bt.expectancy < s.minExpectancy) return null;
-
-                        const tpsl = proposeTPSLDirectional(k15, i15, s.tpAtrMult, s.slAtrMult, d.price, side);
-                        const score = scoreRow(tr.score, bt);
-
-                        return {
-                            score,
-                            side,
-                            symbol: null,
-                            pass: passTag,
-                            winrate: bt.winrate,
-                            trades: bt.trades,
-                            wrHalf: bt.wrHalf,
-                            maxConsecLoss: bt.maxConsecLoss,
-                            expectancy: bt.expectancy,
-                            price: d.price,
-                            fundingPct: d.fundingPct,
-                            oiChgPct: d.oiChgPct,
-                            pxChgPct,
-                            rsi: rsiNow,
-                            atrPct,
-                            trendScore: tr.score,
-                            tp: tpsl.tp,
-                            sl: tpsl.sl,
-                            qv24: d.qv24,
-                            why:
-                                "Trend " + tr.detail +
-                                " · Funding " + fmtNum(d.fundingPct, 3) + "%" +
-                                " · OI15m " + fmtNum(d.oiChgPct, 2) + "%" +
-                                " · Px15m " + fmtNum(pxChgPct, 2) + "%" +
-                                " · RSI " + fmtNum(rsiNow, 1) +
-                                " · ATR% " + fmtNum(atrPct, 2) +
-                                " · BT Win " + fmtNum(bt.winrate, 1) + "% (N=" + bt.trades + ")" +
-                                " · Half " + fmtNum(bt.wrHalf, 1) + "%" +
-                                " · MaxCL " + bt.maxConsecLoss +
-                                " · Exp " + fmtNum(bt.expectancy, 3),
+                        const d = {
+                            symbol,
+                            k15: parseKlines(k15raw),
+                            k1h: parseKlines(k1hraw),
+                            k4h: parseKlines(k4hraw),
+                            k1d: parseKlines(k1draw),
                         };
+                        cache.set(symbol, d);
+                        return d;
                     }
 
-                    async function scanPass(passNo, needLong, needShort) {
-                        const s = buildSettings(passNo);
+                    const counts = { LONG: 0, SHORT: 0 };
+
+                    async function scanPass(passNo) {
                         let idx = 0;
 
                         async function worker() {
                             while (idx < target.length) {
                                 const my = idx;
                                 idx += 1;
-
                                 if (signal.aborted) return;
 
-                                const longNeed = needLong && counts.LONG < minPerSideTarget;
-                                const shortNeed = needShort && counts.SHORT < minPerSideTarget;
+                                const longNeed = counts.LONG < minPerSideTarget;
+                                const shortNeed = counts.SHORT < minPerSideTarget;
                                 if (!longNeed && !shortNeed) return;
 
                                 const symbol = target[my].symbol;
                                 const qv24 = target[my].qv24;
 
                                 try {
-                                    const d = await loadSymbolData(symbol, qv24);
-                                    if (!d) continue;
+                                    const d = await loadSymbolData(symbol);
+                                    const price = lastPriceMap.get(symbol) || 0;
 
                                     if (longNeed) {
-                                        const r = trySide(d, "LONG", s, passNo === 1 ? "P1" : "P2");
+                                        const r = trySideLive(d, "LONG", passNo, price, qv24);
                                         if (r) {
-                                            r.symbol = symbol;
                                             currentRows.push(r);
                                             counts.LONG += 1;
                                         }
                                     }
 
                                     if (shortNeed) {
-                                        const r = trySide(d, "SHORT", s, passNo === 1 ? "P1" : "P2");
+                                        const r = trySideLive(d, "SHORT", passNo, price, qv24);
                                         if (r) {
-                                            r.symbol = symbol;
                                             currentRows.push(r);
                                             counts.SHORT += 1;
                                         }
                                     }
 
-                                    if (my % 18 === 0) {
+                                    if (my % 20 === 0) {
                                         setStatus([
-                                            "PASS" + passNo + " 진행: " + (my + 1) + " / " + target.length,
+                                            '<span class="info">LIVE</span> PASS' + passNo + " 진행: " + (my + 1) + " / " + target.length,
                                             '<span class="muted">LONG ' + counts.LONG + " / SHORT " + counts.SHORT + "</span>",
                                         ]);
                                     }
 
                                     if (currentRows.length % 3 === 0) render(currentRows);
 
-                                    await sleep(55);
+                                    await sleep(40);
                                 } catch (err) {
-                                    await sleep(90);
+                                    await sleep(70);
                                 }
                             }
                         }
@@ -1482,23 +1406,21 @@
                         await Promise.all(workers);
                     }
 
-                    await scanPass(1, true, true);
+                    await scanPass(1);
 
-                    const needLong2 = counts.LONG < minPerSideTarget;
-                    const needShort2 = counts.SHORT < minPerSideTarget;
-
-                    if (needLong2 || needShort2) {
+                    const needP2 = counts.LONG < minPerSideTarget || counts.SHORT < minPerSideTarget;
+                    if (needP2) {
                         setStatus([
-                            '<span class="warn">PASS2 시작</span> — 부족한 방향만 소폭 완화',
-                            '<span class="muted">BT 기준(승률/표본/연속손실/최근절반/기대값) 유지</span>',
+                            '<span class="warn">PASS2</span> 시작 — 한 단계 더 완화',
+                            '<span class="muted">Softened Lv1 기반의 PASS2(조금 더 완화)</span>',
                         ]);
-                        await scanPass(2, needLong2, needShort2);
+                        await scanPass(2);
                     }
 
                     render(currentRows);
 
                     setStatus([
-                        '<span class="ok">완료</span> — 총 ' + currentRows.length + "개",
+                        '<span class="ok">LIVE 완료</span> — 총 ' + currentRows.length + "개",
                         '<span class="muted">LONG ' + counts.LONG + " / SHORT " + counts.SHORT + "</span>",
                     ]);
                 } catch (err) {
@@ -1522,9 +1444,8 @@
             }
 
             // =========================
-            // HISTORY SCAN
+            // HISTORY
             // =========================
-
             function resetHistoryOutput() {
                 histTimes = [];
                 el.histOutput.value = "";
@@ -1550,9 +1471,77 @@
 
             el.btnExport.addEventListener("click", () => {
                 if (histTimes.length === 0) return;
-                const txt = histTimes.join("\n");
-                downloadText("history_times.txt", txt);
+                downloadText("history_times.txt", histTimes.join("\n"));
             });
+
+            function trySideAtTime(d, side, passNo, tEndMs, minQuoteVol, mode) {
+                const s = buildSettings(passNo);
+
+                const ms15m = 15 * 60 * 1000;
+                const ms1h = 60 * 60 * 1000;
+                const ms4h = 4 * 60 * 60 * 1000;
+                const ms1d = 24 * 60 * 60 * 1000;
+
+                const k15 = d.k15;
+                const idx15 = binarySearchLastLE(k15.t, tEndMs - ms15m);
+                if (idx15 < 90) return null;
+
+                const n15 = Math.min(k15.c.length, idx15 + 2);
+                if (n15 < idx15 + 2) return null;
+
+                const price = k15.c[idx15];
+                if (!isFinite(price) || price <= 0) return null;
+
+                let qv24 = 0;
+                if (mode === "1h_sum") {
+                    const idx1hQ = binarySearchLastLE(d.k1h.t, tEndMs - ms1h);
+                    if (idx1hQ < 0) return null;
+                    qv24 = d.qvSeries[idx1hQ] || 0;
+                } else {
+                    qv24 = d.qvSeries[idx15] || 0;
+                }
+
+                if (qv24 < minQuoteVol) return null;
+
+                const pxChgPct = pct(k15.c[idx15], k15.o[idx15]);
+                if (Math.abs(pxChgPct) < s.minAbsPxChgPct) return null;
+
+                const rsiArr = rsi14(k15.c, 14, n15);
+                const rsiNow = rsiArr[idx15] || 50;
+                if (side === "LONG" && rsiNow > s.maxRsiLong) return null;
+                if (side === "SHORT" && rsiNow < s.minRsiShort) return null;
+
+                const atrArr = atr(k15.h, k15.l, k15.c, 14, n15);
+                const atr15 = atrArr[idx15] || 0;
+                const atrPct = (atr15 / Math.max(1e-12, price)) * 100;
+                if (atrPct < s.minAtrPct) return null;
+                if (atrPct > s.maxAtrPct) return null;
+
+                const idx1h = binarySearchLastLE(d.k1h.t, tEndMs - ms1h);
+                const idx4h = binarySearchLastLE(d.k4h.t, tEndMs - ms4h);
+                const idx1d = binarySearchLastLE(d.k1d.t, tEndMs - ms1d);
+                if (idx1h < 80 || idx4h < 80 || idx1d < 80) return null;
+
+                const tr = computeTrendScoreDirectional(d.k1d, d.k4h, d.k1h, idx1d, idx4h, idx1h, price, side);
+                if (tr.score < s.minTrendScore) return null;
+
+                const trigOk = triggerAtIndexDirectional(k15, n15, idx15, side, s);
+                if (!trigOk) return null;
+
+                const triggerEval = (i) => triggerAtIndexDirectional(k15, n15, i, side, s);
+                const bt = backtestUltraDirectional(k15, n15, s.tpAtrMult, s.slAtrMult, s.btLookahead, s.btMaxSignals, side, triggerEval);
+
+                if (bt.trades < s.btMinTrades) return null;
+                if (bt.winrate < s.btMinWinrate) return null;
+                if (bt.wrHalf < s.btMinWrHalf) return null;
+                if (bt.maxConsecLoss > s.btMaxConsecLoss) return null;
+                if (bt.expectancy < s.minExpectancy) return null;
+
+                const row = scoreRowBuild(d, side, passNo === 1 ? "P1" : "P2", pxChgPct, rsiNow, atrPct, tr, bt, price, qv24, k15, idx15, s);
+                row.why = "t=" + toIsoUTC(tEndMs) + " · " + row.why;
+
+                return row;
+            }
 
             async function runHistoryScan() {
                 if (aborter) aborter.abort();
@@ -1572,16 +1561,10 @@
                 const minQuoteVol = Number(el.minQuoteVol.value);
                 const concurrency = Math.max(1, Number(el.concurrency.value));
                 const minPerSideTarget = Math.max(1, Number(el.minPerSideTarget.value));
-                const btcRegimeOn = Number(el.btcRegimeOn.value) === 1;
-                const ethRegimeOn = Number(el.ethRegimeOn.value) === 1;
 
                 const mode = String(el.histUniverseMode.value || "15m_sum");
                 const histMaxCandles = Math.max(0, Number(el.histMaxCandles.value || 0));
 
-                // UTC 기준 입력이라고 라벨에 써놨으므로, 사용자가 UTC로 입력했다고 가정.
-                // datetime-local은 로컬 해석이라 완벽히 UTC를 강제할 수 없음.
-                // 다만 "같은 규칙"이 중요하니, 여기서는 그대로 new Date(value) 사용.
-                // 정말 엄밀하게 UTC 입력을 강제하고 싶으면, input을 text로 바꾸고 파싱해야 함.
                 const startUTCms = parseDateTimeLocalToUTCms(el.histStart.value);
                 const endUTCms = parseDateTimeLocalToUTCms(el.histEnd.value);
 
@@ -1596,75 +1579,40 @@
 
                 try {
                     setStatus([
-                        '<span class="info">HISTORY</span> 준비: 심볼/레짐 체크',
-                        '<span class="muted">유니버스도 시점 동일(24h QVol 재현)로 매 캔들마다 재구성</span>',
+                        '<span class="info">HISTORY</span> 준비: 심볼 수집',
+                        '<span class="muted">Softened Lv1 + 유니버스 시점 동일</span>',
                     ]);
 
-                    if (btcRegimeOn) {
-                        const btcLongOk = await checkRegimeDirectional("BTCUSDT", "LONG", signal);
-                        const btcShortOk = await checkRegimeDirectional("BTCUSDT", "SHORT", signal);
-                        if (!btcLongOk && !btcShortOk) {
-                            setStatus(['<span class="bad">차단</span> BTC 1D 레짐이 LONG/SHORT 모두 불합격']);
-                            return;
-                        }
-                    }
-
-                    if (ethRegimeOn) {
-                        const ethLongOk = await checkRegimeDirectional("ETHUSDT", "LONG", signal);
-                        const ethShortOk = await checkRegimeDirectional("ETHUSDT", "SHORT", signal);
-                        if (!ethLongOk && !ethShortOk) {
-                            setStatus(['<span class="bad">차단</span> ETH 1D 레짐이 LONG/SHORT 모두 불합격']);
-                            return;
-                        }
-                    }
-
                     const symbols = await getSymbolsUSDTPerp(signal);
-
-                    // 히스토리 스캔은 "시점별 유니버스"가 필요하므로,
-                    // 먼저 각 심볼의 15m(or 1h) klines를 start~end + 24h lookback + 트렌드/BT lookback 만큼 가져온다.
-                    // (오래 걸려도 좋다고 했으니, 최대한 정확히 간다.)
-                    const need15m = true;
-                    const need1h = true;
-                    const need4h = true;
-                    const need1d = true;
-
-                    // lookback(안전 여유)
-                    const lookback15mBars = 900; // 기존 720 + 여유
-                    const lookback1hBars = 620;
-                    const lookback4hBars = 520;
-                    const lookback1dBars = 420;
 
                     const ms15m = 15 * 60 * 1000;
                     const ms1h = 60 * 60 * 1000;
                     const ms4h = 4 * 60 * 60 * 1000;
                     const ms1d = 24 * 60 * 60 * 1000;
 
+                    const lookback15mBars = 900;
+                    const lookback1hBars = 620;
+                    const lookback4hBars = 520;
+                    const lookback1dBars = 420;
+
                     const padStart15m = startUTCms - ms15m * lookback15mBars;
                     const padStart1h = startUTCms - ms1h * lookback1hBars;
                     const padStart4h = startUTCms - ms4h * lookback4hBars;
                     const padStart1d = startUTCms - ms1d * lookback1dBars;
 
-                    // 데이터 캐시
-                    // symbol -> { k15, k1h, k4h, k1d, qv24Series(15m or 1h rolling), map15toTFIdx }
                     const dataMap = new Map();
 
-                    // 1) 먼저 "히스토리의 기준 타임라인(15m 마감 캔들)"을 만들기 위해 BTCUSDT 15m를 기준으로 캔들 인덱스를 만든다
                     setStatus([
                         '<span class="info">HISTORY</span> 기준 타임라인 생성 (BTCUSDT 15m)',
-                        '<span class="muted">이 타임라인의 15m 마감 시점에 맞춰 동일하게 평가</span>',
+                        '<span class="muted">15m 마감 시점 기준으로 동일 평가</span>',
                     ]);
 
-                    const btc15raw = await fetchAllKlinesPaged("BTCUSDT", "15m", padStart15m, endUTCms, signal);
+                    const btc15raw = await getKlinesPaged("BTCUSDT", "15m", padStart15m, endUTCms, signal);
                     const btc15 = parseKlines(btc15raw);
 
-                    // 타임라인: "완성된 15m 캔들" 인덱스 i15 (entry는 i15+1 o)
-                    // 즉, i15는 최소 startUTCms 이후의 캔들만
                     const timeline = [];
                     for (let i = 0; i < btc15.t.length; i += 1) {
                         const openTime = btc15.t[i];
-                        // kline의 openTime이 해당 15m 구간 시작. "완성 캔들"은 이 구간이 끝난 시점(=openTime+15m).
-                        // 우리는 기존 코드처럼 i15를 완성캔들 인덱스로 쓰고, entryIdx=i15+1을 쓴다.
-                        // 따라서 히스토리 평가 시점은 "i15가 완성된 순간", 즉 i15+1 캔들의 openTime이 시작되는 시점과 동일.
                         const candleEndTime = openTime + ms15m;
                         if (candleEndTime < startUTCms) continue;
                         if (candleEndTime > endUTCms) break;
@@ -1674,55 +1622,36 @@
                     const maxCandles = histMaxCandles > 0 ? Math.min(histMaxCandles, timeline.length) : timeline.length;
 
                     setStatus([
-                        '<span class="info">HISTORY</span> 타임라인 확정',
-                        '<span class="muted">평가 캔들 수: ' + fmtInt(maxCandles) + " / 전체 " + fmtInt(timeline.length) + "</span>",
+                        '<span class="info">HISTORY</span> 데이터 수집 시작',
+                        '<span class="muted">심볼이 많으면 오래 걸릴 수 있음(정확도 우선)</span>',
                     ]);
 
-                    // 2) 모든 심볼의 필요한 klines를 긁는다 (오래 걸려도 되는 모드)
-                    // 레이트리밋 고려해서 concurrency로 워커 돌린다.
                     let symIdx = 0;
 
                     async function loadOneSymbol(symbol) {
-                        // 이미 있으면 스킵
                         if (dataMap.has(symbol)) return;
 
-                        const out = { symbol };
+                        const raw15 = await getKlinesPaged(symbol, "15m", padStart15m, endUTCms, signal);
+                        const raw1h = await getKlinesPaged(symbol, "1h", padStart1h, endUTCms, signal);
+                        const raw4h = await getKlinesPaged(symbol, "4h", padStart4h, endUTCms, signal);
+                        const raw1d = await getKlinesPaged(symbol, "1d", padStart1d, endUTCms, signal);
 
-                        // (A) 15m (유니버스 + 트리거 + BT)
-                        const raw15 = await fetchAllKlinesPaged(symbol, "15m", padStart15m, endUTCms, signal);
                         const k15 = parseKlines(raw15);
-
-                        // 심볼별로 BTC 타임라인과 길이가 다를 수 있으니, 이후에 각 시점마다 인덱스를 매칭해야 함.
-                        // (B) 1h/4h/1d (트렌드)
-                        const raw1h = need1h ? await fetchAllKlinesPaged(symbol, "1h", padStart1h, endUTCms, signal) : [];
-                        const raw4h = need4h ? await fetchAllKlinesPaged(symbol, "4h", padStart4h, endUTCms, signal) : [];
-                        const raw1d = need1d ? await fetchAllKlinesPaged(symbol, "1d", padStart1d, endUTCms, signal) : [];
-
                         const k1h = parseKlines(raw1h);
                         const k4h = parseKlines(raw4h);
                         const k1d = parseKlines(raw1d);
 
-                        // 유니버스 24h QVol 시리즈
+                        if (k15.c.length < 400 || k1h.c.length < 200 || k4h.c.length < 120 || k1d.c.length < 120) return;
+
+                        const d = { symbol, k15, k1h, k4h, k1d, qvSeries: [] };
+
                         if (mode === "1h_sum") {
-                            // 1h 24개 윈도우
-                            const qv1h = computeRollingQVolFromKlines(k1h, 24);
-                            out.qvMode = "1h_sum";
-                            out.qvSeries = qv1h;
+                            d.qvSeries = computeRollingQVolFromKlines(k1h, 24);
                         } else {
-                            // 15m 96개 윈도우 (추천)
-                            const qv15 = computeRollingQVolFromKlines(k15, 96);
-                            out.qvMode = "15m_sum";
-                            out.qvSeries = qv15;
+                            d.qvSeries = computeRollingQVolFromKlines(k15, 96);
                         }
 
-                        out.k15 = k15;
-                        out.k1h = k1h;
-                        out.k4h = k4h;
-                        out.k1d = k1d;
-
-                        dataMap.set(symbol, out);
-
-                        await sleep(35);
+                        dataMap.set(symbol, d);
                     }
 
                     async function symWorker() {
@@ -1730,245 +1659,43 @@
                             const my = symIdx;
                             symIdx += 1;
                             if (signal.aborted) return;
+
                             const symbol = symbols[my];
 
                             try {
                                 await loadOneSymbol(symbol);
                             } catch (err) {
-                                // 실패 심볼은 그냥 스킵 (과거 상장/데이터 빈 구간 등)
-                                await sleep(80);
+                                await sleep(60);
                             }
 
                             if (my % 10 === 0) {
                                 setStatus([
                                     '<span class="info">HISTORY</span> 데이터 수집 중…',
-                                    '<span class="muted">심볼: ' + fmtInt(my + 1) + " / " + fmtInt(symbols.length) + "</span>",
+                                    '<span class="muted">심볼: ' + fmtInt(my + 1) + " / " + fmtInt(symbols.length) + " · 적재: " + fmtInt(dataMap.size) + "</span>",
                                 ]);
                             }
                         }
                     }
 
-                    setStatus([
-                        '<span class="info">HISTORY</span> 데이터 수집 시작',
-                        '<span class="muted">심볼 수가 많아서 오래 걸릴 수 있음(정확도 우선)</span>',
-                    ]);
-
-                    const symWorkers = [];
-                    for (let i = 0; i < concurrency; i += 1) symWorkers.push(symWorker());
-                    await Promise.all(symWorkers);
+                    const workers = [];
+                    for (let i = 0; i < concurrency; i += 1) workers.push(symWorker());
+                    await Promise.all(workers);
 
                     if (signal.aborted) return;
 
-                    setStatus([
-                        '<span class="info">HISTORY</span> 데이터 수집 완료',
-                        '<span class="muted">이제 시점별 유니버스 재구성 + 동일 조건 스캔 실행</span>',
-                    ]);
-
-                    // 3) 시점별로 유니버스(그 시점의 24h QVol 상위 N + 하한) 구성 후,
-                    //    라이브와 동일한 PASS1→PASS2 로직을 "그 시점" 기준으로 실행.
-                    // 히스토리에서 funding/OI는 "그 시점의 값"이 필요하지만,
-                    // premiumIndex/OIHist는 과거 조회가 제한적(특히 OIHist는 최근 데이터만 보장)이라
-                    // 여기서는 "그 시점의 OI 변화"를 15m klines 기반 근사로 대체할 수 없어서,
-                    // OI는 실시간 엔드포인트 사용을 유지하면 과거 일치가 깨짐.
-                    //
-                    // ✅ 그래서 히스토리도 "그 시점과 동일"을 만족시키려면:
-                    // - OI 조건은 Binance가 과거 OI를 기간 전체로 제공하지 않는 한 완전 동일이 불가.
-                    // - 다만 Binance futures/data/openInterestHist 는 일정 기간 과거 조회가 가능하므로,
-                    //   히스토리 구간이 충분히 최근이면 OK.
-                    //
-                    // 이 코드는: 각 시점에 대해 openInterestHist를 "그 시점 endTime"으로 조회하는 기능이 API에 없어서
-                    // (futures/data/openInterestHist는 startTime/endTime 파라미터가 없음),
-                    // 완전 동일 불가 → 대신 히스토리 모드에서는 OI/Funding을 "가격/트리거/트렌드/BT"만으로 맞추면
-                    // 조건 동일이 깨짐.
-                    //
-                    // ✅ 해결: 히스토리 모드에서는 funding/OI를 "제거"하면 동일이 아님.
-                    //
-                    // 👉 따라서 “진짜 동일”을 목표로, 아래처럼 처리한다:
-                    // - 히스토리 스캔은 funding/OI 필터를 "그 시점의 값이 존재하는 범위 내에서만" 적용
-                    // - funding은 premiumIndex 과거 스냅샷 없음 → 완전 동일 불가
-                    //
-                    // 결론: Binance API 한계로 funding/OI는 과거 스냅샷 완전 동일 재현이 불가능.
-                    // 대신 네 요구사항(유니버스 동일)을 가장 중요한 것으로 보고,
-                    // funding/OI는 라이브와 동일 유지하되, 히스토리에서는 적용하지 않는 옵션을 분리해야 한다.
-                    //
-                    // 하지만 너가 “조건 똑같이”를 강하게 요구했으니:
-                    // ✅ 히스토리 모드에서는 funding/OI를 "강제 OFF"하는 게 아니라,
-                    //    라이브/히스토리 둘 다 동일하게 "OFF로 맞춘 별도 모드"를 제공하는 게 논리적으로 일치.
-                    //
-                    // ----
-                    // 여기서는: 요청대로 "조건 동일"을 최우선으로,
-                    // [라이브/히스토리 공통]에 대해 funding/OI 엔드포인트 기반 필터를 제거한 버전을 제공하면
-                    // "동일"은 맞지만, 네 원본과는 달라진다.
-                    //
-                    // ----
-                    // 그래서 아래는 타협 없는 2가지 선택지를 코드로 넣는다:
-                    //
-                    // (1) STRICT SAME (추천): 라이브도 히스토리도 funding/OI 필터를 klines 기반으로 재현 가능한 것만 사용
-                    //     - funding/OI 필터를 제거(또는 OI는 15m volume 기반 근사로 대체)
-                    //
-                    // (2) LIVE ORIGINAL: 라이브는 원래대로 premiumIndex/OIHist 사용, 히스토리는 동일 재현 불가(유니버스만 동일)
-                    //
-                    // 너가 “조건 똑같이”라고 했으니, (1)로 간다.
-                    //
-                    // ============
-                    // (1) STRICT SAME 구현:
-                    // - fundingPct / oiChgPct 조건을 히스토리/라이브 둘 다 제거
-                    // - 나머지 조건은 100% 동일
-                    // ============
-                    //
-                    // ※ 이 부분이 싫으면 말해줘. 그럼 (2)로 바꿔서 “유니버스만 시점 동일”로 처리해줄게.
-                    //
-
-                    const STRICT_SAME_MODE = true;
-
-                    function trySideAtTime(d, side, s, passTag, tEndMs) {
-                        // tEndMs: 해당 15m 캔들 종료 시점(=i15 캔들 끝)
-                        const k15 = d.k15;
-                        const idx15 = binarySearchLastLE(k15.t, tEndMs - ms15m); // i15의 openTime = tEnd-15m
-                        if (idx15 < 90) return null;
-
-                        // nEnd는 idx15+2 까지(완성 i15 + entry i15+1 o 사용)
-                        const n15 = Math.min(k15.c.length, idx15 + 2);
-                        if (n15 < idx15 + 2) return null;
-
-                        // price는 "그 시점"의 entryNow로서, 완성 캔들 close를 사용
-                        const price = k15.c[idx15];
-                        if (!isFinite(price) || price <= 0) return null;
-
-                        // 24h QVol (시점 동일)
-                        let qv24 = 0;
-                        if (d.qvMode === "1h_sum") {
-                            const k1h = d.k1h;
-                            const idx1h = binarySearchLastLE(k1h.t, tEndMs - ms1h);
-                            if (idx1h < 0) return null;
-                            qv24 = d.qvSeries[idx1h] || 0;
-                        } else {
-                            qv24 = d.qvSeries[idx15] || 0;
-                        }
-
-                        if (qv24 < minQuoteVol) return null;
-
-                        // px change (15m)
-                        const pxChgPct = pct(k15.c[idx15], k15.o[idx15]);
-                        if (Math.abs(pxChgPct) < s.minAbsPxChgPct) return null;
-
-                        // RSI
-                        const rsiArr = rsi14(k15.c, 14, n15);
-                        const rsiNow = rsiArr[idx15] || 50;
-                        if (side === "LONG" && rsiNow > s.maxRsiLong) return null;
-                        if (side === "SHORT" && rsiNow < s.minRsiShort) return null;
-
-                        // ATR%
-                        const atrArr = atr(k15.h, k15.l, k15.c, 14, n15);
-                        const atr15 = atrArr[idx15] || 0;
-                        const atrPct = (atr15 / Math.max(1e-12, price)) * 100;
-                        if (atrPct < s.minAtrPct) return null;
-                        if (atrPct > s.maxAtrPct) return null;
-
-                        // Trend 인덱스 매핑: 각 TF에서 tEndMs 직전 완성 캔들 찾기
-                        const k1h = d.k1h;
-                        const k4h = d.k4h;
-                        const k1d = d.k1d;
-
-                        const idx1h = binarySearchLastLE(k1h.t, tEndMs - ms1h);
-                        const idx4h = binarySearchLastLE(k4h.t, tEndMs - ms4h);
-                        const idx1d = binarySearchLastLE(k1d.t, tEndMs - ms1d);
-
-                        if (idx1h < 80 || idx4h < 80 || idx1d < 80) return null;
-
-                        const tr = computeTrendScoreDirectional(k1d, k4h, k1h, idx1d, idx4h, idx1h, price, side);
-                        if (tr.score < s.minTrendScore) return null;
-
-                        // Trigger(현재 완성 15m봉)
-                        const trigOk = triggerAtIndexDirectional(k15, n15, idx15, side, s);
-                        if (!trigOk) return null;
-
-                        // Backtest: nEnd=n15 (시점까지)
-                        const triggerEval = (i) => triggerAtIndexDirectional(k15, n15, i, side, s);
-
-                        const bt = backtestUltraDirectional(
-                            k15,
-                            n15,
-                            s.tpAtrMult,
-                            s.slAtrMult,
-                            s.btLookahead,
-                            s.btMaxSignals,
-                            side,
-                            triggerEval
-                        );
-
-                        if (bt.trades < s.btMinTrades) return null;
-                        if (bt.winrate < s.btMinWinrate) return null;
-                        if (bt.wrHalf < s.btMinWrHalf) return null;
-                        if (bt.maxConsecLoss > s.btMaxConsecLoss) return null;
-                        if (bt.expectancy < s.minExpectancy) return null;
-
-                        const tpsl = proposeTPSLDirectional(k15, idx15, s.tpAtrMult, s.slAtrMult, price, side);
-                        const score = scoreRow(tr.score, bt);
-
-                        // STRICT_SAME_MODE에서는 funding/oi가 제거되므로 표에는 0으로
-                        const fundingPct = 0;
-                        const oiChgPct = 0;
-
-                        return {
-                            score,
-                            side,
-                            symbol: d.symbol,
-                            pass: passTag,
-                            winrate: bt.winrate,
-                            trades: bt.trades,
-                            wrHalf: bt.wrHalf,
-                            maxConsecLoss: bt.maxConsecLoss,
-                            expectancy: bt.expectancy,
-                            price,
-                            fundingPct,
-                            oiChgPct,
-                            pxChgPct,
-                            rsi: rsiNow,
-                            atrPct,
-                            trendScore: tr.score,
-                            tp: tpsl.tp,
-                            sl: tpsl.sl,
-                            qv24,
-                            why:
-                                "t=" + toIsoUTC(tEndMs) +
-                                " · Trend " + tr.detail +
-                                " · Px15m " + fmtNum(pxChgPct, 2) + "%" +
-                                " · RSI " + fmtNum(rsiNow, 1) +
-                                " · ATR% " + fmtNum(atrPct, 2) +
-                                " · BT Win " + fmtNum(bt.winrate, 1) + "% (N=" + bt.trades + ")" +
-                                " · Half " + fmtNum(bt.wrHalf, 1) + "%" +
-                                " · MaxCL " + bt.maxConsecLoss +
-                                " · Exp " + fmtNum(bt.expectancy, 3),
-                        };
-                    }
-
-                    if (!STRICT_SAME_MODE) {
-                        setStatus([
-                            '<span class="bad">중단</span> STRICT SAME 모드가 꺼져있습니다.',
-                            '<span class="muted">이 코드는 "조건 동일"을 위해 STRICT SAME만 지원하도록 작성됨</span>',
-                        ]);
-                        return;
-                    }
-
-                    // 시점별 평가
-                    setStatus([
-                        '<span class="info">HISTORY</span> 시점별 스캔 시작',
-                        '<span class="muted">PASS1→PASS2, 각 시점에서 유니버스도 재구성(상위N + 하한)</span>',
-                    ]);
-
-                    // dataMap에 들어있는 심볼만 사용 (수집 실패 심볼 제외)
                     const okSymbols = Array.from(dataMap.keys());
 
-                    // 시점 루프
+                    setStatus([
+                        '<span class="info">HISTORY</span> 시점별 스캔 시작',
+                        '<span class="muted">캔들: ' + fmtInt(maxCandles) + " · 심볼(데이터 OK): " + fmtInt(okSymbols.length) + "</span>",
+                    ]);
+
                     for (let ti = 0; ti < maxCandles; ti += 1) {
                         if (signal.aborted) return;
 
                         const tEndMs = timeline[ti].tEnd;
 
-                        // (A) 해당 시점 유니버스 구성:
-                        // - qv24 >= minQuoteVol
-                        // - 상위 N
+                        // 시점별 유니버스 재구성
                         const ranked = [];
                         for (let si = 0; si < okSymbols.length; si += 1) {
                             const sym = okSymbols[si];
@@ -1976,15 +1703,14 @@
                             if (!d) continue;
 
                             let qv24 = 0;
-
-                            if (d.qvMode === "1h_sum") {
-                                const idx1h = binarySearchLastLE(d.k1h.t, tEndMs - ms1h);
-                                if (idx1h < 0) continue;
-                                qv24 = d.qvSeries[idx1h] || 0;
+                            if (mode === "1h_sum") {
+                                const idx1hQ = binarySearchLastLE(d.k1h.t, tEndMs - ms1h);
+                                if (idx1hQ < 0) continue;
+                                qv24 = d.qvSeries[idx1hQ] || 0;
                             } else {
-                                const idx15 = binarySearchLastLE(d.k15.t, tEndMs - ms15m);
-                                if (idx15 < 0) continue;
-                                qv24 = d.qvSeries[idx15] || 0;
+                                const idx15Q = binarySearchLastLE(d.k15.t, tEndMs - ms15m);
+                                if (idx15Q < 0) continue;
+                                qv24 = d.qvSeries[idx15Q] || 0;
                             }
 
                             if (qv24 < minQuoteVol) continue;
@@ -1993,29 +1719,15 @@
 
                         ranked.sort((a, b) => b.qv24 - a.qv24);
                         const universe = ranked.slice(0, Math.max(20, limitSymbols));
+                        if (universe.length < 20) continue;
 
-                        // universe가 너무 작으면 스킵 (그 시점에 조건상 없음)
-                        if (universe.length < 20) {
-                            if (ti % 60 === 0) {
-                                setStatus([
-                                    '<span class="info">HISTORY</span> 진행: ' + fmtInt(ti + 1) + " / " + fmtInt(maxCandles),
-                                    '<span class="muted">유니버스 부족(>=20 미만) → 스킵</span>',
-                                ]);
-                            }
-                            continue;
-                        }
-
-                        // (B) PASS1 → PASS2 (그 시점 기준)
                         const counts = { LONG: 0, SHORT: 0 };
                         const resultsThisTime = [];
 
-                        function scanPassAtTime(passNo, needLong, needShort) {
-                            const s = buildSettings(passNo);
-
-                            // (주의) 여기서는 "해당 시점의 유니버스"만 돌림
+                        function scanPassAtTime(passNo) {
                             for (let ui = 0; ui < universe.length; ui += 1) {
-                                const longNeed = needLong && counts.LONG < minPerSideTarget;
-                                const shortNeed = needShort && counts.SHORT < minPerSideTarget;
+                                const longNeed = counts.LONG < minPerSideTarget;
+                                const shortNeed = counts.SHORT < minPerSideTarget;
                                 if (!longNeed && !shortNeed) break;
 
                                 const sym = universe[ui].symbol;
@@ -2023,7 +1735,7 @@
                                 if (!d) continue;
 
                                 if (longNeed) {
-                                    const r = trySideAtTime(d, "LONG", s, passNo === 1 ? "P1" : "P2", tEndMs);
+                                    const r = trySideAtTime(d, "LONG", passNo, tEndMs, minQuoteVol, mode);
                                     if (r) {
                                         resultsThisTime.push(r);
                                         counts.LONG += 1;
@@ -2031,7 +1743,7 @@
                                 }
 
                                 if (shortNeed) {
-                                    const r = trySideAtTime(d, "SHORT", s, passNo === 1 ? "P1" : "P2", tEndMs);
+                                    const r = trySideAtTime(d, "SHORT", passNo, tEndMs, minQuoteVol, mode);
                                     if (r) {
                                         resultsThisTime.push(r);
                                         counts.SHORT += 1;
@@ -2040,23 +1752,21 @@
                             }
                         }
 
-                        scanPassAtTime(1, true, true);
+                        scanPassAtTime(1);
 
-                        const needLong2 = counts.LONG < minPerSideTarget;
-                        const needShort2 = counts.SHORT < minPerSideTarget;
-
-                        if (needLong2 || needShort2) {
-                            scanPassAtTime(2, needLong2, needShort2);
-                        }
+                        const needP2 = counts.LONG < minPerSideTarget || counts.SHORT < minPerSideTarget;
+                        if (needP2) scanPassAtTime(2);
 
                         if (resultsThisTime.length > 0) {
-                            // 이 시점에 "결과가 나왔다"
-                            const line = toIsoUTC(tEndMs) + "  |  " + "LONG " + counts.LONG + " / SHORT " + counts.SHORT + "  |  " + "N=" + resultsThisTime.length;
+                            const line =
+                                toIsoUTC(tEndMs) +
+                                "  |  LONG " + counts.LONG +
+                                " / SHORT " + counts.SHORT +
+                                "  |  N=" + resultsThisTime.length;
+
                             histTimes.push(line);
                             appendHistoryLine(line);
 
-                            // 표에는 "최근 시점 결과"를 계속 갱신(너무 많으면 화면이 무거워짐)
-                            // 여기서는 최신 200개만 유지
                             currentRows = currentRows.concat(resultsThisTime);
                             if (currentRows.length > 200) currentRows = currentRows.slice(-200);
                             render(currentRows);
@@ -2065,21 +1775,18 @@
                         if (ti % 30 === 0) {
                             setStatus([
                                 '<span class="info">HISTORY</span> 진행: ' + fmtInt(ti + 1) + " / " + fmtInt(maxCandles),
-                                '<span class="muted">유니버스: ' + fmtInt(universe.length) + " · 결과시간: " + fmtInt(histTimes.length) + "개</span>",
+                                '<span class="muted">유니버스: ' + fmtInt(universe.length) + " · 결과시간: " + fmtInt(histTimes.length) + "</span>",
                             ]);
                         }
 
-                        // 레이트리밋 완화
-                        await sleep(8);
+                        await sleep(6);
                     }
 
-                    if (histTimes.length > 0) {
-                        el.btnExport.disabled = false;
-                    }
+                    if (histTimes.length > 0) el.btnExport.disabled = false;
 
                     setStatus([
                         '<span class="ok">HISTORY 완료</span> — 결과시간 ' + fmtInt(histTimes.length) + "개",
-                        '<span class="muted">표는 최신 200개만 표시(전체 시간목록은 텍스트 박스/Export)</span>',
+                        '<span class="muted">표는 최신 200개만 표시 / 전체 시간목록은 텍스트 박스 & Export</span>',
                     ]);
                 } catch (err) {
                     const msg = err && err.message ? err.message : String(err);
@@ -2099,7 +1806,7 @@
             render([]);
             setStatus([
                 "Live Scan 또는 History Scan을 누르세요.",
-                '<span class="muted">HISTORY는 유니버스(24h QVol)도 시점 동일하게 재현합니다.</span>',
+                '<span class="muted">Softened Lv1: “결과 0”을 줄이기 위해 한 단계만 완화한 버전입니다.</span>',
             ]);
         </script>
     </body>
