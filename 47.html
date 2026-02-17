@@ -25,8 +25,7 @@
                 margin: 0;
                 font-family: var(--sans);
                 background: radial-gradient(1200px 700px at 30% 0%, rgba(122, 162, 255, 0.14), transparent 60%),
-                    radial-gradient(900px 600px at 80% 20%, rgba(68, 209, 143, 0.10), transparent 60%),
-                    var(--bg);
+                    radial-gradient(900px 600px at 80% 20%, rgba(68, 209, 143, 0.10), transparent 60%), var(--bg);
                 color: var(--text);
             }
 
@@ -158,24 +157,22 @@
                 font-size: 13px;
             }
 
-            /* =========================
-               ✅ 모바일 가로 스크롤 수정 핵심
-               ========================= */
+            /* ✅ 모바일 가로 스크롤 */
             .tableWrap {
                 margin-top: 14px;
                 border: 1px solid var(--line);
                 border-radius: 14px;
 
-                overflow-x: auto;                  /* ✅ 가로 스크롤 허용 */
+                overflow-x: auto;
                 overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;  /* ✅ iOS 관성 스크롤 */
+                -webkit-overflow-scrolling: touch;
 
                 background: rgba(0, 0, 0, 0.12);
             }
 
             table {
                 width: 100%;
-                min-width: 1020px;                 /* ✅ 컬럼 수에 맞춰 줄어들지 않게 */
+                min-width: 1020px;
                 border-collapse: collapse;
                 font-size: 13px;
             }
@@ -183,7 +180,7 @@
             thead th {
                 position: sticky;
                 top: 0;
-                z-index: 3;                         /* ✅ sticky column보다 위 */
+                z-index: 3;
                 background: linear-gradient(180deg, rgba(18, 28, 45, 0.96), rgba(18, 28, 45, 0.90));
                 border-bottom: 1px solid var(--line);
                 padding: 10px 10px;
@@ -210,7 +207,7 @@
                 background: rgba(122, 162, 255, 0.06);
             }
 
-            /* ✅ (기본 포함) 첫 컬럼(Symbol) 고정 */
+            /* ✅ 첫 컬럼(Symbol) 고정 */
             thead th:first-child,
             tbody td:first-child {
                 position: sticky;
@@ -220,11 +217,11 @@
             }
 
             thead th:first-child {
-                z-index: 4; /* 헤더 + 첫 컬럼 겹침 최상위 */
+                z-index: 4;
             }
 
             tbody td:first-child {
-                background: rgba(0, 0, 0, 0.30); /* 스크롤 시 겹침 대비 */
+                background: rgba(0, 0, 0, 0.30);
             }
 
             .right {
@@ -357,7 +354,7 @@
                         <div id="nextScan" class="v">-</div>
                     </div>
                     <div class="pill">
-                        <div class="k">초기 로딩 진행</div>
+                        <div class="k">초기 로딩 진행 (ok/fail)</div>
                         <div id="initProgress" class="v">-</div>
                     </div>
                 </div>
@@ -407,6 +404,7 @@
             };
 
             const CACHE_PREFIX = "binance_tf_prob_scanner_v2";
+
             const els = {
                 timeframe: document.getElementById("timeframe"),
                 historyLimit: document.getElementById("historyLimit"),
@@ -488,6 +486,7 @@
                     } catch (err) {
                         clearTimeout(timer);
                         lastErr = err;
+
                         const backoff = 450 * Math.pow(2, attempt);
                         await sleep(backoff);
                     }
@@ -650,6 +649,14 @@
             let autoScheduleToken = 0;
             let historyTouched = false;
 
+            // ✅ 중복 로딩 방지 (TF별)
+            const loadingByTf = {
+                "15m": false,
+                "1h": false,
+                "4h": false,
+                "1d": false,
+            };
+
             function setWsStatus(text, cls = "") {
                 els.wsStatus.textContent = text;
                 els.wsStatus.className = "v " + cls;
@@ -718,6 +725,7 @@
                     tfStates[tfKey].openTimeCaptured = 0;
                     tfStates[tfKey].lastScanAt = 0;
                     tfStates[tfKey].lastInitAt = 0;
+                    loadingByTf[tfKey] = false;
                 }
                 setInitProgress("캐시 삭제 완료(전체 TF)");
                 render();
@@ -1022,11 +1030,18 @@
                 }
             }
 
+            // ✅ 핵심1: ok/fail 카운트 표시 + 중복 로딩 방지
             async function loadHistorySelectedTf() {
                 const tfKey = els.timeframe.value;
                 const tf = TIMEFRAMES[tfKey];
                 const st = tfStates[tfKey];
 
+                if (loadingByTf[tfKey]) {
+                    setInitProgress(`이미 로딩 중: TF=${tfKey}`);
+                    return;
+                }
+
+                loadingByTf[tfKey] = true;
                 els.btnInit.disabled = true;
                 els.btnScan.disabled = true;
 
@@ -1040,16 +1055,19 @@
                     const limit = clamp(Number(els.historyLimit.value) || tf.defaultHistory, 120, 1499);
                     const conc = clamp(Number(els.concurrency.value) || 2, 1, 6);
 
-                    setInitProgress(`히스토리 로딩 시작 (TF=${tfKey}, limit=${limit}, concurrency=${conc})...`);
-
                     let done = 0;
+                    let ok = 0;
+                    let fail = 0;
+
+                    setInitProgress(`히스토리 로딩 시작 (TF=${tfKey}, limit=${limit}, conc=${conc}) (ok=${ok}, fail=${fail})`);
 
                     await mapLimit(allSymbols, conc, async (sym) => {
                         const cached = st.statsBySymbol.get(sym);
 
                         if (cached && Number.isFinite(cached.lastCloseTime) && cached.lastCloseTime >= endTime - tf.ms * 2) {
+                            ok += 1;
                             done += 1;
-                            if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length} (캐시 활용)`);
+                            if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length} (ok=${ok}, fail=${fail}) (캐시)`);
                             return;
                         }
 
@@ -1069,8 +1087,13 @@
                             klines = await fetchJson(url, { timeoutMs: 20000, retries: 2 });
                         } catch (err) {
                             st.statsBySymbol.set(sym, makeEmptyStats());
+                            fail += 1;
                             done += 1;
-                            if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length} (일부 실패)`);
+
+                            if (done % 10 === 0) {
+                                setInitProgress(`${done} / ${allSymbols.length} (ok=${ok}, fail=${fail}) (일부 실패)`);
+                            }
+
                             await sleep(180);
                             return;
                         }
@@ -1094,8 +1117,12 @@
 
                         st.statsBySymbol.set(sym, stats);
 
+                        ok += 1;
                         done += 1;
-                        if (done % 10 === 0) setInitProgress(`${done} / ${allSymbols.length}`);
+
+                        if (done % 10 === 0) {
+                            setInitProgress(`${done} / ${allSymbols.length} (ok=${ok}, fail=${fail})`);
+                        }
 
                         await sleep(140);
                     });
@@ -1103,7 +1130,7 @@
                     st.lastInitAt = Date.now();
                     saveCache(tfKey);
 
-                    setInitProgress(`완료: TF=${tfKey}, ${allSymbols.length}개`);
+                    setInitProgress(`완료: TF=${tfKey}, ${allSymbols.length}개 (ok=${ok}, fail=${fail})`);
                     render();
 
                     st.currentBucketTime = 0;
@@ -1113,6 +1140,7 @@
                     setLastScanForSelected();
                     scheduleNextAutoScanSelected();
                 } finally {
+                    loadingByTf[tfKey] = false;
                     els.btnInit.disabled = false;
                     els.btnScan.disabled = false;
                 }
@@ -1288,11 +1316,20 @@
                     historyTouched = true;
                 });
 
+                // ✅ 핵심2: TF 바꾸면 통계 없을 때 자동 히스토리 로딩
                 els.timeframe.addEventListener("change", () => {
                     applyRecommendedHistoryIfUntouched();
                     setLastScanForSelected();
                     scheduleNextAutoScanSelected();
                     render();
+
+                    const tfKey = els.timeframe.value;
+                    const st = tfStates[tfKey];
+
+                    if (st.statsBySymbol.size === 0) {
+                        // 자동 로딩
+                        void loadHistorySelectedTf();
+                    }
                 });
 
                 els.autoScan.addEventListener("change", () => {
@@ -1319,7 +1356,7 @@
                 bindTableSorting();
                 connectWs();
 
-                setInitProgress("대기 중 (초기 히스토리 로딩/갱신을 누르면 해당 TF 통계가 채워집니다)");
+                setInitProgress("대기 중 (TF를 바꾸면 통계 없을 때 자동 로딩됩니다)");
                 setWsStatus("연결 시도...", "warn");
 
                 loadAllCachesOnce();
@@ -1334,6 +1371,12 @@
                 render();
                 setLastScanForSelected();
                 scheduleNextAutoScanSelected();
+
+                // ✅ 최초 진입 시에도: 현재 TF 통계가 비어있으면 자동 로딩
+                const tfKey = els.timeframe.value;
+                if (tfStates[tfKey].statsBySymbol.size === 0) {
+                    void loadHistorySelectedTf();
+                }
             }
 
             boot();
