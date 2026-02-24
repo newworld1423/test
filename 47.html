@@ -172,7 +172,7 @@
 
             table {
                 width: 100%;
-                min-width: 1020px;
+                min-width: 1260px;
                 border-collapse: collapse;
                 font-size: 13px;
             }
@@ -263,10 +263,11 @@
     <body>
         <div class="wrap">
             <div class="panel">
-                <h1>Binance USDT Perp — TF(15m/1h/4h/1d) 현재봉(C&gt;O) 확률 / 기대수익·손실 / 최대 레버리지(근사)</h1>
+                <h1>Binance USDT Perp — TF(15m/1h/4h/1d) 현재봉(C&gt;O) 확률 / 기대수익·손실 / 진입·익절·손절 / 최대 레버리지(근사)</h1>
                 <div class="sub">
-                    - 확률/기대값은 <b>과거 봉 통계 기반 “추정”</b>입니다.<br />
-                    - 자동 스캔은 <b>Binance 서버시간(UTC) 캔들 경계</b>에 맞춰 동작합니다. (KST 기준: 4h는 01/05/09/13/17/21시, 1d는 09:00)
+                    - 확률/기대값/TP·SL은 <b>과거 봉 통계 기반 “추정”</b>입니다.<br />
+                    - 자동 스캔은 <b>Binance 서버시간(UTC) 캔들 경계</b>에 맞춰 동작합니다. (KST 기준: 4h는 01/05/09/13/17/21시, 1d는 09:00)<br />
+                    - Entry는 <b>현재봉 시가(스캔이 캡쳐)</b>가 있으면 그걸 쓰고, 없으면 <b>Last(현재가)</b>로 대체합니다.
                 </div>
 
                 <div class="controls">
@@ -360,7 +361,7 @@
                 </div>
 
                 <div class="foot">
-                    <b>주의</b>: Max Lev는 단순 근사치입니다. (격리/교차, 포지션 크기, 유지증거금 구간, 슬리피지 등에 따라 실제 청산과 다름)
+                    <b>주의</b>: TP/SL/Max Lev는 단순 근사치입니다. (격리/교차, 포지션 크기, 유지증거금 구간, 슬리피지 등에 따라 실제 청산과 다름)
                 </div>
             </div>
 
@@ -370,6 +371,11 @@
                         <tr>
                             <th data-key="symbol">Symbol<span class="hint" id="sortHintSymbol"></span></th>
                             <th data-key="lastPrice" class="right">Last<span class="hint" id="sortHintLast"></span></th>
+
+                            <th data-key="entryPrice" class="right">Entry<span class="hint" id="sortHintEntry"></span></th>
+                            <th data-key="tpPrice" class="right">TP<span class="hint" id="sortHintTp"></span></th>
+                            <th data-key="slPrice" class="right">SL<span class="hint" id="sortHintSl"></span></th>
+
                             <th data-key="quoteVol" class="right">24h QVol<span class="hint" id="sortHintQ"></span></th>
                             <th data-key="pUp" class="right">P(C&gt;O)<span class="hint" id="sortHintPUp"></span></th>
                             <th data-key="pDown" class="right">P(C&lt;O)<span class="hint" id="sortHintPDown"></span></th>
@@ -386,7 +392,8 @@
             </div>
 
             <div class="foot">
-                * Max Lev(근사): <span class="mono">floor( 1 / (E[-] + mmr + safetyBuffer) )</span>
+                * Max Lev(근사): <span class="mono">floor( 1 / (E[-] + mmr + safetyBuffer) )</span><br />
+                * TP/SL(근사): <span class="mono">TP = Entry * (1 + E[+])</span>, <span class="mono">SL = Entry * (1 - E[-])</span>
             </div>
         </div>
 
@@ -737,6 +744,9 @@
                 const ids = [
                     "sortHintSymbol",
                     "sortHintLast",
+                    "sortHintEntry",
+                    "sortHintTp",
+                    "sortHintSl",
                     "sortHintQ",
                     "sortHintPUp",
                     "sortHintPDown",
@@ -756,6 +766,9 @@
                 const map = {
                     symbol: "sortHintSymbol",
                     lastPrice: "sortHintLast",
+                    entryPrice: "sortHintEntry",
+                    tpPrice: "sortHintTp",
+                    slPrice: "sortHintSl",
                     quoteVol: "sortHintQ",
                     pUp: "sortHintPUp",
                     pDown: "sortHintPDown",
@@ -776,6 +789,19 @@
                 el.textContent = sortAsc ? "▲" : "▼";
             }
 
+            function getEntryPrice(sym, tfKey) {
+                const st = tfStates[tfKey];
+
+                const openInfo = st.currentCandleOpen.get(sym);
+                if (openInfo && Number.isFinite(openInfo.openPrice) && openInfo.openPrice > 0) {
+                    return Number(openInfo.openPrice);
+                }
+
+                const ticker = latestTicker.get(sym) || null;
+                const lastPrice = ticker ? Number(ticker.lastPrice) : NaN;
+                return lastPrice;
+            }
+
             function getRowData(sym) {
                 const tfKey = els.timeframe.value;
                 const tf = TIMEFRAMES[tfKey];
@@ -792,6 +818,10 @@
                     ? estimateFromStats(stats, useConditional, tf.condMinN)
                     : { pUp: 0.5, pDown: 0.5, muUp: 0, muDown: 0, n: 0, mode: "none" };
 
+                const entryPrice = getEntryPrice(sym, tfKey);
+                const tpPrice = Number.isFinite(entryPrice) ? entryPrice * (1 + (Number(est.muUp) || 0)) : NaN;
+                const slPrice = Number.isFinite(entryPrice) ? entryPrice * (1 - (Number(est.muDown) || 0)) : NaN;
+
                 const fee = Number(els.feeRoundTrip.value) || 0;
                 const ev = est.pUp * est.muUp - est.pDown * est.muDown - fee;
 
@@ -802,6 +832,9 @@
                 return {
                     symbol: sym,
                     lastPrice,
+                    entryPrice,
+                    tpPrice,
+                    slPrice,
                     quoteVol,
                     pUp: est.pUp,
                     pDown: est.pDown,
@@ -886,6 +919,21 @@
                     tdLast.textContent = fmtPrice(r.lastPrice);
                     tdLast.className = "mono right";
                     tr.appendChild(tdLast);
+
+                    const tdEntry = document.createElement("td");
+                    tdEntry.textContent = fmtPrice(r.entryPrice);
+                    tdEntry.className = "mono right";
+                    tr.appendChild(tdEntry);
+
+                    const tdTp = document.createElement("td");
+                    tdTp.textContent = fmtPrice(r.tpPrice);
+                    tdTp.className = "mono right good";
+                    tr.appendChild(tdTp);
+
+                    const tdSl = document.createElement("td");
+                    tdSl.textContent = fmtPrice(r.slPrice);
+                    tdSl.className = "mono right bad";
+                    tr.appendChild(tdSl);
 
                     const tdQ = document.createElement("td");
                     tdQ.textContent = Number.isFinite(r.quoteVol) ? fmtInt(r.quoteVol) : "-";
