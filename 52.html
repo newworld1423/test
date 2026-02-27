@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="ko-KR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance USDT Perp — 1M a[-3] Low가 ALL-TIME 최저점인 심볼 스캐너</title>
+        <style>
+            :root {
+                color-scheme: dark;
+                --bg: #0b0f17;
+                --panel: #0f1623;
+                --text: #e8eefc;
+                --muted: rgba(232, 238, 252, 0.65);
+                --line: rgba(232, 238, 252, 0.12);
+                --accent: #7aa2ff;
+                --good: #44d18f;
+                --bad: #ff5a7a;
+                --warn: #ffd166;
+                --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Noto Sans KR",
+                    "Malgun Gothic", Arial, "Helvetica Neue", Helvetica, sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: var(--sans);
+                background: radial-gradient(1200px 900px at 10% 0%, rgba(122, 162, 255, 0.12), transparent 55%),
+                    radial-gradient(900px 700px at 90% 10%, rgba(68, 209, 143, 0.08), transparent 55%),
+                    radial-gradient(1100px 800px at 40% 100%, rgba(255, 90, 122, 0.06), transparent 55%),
+                    var(--bg);
+                color: var(--text);
+            }
+
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 18px 16px 40px;
+            }
+
+            .titlebar {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+
+            h1 {
+                font-size: 18px;
+                margin: 0 0 6px;
+                letter-spacing: -0.2px;
+            }
+
+            .sub {
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.5;
+            }
+
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 3px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.03);
+                font-size: 11px;
+                color: rgba(232, 238, 252, 0.9);
+                font-weight: 800;
+            }
+
+            .card {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                padding: 14px;
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+            }
+
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+
+            .leftControls,
+            .rightControls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+
+            button {
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text);
+                padding: 9px 12px;
+                border-radius: 12px;
+                cursor: pointer;
+                font-weight: 800;
+                letter-spacing: -0.1px;
+            }
+
+            button:hover {
+                border-color: rgba(122, 162, 255, 0.35);
+                background: rgba(122, 162, 255, 0.08);
+            }
+
+            button:disabled {
+                opacity: 0.45;
+                cursor: not-allowed;
+            }
+
+            .danger:hover {
+                border-color: rgba(255, 90, 122, 0.5);
+                background: rgba(255, 90, 122, 0.08);
+            }
+
+            .field {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 10px;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.12);
+            }
+
+            .field label {
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            input[type="number"],
+            input[type="text"] {
+                background: transparent;
+                border: none;
+                outline: none;
+                color: var(--text);
+                font-weight: 800;
+            }
+
+            input[type="number"] {
+                width: 120px;
+                font-family: var(--mono);
+            }
+
+            input[type="text"] {
+                width: 240px;
+                font-family: var(--sans);
+                font-weight: 700;
+            }
+
+            .statusRow {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 12px;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .status {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .status b {
+                color: var(--text);
+            }
+
+            .barOuter {
+                flex: 1 1 360px;
+                height: 10px;
+                border-radius: 999px;
+                border: 1px solid var(--line);
+                overflow: hidden;
+                background: rgba(255, 255, 255, 0.03);
+                min-width: 240px;
+            }
+
+            .barInner {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, rgba(122, 162, 255, 0.9), rgba(68, 209, 143, 0.9));
+            }
+
+            .tableWrap {
+                margin-top: 14px;
+                overflow: auto;
+                border-radius: 14px;
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.14);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 1200px;
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                z-index: 1;
+                background: rgba(15, 22, 35, 0.92);
+                backdrop-filter: blur(8px);
+                text-align: left;
+                padding: 10px 10px;
+                font-size: 12px;
+                color: rgba(232, 238, 252, 0.78);
+                border-bottom: 1px solid var(--line);
+                white-space: nowrap;
+            }
+
+            tbody td {
+                padding: 10px 10px;
+                border-bottom: 1px solid rgba(232, 238, 252, 0.08);
+                font-size: 12px;
+                white-space: nowrap;
+            }
+
+            tbody tr:hover {
+                background: rgba(122, 162, 255, 0.06);
+            }
+
+            .mono {
+                font-family: var(--mono);
+            }
+
+            .ok {
+                color: var(--good);
+                font-weight: 900;
+            }
+
+            .warn {
+                color: var(--warn);
+                font-weight: 900;
+            }
+
+            .muted {
+                color: var(--muted);
+            }
+
+            .hint {
+                margin-top: 10px;
+                font-size: 12px;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+
+            .hint code {
+                font-family: var(--mono);
+                font-weight: 800;
+                color: rgba(232, 238, 252, 0.92);
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="wrap">
+            <div class="titlebar">
+                <div>
+                    <h1>Binance USDT 무기한 선물 — 1M 전체봉 스캔: a[-3] Low가 ALL-TIME 최저점인 심볼 찾기</h1>
+                    <div class="sub">
+                        <span class="pill">USDT PERPETUAL</span> 전체 심볼을 대상으로,
+                        <span class="pill">월봉(1M)</span> 전체 히스토리에서<br />
+                        <code>a = 현재봉(가장 마지막 월봉)</code> 일 때 <code>a[-3]</code> 봉의 <code>Low</code> 가
+                        <code>전체 월봉 Low 중 최저</code> 인 심볼만 추립니다. (최저점 동률도 포함)
+                    </div>
+                </div>
+                <div class="pill" id="nowBadge">—</div>
+            </div>
+
+            <div class="card">
+                <div class="controls">
+                    <div class="leftControls">
+                        <button id="btnScan">스캔 시작</button>
+                        <button id="btnStop" class="danger" disabled>중지</button>
+                        <button id="btnCopy" disabled>CSV 복사</button>
+                    </div>
+                    <div class="rightControls">
+                        <div class="field">
+                            <label for="concurrency">동시요청</label>
+                            <input id="concurrency" type="number" min="1" max="20" step="1" value="6" />
+                        </div>
+                        <div class="field">
+                            <label for="retry">재시도</label>
+                            <input id="retry" type="number" min="0" max="3" step="1" value="1" />
+                        </div>
+                        <div class="field">
+                            <label for="epsilon">동률 오차</label>
+                            <input id="epsilon" type="number" min="0" step="0.0000000001" value="0.000000001" />
+                        </div>
+                        <div class="field">
+                            <label for="q">검색</label>
+                            <input id="q" type="text" placeholder="예: BTC, ETH, 1000..." />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="statusRow">
+                    <div class="status" id="statusText">준비됨</div>
+                    <div class="barOuter" title="진행률">
+                        <div class="barInner" id="bar"></div>
+                    </div>
+                </div>
+
+                <div class="tableWrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>심볼</th>
+                                <th class="mono">월봉 개수</th>
+                                <th>a[-3] 봉(UTC)</th>
+                                <th>a[-3] 봉(KST)</th>
+                                <th class="mono">a[-3] Low</th>
+                                <th class="mono">ALL-TIME Min Low</th>
+                                <th class="mono">Min 동률 개수</th>
+                                <th class="mono">Min 발생 인덱스들</th>
+                                <th>판정</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody">
+                            <tr>
+                                <td colspan="10" class="muted">스캔 시작을 누르세요.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="hint">
+                    - 월봉 API는 보통 <code>limit=1500</code> 으로 “거의 전체 히스토리”가 한 번에 내려옵니다. (선물 서비스 시작 이후 기간이 1500개월 미만)<br />
+                    - <code>a[-3]</code> 는 “현재봉(마지막 봉)” 기준으로 <b>마지막에서 3번째 봉</b>입니다. (예: 마지막이 2026-02 진행중이면, a[-3]는 2025-12 봉)<br />
+                    - 신규 상장 등으로 월봉이 3개 미만인 심볼은 제외됩니다.
+                </div>
+            </div>
+        </div>
+
+        <script>
+            "use strict";
+
+            const BINANCE_FAPI_BASE = "https://fapi.binance.com";
+            const ENDPOINT_EXCHANGE_INFO = `${BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo`;
+            const ENDPOINT_KLINES = `${BINANCE_FAPI_BASE}/fapi/v1/klines`;
+
+            const $ = (id) => document.getElementById(id);
+
+            const btnScan = $("btnScan");
+            const btnStop = $("btnStop");
+            const btnCopy = $("btnCopy");
+            const tbody = $("tbody");
+            const statusText = $("statusText");
+            const bar = $("bar");
+            const nowBadge = $("nowBadge");
+
+            const inputConcurrency = $("concurrency");
+            const inputRetry = $("retry");
+            const inputEpsilon = $("epsilon");
+            const inputQuery = $("q");
+
+            let scanState = {
+                running: false,
+                aborted: false,
+                abortController: null,
+                symbolsTotal: 0,
+                done: 0,
+                ok: 0,
+                fail: 0,
+                hit: 0,
+                startedAt: 0,
+                lastRenderAt: 0,
+                results: [],
+                rendered: [],
+            };
+
+            function setNowBadge() {
+                const now = new Date();
+                const kst = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+                nowBadge.textContent = `현재: ${kst} (KST)`;
+            }
+
+            setNowBadge();
+            setInterval(setNowBadge, 1000);
+
+            function clamp(n, min, max) {
+                return Math.min(max, Math.max(min, n));
+            }
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            function setStatus(html) {
+                statusText.innerHTML = html;
+            }
+
+            function setProgress(done, total) {
+                const pct = total > 0 ? (done / total) * 100 : 0;
+                bar.style.width = `${pct.toFixed(2)}%`;
+            }
+
+            function resetTable(msg) {
+                tbody.innerHTML = "";
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.colSpan = 10;
+                td.className = "muted";
+                td.textContent = msg;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            }
+
+            function tsToUtcMonth(ts) {
+                const d = new Date(ts);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+                return `${y}-${m}`;
+            }
+
+            function tsToKstMonth(ts) {
+                const d = new Date(ts);
+                const y = d.toLocaleString("en-US", { timeZone: "Asia/Seoul", year: "numeric" });
+                const m = d.toLocaleString("en-US", { timeZone: "Asia/Seoul", month: "2-digit" });
+                return `${y}-${m}`;
+            }
+
+            function formatPrice(n) {
+                if (!Number.isFinite(n)) return "-";
+                const abs = Math.abs(n);
+                if (abs >= 1000) return n.toFixed(2);
+                if (abs >= 1) return n.toFixed(6);
+                if (abs >= 0.01) return n.toFixed(8);
+                return n.toFixed(10);
+            }
+
+            async function fetchJson(url, signal) {
+                const res = await fetch(url, {
+                    method: "GET",
+                    signal,
+                    headers: {
+                        "Accept": "application/json",
+                    },
+                });
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 140)}` : ""}`);
+                }
+
+                return res.json();
+            }
+
+            async function loadUsdtPerpSymbols(signal) {
+                const info = await fetchJson(ENDPOINT_EXCHANGE_INFO, signal);
+
+                if (!info || !Array.isArray(info.symbols)) {
+                    throw new Error("exchangeInfo 응답 형식이 예상과 다릅니다.");
+                }
+
+                const symbols = info.symbols
+                    .filter((s) => s && s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING")
+                    .map((s) => s.symbol)
+                    .filter((sym) => typeof sym === "string" && sym.length > 0);
+
+                symbols.sort((a, b) => a.localeCompare(b));
+                return symbols;
+            }
+
+            function buildKlinesUrl(symbol) {
+                const u = new URL(ENDPOINT_KLINES);
+                u.searchParams.set("symbol", symbol);
+                u.searchParams.set("interval", "1M");
+                u.searchParams.set("limit", "1500");
+                return u.toString();
+            }
+
+            function parseMonthlyLows(klines) {
+                if (!Array.isArray(klines) || klines.length < 4) return null;
+
+                const lows = [];
+                const openTimes = [];
+
+                for (let i = 0; i < klines.length; i += 1) {
+                    const k = klines[i];
+                    if (!Array.isArray(k) || k.length < 6) return null;
+
+                    const openTime = Number(k[0]);
+                    const low = Number(k[3]);
+
+                    if (!Number.isFinite(openTime) || !Number.isFinite(low)) return null;
+
+                    openTimes.push(openTime);
+                    lows.push(low);
+                }
+
+                return { lows, openTimes };
+            }
+
+            function analyzeSymbol(symbol, klines, epsilon) {
+                const parsed = parseMonthlyLows(klines);
+                if (!parsed) {
+                    return { ok: false, symbol, reason: "월봉 데이터 부족(4개 미만) 또는 파싱 실패" };
+                }
+
+                const { lows, openTimes } = parsed;
+                const len = lows.length;
+
+                const targetIndex = len - 3;   // a[-3]
+                if (targetIndex < 0 || targetIndex >= len) {
+                    return { ok: false, symbol, reason: "a[-3] 인덱스 계산 실패" };
+                }
+
+                let minLow = Infinity;
+                for (let i = 0; i < len; i += 1) {
+                    const v = lows[i];
+                    if (v < minLow) minLow = v;
+                }
+
+                const minIdx = [];
+                for (let i = 0; i < len; i += 1) {
+                    if (Math.abs(lows[i] - minLow) <= epsilon) {
+                        minIdx.push(i);
+                    }
+                }
+
+                const targetLow = lows[targetIndex];
+                const isHit = Math.abs(targetLow - minLow) <= epsilon;
+
+                return {
+                    ok: true,
+                    symbol,
+                    count: len,
+                    targetIndex,
+                    targetOpenTime: openTimes[targetIndex],
+                    targetLow,
+                    minLow,
+                    minIdx,
+                    isHit,
+                };
+            }
+
+            async function fetchWithRetry(url, signal, retryCount) {
+                let lastErr = null;
+
+                for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+                    try {
+                        return await fetchJson(url, signal);
+                    } catch (err) {
+                        lastErr = err;
+
+                        const msg = String(err && err.message ? err.message : err);
+                        if (msg.includes("AbortError")) throw err;
+
+                        const shouldBackoff =
+                            msg.includes("HTTP 429") ||
+                            msg.includes("HTTP 418") ||
+                            msg.includes("HTTP 503") ||
+                            msg.includes("HTTP 504") ||
+                            msg.includes("HTTP 500");
+
+                        if (attempt < retryCount) {
+                            const base = shouldBackoff ? 600 : 220;
+                            const jitter = Math.floor(Math.random() * 180);
+                            await sleep(base + attempt * 450 + jitter);
+                            continue;
+                        }
+                    }
+                }
+
+                throw lastErr || new Error("알 수 없는 오류");
+            }
+
+            async function runPromisePool(items, worker, concurrency, onProgress) {
+                const results = new Array(items.length);
+                let index = 0;
+                let active = 0;
+
+                return new Promise((resolve) => {
+                    const next = () => {
+                        if (scanState.aborted) {
+                            resolve(results);
+                            return;
+                        }
+
+                        while (active < concurrency && index < items.length) {
+                            const currentIndex = index;
+                            const item = items[currentIndex];
+                            index += 1;
+                            active += 1;
+
+                            Promise.resolve()
+                                .then(() => worker(item))
+                                .then((res) => {
+                                    results[currentIndex] = res;
+                                })
+                                .catch((err) => {
+                                    results[currentIndex] = { ok: false, symbol: item, reason: String(err && err.message ? err.message : err) };
+                                })
+                                .finally(() => {
+                                    active -= 1;
+                                    if (onProgress) onProgress();
+                                    if (index >= items.length && active === 0) {
+                                        resolve(results);
+                                        return;
+                                    }
+                                    next();
+                                });
+                        }
+                    };
+
+                    next();
+                });
+            }
+
+            function buildStatusHtml() {
+                const total = scanState.symbolsTotal;
+                const done = scanState.done;
+                const ok = scanState.ok;
+                const fail = scanState.fail;
+                const hit = scanState.hit;
+
+                const elapsedMs = Date.now() - scanState.startedAt;
+                const elapsedSec = Math.max(0.001, elapsedMs / 1000);
+                const rps = done / elapsedSec;
+
+                const elapsedText = elapsedSec >= 60
+                    ? `${Math.floor(elapsedSec / 60)}m ${Math.floor(elapsedSec % 60)}s`
+                    : `${Math.floor(elapsedSec)}s`;
+
+                return `진행 <b>${done}</b>/<b>${total}</b> · 성공 <b>${ok}</b> · 실패 <b>${fail}</b> · HIT <b>${hit}</b> · <b>${rps.toFixed(2)}</b> req/s · 경과 <b>${elapsedText}</b>`;
+            }
+
+            function onProgressTick() {
+                scanState.done += 1;
+
+                const now = Date.now();
+                if (now - scanState.lastRenderAt > 120) {
+                    scanState.lastRenderAt = now;
+                    setProgress(scanState.done, scanState.symbolsTotal);
+                    setStatus(buildStatusHtml());
+                }
+            }
+
+            function buildRow(rank, r) {
+                const tr = document.createElement("tr");
+
+                const tdRank = document.createElement("td");
+                tdRank.textContent = String(rank);
+                tr.appendChild(tdRank);
+
+                const tdSym = document.createElement("td");
+                tdSym.className = "mono";
+                tdSym.textContent = r.symbol;
+                tr.appendChild(tdSym);
+
+                const tdCount = document.createElement("td");
+                tdCount.className = "mono";
+                tdCount.textContent = String(r.count);
+                tr.appendChild(tdCount);
+
+                const tdUtc = document.createElement("td");
+                tdUtc.className = "mono";
+                tdUtc.textContent = tsToUtcMonth(r.targetOpenTime);
+                tr.appendChild(tdUtc);
+
+                const tdKst = document.createElement("td");
+                tdKst.className = "mono";
+                tdKst.textContent = tsToKstMonth(r.targetOpenTime);
+                tr.appendChild(tdKst);
+
+                const tdTargetLow = document.createElement("td");
+                tdTargetLow.className = "mono";
+                tdTargetLow.textContent = formatPrice(r.targetLow);
+                tr.appendChild(tdTargetLow);
+
+                const tdMinLow = document.createElement("td");
+                tdMinLow.className = "mono";
+                tdMinLow.textContent = formatPrice(r.minLow);
+                tr.appendChild(tdMinLow);
+
+                const tdTieCount = document.createElement("td");
+                tdTieCount.className = "mono";
+                tdTieCount.textContent = String(r.minIdx.length);
+                tr.appendChild(tdTieCount);
+
+                const tdIdx = document.createElement("td");
+                tdIdx.className = "mono muted";
+                tdIdx.textContent = r.minIdx.length <= 12 ? r.minIdx.join(",") : `${r.minIdx.slice(0, 12).join(",")} ...`;
+                tr.appendChild(tdIdx);
+
+                const tdJudge = document.createElement("td");
+                tdJudge.className = r.isHit ? "ok" : "muted";
+                tdJudge.textContent = r.isHit ? "HIT" : "-";
+                tr.appendChild(tdJudge);
+
+                return tr;
+            }
+
+            function renderTable(results, q) {
+                const query = (q || "").trim().toUpperCase();
+
+                const filtered = query.length > 0
+                    ? results.filter((r) => r.symbol.includes(query))
+                    : results.slice();
+
+                tbody.innerHTML = "";
+
+                if (filtered.length === 0) {
+                    const tr = document.createElement("tr");
+                    const td = document.createElement("td");
+                    td.colSpan = 10;
+                    td.className = "muted";
+                    td.textContent = query.length > 0 ? "검색 결과가 없습니다." : "조건을 만족하는 심볼이 없습니다.";
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                    scanState.rendered = [];
+                    return;
+                }
+
+                const frag = document.createDocumentFragment();
+                for (let i = 0; i < filtered.length; i += 1) {
+                    frag.appendChild(buildRow(i + 1, filtered[i]));
+                }
+                tbody.appendChild(frag);
+
+                scanState.rendered = filtered;
+            }
+
+            function toCsv(results) {
+                const header = [
+                    "rank",
+                    "symbol",
+                    "monthCount",
+                    "a_minus_3_utc_month",
+                    "a_minus_3_kst_month",
+                    "a_minus_3_low",
+                    "all_time_min_low",
+                    "min_tie_count",
+                    "min_indices",
+                ];
+
+                const rows = [header.join(",")];
+
+                for (let i = 0; i < results.length; i += 1) {
+                    const r = results[i];
+                    const row = [
+                        String(i + 1),
+                        r.symbol,
+                        String(r.count),
+                        `"${tsToUtcMonth(r.targetOpenTime)}"`,
+                        `"${tsToKstMonth(r.targetOpenTime)}"`,
+                        String(r.targetLow),
+                        String(r.minLow),
+                        String(r.minIdx.length),
+                        `"${r.minIdx.join("|")}"`,
+                    ];
+                    rows.push(row.join(","));
+                }
+
+                return rows.join("\n");
+            }
+
+            async function copyText(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                } catch {
+                    return false;
+                }
+            }
+
+            function fallbackCopy(text) {
+                const ta = document.createElement("textarea");
+                ta.value = text;
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                ta.style.top = "0";
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                let ok = false;
+                try {
+                    ok = document.execCommand("copy");
+                } catch {
+                    ok = false;
+                }
+                document.body.removeChild(ta);
+                return ok;
+            }
+
+            function setUiRunning(running) {
+                btnScan.disabled = running;
+                btnStop.disabled = !running;
+                inputConcurrency.disabled = running;
+                inputRetry.disabled = running;
+                inputEpsilon.disabled = running;
+            }
+
+            function setCopyEnabled(enabled) {
+                btnCopy.disabled = !enabled;
+            }
+
+            async function startScan() {
+                if (scanState.running) return;
+
+                scanState.running = true;
+                scanState.aborted = false;
+                scanState.abortController = new AbortController();
+
+                scanState.symbolsTotal = 0;
+                scanState.done = 0;
+                scanState.ok = 0;
+                scanState.fail = 0;
+                scanState.hit = 0;
+                scanState.results = [];
+                scanState.rendered = [];
+
+                scanState.startedAt = Date.now();
+                scanState.lastRenderAt = 0;
+
+                setUiRunning(true);
+                setCopyEnabled(false);
+                setProgress(0, 1);
+                resetTable("심볼 목록 불러오는 중...");
+
+                const concurrency = clamp(Number(inputConcurrency.value || 6), 1, 20);
+                const retryCount = clamp(Number(inputRetry.value || 1), 0, 3);
+                const epsilon = Math.max(0, Number(inputEpsilon.value || 0));
+
+                try {
+                    const signal = scanState.abortController.signal;
+
+                    const symbols = await loadUsdtPerpSymbols(signal);
+                    scanState.symbolsTotal = symbols.length;
+
+                    setStatus(`심볼 <b>${symbols.length}</b>개 · 월봉(1M) 전체 스캔 준비 중...`);
+                    setProgress(0, symbols.length);
+
+                    if (symbols.length === 0) {
+                        resetTable("스캔할 USDT PERPETUAL 심볼이 없습니다.");
+                        scanState.running = false;
+                        setUiRunning(false);
+                        return;
+                    }
+
+                    resetTable("스캔 중...");
+
+                    const worker = async (symbol) => {
+                        const url = buildKlinesUrl(symbol);
+                        const klines = await fetchWithRetry(url, signal, retryCount);
+                        const analysis = analyzeSymbol(symbol, klines, epsilon);
+
+                        if (!analysis.ok) {
+                            scanState.fail += 1;
+                            return analysis;
+                        }
+
+                        scanState.ok += 1;
+
+                        if (analysis.isHit) {
+                            scanState.hit += 1;
+                        }
+
+                        return analysis;
+                    };
+
+                    const raw = await runPromisePool(symbols, worker, concurrency, onProgressTick);
+
+                    if (scanState.aborted) {
+                        setStatus(`중지됨 · ${buildStatusHtml()}`);
+                    } else {
+                        setStatus(`완료 · ${buildStatusHtml()}`);
+                    }
+
+                    const hits = raw
+                        .filter((r) => r && r.ok === true && r.isHit === true)
+                        .map((r) => ({
+                            symbol: r.symbol,
+                            count: r.count,
+                            targetOpenTime: r.targetOpenTime,
+                            targetLow: r.targetLow,
+                            minLow: r.minLow,
+                            minIdx: r.minIdx,
+                            isHit: true,
+                        }));
+
+                    hits.sort((a, b) => {
+                        if (a.targetLow !== b.targetLow) return a.targetLow - b.targetLow; // 최저점(가격) 낮은 순
+                        return a.symbol.localeCompare(b.symbol);
+                    });
+
+                    scanState.results = hits;
+
+                    renderTable(scanState.results, inputQuery.value);
+                    setCopyEnabled(scanState.results.length > 0);
+
+                    setProgress(scanState.symbolsTotal, scanState.symbolsTotal);
+                } catch (err) {
+                    const msg = String(err && err.message ? err.message : err);
+
+                    if (msg.includes("AbortError")) {
+                        setStatus("중지됨");
+                        resetTable("중지되었습니다.");
+                    } else {
+                        setStatus("오류 발생");
+                        resetTable(`오류: ${msg}`);
+                    }
+                } finally {
+                    scanState.running = false;
+                    setUiRunning(false);
+                }
+            }
+
+            function stopScan() {
+                if (!scanState.running) return;
+                scanState.aborted = true;
+                try {
+                    if (scanState.abortController) scanState.abortController.abort();
+                } catch {
+                    // ignore
+                }
+                setStatus("중지 요청됨...");
+                btnStop.disabled = true;
+            }
+
+            btnScan.addEventListener("click", () => {
+                startScan();
+            });
+
+            btnStop.addEventListener("click", () => {
+                stopScan();
+            });
+
+            btnCopy.addEventListener("click", async () => {
+                if (!scanState.results || scanState.results.length === 0) return;
+
+                const csv = toCsv(scanState.results);
+                const ok = await copyText(csv);
+                const ok2 = ok ? true : fallbackCopy(csv);
+
+                if (ok2) {
+                    setStatus(`${buildStatusHtml()} · CSV 복사 완료 ✅`);
+                } else {
+                    setStatus(`${buildStatusHtml()} · CSV 복사 실패 ❌ (브라우저 권한 확인)`);
+                }
+            });
+
+            let qTimer = null;
+            inputQuery.addEventListener("input", () => {
+                if (qTimer) window.clearTimeout(qTimer);
+                qTimer = window.setTimeout(() => {
+                    renderTable(scanState.results || [], inputQuery.value);
+                }, 80);
+            });
+        </script>
+    </body>
+</html>
