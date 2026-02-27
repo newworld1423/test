@@ -243,11 +243,6 @@
                 font-weight: 900;
             }
 
-            .warn {
-                color: var(--warn);
-                font-weight: 900;
-            }
-
             .muted {
                 color: var(--muted);
             }
@@ -275,7 +270,7 @@
                     <div class="sub">
                         <span class="pill">USDT PERPETUAL</span> 전체 심볼을 대상으로,
                         <span class="pill">월봉(1M)</span> 전체 히스토리에서<br />
-                        <code>a = 현재봉(가장 마지막 월봉)</code> 일 때 <code>a[-3]</code> 봉의 <code>Low</code> 가
+                        <code>a = 현재봉(마지막 봉)</code> 일 때 <code>a[-3]</code>(= <b>3봉전</b>) 봉의 <code>Low</code> 가
                         <code>전체 월봉 Low 중 최저</code> 인 심볼만 추립니다. (최저점 동률도 포함)
                     </div>
                 </div>
@@ -341,9 +336,10 @@
                 </div>
 
                 <div class="hint">
-                    - 월봉 API는 보통 <code>limit=1500</code> 으로 “거의 전체 히스토리”가 한 번에 내려옵니다. (선물 서비스 시작 이후 기간이 1500개월 미만)<br />
-                    - <code>a[-3]</code> 는 “현재봉(마지막 봉)” 기준으로 <b>마지막에서 3번째 봉</b>입니다. (예: 마지막이 2026-02 진행중이면, a[-3]는 2025-12 봉)<br />
-                    - 신규 상장 등으로 월봉이 3개 미만인 심볼은 제외됩니다.
+                    - 월봉 API는 <code>limit=1500</code> 으로 “거의 전체 히스토리”가 한 번에 내려옵니다.<br />
+                    - 정의: 마지막 봉을 <code>a</code>(현재봉)라고 할 때, <code>a[-3]</code>는 <b>현재봉 기준 3봉전</b>입니다.
+                    (즉 인덱스는 <code>len - 4</code>)<br />
+                    - 월봉이 4개 미만인 심볼은 <code>a[-3]</code>가 성립하지 않아 제외됩니다.
                 </div>
             </div>
         </div>
@@ -517,7 +513,8 @@
                 const { lows, openTimes } = parsed;
                 const len = lows.length;
 
-                const targetIndex = len - 3;   // a[-3]
+                // ✅ 3봉전: a = 마지막 봉(len-1), a[-3] = len-4
+                const targetIndex = len - 4;
                 if (targetIndex < 0 || targetIndex >= len) {
                     return { ok: false, symbol, reason: "a[-3] 인덱스 계산 실패" };
                 }
@@ -897,7 +894,7 @@
                         }));
 
                     hits.sort((a, b) => {
-                        if (a.targetLow !== b.targetLow) return a.targetLow - b.targetLow; // 최저점(가격) 낮은 순
+                        if (a.targetLow !== b.targetLow) return a.targetLow - b.targetLow;
                         return a.symbol.localeCompare(b.symbol);
                     });
 
