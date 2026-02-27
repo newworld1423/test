@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 1M a[-3] Low == ALL-TIME Min Low (초안전 스캐너)</title>
+        <title>Binance USDT Perp — 1M a[-3] Low == ALL-TIME Min Low (안전+빠름, 실패원인 표시)</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -36,7 +36,7 @@
             }
 
             .wrap {
-                max-width: 1280px;
+                max-width: 1400px;
                 margin: 0 auto;
                 padding: 18px 16px 40px;
             }
@@ -142,7 +142,8 @@
             }
 
             input[type="number"],
-            input[type="text"] {
+            input[type="text"],
+            select {
                 background: transparent;
                 border: none;
                 outline: none;
@@ -151,7 +152,7 @@
             }
 
             input[type="number"] {
-                width: 120px;
+                width: 110px;
                 font-family: var(--mono);
             }
 
@@ -159,6 +160,11 @@
                 width: 240px;
                 font-family: var(--sans);
                 font-weight: 700;
+            }
+
+            select {
+                font-family: var(--sans);
+                font-weight: 800;
             }
 
             .statusRow {
@@ -173,6 +179,7 @@
             .status {
                 font-size: 12px;
                 color: var(--muted);
+                line-height: 1.5;
             }
 
             .status b {
@@ -206,7 +213,7 @@
             table {
                 width: 100%;
                 border-collapse: collapse;
-                min-width: 1200px;
+                min-width: 1500px;
             }
 
             thead th {
@@ -228,6 +235,7 @@
                 border-bottom: 1px solid rgba(232, 238, 252, 0.08);
                 font-size: 12px;
                 white-space: nowrap;
+                vertical-align: top;
             }
 
             tbody tr:hover {
@@ -243,8 +251,24 @@
                 font-weight: 900;
             }
 
+            .fail {
+                color: var(--bad);
+                font-weight: 900;
+            }
+
+            .hit {
+                color: var(--warn);
+                font-weight: 900;
+            }
+
             .muted {
                 color: var(--muted);
+            }
+
+            .reason {
+                max-width: 520px;
+                white-space: normal;
+                line-height: 1.4;
             }
 
             .hint {
@@ -266,11 +290,11 @@
         <div class="wrap">
             <div class="titlebar">
                 <div>
-                    <h1>Binance USDT 무기한 — 1M a[-3] Low == ALL-TIME 최저 Low (초안전 스캔)</h1>
+                    <h1>Binance USDT 무기한 — 1M 전체 스캔 (안전+빠름): a[-3] Low가 ALL-TIME 최저점인 심볼 찾기</h1>
                     <div class="sub">
-                        <span class="pill">USDT PERPETUAL</span> 전체 심볼을 대상으로 <span class="pill">월봉(1M)</span> 스캔.<br />
-                        <code>a = 현재봉(마지막 봉)</code>, <code>a[-3]</code> (= <b>3봉전</b>)의 <code>Low</code>가
-                        <code>전체 월봉 Low 최저점(동률 포함)</code>이면 HIT.
+                        <span class="pill">USDT PERPETUAL</span> 전체 심볼 대상 · <span class="pill">월봉(1M)</span> 스캔 ·
+                        <code>a = 현재봉(마지막 봉)</code> · <code>a[-3]</code>는 <b>3봉전</b>(= 인덱스 <code>len - 4</code>)<br />
+                        결과는 <b>HIT / OK / FAIL</b> 전부 표시하며, <b>FAIL은 reason을 반드시 기록</b>합니다.
                     </div>
                 </div>
                 <div class="pill" id="nowBadge">—</div>
@@ -281,12 +305,21 @@
                     <div class="leftControls">
                         <button id="btnScan">스캔 시작</button>
                         <button id="btnStop" class="danger" disabled>중지</button>
-                        <button id="btnCopy" disabled>CSV 복사</button>
+                        <button id="btnCopyAll" disabled>CSV(전체) 복사</button>
+                        <button id="btnCopyFail" disabled>CSV(실패만) 복사</button>
                     </div>
                     <div class="rightControls">
                         <div class="field">
-                            <label for="minInterval">요청간격(ms)</label>
-                            <input id="minInterval" type="number" min="800" step="100" value="2500" />
+                            <label for="concurrency">동시요청</label>
+                            <input id="concurrency" type="number" min="1" max="6" step="1" value="3" />
+                        </div>
+                        <div class="field">
+                            <label for="maxWeightPerMin">최대 Weight/분</label>
+                            <input id="maxWeightPerMin" type="number" min="60" max="2000" step="10" value="400" />
+                        </div>
+                        <div class="field">
+                            <label for="burstWeight">버스트 Weight</label>
+                            <input id="burstWeight" type="number" min="2" max="200" step="1" value="20" />
                         </div>
                         <div class="field">
                             <label for="klinesLimit">Klines limit</label>
@@ -294,11 +327,19 @@
                         </div>
                         <div class="field">
                             <label for="retry">재시도</label>
-                            <input id="retry" type="number" min="0" max="1" step="1" value="0" />
+                            <input id="retry" type="number" min="0" max="1" step="1" value="1" />
                         </div>
                         <div class="field">
                             <label for="epsilon">동률 오차</label>
                             <input id="epsilon" type="number" min="0" step="0.0000000001" value="0.000000001" />
+                        </div>
+                        <div class="field">
+                            <label for="viewMode">표시</label>
+                            <select id="viewMode">
+                                <option value="all">전체</option>
+                                <option value="hit">HIT만</option>
+                                <option value="fail">FAIL만</option>
+                            </select>
                         </div>
                         <div class="field">
                             <label for="q">검색</label>
@@ -320,27 +361,29 @@
                             <tr>
                                 <th>#</th>
                                 <th>심볼</th>
+                                <th>상태</th>
                                 <th class="mono">월봉 개수</th>
                                 <th>a[-3] 봉(UTC)</th>
                                 <th>a[-3] 봉(KST)</th>
                                 <th class="mono">a[-3] Low</th>
                                 <th class="mono">ALL-TIME Min Low</th>
                                 <th class="mono">Min 동률 개수</th>
-                                <th class="mono">Min 발생 인덱스들</th>
-                                <th>판정</th>
+                                <th class="mono">Min 인덱스들</th>
+                                <th class="reason">실패 원인(reason)</th>
                             </tr>
                         </thead>
                         <tbody id="tbody">
                             <tr>
-                                <td colspan="10" class="muted">스캔 시작을 누르세요.</td>
+                                <td colspan="11" class="muted">스캔 시작을 누르세요.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div class="hint">
-                    - <b>초안전 모드</b>: 동시요청 1(순차), 요청간격 강제, 429/418 수신 시 즉시 중단하여 밴을 방지합니다. :contentReference[oaicite:5]{index=5}<br />
-                    - <code>/fapi/v1/klines</code>는 <code>limit</code>에 따라 weight가 달라집니다. <code>limit=500</code>는 weight 2 구간입니다. :contentReference[oaicite:6]{index=6}
+                    - “밴 안 걸릴 정도로만”을 위해, 요청은 <b>토큰버킷(Weight/분 예산)</b>으로 제어합니다.<br />
+                    - <code>klinesLimit</code>이 커질수록 요청 1회의 weight가 커집니다. (권장: <code>500</code>)<br />
+                    - 429가 오면 <b>자동 감속</b>하고, 418(밴)은 <b>즉시 중단</b>합니다.
                 </div>
             </div>
         </div>
@@ -356,33 +399,30 @@
 
             const btnScan = $("btnScan");
             const btnStop = $("btnStop");
-            const btnCopy = $("btnCopy");
+            const btnCopyAll = $("btnCopyAll");
+            const btnCopyFail = $("btnCopyFail");
+
             const tbody = $("tbody");
             const statusText = $("statusText");
             const bar = $("bar");
             const nowBadge = $("nowBadge");
 
-            const inputMinInterval = $("minInterval");
+            const inputConcurrency = $("concurrency");
+            const inputMaxWeightPerMin = $("maxWeightPerMin");
+            const inputBurstWeight = $("burstWeight");
             const inputKlinesLimit = $("klinesLimit");
             const inputRetry = $("retry");
             const inputEpsilon = $("epsilon");
+            const inputViewMode = $("viewMode");
             const inputQuery = $("q");
 
-            let scanState = {
-                running: false,
-                aborted: false,
-                abortController: null,
-                symbolsTotal: 0,
-                done: 0,
-                ok: 0,
-                fail: 0,
-                hit: 0,
-                startedAt: 0,
-                lastRenderAt: 0,
-                results: [],
-                rendered: [],
-                lastUsedWeight1m: null,
-            };
+            function clamp(n, min, max) {
+                return Math.min(max, Math.max(min, n));
+            }
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
 
             function setNowBadge() {
                 const now = new Date();
@@ -393,13 +433,24 @@
             setNowBadge();
             setInterval(setNowBadge, 1000);
 
-            function clamp(n, min, max) {
-                return Math.min(max, Math.max(min, n));
-            }
+            const scanState = {
+                running: false,
+                aborted: false,
+                abortController: null,
 
-            function sleep(ms) {
-                return new Promise((resolve) => setTimeout(resolve, ms));
-            }
+                symbolsTotal: 0,
+                startedAt: 0,
+
+                done: 0,
+                hit: 0,
+                ok: 0,
+                fail: 0,
+
+                lastUsedWeight1m: null,
+
+                allResults: [],      // HIT/OK/FAIL 전부
+                renderCache: [],
+            };
 
             function setStatus(html) {
                 statusText.innerHTML = html;
@@ -414,7 +465,7 @@
                 tbody.innerHTML = "";
                 const tr = document.createElement("tr");
                 const td = document.createElement("td");
-                td.colSpan = 10;
+                td.colSpan = 11;
                 td.className = "muted";
                 td.textContent = msg;
                 tr.appendChild(td);
@@ -444,32 +495,124 @@
                 return n.toFixed(10);
             }
 
+            function safeString(x) {
+                const s = String(x ?? "");
+                return s.length > 0 ? s : "-";
+            }
+
+            function buildKlinesUrl(symbol, limit) {
+                const u = new URL(ENDPOINT_KLINES);
+                u.searchParams.set("symbol", symbol);
+                u.searchParams.set("interval", "1M");
+                u.searchParams.set("limit", String(limit));
+                return u.toString();
+            }
+
+            function estimateKlinesWeight(limit) {
+                // Binance 문서 규칙(대표적으로 알려진 구간): 1~100 => 1, 101~500 => 2, 501~1000 => 5, 1001~1500 => 10
+                // 여기서는 limit을 1000 이하로 제한해서 10구간 자체를 피함.
+                if (limit <= 100) return 1;
+                if (limit <= 500) return 2;
+                return 5;
+            }
+
             function parseRetryAfterSeconds(res) {
                 const ra = res.headers.get("retry-after");
                 if (!ra) return null;
-                const s = Number(ra);
-                return Number.isFinite(s) && s > 0 ? s : null;
+                const n = Number(ra);
+                return Number.isFinite(n) && n > 0 ? n : null;
             }
 
-            // --------- 초안전 레이트리미터(전역 페이싱) ---------
-            let nextAtMs = 0;
+            // -------------------------
+            // Token Bucket (Weight-based)
+            // -------------------------
+            let bucket = {
+                capacity: 20,
+                tokens: 20,
+                refillPerMs: 0,
+                lastRefillAt: 0,
+                pausedUntil: 0,
+            };
 
-            async function pace(minIntervalMs) {
-                const jitter = Math.floor(Math.random() * 250); // 패턴 완화
-                const interval = minIntervalMs + jitter;
+            function initBucket(maxWeightPerMin, burstWeight) {
+                const cap = clamp(Number(burstWeight), 2, 200);
+                const perMin = clamp(Number(maxWeightPerMin), 60, 2000);
 
+                bucket = {
+                    capacity: cap,
+                    tokens: cap,
+                    refillPerMs: perMin / 60_000,
+                    lastRefillAt: Date.now(),
+                    pausedUntil: 0,
+                };
+            }
+
+            function refillBucket() {
                 const now = Date.now();
-                const wait = Math.max(0, nextAtMs - now);
-                nextAtMs = Math.max(nextAtMs, now) + interval;
+                const dt = now - bucket.lastRefillAt;
+                if (dt <= 0) return;
 
-                if (wait > 0) {
-                    await sleep(wait);
-                }
+                const add = dt * bucket.refillPerMs;
+                bucket.tokens = Math.min(bucket.capacity, bucket.tokens + add);
+                bucket.lastRefillAt = now;
             }
 
-            // fetch + (429/418) 즉시 중지 방지 로직
-            async function fetchJsonWithMeta(url, signal, minIntervalMs) {
-                await pace(minIntervalMs);
+            async function takeTokens(weight) {
+                const w = Math.max(1, Number(weight));
+
+                while (!scanState.aborted) {
+                    const now = Date.now();
+
+                    if (bucket.pausedUntil > now) {
+                        await sleep(Math.min(800, bucket.pausedUntil - now));
+                        continue;
+                    }
+
+                    refillBucket();
+
+                    if (bucket.tokens >= w) {
+                        bucket.tokens -= w;
+                        return;
+                    }
+
+                    // 기다릴 시간 = 부족분 / refillPerMs
+                    const need = w - bucket.tokens;
+                    const waitMs = bucket.refillPerMs > 0 ? Math.ceil(need / bucket.refillPerMs) : 1000;
+                    await sleep(clamp(waitMs, 50, 1500));
+                }
+
+                throw new Error("aborted");
+            }
+
+            function applyAutoSlowdown(seconds) {
+                const now = Date.now();
+                const pauseMs = Math.max(0, Number(seconds) * 1000);
+                bucket.pausedUntil = Math.max(bucket.pausedUntil, now + pauseMs);
+
+                // 자동 감속: 분당 예산을 절반으로 낮추는 효과(리필 속도 절반)
+                bucket.refillPerMs = bucket.refillPerMs * 0.5;
+            }
+
+            function setUiRunning(running) {
+                btnScan.disabled = running;
+                btnStop.disabled = !running;
+
+                inputConcurrency.disabled = running;
+                inputMaxWeightPerMin.disabled = running;
+                inputBurstWeight.disabled = running;
+                inputKlinesLimit.disabled = running;
+                inputRetry.disabled = running;
+                inputEpsilon.disabled = running;
+            }
+
+            function setCopyEnabled(enabledAll, enabledFail) {
+                btnCopyAll.disabled = !enabledAll;
+                btnCopyFail.disabled = !enabledFail;
+            }
+
+            async function fetchJsonWithMeta(url, signal, weight) {
+                // 요청하기 전에 weight 토큰 확보
+                await takeTokens(weight);
 
                 const res = await fetch(url, {
                     method: "GET",
@@ -484,25 +627,36 @@
                     scanState.lastUsedWeight1m = usedWeight1m;
                 }
 
-                if (res.status === 429 || res.status === 418) {
-                    // 429/418 받으면 여기서 "절대 스팸 재시도" 하지 않도록 바로 멈추게 설계
+                const text = await res.text().catch(() => "");
+
+                if (res.status === 429) {
                     const retryAfter = parseRetryAfterSeconds(res);
-                    const text = await res.text().catch(() => "");
-                    const hint = retryAfter ? `Retry-After=${retryAfter}s` : "Retry-After 헤더 없음";
-                    throw new Error(`HTTP ${res.status} (rate limit / ban) · ${hint} · ${text.slice(0, 180)}`);
+                    // retry-after가 없으면 20초 정도로 보수적으로
+                    applyAutoSlowdown(retryAfter ?? 20);
+                    throw new Error(`HTTP 429 (rate limit) · retryAfter=${retryAfter ?? "n/a"} · ${text.slice(0, 180)}`);
+                }
+
+                if (res.status === 418) {
+                    // 418은 밴 가능성이 높으니 즉시 중단 유도
+                    throw new Error(`HTTP 418 (IP banned) · ${text.slice(0, 180)}`);
                 }
 
                 if (!res.ok) {
-                    const text = await res.text().catch(() => "");
-                    throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 160)}` : ""}`);
+                    throw new Error(`HTTP ${res.status} ${res.statusText} · ${text.slice(0, 180)}`);
                 }
 
-                const data = await res.json();
+                let data = null;
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    throw new Error(`JSON parse failed · ${text.slice(0, 180)}`);
+                }
+
                 return { data, usedWeight1m: scanState.lastUsedWeight1m };
             }
 
-            async function loadUsdtPerpSymbols(signal, minIntervalMs) {
-                const { data } = await fetchJsonWithMeta(ENDPOINT_EXCHANGE_INFO, signal, minIntervalMs);
+            async function loadUsdtPerpSymbols(signal) {
+                const { data } = await fetchJsonWithMeta(ENDPOINT_EXCHANGE_INFO, signal, 1);
 
                 if (!data || !Array.isArray(data.symbols)) {
                     throw new Error("exchangeInfo 응답 형식이 예상과 다릅니다.");
@@ -517,16 +671,9 @@
                 return symbols;
             }
 
-            function buildKlinesUrl(symbol, limit) {
-                const u = new URL(ENDPOINT_KLINES);
-                u.searchParams.set("symbol", symbol);
-                u.searchParams.set("interval", "1M");
-                u.searchParams.set("limit", String(limit));
-                return u.toString();
-            }
-
             function parseMonthlyLows(klines) {
-                if (!Array.isArray(klines) || klines.length < 4) return null;
+                if (!Array.isArray(klines)) return null;
+                if (klines.length < 4) return { insufficient: true, count: klines.length };
 
                 const lows = [];
                 const openTimes = [];
@@ -544,22 +691,41 @@
                     lows.push(low);
                 }
 
-                return { lows, openTimes };
+                return { lows, openTimes, insufficient: false, count: lows.length };
             }
 
             function analyzeSymbol(symbol, klines, epsilon) {
                 const parsed = parseMonthlyLows(klines);
+
                 if (!parsed) {
-                    return { ok: false, symbol, reason: "월봉 데이터 부족(4개 미만) 또는 파싱 실패" };
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: "월봉 파싱 실패(응답 형식/숫자 변환 문제)",
+                    };
+                }
+
+                if (parsed.insufficient) {
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: `월봉 데이터 부족: ${parsed.count}개 (a[-3]는 최소 4개 필요)`,
+                        count: parsed.count,
+                    };
                 }
 
                 const { lows, openTimes } = parsed;
                 const len = lows.length;
 
-                // ✅ a[-3] = 3봉전 = len - 4
+                // a[-3] = 3봉전 = len - 4
                 const targetIndex = len - 4;
                 if (targetIndex < 0 || targetIndex >= len) {
-                    return { ok: false, symbol, reason: "a[-3] 인덱스 계산 실패" };
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: `a[-3] 인덱스 계산 실패(len=${len})`,
+                        count: len,
+                    };
                 }
 
                 let minLow = Infinity;
@@ -579,74 +745,32 @@
                 const isHit = Math.abs(targetLow - minLow) <= epsilon;
 
                 return {
-                    ok: true,
                     symbol,
+                    status: isHit ? "HIT" : "OK",
+                    reason: "",
                     count: len,
                     targetOpenTime: openTimes[targetIndex],
                     targetLow,
                     minLow,
                     minIdx,
-                    isHit,
                 };
             }
 
-            async function fetchKlinesUltraSafe(symbol, signal, limit, minIntervalMs, retryCount) {
-                const url = buildKlinesUrl(symbol, limit);
-
-                let lastErr = null;
-                for (let attempt = 0; attempt <= retryCount; attempt += 1) {
-                    try {
-                        const { data } = await fetchJsonWithMeta(url, signal, minIntervalMs);
-                        return data;
-                    } catch (err) {
-                        lastErr = err;
-                        const msg = String(err && err.message ? err.message : err);
-
-                        // 429/418은 "재시도" 자체가 위험 → 즉시 throw 해서 스캔을 멈추게
-                        if (msg.includes("HTTP 429") || msg.includes("HTTP 418")) {
-                            throw err;
-                        }
-
-                        // 그 외(네트워크/일시 5xx)는 아주 소극적으로 1회 정도만 재시도
-                        if (attempt < retryCount) {
-                            await sleep(5000 + Math.floor(Math.random() * 500));
-                            continue;
-                        }
-                    }
-                }
-
-                throw lastErr || new Error("알 수 없는 오류");
-            }
-
             function buildStatusHtml() {
-                const total = scanState.symbolsTotal;
-                const done = scanState.done;
-                const ok = scanState.ok;
-                const fail = scanState.fail;
-                const hit = scanState.hit;
-
                 const elapsedMs = Date.now() - scanState.startedAt;
                 const elapsedSec = Math.max(0.001, elapsedMs / 1000);
-                const rps = done / elapsedSec;
+
+                const total = scanState.symbolsTotal;
+                const done = scanState.done;
+
+                const rate = done / elapsedSec;
+                const used = scanState.lastUsedWeight1m ? ` · usedWeight(1m)≈<b>${scanState.lastUsedWeight1m}</b>` : "";
 
                 const elapsedText = elapsedSec >= 60
                     ? `${Math.floor(elapsedSec / 60)}m ${Math.floor(elapsedSec % 60)}s`
                     : `${Math.floor(elapsedSec)}s`;
 
-                const w = scanState.lastUsedWeight1m ? ` · usedWeight(1m)≈<b>${scanState.lastUsedWeight1m}</b>` : "";
-
-                return `진행 <b>${done}</b>/<b>${total}</b> · 성공 <b>${ok}</b> · 실패 <b>${fail}</b> · HIT <b>${hit}</b> · <b>${rps.toFixed(2)}</b> sym/s · 경과 <b>${elapsedText}</b>${w}`;
-            }
-
-            function onProgressTick() {
-                scanState.done += 1;
-
-                const now = Date.now();
-                if (now - scanState.lastRenderAt > 120) {
-                    scanState.lastRenderAt = now;
-                    setProgress(scanState.done, scanState.symbolsTotal);
-                    setStatus(buildStatusHtml());
-                }
+                return `진행 <b>${done}</b>/<b>${total}</b> · HIT <b>${scanState.hit}</b> · OK <b>${scanState.ok}</b> · FAIL <b>${scanState.fail}</b> · <b>${rate.toFixed(2)}</b> sym/s · 경과 <b>${elapsedText}</b>${used}`;
             }
 
             function buildRow(rank, r) {
@@ -661,83 +785,123 @@
                 tdSym.textContent = r.symbol;
                 tr.appendChild(tdSym);
 
+                const tdStatus = document.createElement("td");
+                if (r.status === "HIT") tdStatus.className = "hit";
+                else if (r.status === "OK") tdStatus.className = "ok";
+                else tdStatus.className = "fail";
+                tdStatus.textContent = r.status;
+                tr.appendChild(tdStatus);
+
                 const tdCount = document.createElement("td");
                 tdCount.className = "mono";
-                tdCount.textContent = String(r.count);
+                tdCount.textContent = r.count != null ? String(r.count) : "-";
                 tr.appendChild(tdCount);
 
                 const tdUtc = document.createElement("td");
                 tdUtc.className = "mono";
-                tdUtc.textContent = tsToUtcMonth(r.targetOpenTime);
+                tdUtc.textContent = r.targetOpenTime ? tsToUtcMonth(r.targetOpenTime) : "-";
                 tr.appendChild(tdUtc);
 
                 const tdKst = document.createElement("td");
                 tdKst.className = "mono";
-                tdKst.textContent = tsToKstMonth(r.targetOpenTime);
+                tdKst.textContent = r.targetOpenTime ? tsToKstMonth(r.targetOpenTime) : "-";
                 tr.appendChild(tdKst);
 
                 const tdTargetLow = document.createElement("td");
                 tdTargetLow.className = "mono";
-                tdTargetLow.textContent = formatPrice(r.targetLow);
+                tdTargetLow.textContent = r.targetLow != null ? formatPrice(r.targetLow) : "-";
                 tr.appendChild(tdTargetLow);
 
                 const tdMinLow = document.createElement("td");
                 tdMinLow.className = "mono";
-                tdMinLow.textContent = formatPrice(r.minLow);
+                tdMinLow.textContent = r.minLow != null ? formatPrice(r.minLow) : "-";
                 tr.appendChild(tdMinLow);
 
                 const tdTieCount = document.createElement("td");
                 tdTieCount.className = "mono";
-                tdTieCount.textContent = String(r.minIdx.length);
+                tdTieCount.textContent = Array.isArray(r.minIdx) ? String(r.minIdx.length) : "-";
                 tr.appendChild(tdTieCount);
 
                 const tdIdx = document.createElement("td");
                 tdIdx.className = "mono muted";
-                tdIdx.textContent = r.minIdx.length <= 12 ? r.minIdx.join(",") : `${r.minIdx.slice(0, 12).join(",")} ...`;
+                if (Array.isArray(r.minIdx)) {
+                    tdIdx.textContent = r.minIdx.length <= 12 ? r.minIdx.join(",") : `${r.minIdx.slice(0, 12).join(",")} ...`;
+                } else {
+                    tdIdx.textContent = "-";
+                }
                 tr.appendChild(tdIdx);
 
-                const tdJudge = document.createElement("td");
-                tdJudge.className = r.isHit ? "ok" : "muted";
-                tdJudge.textContent = r.isHit ? "HIT" : "-";
-                tr.appendChild(tdJudge);
+                const tdReason = document.createElement("td");
+                tdReason.className = "reason muted";
+                tdReason.textContent = safeString(r.reason);
+                tr.appendChild(tdReason);
 
                 return tr;
             }
 
-            function renderTable(results, q) {
+            function applyFilters(results, viewMode, q) {
                 const query = (q || "").trim().toUpperCase();
 
-                const filtered = query.length > 0
-                    ? results.filter((r) => r.symbol.includes(query))
-                    : results.slice();
+                let filtered = results.slice();
+
+                if (viewMode === "hit") {
+                    filtered = filtered.filter((r) => r.status === "HIT");
+                } else if (viewMode === "fail") {
+                    filtered = filtered.filter((r) => r.status === "FAIL");
+                }
+
+                if (query.length > 0) {
+                    filtered = filtered.filter((r) => r.symbol.includes(query));
+                }
+
+                // 보기 좋게: HIT 먼저, 그 다음 OK, 마지막 FAIL
+                const order = { HIT: 0, OK: 1, FAIL: 2 };
+                filtered.sort((a, b) => {
+                    const oa = order[a.status] ?? 9;
+                    const ob = order[b.status] ?? 9;
+                    if (oa !== ob) return oa - ob;
+                    return a.symbol.localeCompare(b.symbol);
+                });
+
+                return filtered;
+            }
+
+            function renderTable() {
+                const results = applyFilters(scanState.allResults, inputViewMode.value, inputQuery.value);
+                scanState.renderCache = results;
 
                 tbody.innerHTML = "";
 
-                if (filtered.length === 0) {
+                if (results.length === 0) {
                     const tr = document.createElement("tr");
                     const td = document.createElement("td");
-                    td.colSpan = 10;
+                    td.colSpan = 11;
                     td.className = "muted";
-                    td.textContent = query.length > 0 ? "검색 결과가 없습니다." : "조건을 만족하는 심볼이 없습니다.";
+                    td.textContent = "표시할 결과가 없습니다.";
                     tr.appendChild(td);
                     tbody.appendChild(tr);
-                    scanState.rendered = [];
                     return;
                 }
 
                 const frag = document.createDocumentFragment();
-                for (let i = 0; i < filtered.length; i += 1) {
-                    frag.appendChild(buildRow(i + 1, filtered[i]));
+                for (let i = 0; i < results.length; i += 1) {
+                    frag.appendChild(buildRow(i + 1, results[i]));
                 }
                 tbody.appendChild(frag);
-
-                scanState.rendered = filtered;
             }
 
-            function toCsv(results) {
+            function csvEscape(s) {
+                const str = String(s ?? "");
+                const needs = str.includes(",") || str.includes("\"") || str.includes("\n");
+                if (!needs) return str;
+                return `"${str.replaceAll("\"", "\"\"")}"`;
+            }
+
+            function toCsvAll(results) {
                 const header = [
                     "rank",
                     "symbol",
+                    "status",
                     "monthCount",
                     "a_minus_3_utc_month",
                     "a_minus_3_kst_month",
@@ -745,6 +909,7 @@
                     "all_time_min_low",
                     "min_tie_count",
                     "min_indices",
+                    "reason",
                 ];
 
                 const rows = [header.join(",")];
@@ -754,14 +919,17 @@
                     const row = [
                         String(i + 1),
                         r.symbol,
-                        String(r.count),
-                        `"${tsToUtcMonth(r.targetOpenTime)}"`,
-                        `"${tsToKstMonth(r.targetOpenTime)}"`,
-                        String(r.targetLow),
-                        String(r.minLow),
-                        String(r.minIdx.length),
-                        `"${r.minIdx.join("|")}"`,
-                    ];
+                        r.status,
+                        r.count != null ? String(r.count) : "",
+                        r.targetOpenTime ? tsToUtcMonth(r.targetOpenTime) : "",
+                        r.targetOpenTime ? tsToKstMonth(r.targetOpenTime) : "",
+                        r.targetLow != null ? String(r.targetLow) : "",
+                        r.minLow != null ? String(r.minLow) : "",
+                        Array.isArray(r.minIdx) ? String(r.minIdx.length) : "",
+                        Array.isArray(r.minIdx) ? r.minIdx.join("|") : "",
+                        r.reason ?? "",
+                    ].map(csvEscape);
+
                     rows.push(row.join(","));
                 }
 
@@ -796,148 +964,6 @@
                 return ok;
             }
 
-            function setUiRunning(running) {
-                btnScan.disabled = running;
-                btnStop.disabled = !running;
-
-                inputMinInterval.disabled = running;
-                inputKlinesLimit.disabled = running;
-                inputRetry.disabled = running;
-                inputEpsilon.disabled = running;
-            }
-
-            function setCopyEnabled(enabled) {
-                btnCopy.disabled = !enabled;
-            }
-
-            async function startScan() {
-                if (scanState.running) return;
-
-                scanState.running = true;
-                scanState.aborted = false;
-                scanState.abortController = new AbortController();
-
-                scanState.symbolsTotal = 0;
-                scanState.done = 0;
-                scanState.ok = 0;
-                scanState.fail = 0;
-                scanState.hit = 0;
-                scanState.results = [];
-                scanState.rendered = [];
-                scanState.startedAt = Date.now();
-                scanState.lastRenderAt = 0;
-                scanState.lastUsedWeight1m = null;
-
-                // 레이트리미터 초기화
-                nextAtMs = Date.now();
-
-                setUiRunning(true);
-                setCopyEnabled(false);
-                setProgress(0, 1);
-                resetTable("심볼 목록 불러오는 중...");
-
-                const minIntervalMs = clamp(Number(inputMinInterval.value || 2500), 800, 20000);
-                const klinesLimit = clamp(Number(inputKlinesLimit.value || 500), 100, 1000);
-                const retryCount = clamp(Number(inputRetry.value || 0), 0, 1);
-                const epsilon = Math.max(0, Number(inputEpsilon.value || 0));
-
-                try {
-                    const signal = scanState.abortController.signal;
-
-                    const symbols = await loadUsdtPerpSymbols(signal, minIntervalMs);
-                    scanState.symbolsTotal = symbols.length;
-
-                    setStatus(`심볼 <b>${symbols.length}</b>개 · 초안전(순차) 스캔 준비 중...`);
-                    setProgress(0, symbols.length);
-
-                    if (symbols.length === 0) {
-                        resetTable("스캔할 USDT PERPETUAL 심볼이 없습니다.");
-                        scanState.running = false;
-                        setUiRunning(false);
-                        return;
-                    }
-
-                    resetTable("스캔 중... (아주 느리게 진행됩니다)");
-
-                    const hits = [];
-
-                    for (let i = 0; i < symbols.length; i += 1) {
-                        if (scanState.aborted) break;
-
-                        const symbol = symbols[i];
-
-                        try {
-                            const klines = await fetchKlinesUltraSafe(symbol, signal, klinesLimit, minIntervalMs, retryCount);
-                            const analysis = analyzeSymbol(symbol, klines, epsilon);
-
-                            if (!analysis.ok) {
-                                scanState.fail += 1;
-                            } else {
-                                scanState.ok += 1;
-                                if (analysis.isHit) {
-                                    scanState.hit += 1;
-                                    hits.push({
-                                        symbol: analysis.symbol,
-                                        count: analysis.count,
-                                        targetOpenTime: analysis.targetOpenTime,
-                                        targetLow: analysis.targetLow,
-                                        minLow: analysis.minLow,
-                                        minIdx: analysis.minIdx,
-                                        isHit: true,
-                                    });
-                                }
-                            }
-                        } catch (err) {
-                            scanState.fail += 1;
-
-                            const msg = String(err && err.message ? err.message : err);
-
-                            // ✅ 429/418은 즉시 중단(밴 확장 방지)
-                            if (msg.includes("HTTP 429") || msg.includes("HTTP 418")) {
-                                throw err;
-                            }
-                        } finally {
-                            onProgressTick();
-                        }
-                    }
-
-                    hits.sort((a, b) => {
-                        if (a.targetLow !== b.targetLow) return a.targetLow - b.targetLow;
-                        return a.symbol.localeCompare(b.symbol);
-                    });
-
-                    scanState.results = hits;
-
-                    if (scanState.aborted) {
-                        setStatus(`중지됨 · ${buildStatusHtml()}`);
-                    } else {
-                        setStatus(`완료 · ${buildStatusHtml()}`);
-                    }
-
-                    renderTable(scanState.results, inputQuery.value);
-                    setCopyEnabled(scanState.results.length > 0);
-
-                    setProgress(scanState.symbolsTotal, scanState.symbolsTotal);
-                } catch (err) {
-                    const msg = String(err && err.message ? err.message : err);
-
-                    // 429/418이면 “더 치지 말고” 멈추는 게 제일 안전
-                    if (msg.includes("HTTP 429") || msg.includes("HTTP 418")) {
-                        setStatus(`레이트리밋/밴 감지 → 즉시 중단 (추가 요청 금지)`);
-                        resetTable(`레이트리밋/밴 감지로 중단했습니다.\n${msg}`);
-                    } else if (msg.includes("AbortError")) {
-                        setStatus("중지됨");
-                        resetTable("중지되었습니다.");
-                    } else {
-                        setStatus("오류 발생");
-                        resetTable(`오류: ${msg}`);
-                    }
-                } finally {
-                    scanState.running = false;
-                    setUiRunning(false);
-                }
-            }
-
             function stopScan() {
                 if (!scanState.running) return;
                 scanState.aborted = true;
@@ -950,6 +976,174 @@
                 btnStop.disabled = true;
             }
 
+            async function workerLoop(symbols, idxRef, cfg) {
+                const signal = scanState.abortController.signal;
+
+                while (!scanState.aborted) {
+                    let i = -1;
+
+                    // index 할당 (간단한 뮤텍스 대체)
+                    i = idxRef.value;
+                    idxRef.value += 1;
+
+                    if (i >= symbols.length) return;
+
+                    const symbol = symbols[i];
+                    const url = buildKlinesUrl(symbol, cfg.klinesLimit);
+                    const weight = cfg.klinesWeight;
+
+                    let finalResult = null;
+
+                    try {
+                        let lastErr = null;
+
+                        for (let attempt = 0; attempt <= cfg.retryCount; attempt += 1) {
+                            try {
+                                const { data } = await fetchJsonWithMeta(url, signal, weight);
+                                finalResult = analyzeSymbol(symbol, data, cfg.epsilon);
+                                lastErr = null;
+                                break;
+                            } catch (err) {
+                                lastErr = err;
+                                const msg = String(err && err.message ? err.message : err);
+
+                                // 418은 즉시 중단 유도
+                                if (msg.includes("HTTP 418")) {
+                                    throw err;
+                                }
+
+                                // 429는 fetchJsonWithMeta에서 이미 감속 처리함. 재시도는 1회까지만(설정)
+                                if (attempt < cfg.retryCount) {
+                                    await sleep(700 + Math.floor(Math.random() * 600));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if (!finalResult) {
+                            const msg = String(lastErr && lastErr.message ? lastErr.message : lastErr);
+                            finalResult = {
+                                symbol,
+                                status: "FAIL",
+                                reason: msg,
+                            };
+                        }
+                    } catch (err) {
+                        const msg = String(err && err.message ? err.message : err);
+                        finalResult = {
+                            symbol,
+                            status: "FAIL",
+                            reason: msg,
+                        };
+
+                        // 418 감지 시 즉시 중단(추가 요청 방지)
+                        if (msg.includes("HTTP 418")) {
+                            scanState.aborted = true;
+                            try {
+                                if (scanState.abortController) scanState.abortController.abort();
+                            } catch {
+                                // ignore
+                            }
+                        }
+                    } finally {
+                        scanState.done += 1;
+
+                        if (finalResult.status === "HIT") scanState.hit += 1;
+                        else if (finalResult.status === "OK") scanState.ok += 1;
+                        else scanState.fail += 1;
+
+                        scanState.allResults.push(finalResult);
+
+                        if (scanState.done % 5 === 0 || scanState.done === scanState.symbolsTotal) {
+                            setProgress(scanState.done, scanState.symbolsTotal);
+                            setStatus(buildStatusHtml());
+                            renderTable();
+                            setCopyEnabled(scanState.allResults.length > 0, scanState.allResults.some((r) => r.status === "FAIL"));
+                        }
+                    }
+                }
+            }
+
+            async function startScan() {
+                if (scanState.running) return;
+
+                scanState.running = true;
+                scanState.aborted = false;
+                scanState.abortController = new AbortController();
+
+                scanState.symbolsTotal = 0;
+                scanState.startedAt = Date.now();
+
+                scanState.done = 0;
+                scanState.hit = 0;
+                scanState.ok = 0;
+                scanState.fail = 0;
+
+                scanState.lastUsedWeight1m = null;
+                scanState.allResults = [];
+                scanState.renderCache = [];
+
+                setUiRunning(true);
+                setCopyEnabled(false, false);
+                setProgress(0, 1);
+                resetTable("심볼 목록 불러오는 중...");
+
+                const concurrency = clamp(Number(inputConcurrency.value || 3), 1, 6);
+                const maxWeightPerMin = clamp(Number(inputMaxWeightPerMin.value || 400), 60, 2000);
+                const burstWeight = clamp(Number(inputBurstWeight.value || 20), 2, 200);
+                const klinesLimit = clamp(Number(inputKlinesLimit.value || 500), 100, 1000);
+                const retryCount = clamp(Number(inputRetry.value || 1), 0, 1);
+                const epsilon = Math.max(0, Number(inputEpsilon.value || 0));
+
+                initBucket(maxWeightPerMin, burstWeight);
+
+                const cfg = {
+                    concurrency,
+                    maxWeightPerMin,
+                    burstWeight,
+                    klinesLimit,
+                    klinesWeight: estimateKlinesWeight(klinesLimit),
+                    retryCount,
+                    epsilon,
+                };
+
+                try {
+                    const symbols = await loadUsdtPerpSymbols(scanState.abortController.signal);
+                    scanState.symbolsTotal = symbols.length;
+
+                    setStatus(`심볼 <b>${symbols.length}</b>개 · 스캔 준비 중...`);
+                    setProgress(0, symbols.length);
+
+                    if (symbols.length === 0) {
+                        resetTable("스캔할 USDT PERPETUAL 심볼이 없습니다.");
+                        return;
+                    }
+
+                    resetTable("스캔 중... (HIT/OK/FAIL 전부 표시됩니다)");
+
+                    const idxRef = { value: 0 };
+                    const workers = [];
+
+                    for (let w = 0; w < cfg.concurrency; w += 1) {
+                        workers.push(workerLoop(symbols, idxRef, cfg));
+                    }
+
+                    await Promise.all(workers);
+
+                    setProgress(scanState.symbolsTotal, scanState.symbolsTotal);
+                    setStatus(`완료 · ${buildStatusHtml()}`);
+                    renderTable();
+                    setCopyEnabled(scanState.allResults.length > 0, scanState.allResults.some((r) => r.status === "FAIL"));
+                } catch (err) {
+                    const msg = String(err && err.message ? err.message : err);
+                    setStatus("오류 발생");
+                    resetTable(`오류: ${msg}`);
+                } finally {
+                    scanState.running = false;
+                    setUiRunning(false);
+                }
+            }
+
             btnScan.addEventListener("click", () => {
                 startScan();
             });
@@ -958,26 +1152,33 @@
                 stopScan();
             });
 
-            btnCopy.addEventListener("click", async () => {
-                if (!scanState.results || scanState.results.length === 0) return;
-
-                const csv = toCsv(scanState.results);
+            btnCopyAll.addEventListener("click", async () => {
+                if (!scanState.allResults || scanState.allResults.length === 0) return;
+                const csv = toCsvAll(scanState.allResults);
                 const ok = await copyText(csv);
                 const ok2 = ok ? true : fallbackCopy(csv);
+                setStatus(ok2 ? `${buildStatusHtml()} · CSV(전체) 복사 ✅` : `${buildStatusHtml()} · CSV(전체) 복사 ❌`);
+            });
 
-                if (ok2) {
-                    setStatus(`${buildStatusHtml()} · CSV 복사 완료 ✅`);
-                } else {
-                    setStatus(`${buildStatusHtml()} · CSV 복사 실패 ❌ (브라우저 권한 확인)`);
-                }
+            btnCopyFail.addEventListener("click", async () => {
+                const fails = (scanState.allResults || []).filter((r) => r.status === "FAIL");
+                if (fails.length === 0) return;
+                const csv = toCsvAll(fails);
+                const ok = await copyText(csv);
+                const ok2 = ok ? true : fallbackCopy(csv);
+                setStatus(ok2 ? `${buildStatusHtml()} · CSV(실패) 복사 ✅` : `${buildStatusHtml()} · CSV(실패) 복사 ❌`);
             });
 
             let qTimer = null;
             inputQuery.addEventListener("input", () => {
                 if (qTimer) window.clearTimeout(qTimer);
                 qTimer = window.setTimeout(() => {
-                    renderTable(scanState.results || [], inputQuery.value);
+                    renderTable();
                 }, 80);
+            });
+
+            inputViewMode.addEventListener("change", () => {
+                renderTable();
             });
         </script>
     </body>
