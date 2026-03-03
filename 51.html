@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 1M 이전봉 (High/Open %) 랭킹 스캐너</title>
+        <title>Binance USDT Perp — 1M (High/Open %) 월 선택 랭킹 스캐너</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -130,7 +130,8 @@
             }
 
             input[type="number"],
-            input[type="text"] {
+            input[type="text"],
+            input[type="month"] {
                 width: 130px;
                 background: transparent;
                 border: none;
@@ -144,6 +145,10 @@
                 width: 220px;
                 font-family: var(--sans);
                 font-weight: 600;
+            }
+
+            input[type="month"] {
+                width: 140px;
             }
 
             .statusRow {
@@ -191,7 +196,7 @@
             table {
                 width: 100%;
                 border-collapse: collapse;
-                min-width: 1080px;
+                min-width: 520px;
             }
 
             thead th {
@@ -282,11 +287,11 @@
         <div class="wrap">
             <div class="titlebar">
                 <div>
-                    <h1>Binance USDT 무기한 선물 — 1M 이전봉 “High / Open %” 랭킹 스캐너</h1>
+                    <h1>Binance USDT 무기한 선물 — 1M “High / Open %” 월 선택 랭킹 스캐너</h1>
                     <div class="sub">
                         전체 <span class="pill">USDT PERPETUAL</span> 페어를 스캔해서,
-                        <span class="pill">이전 월봉(직전 봉)</span>의 <span class="pill">고가 ÷ 시가</span> 상승률이 높은 순으로 정렬합니다.<br />
-                        계산식: <code>(High / Open - 1) × 100</code>
+                        선택한 <span class="pill">년-월(UTC)</span> 월봉의 <span class="pill">고가 ÷ 시가</span> 상승률이 높은 순으로 정렬합니다.<br />
+                        계산식: <code>(High / Open - 1) × 100</code> · 대상월: <span class="pill" id="targetBadge">—</span>
                     </div>
                 </div>
                 <div class="topBadge" id="nowBadge">—</div>
@@ -300,6 +305,10 @@
                         <button id="btnCopy" disabled>CSV 복사</button>
                     </div>
                     <div class="rightControls">
+                        <div class="field">
+                            <label for="ym">대상월(UTC)</label>
+                            <input id="ym" type="month" />
+                        </div>
                         <div class="field">
                             <label for="concurrency">동시요청</label>
                             <input id="concurrency" type="number" min="1" max="30" step="1" value="10" />
@@ -330,30 +339,20 @@
                             <tr>
                                 <th>#</th>
                                 <th>심볼</th>
-                                <th>이전봉 기간(UTC)</th>
-                                <th>이전봉 기간(KST)</th>
-                                <th class="mono">Open</th>
-                                <th class="mono">High</th>
-                                <th class="mono">Low</th>
-                                <th class="mono">Close</th>
                                 <th class="mono">High/Open %</th>
-                                <th class="mono">Range (H/L) %</th>
-                                <th class="mono">Quote Vol (USDT)</th>
-                                <th class="mono">Trades</th>
-                                <th class="muted">비고</th>
                             </tr>
                         </thead>
                         <tbody id="tbody">
                             <tr>
-                                <td colspan="13" class="muted">스캔 시작을 누르세요.</td>
+                                <td colspan="3" class="muted">스캔 시작을 누르세요.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div class="hint">
-                    ⚠️ <b>이전봉</b>은 “현재 진행 중인 월봉(미확정)” 바로 전의 <b>확정 월봉</b>입니다. (API에서 <code>limit=2</code>로 가져온 2개 중 앞쪽 봉)<br />
-                    신규 상장 등으로 월봉 데이터가 2개 미만인 심볼은 자동으로 제외됩니다.
+                    ℹ️ <b>대상월은 UTC 기준</b>입니다. 예) <code>2026-02</code> 선택 시, 2026년 2월 1일 00:00 UTC에 시작하는 월봉을 조회합니다.<br />
+                    신규 상장 등으로 해당 월의 월봉 데이터가 없으면 자동으로 제외됩니다.
                 </div>
             </div>
         </div>
@@ -374,7 +373,9 @@
             const statusText = $("statusText");
             const bar = $("bar");
             const nowBadge = $("nowBadge");
+            const targetBadge = $("targetBadge");
 
+            const inputYm = $("ym");
             const inputConcurrency = $("concurrency");
             const inputRetry = $("retry");
             const inputQuery = $("q");
@@ -391,6 +392,9 @@
                 lastRenderAt: 0,
                 results: [],
                 rendered: [],
+                targetYm: "",
+                targetStartUtcMs: 0,
+                targetEndUtcMs: 0,
             };
 
             function setNowBadge() {
@@ -410,39 +414,10 @@
                 return Math.min(max, Math.max(min, n));
             }
 
-            function formatComma(n) {
-                if (!Number.isFinite(n)) return "-";
-                return n.toLocaleString("en-US");
-            }
-
-            function formatPrice(n) {
-                if (!Number.isFinite(n)) return "-";
-                const abs = Math.abs(n);
-                if (abs >= 1000) return n.toFixed(2);
-                if (abs >= 1) return n.toFixed(4);
-                if (abs >= 0.01) return n.toFixed(6);
-                return n.toFixed(8);
-            }
-
             function formatPct(n) {
                 if (!Number.isFinite(n)) return "-";
                 const sign = n > 0 ? "+" : "";
                 return `${sign}${n.toFixed(2)}%`;
-            }
-
-            function tsToUtc(ts) {
-                const d = new Date(ts);
-                const y = d.getUTCFullYear();
-                const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-                const day = String(d.getUTCDate()).padStart(2, "0");
-                const hh = String(d.getUTCHours()).padStart(2, "0");
-                const mm = String(d.getUTCMinutes()).padStart(2, "0");
-                return `${y}-${m}-${day} ${hh}:${mm}`;
-            }
-
-            function tsToKst(ts) {
-                const d = new Date(ts);
-                return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
             }
 
             function setStatus(text) {
@@ -458,7 +433,7 @@
                 tbody.innerHTML = "";
                 const tr = document.createElement("tr");
                 const td = document.createElement("td");
-                td.colSpan = 13;
+                td.colSpan = 3;
                 td.className = "muted";
                 td.textContent = msg;
                 tr.appendChild(td);
@@ -498,62 +473,99 @@
                 return symbols;
             }
 
-            function buildKlinesUrl(symbol) {
+            function parseYearMonth(ym) {
+                const s = String(ym || "").trim();
+                const m = /^(\d{4})-(\d{2})$/.exec(s);
+                if (!m) return null;
+
+                const year = Number(m[1]);
+                const month = Number(m[2]);
+
+                if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+                if (year < 2017 || year > 2100) return null;
+                if (month < 1 || month > 12) return null;
+
+                const startUtcMs = Date.UTC(year, month - 1, 1, 0, 0, 0, 0);
+                const nextMonthUtcMs = Date.UTC(year, month, 1, 0, 0, 0, 0);
+                const endUtcMs = nextMonthUtcMs - 1;
+
+                return { ym: s, startUtcMs, endUtcMs };
+            }
+
+            function setDefaultYm() {
+                const now = new Date();
+                const y = now.getUTCFullYear();
+                const m = now.getUTCMonth(); // 현재 UTC 월(0~11)
+                const prev = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
+                prev.setUTCMonth(prev.getUTCMonth() - 1);
+
+                const py = prev.getUTCFullYear();
+                const pm = String(prev.getUTCMonth() + 1).padStart(2, "0");
+                const val = `${py}-${pm}`;
+
+                inputYm.value = val;
+                targetBadge.textContent = val;
+            }
+
+            setDefaultYm();
+
+            function updateTargetBadge() {
+                const parsed = parseYearMonth(inputYm.value);
+                targetBadge.textContent = parsed ? parsed.ym : "—";
+            }
+
+            inputYm.addEventListener("input", () => {
+                updateTargetBadge();
+            });
+
+            function buildKlinesUrl(symbol, startUtcMs, endUtcMs) {
                 const u = new URL(ENDPOINT_KLINES);
                 u.searchParams.set("symbol", symbol);
                 u.searchParams.set("interval", "1M");
-                u.searchParams.set("limit", "2");
+                u.searchParams.set("startTime", String(startUtcMs));
+                u.searchParams.set("endTime", String(endUtcMs));
+                u.searchParams.set("limit", "1");
                 return u.toString();
             }
 
-            function parsePrevMonthlyCandle(klines) {
-                if (!Array.isArray(klines) || klines.length < 2) return null;
+            function parseMonthlyCandle(klines) {
+                if (!Array.isArray(klines) || klines.length < 1) return null;
 
-                const prev = klines[0];
-                if (!Array.isArray(prev) || prev.length < 11) return null;
+                const c = klines[0];
+                if (!Array.isArray(c) || c.length < 7) return null;
 
-                const openTime = Number(prev[0]);
-                const open = Number(prev[1]);
-                const high = Number(prev[2]);
-                const low = Number(prev[3]);
-                const close = Number(prev[4]);
-                const closeTime = Number(prev[6]);
-                const quoteVol = Number(prev[7]);
-                const trades = Number(prev[8]);
+                const openTime = Number(c[0]);
+                const open = Number(c[1]);
+                const high = Number(c[2]);
 
-                if (!Number.isFinite(openTime) || !Number.isFinite(open) || open <= 0) return null;
-                if (!Number.isFinite(high) || !Number.isFinite(low) || !Number.isFinite(close)) return null;
+                if (!Number.isFinite(openTime)) return null;
+                if (!Number.isFinite(open) || open <= 0) return null;
+                if (!Number.isFinite(high)) return null;
 
                 const highOpenPct = ((high / open) - 1) * 100;
-                const rangePct = low > 0 ? ((high / low) - 1) * 100 : NaN;
 
                 return {
                     openTime,
-                    closeTime,
                     open,
                     high,
-                    low,
-                    close,
-                    quoteVol,
-                    trades,
                     highOpenPct,
-                    rangePct,
                 };
             }
 
-            async function fetchPrevMonthlyStat(symbol, signal, retryCount) {
-                const url = buildKlinesUrl(symbol);
+            async function fetchMonthlyStat(symbol, signal, retryCount, startUtcMs, endUtcMs) {
+                const url = buildKlinesUrl(symbol, startUtcMs, endUtcMs);
 
                 let lastErr = null;
                 for (let attempt = 0; attempt <= retryCount; attempt += 1) {
                     try {
                         const klines = await fetchJson(url, signal);
-                        const candle = parsePrevMonthlyCandle(klines);
+                        const candle = parseMonthlyCandle(klines);
+
                         if (!candle) {
                             return {
                                 symbol,
                                 ok: false,
-                                reason: "월봉 데이터 부족(2개 미만) 또는 파싱 실패",
+                                reason: "해당 월봉 데이터 없음(상장/거래 시작 전 등) 또는 파싱 실패",
                             };
                         }
 
@@ -638,59 +650,10 @@
                 tdSym.textContent = r.symbol;
                 tr.appendChild(tdSym);
 
-                const tdUtc = document.createElement("td");
-                tdUtc.className = "mono";
-                tdUtc.textContent = `${tsToUtc(r.openTime)} ~ ${tsToUtc(r.closeTime)}`;
-                tr.appendChild(tdUtc);
-
-                const tdKst = document.createElement("td");
-                tdKst.textContent = `${tsToKst(r.openTime)} ~ ${tsToKst(r.closeTime)}`;
-                tr.appendChild(tdKst);
-
-                const tdO = document.createElement("td");
-                tdO.className = "mono";
-                tdO.textContent = formatPrice(r.open);
-                tr.appendChild(tdO);
-
-                const tdH = document.createElement("td");
-                tdH.className = "mono";
-                tdH.textContent = formatPrice(r.high);
-                tr.appendChild(tdH);
-
-                const tdL = document.createElement("td");
-                tdL.className = "mono";
-                tdL.textContent = formatPrice(r.low);
-                tr.appendChild(tdL);
-
-                const tdC = document.createElement("td");
-                tdC.className = "mono";
-                tdC.textContent = formatPrice(r.close);
-                tr.appendChild(tdC);
-
                 const tdPct = document.createElement("td");
                 tdPct.className = `mono ${r.highOpenPct >= 0 ? "pctPos" : "pctNeg"}`;
                 tdPct.textContent = formatPct(r.highOpenPct);
                 tr.appendChild(tdPct);
-
-                const tdRange = document.createElement("td");
-                tdRange.className = "mono";
-                tdRange.textContent = formatPct(r.rangePct);
-                tr.appendChild(tdRange);
-
-                const tdQv = document.createElement("td");
-                tdQv.className = "mono";
-                tdQv.textContent = formatComma(r.quoteVol);
-                tr.appendChild(tdQv);
-
-                const tdTrades = document.createElement("td");
-                tdTrades.className = "mono";
-                tdTrades.textContent = formatComma(r.trades);
-                tr.appendChild(tdTrades);
-
-                const tdNote = document.createElement("td");
-                tdNote.className = "muted";
-                tdNote.textContent = "";
-                tr.appendChild(tdNote);
 
                 return tr;
             }
@@ -707,7 +670,7 @@
                 if (filtered.length === 0) {
                     const tr = document.createElement("tr");
                     const td = document.createElement("td");
-                    td.colSpan = 13;
+                    td.colSpan = 3;
                     td.className = "muted";
                     td.textContent = query.length > 0 ? "검색 결과가 없습니다." : "결과가 없습니다.";
                     tr.appendChild(td);
@@ -724,20 +687,12 @@
                 scanState.rendered = filtered;
             }
 
-            function toCsvRows(results) {
+            function toCsvRows(results, targetYm) {
                 const header = [
                     "rank",
                     "symbol",
-                    "openTimeUtc",
-                    "closeTimeUtc",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
+                    "yearMonthUtc",
                     "highOpenPct",
-                    "rangePct",
-                    "quoteVol",
-                    "trades",
                 ];
 
                 const rows = [header.join(",")];
@@ -747,16 +702,8 @@
                     const row = [
                         String(i + 1),
                         r.symbol,
-                        `"${tsToUtc(r.openTime)}"`,
-                        `"${tsToUtc(r.closeTime)}"`,
-                        String(r.open),
-                        String(r.high),
-                        String(r.low),
-                        String(r.close),
+                        targetYm,
                         r.highOpenPct.toFixed(6),
-                        r.rangePct.toFixed(6),
-                        String(r.quoteVol),
-                        String(r.trades),
                     ];
                     rows.push(row.join(","));
                 }
@@ -795,6 +742,7 @@
             function setUiRunning(running) {
                 btnScan.disabled = running;
                 btnStop.disabled = !running;
+                inputYm.disabled = running;
                 inputConcurrency.disabled = running;
                 inputRetry.disabled = running;
             }
@@ -817,7 +765,9 @@
                     ? `${Math.floor(elapsedSec / 60)}m ${Math.floor(elapsedSec % 60)}s`
                     : `${Math.floor(elapsedSec)}s`;
 
-                return `진행: <b>${done}</b>/<b>${total}</b> · 성공 <b>${ok}</b> · 실패 <b>${fail}</b> · 속도 <b>${rps.toFixed(2)}</b> req/s · 경과 <b>${elapsedText}</b>`;
+                const ymText = scanState.targetYm ? ` · 대상월(UTC) <b>${scanState.targetYm}</b>` : "";
+
+                return `진행: <b>${done}</b>/<b>${total}</b> · 성공 <b>${ok}</b> · 실패 <b>${fail}</b> · 속도 <b>${rps.toFixed(2)}</b> req/s · 경과 <b>${elapsedText}</b>${ymText}`;
             }
 
             function onProgressTick() {
@@ -834,6 +784,13 @@
             async function startScan() {
                 if (scanState.running) return;
 
+                const parsed = parseYearMonth(inputYm.value);
+                if (!parsed) {
+                    setStatus("오류: 대상월(UTC)을 YYYY-MM 형식으로 선택하세요.");
+                    resetTable("대상월(UTC)을 먼저 선택하세요.");
+                    return;
+                }
+
                 scanState.running = true;
                 scanState.aborted = false;
                 scanState.abortController = new AbortController();
@@ -845,6 +802,11 @@
                 scanState.rendered = [];
                 scanState.startedAt = Date.now();
                 scanState.lastRenderAt = 0;
+                scanState.targetYm = parsed.ym;
+                scanState.targetStartUtcMs = parsed.startUtcMs;
+                scanState.targetEndUtcMs = parsed.endUtcMs;
+
+                targetBadge.textContent = parsed.ym;
 
                 setUiRunning(true);
                 setCopyEnabled(false);
@@ -860,7 +822,7 @@
                     const symbols = await loadUsdtPerpSymbols(signal);
                     scanState.symbolsTotal = symbols.length;
 
-                    setStatus(`심볼 <b>${symbols.length}</b>개 · 스캔 준비 중...`);
+                    setStatus(`심볼 <b>${symbols.length}</b>개 · 스캔 준비 중... · 대상월(UTC) <b>${scanState.targetYm}</b>`);
                     setProgress(0, symbols.length);
 
                     if (symbols.length === 0) {
@@ -873,7 +835,13 @@
                     resetTable("스캔 중...");
 
                     const worker = async (symbol) => {
-                        const r = await fetchPrevMonthlyStat(symbol, signal, retryCount);
+                        const r = await fetchMonthlyStat(
+                            symbol,
+                            signal,
+                            retryCount,
+                            scanState.targetStartUtcMs,
+                            scanState.targetEndUtcMs,
+                        );
 
                         if (r.ok) {
                             scanState.ok += 1;
@@ -896,21 +864,11 @@
                         .filter((r) => r && r.ok === true && Number.isFinite(r.highOpenPct))
                         .map((r) => ({
                             symbol: r.symbol,
-                            openTime: r.openTime,
-                            closeTime: r.closeTime,
-                            open: r.open,
-                            high: r.high,
-                            low: r.low,
-                            close: r.close,
-                            quoteVol: r.quoteVol,
-                            trades: r.trades,
                             highOpenPct: r.highOpenPct,
-                            rangePct: r.rangePct,
                         }));
 
                     okResults.sort((a, b) => {
                         if (b.highOpenPct !== a.highOpenPct) return b.highOpenPct - a.highOpenPct;
-                        if (b.quoteVol !== a.quoteVol) return b.quoteVol - a.quoteVol;
                         return a.symbol.localeCompare(b.symbol);
                     });
 
@@ -958,7 +916,7 @@
             btnCopy.addEventListener("click", async () => {
                 if (!scanState.results || scanState.results.length === 0) return;
 
-                const csv = toCsvRows(scanState.results);
+                const csv = toCsvRows(scanState.results, scanState.targetYm || "");
                 const ok = await copyText(csv);
                 const ok2 = ok ? true : fallbackCopy(csv);
 
