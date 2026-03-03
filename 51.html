@@ -291,7 +291,9 @@
                     <div class="sub">
                         전체 <span class="pill">USDT PERPETUAL</span> 페어를 스캔해서,
                         선택한 <span class="pill">년-월(UTC)</span> 월봉의 <span class="pill">고가 ÷ 시가</span> 상승률이 높은 순으로 정렬합니다.<br />
-                        계산식: <code>(High / Open - 1) × 100</code> · 대상월: <span class="pill" id="targetBadge">—</span>
+                        계산식: <code>(High / Open - 1) × 100</code>
+                        · 대상월: <span class="pill" id="targetBadge">—</span>
+                        · 전체 평균: <span class="pill" id="avgBadge">—</span>
                     </div>
                 </div>
                 <div class="topBadge" id="nowBadge">—</div>
@@ -374,6 +376,7 @@
             const bar = $("bar");
             const nowBadge = $("nowBadge");
             const targetBadge = $("targetBadge");
+            const avgBadge = $("avgBadge");
 
             const inputYm = $("ym");
             const inputConcurrency = $("concurrency");
@@ -438,6 +441,27 @@
                 td.textContent = msg;
                 tr.appendChild(td);
                 tbody.appendChild(tr);
+            }
+
+            function setAverageBadge(avg, count) {
+                if (!Number.isFinite(avg) || !Number.isFinite(count) || count <= 0) {
+                    avgBadge.textContent = "—";
+                    return;
+                }
+
+                avgBadge.textContent = `${formatPct(avg)} · n=${count}`;
+            }
+
+            function calcAveragePct(results) {
+                if (!Array.isArray(results) || results.length === 0) return null;
+
+                let sum = 0;
+                for (let i = 0; i < results.length; i += 1) {
+                    const v = Number(results[i].highOpenPct);
+                    if (Number.isFinite(v)) sum += v;
+                }
+
+                return sum / results.length;
             }
 
             async function fetchJson(url, signal) {
@@ -807,6 +831,7 @@
                 scanState.targetEndUtcMs = parsed.endUtcMs;
 
                 targetBadge.textContent = parsed.ym;
+                setAverageBadge(null, 0);
 
                 setUiRunning(true);
                 setCopyEnabled(false);
@@ -873,6 +898,9 @@
                     });
 
                     scanState.results = okResults;
+
+                    const avg = calcAveragePct(scanState.results);
+                    setAverageBadge(avg, scanState.results.length);
 
                     renderTable(scanState.results, inputQuery.value);
                     setCopyEnabled(scanState.results.length > 0);
