@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 1M a[-3] Low == ALL-TIME Min Low (안전+빠름, 실패원인 표시)</title>
+        <title>Binance USDT Perp — 1M 선택월 Low == ALL-TIME Min Low + 최대 레버리지</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -36,7 +36,7 @@
             }
 
             .wrap {
-                max-width: 1400px;
+                max-width: 1500px;
                 margin: 0 auto;
                 padding: 18px 16px 40px;
             }
@@ -143,6 +143,7 @@
 
             input[type="number"],
             input[type="text"],
+            input[type="month"],
             select {
                 background: transparent;
                 border: none;
@@ -160,6 +161,11 @@
                 width: 240px;
                 font-family: var(--sans);
                 font-weight: 700;
+            }
+
+            input[type="month"] {
+                width: 150px;
+                font-family: var(--mono);
             }
 
             select {
@@ -213,7 +219,7 @@
             table {
                 width: 100%;
                 border-collapse: collapse;
-                min-width: 1500px;
+                min-width: 1850px;
             }
 
             thead th {
@@ -290,11 +296,12 @@
         <div class="wrap">
             <div class="titlebar">
                 <div>
-                    <h1>Binance USDT 무기한 — 1M 전체 스캔 (안전+빠름): a[-3] Low가 ALL-TIME 최저점인 심볼 찾기</h1>
+                    <h1>Binance USDT 무기한 — 1M 전체 스캔: “선택월 Low == ALL-TIME Min Low” + 최대 레버리지</h1>
                     <div class="sub">
-                        <span class="pill">USDT PERPETUAL</span> 전체 심볼 대상 · <span class="pill">월봉(1M)</span> 스캔 ·
-                        <code>a = 현재봉(마지막 봉)</code> · <code>a[-3]</code>는 <b>3봉전</b>(= 인덱스 <code>len - 4</code>)<br />
-                        결과는 <b>HIT / OK / FAIL</b> 전부 표시하며, <b>FAIL은 reason을 반드시 기록</b>합니다.
+                        <span class="pill">USDT PERPETUAL</span> 전체 심볼 · <span class="pill">월봉(1M)</span> 조회<br />
+                        선택한 <code>대상월(UTC)</code>의 Low가, 가져온 월봉 전체에서의 <b>ALL-TIME Min Low</b>이면 <b>HIT</b><br />
+                        그리고 <b>ALL-TIME Min Low</b> 기준으로, <code>현재 진행중 월봉(마지막 봉)의 Open</code>에서 진입(Long)했을 때
+                        <b>Min Low까지 와도 청산 안 당하는 최대 레버리지</b>를 계산합니다.
                     </div>
                 </div>
                 <div class="pill" id="nowBadge">—</div>
@@ -310,6 +317,10 @@
                     </div>
                     <div class="rightControls">
                         <div class="field">
+                            <label for="ym">대상월(UTC)</label>
+                            <input id="ym" type="month" />
+                        </div>
+                        <div class="field">
                             <label for="concurrency">동시요청</label>
                             <input id="concurrency" type="number" min="1" max="6" step="1" value="3" />
                         </div>
@@ -323,7 +334,7 @@
                         </div>
                         <div class="field">
                             <label for="klinesLimit">Klines limit</label>
-                            <input id="klinesLimit" type="number" min="100" max="1000" step="50" value="500" />
+                            <input id="klinesLimit" type="number" min="100" max="1500" step="50" value="1000" />
                         </div>
                         <div class="field">
                             <label for="retry">재시도</label>
@@ -332,6 +343,14 @@
                         <div class="field">
                             <label for="epsilon">동률 오차</label>
                             <input id="epsilon" type="number" min="0" step="0.0000000001" value="0.000000001" />
+                        </div>
+                        <div class="field">
+                            <label for="mmr">MMR(추정)</label>
+                            <input id="mmr" type="number" min="0" step="0.0001" value="0.005" />
+                        </div>
+                        <div class="field">
+                            <label for="levCap">레버 상한</label>
+                            <input id="levCap" type="number" min="1" max="125" step="1" value="125" />
                         </div>
                         <div class="field">
                             <label for="viewMode">표시</label>
@@ -363,27 +382,39 @@
                                 <th>심볼</th>
                                 <th>상태</th>
                                 <th class="mono">월봉 개수</th>
-                                <th>a[-3] 봉(UTC)</th>
-                                <th>a[-3] 봉(KST)</th>
-                                <th class="mono">a[-3] Low</th>
+
+                                <th>대상월(UTC)</th>
+                                <th>대상월(KST)</th>
+                                <th class="mono">대상월 Low</th>
+
                                 <th class="mono">ALL-TIME Min Low</th>
+
+                                <th>현재봉(UTC)</th>
+                                <th class="mono">현재봉 Open</th>
+
+                                <th class="mono">DD(Entry→Min)%</th>
+                                <th class="mono">Max Lev(무청산)</th>
+
                                 <th class="mono">Min 동률 개수</th>
                                 <th class="mono">Min 인덱스들</th>
+
                                 <th class="reason">실패 원인(reason)</th>
                             </tr>
                         </thead>
                         <tbody id="tbody">
                             <tr>
-                                <td colspan="11" class="muted">스캔 시작을 누르세요.</td>
+                                <td colspan="15" class="muted">스캔 시작을 누르세요.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
                 <div class="hint">
-                    - “밴 안 걸릴 정도로만”을 위해, 요청은 <b>토큰버킷(Weight/분 예산)</b>으로 제어합니다.<br />
-                    - <code>klinesLimit</code>이 커질수록 요청 1회의 weight가 커집니다. (권장: <code>500</code>)<br />
-                    - 429가 오면 <b>자동 감속</b>하고, 418(밴)은 <b>즉시 중단</b>합니다.
+                    - 요청 제어: <b>토큰버킷(Weight/분 예산)</b> 기반<br />
+                    - HIT 판정: <code>|targetLow - allTimeMinLow| ≤ epsilon</code><br />
+                    - 레버리지(근사, Long): <code>DD = (Entry - MinLow) / Entry</code>, <code>MaxLev ≈ 1 / (DD + MMR)</code><br />
+                    - <code>MMR</code>는 심볼/구간별 실제값과 다를 수 있어요(기본 0.5%로 보수적 근사).<br />
+                    - 429 발생 시 <b>자동 감속</b>, 418(밴) 감지 시 <b>즉시 중단</b>
                 </div>
             </div>
         </div>
@@ -407,12 +438,15 @@
             const bar = $("bar");
             const nowBadge = $("nowBadge");
 
+            const inputYm = $("ym");
             const inputConcurrency = $("concurrency");
             const inputMaxWeightPerMin = $("maxWeightPerMin");
             const inputBurstWeight = $("burstWeight");
             const inputKlinesLimit = $("klinesLimit");
             const inputRetry = $("retry");
             const inputEpsilon = $("epsilon");
+            const inputMmr = $("mmr");
+            const inputLevCap = $("levCap");
             const inputViewMode = $("viewMode");
             const inputQuery = $("q");
 
@@ -448,7 +482,9 @@
 
                 lastUsedWeight1m: null,
 
-                allResults: [],      // HIT/OK/FAIL 전부
+                targetYmUtc: "",
+
+                allResults: [],
                 renderCache: [],
             };
 
@@ -465,7 +501,7 @@
                 tbody.innerHTML = "";
                 const tr = document.createElement("tr");
                 const td = document.createElement("td");
-                td.colSpan = 11;
+                td.colSpan = 15;
                 td.className = "muted";
                 td.textContent = msg;
                 tr.appendChild(td);
@@ -495,10 +531,45 @@
                 return n.toFixed(10);
             }
 
+            function formatPct2(n) {
+                if (!Number.isFinite(n)) return "-";
+                const sign = n > 0 ? "+" : "";
+                return `${sign}${n.toFixed(2)}%`;
+            }
+
             function safeString(x) {
                 const s = String(x ?? "");
                 return s.length > 0 ? s : "-";
             }
+
+            function parseYearMonthInput(ym) {
+                const s = String(ym || "").trim();
+                const m = /^(\d{4})-(\d{2})$/.exec(s);
+                if (!m) return null;
+
+                const year = Number(m[1]);
+                const month = Number(m[2]);
+
+                if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+                if (year < 2017 || year > 2100) return null;
+                if (month < 1 || month > 12) return null;
+
+                return s;
+            }
+
+            function setDefaultYmUtc() {
+                const now = new Date();
+                const y = now.getUTCFullYear();
+                const m = now.getUTCMonth();
+                const prev = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0));
+                prev.setUTCMonth(prev.getUTCMonth() - 1);
+
+                const py = prev.getUTCFullYear();
+                const pm = String(prev.getUTCMonth() + 1).padStart(2, "0");
+                inputYm.value = `${py}-${pm}`;
+            }
+
+            setDefaultYmUtc();
 
             function buildKlinesUrl(symbol, limit) {
                 const u = new URL(ENDPOINT_KLINES);
@@ -509,11 +580,10 @@
             }
 
             function estimateKlinesWeight(limit) {
-                // Binance 문서 규칙(대표적으로 알려진 구간): 1~100 => 1, 101~500 => 2, 501~1000 => 5, 1001~1500 => 10
-                // 여기서는 limit을 1000 이하로 제한해서 10구간 자체를 피함.
                 if (limit <= 100) return 1;
                 if (limit <= 500) return 2;
-                return 5;
+                if (limit <= 1000) return 5;
+                return 10; // 1001~1500
             }
 
             function parseRetryAfterSeconds(res) {
@@ -575,7 +645,6 @@
                         return;
                     }
 
-                    // 기다릴 시간 = 부족분 / refillPerMs
                     const need = w - bucket.tokens;
                     const waitMs = bucket.refillPerMs > 0 ? Math.ceil(need / bucket.refillPerMs) : 1000;
                     await sleep(clamp(waitMs, 50, 1500));
@@ -588,8 +657,6 @@
                 const now = Date.now();
                 const pauseMs = Math.max(0, Number(seconds) * 1000);
                 bucket.pausedUntil = Math.max(bucket.pausedUntil, now + pauseMs);
-
-                // 자동 감속: 분당 예산을 절반으로 낮추는 효과(리필 속도 절반)
                 bucket.refillPerMs = bucket.refillPerMs * 0.5;
             }
 
@@ -597,12 +664,15 @@
                 btnScan.disabled = running;
                 btnStop.disabled = !running;
 
+                inputYm.disabled = running;
                 inputConcurrency.disabled = running;
                 inputMaxWeightPerMin.disabled = running;
                 inputBurstWeight.disabled = running;
                 inputKlinesLimit.disabled = running;
                 inputRetry.disabled = running;
                 inputEpsilon.disabled = running;
+                inputMmr.disabled = running;
+                inputLevCap.disabled = running;
             }
 
             function setCopyEnabled(enabledAll, enabledFail) {
@@ -611,7 +681,6 @@
             }
 
             async function fetchJsonWithMeta(url, signal, weight) {
-                // 요청하기 전에 weight 토큰 확보
                 await takeTokens(weight);
 
                 const res = await fetch(url, {
@@ -631,13 +700,11 @@
 
                 if (res.status === 429) {
                     const retryAfter = parseRetryAfterSeconds(res);
-                    // retry-after가 없으면 20초 정도로 보수적으로
                     applyAutoSlowdown(retryAfter ?? 20);
                     throw new Error(`HTTP 429 (rate limit) · retryAfter=${retryAfter ?? "n/a"} · ${text.slice(0, 180)}`);
                 }
 
                 if (res.status === 418) {
-                    // 418은 밴 가능성이 높으니 즉시 중단 유도
                     throw new Error(`HTTP 418 (IP banned) · ${text.slice(0, 180)}`);
                 }
 
@@ -671,33 +738,51 @@
                 return symbols;
             }
 
-            function parseMonthlyLows(klines) {
+            function parseMonthlyCandles(klines) {
                 if (!Array.isArray(klines)) return null;
-                if (klines.length < 4) return { insufficient: true, count: klines.length };
 
-                const lows = [];
-                const openTimes = [];
-
+                const candles = [];
                 for (let i = 0; i < klines.length; i += 1) {
                     const k = klines[i];
                     if (!Array.isArray(k) || k.length < 6) return null;
 
                     const openTime = Number(k[0]);
+                    const open = Number(k[1]);
                     const low = Number(k[3]);
 
-                    if (!Number.isFinite(openTime) || !Number.isFinite(low)) return null;
+                    if (!Number.isFinite(openTime) || !Number.isFinite(open) || !Number.isFinite(low)) return null;
 
-                    openTimes.push(openTime);
-                    lows.push(low);
+                    candles.push({ openTime, open, low });
                 }
 
-                return { lows, openTimes, insufficient: false, count: lows.length };
+                return candles;
             }
 
-            function analyzeSymbol(symbol, klines, epsilon) {
-                const parsed = parseMonthlyLows(klines);
+            function computeMaxLeverage(entry, worstLow, mmr, levCap) {
+                if (!Number.isFinite(entry) || !Number.isFinite(worstLow) || entry <= 0 || worstLow <= 0) return null;
 
-                if (!parsed) {
+                const dd = (entry - worstLow) / entry; // 0.2 = -20%
+                const denom = dd + Math.max(0, mmr);
+
+                if (denom <= 0) {
+                    return { text: `${levCap}+`, ddPct: dd * 100 };
+                }
+
+                let lev = 1 / denom;
+
+                if (!Number.isFinite(lev) || lev <= 0) return { text: "-", ddPct: dd * 100 };
+
+                if (lev >= levCap) return { text: `${levCap}+`, ddPct: dd * 100 };
+
+                if (lev < 1) return { text: "<1", ddPct: dd * 100 };
+
+                return { text: lev.toFixed(2), ddPct: dd * 100 };
+            }
+
+            function analyzeSymbol(symbol, klines, targetYmUtc, epsilon, mmr, levCap) {
+                const candles = parseMonthlyCandles(klines);
+
+                if (!candles) {
                     return {
                         symbol,
                         status: "FAIL",
@@ -705,54 +790,97 @@
                     };
                 }
 
-                if (parsed.insufficient) {
+                if (candles.length < 2) {
                     return {
                         symbol,
                         status: "FAIL",
-                        reason: `월봉 데이터 부족: ${parsed.count}개 (a[-3]는 최소 4개 필요)`,
-                        count: parsed.count,
+                        reason: `월봉 데이터 부족: ${candles.length}개`,
+                        count: candles.length,
                     };
                 }
 
-                const { lows, openTimes } = parsed;
-                const len = lows.length;
+                const count = candles.length;
 
-                // a[-3] = 3봉전 = len - 4
-                const targetIndex = len - 4;
-                if (targetIndex < 0 || targetIndex >= len) {
+                // 현재 진행중 월봉 = 마지막 봉
+                const last = candles[count - 1];
+                const currentOpenTime = last.openTime;
+                const currentOpen = last.open;
+
+                if (!Number.isFinite(currentOpen) || currentOpen <= 0) {
                     return {
                         symbol,
                         status: "FAIL",
-                        reason: `a[-3] 인덱스 계산 실패(len=${len})`,
-                        count: len,
+                        reason: "현재봉(Open) 파싱 실패 또는 0 이하",
+                        count,
                     };
                 }
 
+                // all-time min low
                 let minLow = Infinity;
-                for (let i = 0; i < len; i += 1) {
-                    const v = lows[i];
+                for (let i = 0; i < count; i += 1) {
+                    const v = candles[i].low;
                     if (v < minLow) minLow = v;
                 }
 
+                if (!Number.isFinite(minLow) || minLow <= 0) {
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: "ALL-TIME Min Low 계산 실패(0 이하/NaN)",
+                        count,
+                    };
+                }
+
                 const minIdx = [];
-                for (let i = 0; i < len; i += 1) {
-                    if (Math.abs(lows[i] - minLow) <= epsilon) {
+                for (let i = 0; i < count; i += 1) {
+                    if (Math.abs(candles[i].low - minLow) <= epsilon) {
                         minIdx.push(i);
                     }
                 }
 
-                const targetLow = lows[targetIndex];
+                // target month candle find (UTC month match)
+                let target = null;
+                for (let i = 0; i < count; i += 1) {
+                    const ym = tsToUtcMonth(candles[i].openTime);
+                    if (ym === targetYmUtc) {
+                        target = { ...candles[i], index: i };
+                        break;
+                    }
+                }
+
+                if (!target) {
+                    const earliest = tsToUtcMonth(candles[0].openTime);
+                    const latest = tsToUtcMonth(candles[count - 1].openTime);
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: `대상월(${targetYmUtc}) 월봉이 없음 · 보유 범위(UTC): ${earliest} ~ ${latest} · (상장 전이거나 limit이 부족할 수 있음)`,
+                        count,
+                        minLow,
+                        minIdx,
+                        currentOpenTime,
+                        currentOpen,
+                    };
+                }
+
+                const targetLow = target.low;
                 const isHit = Math.abs(targetLow - minLow) <= epsilon;
+
+                const lev = computeMaxLeverage(currentOpen, minLow, mmr, levCap);
 
                 return {
                     symbol,
                     status: isHit ? "HIT" : "OK",
                     reason: "",
-                    count: len,
-                    targetOpenTime: openTimes[targetIndex],
+                    count,
+                    targetOpenTime: target.openTime,
                     targetLow,
                     minLow,
                     minIdx,
+                    currentOpenTime,
+                    currentOpen,
+                    ddPct: lev ? lev.ddPct : null,
+                    maxLevText: lev ? lev.text : "-",
                 };
             }
 
@@ -765,12 +893,13 @@
 
                 const rate = done / elapsedSec;
                 const used = scanState.lastUsedWeight1m ? ` · usedWeight(1m)≈<b>${scanState.lastUsedWeight1m}</b>` : "";
+                const ym = scanState.targetYmUtc ? ` · 대상월(UTC) <b>${scanState.targetYmUtc}</b>` : "";
 
                 const elapsedText = elapsedSec >= 60
                     ? `${Math.floor(elapsedSec / 60)}m ${Math.floor(elapsedSec % 60)}s`
                     : `${Math.floor(elapsedSec)}s`;
 
-                return `진행 <b>${done}</b>/<b>${total}</b> · HIT <b>${scanState.hit}</b> · OK <b>${scanState.ok}</b> · FAIL <b>${scanState.fail}</b> · <b>${rate.toFixed(2)}</b> sym/s · 경과 <b>${elapsedText}</b>${used}`;
+                return `진행 <b>${done}</b>/<b>${total}</b> · HIT <b>${scanState.hit}</b> · OK <b>${scanState.ok}</b> · FAIL <b>${scanState.fail}</b> · <b>${rate.toFixed(2)}</b> sym/s · 경과 <b>${elapsedText}</b>${ym}${used}`;
             }
 
             function buildRow(rank, r) {
@@ -797,15 +926,15 @@
                 tdCount.textContent = r.count != null ? String(r.count) : "-";
                 tr.appendChild(tdCount);
 
-                const tdUtc = document.createElement("td");
-                tdUtc.className = "mono";
-                tdUtc.textContent = r.targetOpenTime ? tsToUtcMonth(r.targetOpenTime) : "-";
-                tr.appendChild(tdUtc);
+                const tdTargetUtc = document.createElement("td");
+                tdTargetUtc.className = "mono";
+                tdTargetUtc.textContent = r.targetOpenTime ? tsToUtcMonth(r.targetOpenTime) : "-";
+                tr.appendChild(tdTargetUtc);
 
-                const tdKst = document.createElement("td");
-                tdKst.className = "mono";
-                tdKst.textContent = r.targetOpenTime ? tsToKstMonth(r.targetOpenTime) : "-";
-                tr.appendChild(tdKst);
+                const tdTargetKst = document.createElement("td");
+                tdTargetKst.className = "mono";
+                tdTargetKst.textContent = r.targetOpenTime ? tsToKstMonth(r.targetOpenTime) : "-";
+                tr.appendChild(tdTargetKst);
 
                 const tdTargetLow = document.createElement("td");
                 tdTargetLow.className = "mono";
@@ -816,6 +945,26 @@
                 tdMinLow.className = "mono";
                 tdMinLow.textContent = r.minLow != null ? formatPrice(r.minLow) : "-";
                 tr.appendChild(tdMinLow);
+
+                const tdCurUtc = document.createElement("td");
+                tdCurUtc.className = "mono";
+                tdCurUtc.textContent = r.currentOpenTime ? tsToUtcMonth(r.currentOpenTime) : "-";
+                tr.appendChild(tdCurUtc);
+
+                const tdCurOpen = document.createElement("td");
+                tdCurOpen.className = "mono";
+                tdCurOpen.textContent = r.currentOpen != null ? formatPrice(r.currentOpen) : "-";
+                tr.appendChild(tdCurOpen);
+
+                const tdDd = document.createElement("td");
+                tdDd.className = "mono";
+                tdDd.textContent = r.ddPct != null ? formatPct2(-Math.abs(r.ddPct)) : "-";
+                tr.appendChild(tdDd);
+
+                const tdLev = document.createElement("td");
+                tdLev.className = "mono";
+                tdLev.textContent = safeString(r.maxLevText);
+                tr.appendChild(tdLev);
 
                 const tdTieCount = document.createElement("td");
                 tdTieCount.className = "mono";
@@ -839,7 +988,15 @@
                 return tr;
             }
 
-            function applyFilters(results, viewMode, q) {
+            function levToNumber(text, levCap) {
+                const s = String(text ?? "").trim();
+                if (!s) return -1;
+                if (s.endsWith("+")) return Number(levCap) + 0.0001;
+                const n = Number(s);
+                return Number.isFinite(n) ? n : -1;
+            }
+
+            function applyFilters(results, viewMode, q, levCap) {
                 const query = (q || "").trim().toUpperCase();
 
                 let filtered = results.slice();
@@ -854,12 +1011,22 @@
                     filtered = filtered.filter((r) => r.symbol.includes(query));
                 }
 
-                // 보기 좋게: HIT 먼저, 그 다음 OK, 마지막 FAIL
                 const order = { HIT: 0, OK: 1, FAIL: 2 };
                 filtered.sort((a, b) => {
                     const oa = order[a.status] ?? 9;
                     const ob = order[b.status] ?? 9;
                     if (oa !== ob) return oa - ob;
+
+                    // FAIL은 심볼 정렬
+                    if (a.status === "FAIL" || b.status === "FAIL") {
+                        return a.symbol.localeCompare(b.symbol);
+                    }
+
+                    // HIT/OK는 MaxLev 높은 순
+                    const la = levToNumber(a.maxLevText, levCap);
+                    const lb = levToNumber(b.maxLevText, levCap);
+                    if (lb !== la) return lb - la;
+
                     return a.symbol.localeCompare(b.symbol);
                 });
 
@@ -867,7 +1034,8 @@
             }
 
             function renderTable() {
-                const results = applyFilters(scanState.allResults, inputViewMode.value, inputQuery.value);
+                const levCap = clamp(Number(inputLevCap.value || 125), 1, 125);
+                const results = applyFilters(scanState.allResults, inputViewMode.value, inputQuery.value, levCap);
                 scanState.renderCache = results;
 
                 tbody.innerHTML = "";
@@ -875,7 +1043,7 @@
                 if (results.length === 0) {
                     const tr = document.createElement("tr");
                     const td = document.createElement("td");
-                    td.colSpan = 11;
+                    td.colSpan = 15;
                     td.className = "muted";
                     td.textContent = "표시할 결과가 없습니다.";
                     tr.appendChild(td);
@@ -903,16 +1071,24 @@
                     "symbol",
                     "status",
                     "monthCount",
-                    "a_minus_3_utc_month",
-                    "a_minus_3_kst_month",
-                    "a_minus_3_low",
-                    "all_time_min_low",
-                    "min_tie_count",
-                    "min_indices",
+                    "targetMonthUtc",
+                    "targetMonthKst",
+                    "targetLow",
+                    "allTimeMinLow",
+                    "currentMonthUtc",
+                    "currentOpen",
+                    "ddPct",
+                    "maxLevText",
+                    "minTieCount",
+                    "minIndices",
                     "reason",
+                    "scanTargetYmUtc",
+                    "mmrUsed",
                 ];
 
                 const rows = [header.join(",")];
+
+                const mmrUsed = String(Number(inputMmr.value || 0));
 
                 for (let i = 0; i < results.length; i += 1) {
                     const r = results[i];
@@ -925,9 +1101,15 @@
                         r.targetOpenTime ? tsToKstMonth(r.targetOpenTime) : "",
                         r.targetLow != null ? String(r.targetLow) : "",
                         r.minLow != null ? String(r.minLow) : "",
+                        r.currentOpenTime ? tsToUtcMonth(r.currentOpenTime) : "",
+                        r.currentOpen != null ? String(r.currentOpen) : "",
+                        r.ddPct != null ? String(r.ddPct) : "",
+                        r.maxLevText ?? "",
                         Array.isArray(r.minIdx) ? String(r.minIdx.length) : "",
                         Array.isArray(r.minIdx) ? r.minIdx.join("|") : "",
                         r.reason ?? "",
+                        scanState.targetYmUtc ?? "",
+                        mmrUsed,
                     ].map(csvEscape);
 
                     rows.push(row.join(","));
@@ -980,10 +1162,7 @@
                 const signal = scanState.abortController.signal;
 
                 while (!scanState.aborted) {
-                    let i = -1;
-
-                    // index 할당 (간단한 뮤텍스 대체)
-                    i = idxRef.value;
+                    const i = idxRef.value;
                     idxRef.value += 1;
 
                     if (i >= symbols.length) return;
@@ -1000,19 +1179,17 @@
                         for (let attempt = 0; attempt <= cfg.retryCount; attempt += 1) {
                             try {
                                 const { data } = await fetchJsonWithMeta(url, signal, weight);
-                                finalResult = analyzeSymbol(symbol, data, cfg.epsilon);
+                                finalResult = analyzeSymbol(symbol, data, cfg.targetYmUtc, cfg.epsilon, cfg.mmr, cfg.levCap);
                                 lastErr = null;
                                 break;
                             } catch (err) {
                                 lastErr = err;
                                 const msg = String(err && err.message ? err.message : err);
 
-                                // 418은 즉시 중단 유도
                                 if (msg.includes("HTTP 418")) {
                                     throw err;
                                 }
 
-                                // 429는 fetchJsonWithMeta에서 이미 감속 처리함. 재시도는 1회까지만(설정)
                                 if (attempt < cfg.retryCount) {
                                     await sleep(700 + Math.floor(Math.random() * 600));
                                     continue;
@@ -1036,7 +1213,6 @@
                             reason: msg,
                         };
 
-                        // 418 감지 시 즉시 중단(추가 요청 방지)
                         if (msg.includes("HTTP 418")) {
                             scanState.aborted = true;
                             try {
@@ -1058,7 +1234,10 @@
                             setProgress(scanState.done, scanState.symbolsTotal);
                             setStatus(buildStatusHtml());
                             renderTable();
-                            setCopyEnabled(scanState.allResults.length > 0, scanState.allResults.some((r) => r.status === "FAIL"));
+                            setCopyEnabled(
+                                scanState.allResults.length > 0,
+                                scanState.allResults.some((r) => r.status === "FAIL"),
+                            );
                         }
                     }
                 }
@@ -1066,6 +1245,13 @@
 
             async function startScan() {
                 if (scanState.running) return;
+
+                const targetYmUtc = parseYearMonthInput(inputYm.value);
+                if (!targetYmUtc) {
+                    setStatus("오류: 대상월(UTC)을 YYYY-MM 형식으로 선택하세요.");
+                    resetTable("대상월(UTC)을 먼저 선택하세요.");
+                    return;
+                }
 
                 scanState.running = true;
                 scanState.aborted = false;
@@ -1082,6 +1268,7 @@
                 scanState.lastUsedWeight1m = null;
                 scanState.allResults = [];
                 scanState.renderCache = [];
+                scanState.targetYmUtc = targetYmUtc;
 
                 setUiRunning(true);
                 setCopyEnabled(false, false);
@@ -1091,9 +1278,11 @@
                 const concurrency = clamp(Number(inputConcurrency.value || 3), 1, 6);
                 const maxWeightPerMin = clamp(Number(inputMaxWeightPerMin.value || 400), 60, 2000);
                 const burstWeight = clamp(Number(inputBurstWeight.value || 20), 2, 200);
-                const klinesLimit = clamp(Number(inputKlinesLimit.value || 500), 100, 1000);
+                const klinesLimit = clamp(Number(inputKlinesLimit.value || 1000), 100, 1500);
                 const retryCount = clamp(Number(inputRetry.value || 1), 0, 1);
                 const epsilon = Math.max(0, Number(inputEpsilon.value || 0));
+                const mmr = Math.max(0, Number(inputMmr.value || 0));
+                const levCap = clamp(Number(inputLevCap.value || 125), 1, 125);
 
                 initBucket(maxWeightPerMin, burstWeight);
 
@@ -1105,13 +1294,16 @@
                     klinesWeight: estimateKlinesWeight(klinesLimit),
                     retryCount,
                     epsilon,
+                    targetYmUtc,
+                    mmr,
+                    levCap,
                 };
 
                 try {
                     const symbols = await loadUsdtPerpSymbols(scanState.abortController.signal);
                     scanState.symbolsTotal = symbols.length;
 
-                    setStatus(`심볼 <b>${symbols.length}</b>개 · 스캔 준비 중...`);
+                    setStatus(`심볼 <b>${symbols.length}</b>개 · 스캔 준비 중... · 대상월(UTC) <b>${targetYmUtc}</b>`);
                     setProgress(0, symbols.length);
 
                     if (symbols.length === 0) {
