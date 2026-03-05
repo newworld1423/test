@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Binance USDT Perp 1D ATL Ref-Low Scanner</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0b1020;
+            --panel: #121a2b;
+            --panel-2: #182338;
+            --line: rgba(255, 255, 255, 0.1);
+            --text: #edf2ff;
+            --muted: rgba(237, 242, 255, 0.7);
+            --accent: #7aa2ff;
+            --accent-2: #4de4c1;
+            --danger: #ff6b8a;
+            --warn: #ffd166;
+            --good: #4fe39a;
+            --shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+            --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            --sans: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at top, rgba(122, 162, 255, 0.14), transparent 22%), var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+        }
+
+        body {
+            min-width: 360px;
+        }
+
+        .wrap {
+            width: min(1680px, calc(100% - 24px));
+            margin: 24px auto 48px;
+        }
+
+        .hero {
+            padding: 24px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+            box-shadow: var(--shadow);
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(24px, 3vw, 36px);
+            line-height: 1.15;
+        }
+
+        .hero p {
+            margin: 10px 0 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .card {
+            grid-column: span 12;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            background: rgba(18, 26, 43, 0.92);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .card-head h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .card-body {
+            padding: 18px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .field {
+            grid-column: span 3;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .field.wide {
+            grid-column: span 6;
+        }
+
+        .field label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            font: inherit;
+        }
+
+        input,
+        select {
+            width: 100%;
+            height: 44px;
+            padding: 0 14px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: var(--panel-2);
+            color: var(--text);
+            outline: none;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: rgba(122, 162, 255, 0.75);
+            box-shadow: 0 0 0 4px rgba(122, 162, 255, 0.12);
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            height: 44px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #08111f;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a9c1ff);
+        }
+
+        button.secondary {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--line);
+        }
+
+        button.warn {
+            color: #211200;
+            background: linear-gradient(135deg, #ffd166, #ffb703);
+        }
+
+        button.danger {
+            color: white;
+            background: linear-gradient(135deg, #ff5f7d, #d7265e);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .stat {
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .stat .k {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .stat .v {
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .mono {
+            font-family: var(--mono);
+        }
+
+        .pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .pill {
+            padding: 8px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .good {
+            color: var(--good);
+        }
+
+        .warn-text {
+            color: var(--warn);
+        }
+
+        .danger-text {
+            color: var(--danger);
+        }
+
+        .progress-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transition: width 0.2s ease;
+        }
+
+        .log {
+            width: 100%;
+            min-height: 240px;
+            resize: vertical;
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: #0b1221;
+            color: var(--text);
+            line-height: 1.55;
+            font-family: var(--mono);
+        }
+
+        .table-wrap {
+            overflow: auto;
+            border-top: 1px solid var(--line);
+        }
+
+        table {
+            width: 100%;
+            min-width: 1320px;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #111a2a;
+            color: var(--muted);
+            font-size: 12px;
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--line);
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            white-space: nowrap;
+            font-size: 14px;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .note {
+            margin-top: 14px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+
+        details {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        details summary {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        ul.tight {
+            margin: 12px 0 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        @media (max-width: 1200px) {
+            .field,
+            .field.wide {
+                grid-column: span 4;
+            }
+
+            .stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 860px) {
+            .wrap {
+                width: min(100%, calc(100% - 16px));
+                margin-top: 16px;
+            }
+
+            .field,
+            .field.wide {
+                grid-column: span 6;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .hero,
+            .card-body,
+            .card-head {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+
+            .field,
+            .field.wide {
+                grid-column: span 12;
+            }
+
+            .stats {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <section class="hero">
+            <h1>Binance USDT 무기한 1D 스캐너</h1>
+            <p>
+                조건: <strong>현재봉 기준 2봉 전(a[-2])의 저점</strong>이 해당 심볼의 <strong>전체 1D 봉 중 최저 저점(ATL)</strong>인 경우만 결과에 표시합니다.
+                진입가는 <strong>현재봉 시가</strong>로 가정하고, 가격이 <strong>a[-2] 저점</strong>까지 와도 청산되지 않도록 하는 <strong>계산상 최대 레버리지</strong>를 같이 계산합니다.
+                1D 캔들은 Binance 기준 <strong>UTC</strong>입니다.
+            </p>
+        </section>
+
+        <div class="grid">
+            <section class="card" style="grid-column: span 12;">
+                <div class="card-head">
+                    <h2>설정</h2>
+                    <div class="pill-row">
+                        <div class="pill">429 / 418 / 5xx 자동 백오프</div>
+                        <div class="pill">심볼 단위 재큐잉</div>
+                        <div class="pill">weight 예산 기반 속도 제어</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="controls">
+                        <div class="field">
+                            <label for="workers">동시 워커 수</label>
+                            <input id="workers" type="number" min="1" max="10" step="1" value="4" />
+                        </div>
+                        <div class="field">
+                            <label for="weightBudget">분당 weight 예산</label>
+                            <input id="weightBudget" type="number" min="200" max="2200" step="50" value="1500" />
+                        </div>
+                        <div class="field">
+                            <label for="historyLimit">과거 1D 요청 limit</label>
+                            <input id="historyLimit" type="number" min="500" max="1000" step="100" value="1000" />
+                        </div>
+                        <div class="field">
+                            <label for="maintMarginPct">유지증거금(%)</label>
+                            <input id="maintMarginPct" type="number" min="0" max="5" step="0.01" value="0.50" />
+                        </div>
+                        <div class="field">
+                            <label for="lowBufferPct">저점 추가 버퍼(%)</label>
+                            <input id="lowBufferPct" type="number" min="0" max="5" step="0.01" value="0.20" />
+                        </div>
+                        <div class="field">
+                            <label for="recoFactor">권장 레버리지 배수</label>
+                            <input id="recoFactor" type="number" min="0.1" max="1" step="0.01" value="0.90" />
+                        </div>
+                        <div class="field">
+                            <label for="reqTimeoutMs">요청 타임아웃(ms)</label>
+                            <input id="reqTimeoutMs" type="number" min="5000" max="60000" step="1000" value="20000" />
+                        </div>
+                        <div class="field">
+                            <label for="requestRetries">요청 재시도 횟수</label>
+                            <input id="requestRetries" type="number" min="1" max="12" step="1" value="6" />
+                        </div>
+                        <div class="field">
+                            <label for="symbolRetries">심볼 재큐잉 횟수</label>
+                            <input id="symbolRetries" type="number" min="0" max="6" step="1" value="2" />
+                        </div>
+                        <div class="field wide">
+                            <label>실행</label>
+                            <div class="actions">
+                                <button id="startBtn">스캔 시작</button>
+                                <button id="pauseBtn" class="secondary" disabled>일시정지</button>
+                                <button id="stopBtn" class="danger" disabled>중지</button>
+                                <button id="exportBtn" class="warn" disabled>CSV 저장</button>
+                                <button id="clearBtn" class="secondary">결과 비우기</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="note">
+                        `exchangeInfo`로 <strong>USDT / PERPETUAL / TRADING</strong> 심볼만 추려서 스캔합니다. 과거 히스토리는 페이지 단위로 뒤로 내려가며 확인하고,
+                        2봉전 저점보다 더 낮은 저점이 하나라도 나오면 즉시 탈락시켜 불필요한 요청을 줄입니다.
+                    </div>
+                </div>
+            </section>
+
+            <section class="card" style="grid-column: span 12;">
+                <div class="card-head">
+                    <h2>진행 상태</h2>
+                    <div id="statusText" class="pill">대기 중</div>
+                </div>
+                <div class="card-body">
+                    <div class="stats">
+                        <div class="stat"><div class="k">전체 심볼</div><div class="v" id="statTotal">0</div></div>
+                        <div class="stat"><div class="k">완료</div><div class="v" id="statDone">0</div></div>
+                        <div class="stat"><div class="k">조건 일치</div><div class="v good" id="statMatched">0</div></div>
+                        <div class="stat"><div class="k">최종 실패</div><div class="v danger-text" id="statFailed">0</div></div>
+                        <div class="stat"><div class="k">요청 횟수</div><div class="v" id="statRequests">0</div></div>
+                        <div class="stat"><div class="k">재시도 / 재큐잉</div><div class="v warn-text" id="statRetries">0 / 0</div></div>
+                    </div>
+                    <div style="height: 14px;"></div>
+                    <div class="progress-wrap">
+                        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+                        <div class="pill-row">
+                            <div class="pill">남은 심볼: <span id="remainText">0</span></div>
+                            <div class="pill">활성 워커: <span id="workerText">0</span></div>
+                            <div class="pill">전역 대기: <span id="globalPauseText">없음</span></div>
+                            <div class="pill">예상 weight/분: <span id="budgetText">0</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card" style="grid-column: span 12;">
+                <div class="card-head">
+                    <h2>결과 테이블</h2>
+                    <div class="pill-row">
+                        <div class="pill">정렬: 최대 레버리지 높은 순</div>
+                        <div class="pill">캔들 시각: UTC</div>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>심볼</th>
+                                <th>최대 레버리지</th>
+                                <th>권장 레버리지</th>
+                                <th>현재봉 시가</th>
+                                <th>2봉전 저점</th>
+                                <th>진입→저점 하락폭</th>
+                                <th>계산상 청산가</th>
+                                <th>유지증거금</th>
+                                <th>저점 버퍼</th>
+                                <th>ATL 동률 개수</th>
+                                <th>2봉전 캔들</th>
+                                <th>전체 최저 시각</th>
+                                <th>스캔 봉수</th>
+                                <th>Kline 요청 수</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody">
+                            <tr>
+                                <td colspan="14" style="color: var(--muted);">아직 결과가 없습니다.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card" style="grid-column: span 7;">
+                <div class="card-head">
+                    <h2>로그</h2>
+                    <div class="pill">최근 400줄 유지</div>
+                </div>
+                <div class="card-body">
+                    <textarea id="log" class="log" spellcheck="false" readonly></textarea>
+                </div>
+            </section>
+
+            <section class="card" style="grid-column: span 5;">
+                <div class="card-head">
+                    <h2>계산 기준</h2>
+                </div>
+                <div class="card-body">
+                    <details open>
+                        <summary>최대 레버리지 계산 방식</summary>
+                        <ul class="tight">
+                            <li>방향은 <strong>롱</strong> 고정입니다.</li>
+                            <li>진입가는 <strong>현재봉 시가</strong>입니다.</li>
+                            <li>기준 저점은 <strong>현재봉 기준 2봉 전(a[-2])의 저점</strong>입니다.</li>
+                            <li>유효 저점은 <strong>기준 저점 × (1 - 추가 버퍼%)</strong> 입니다.</li>
+                            <li>격리 롱의 단순화된 청산가 식으로 계산합니다.<br />
+                                <span class="mono">liq = entry × (1 - 1 / L) / (1 - mmr)</span></li>
+                            <li>이 값이 유효 저점 이하가 되도록 하는 <strong>계산상 최대 L</strong>을 표시합니다.</li>
+                            <li>거래소별 실제 허용 최대 레버리지, 유지증거금 브래킷, 수수료, 마크가격 괴리는 별도라 실거래 값과 완전히 같지 않을 수 있습니다.</li>
+                        </ul>
+                    </details>
+                    <div style="height: 12px;"></div>
+                    <details>
+                        <summary>안전하게 빠르게 스캔하는 방식</summary>
+                        <ul class="tight">
+                            <li>최신 3개 1D 봉만 먼저 조회해서 빠르게 1차 탈락시킵니다.</li>
+                            <li>통과 가능성이 있는 심볼만 과거 히스토리를 페이지 단위로 뒤로 내려가며 검사합니다.</li>
+                            <li>2봉전 저점보다 낮은 저점이 발견되면 즉시 중단합니다.</li>
+                            <li>429/418/5xx 또는 네트워크 문제가 나면 자동 대기 후 재시도합니다.</li>
+                            <li>심볼 단위 실패는 잠시 뒤 다시 큐에 넣습니다.</li>
+                        </ul>
+                    </details>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = "https://fapi.binance.com";
+        const INTERVAL = "1d";
+        const EPS = 1e-12;
+        const SETTINGS_KEY = "binance_1d_atl_ref_scanner_settings_v2";
+        const LOG_LIMIT = 400;
+
+        const el = {
+            workers: document.getElementById("workers"),
+            weightBudget: document.getElementById("weightBudget"),
+            historyLimit: document.getElementById("historyLimit"),
+            maintMarginPct: document.getElementById("maintMarginPct"),
+            lowBufferPct: document.getElementById("lowBufferPct"),
+            recoFactor: document.getElementById("recoFactor"),
+            reqTimeoutMs: document.getElementById("reqTimeoutMs"),
+            requestRetries: document.getElementById("requestRetries"),
+            symbolRetries: document.getElementById("symbolRetries"),
+            startBtn: document.getElementById("startBtn"),
+            pauseBtn: document.getElementById("pauseBtn"),
+            stopBtn: document.getElementById("stopBtn"),
+            exportBtn: document.getElementById("exportBtn"),
+            clearBtn: document.getElementById("clearBtn"),
+            resultBody: document.getElementById("resultBody"),
+            log: document.getElementById("log"),
+            statusText: document.getElementById("statusText"),
+            statTotal: document.getElementById("statTotal"),
+            statDone: document.getElementById("statDone"),
+            statMatched: document.getElementById("statMatched"),
+            statFailed: document.getElementById("statFailed"),
+            statRequests: document.getElementById("statRequests"),
+            statRetries: document.getElementById("statRetries"),
+            progressFill: document.getElementById("progressFill"),
+            remainText: document.getElementById("remainText"),
+            workerText: document.getElementById("workerText"),
+            globalPauseText: document.getElementById("globalPauseText"),
+            budgetText: document.getElementById("budgetText"),
+        };
+
+        const state = {
+            running: false,
+            paused: false,
+            stopping: false,
+            totalSymbols: 0,
+            doneSymbols: 0,
+            matchedSymbols: 0,
+            failedSymbols: 0,
+            requestCount: 0,
+            retryCount: 0,
+            requeueCount: 0,
+            activeWorkers: 0,
+            remainingTasks: 0,
+            globalPauseUntil: 0,
+            queue: [],
+            results: [],
+            logs: [],
+            tokenBucket: null,
+        };
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        function nowIso() {
+            return new Date().toISOString().replace("T", " ").replace(".000Z", "Z");
+        }
+
+        function addLog(message) {
+            const line = `[${nowIso()}] ${message}`;
+            state.logs.push(line);
+            if (state.logs.length > LOG_LIMIT) {
+                state.logs = state.logs.slice(-LOG_LIMIT);
+            }
+            el.log.value = state.logs.join("\n");
+            el.log.scrollTop = el.log.scrollHeight;
+        }
+
+        function round(value, digits = 4) {
+            if (!Number.isFinite(value)) return NaN;
+            const pow = 10 ** digits;
+            return Math.round(value * pow) / pow;
+        }
+
+        function formatNum(value, digits = 4) {
+            if (!Number.isFinite(value)) return "-";
+            return new Intl.NumberFormat("ko-KR", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: digits,
+            }).format(value);
+        }
+
+        function formatPct(value, digits = 2) {
+            if (!Number.isFinite(value)) return "-";
+            return `${formatNum(value, digits)}%`;
+        }
+
+        function formatLev(value) {
+            if (!Number.isFinite(value) || value <= 0) return "-";
+            return `${formatNum(value, 2)}x`;
+        }
+
+        function formatDateUTC(ms) {
+            if (!Number.isFinite(ms)) return "-";
+            return new Date(ms).toISOString().slice(0, 10);
+        }
+
+        function approxEqual(a, b, eps = EPS) {
+            return Math.abs(a - b) <= eps * Math.max(1, Math.abs(a), Math.abs(b));
+        }
+
+        function getWeightByLimit(limit) {
+            if (limit < 100) return 1;
+            if (limit < 500) return 2;
+            if (limit <= 1000) return 5;
+            return 10;
+        }
+
+        function saveSettings() {
+            const settings = getSettings();
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(SETTINGS_KEY);
+                if (!raw) return;
+                const saved = JSON.parse(raw);
+                for (const [key, value] of Object.entries(saved)) {
+                    if (el[key] && value !== undefined && value !== null) {
+                        el[key].value = String(value);
+                    }
+                }
+            } catch (error) {
+                console.warn(error);
+            }
+        }
+
+        function getSettings() {
+            return {
+                workers: Math.max(1, Math.min(10, Number(el.workers.value) || 4)),
+                weightBudget: Math.max(200, Math.min(2200, Number(el.weightBudget.value) || 1500)),
+                historyLimit: Math.max(500, Math.min(1000, Number(el.historyLimit.value) || 1000)),
+                maintMarginPct: Math.max(0, Math.min(5, Number(el.maintMarginPct.value) || 0.5)),
+                lowBufferPct: Math.max(0, Math.min(5, Number(el.lowBufferPct.value) || 0.2)),
+                recoFactor: Math.max(0.1, Math.min(1, Number(el.recoFactor.value) || 0.9)),
+                reqTimeoutMs: Math.max(5000, Math.min(60000, Number(el.reqTimeoutMs.value) || 20000)),
+                requestRetries: Math.max(1, Math.min(12, Number(el.requestRetries.value) || 6)),
+                symbolRetries: Math.max(0, Math.min(6, Number(el.symbolRetries.value) || 2)),
+            };
+        }
+
+        class TokenBucket {
+            constructor(capacityPerMinute) {
+                this.capacity = capacityPerMinute;
+                this.tokens = capacityPerMinute;
+                this.lastTs = Date.now();
+            }
+
+            setCapacity(capacityPerMinute) {
+                this.capacity = Math.max(1, capacityPerMinute);
+                this.tokens = Math.min(this.tokens, this.capacity);
+                this.lastTs = Date.now();
+            }
+
+            refill() {
+                const now = Date.now();
+                const elapsed = Math.max(0, now - this.lastTs);
+                const refillPerMs = this.capacity / 60000;
+                this.tokens = Math.min(this.capacity, this.tokens + elapsed * refillPerMs);
+                this.lastTs = now;
+            }
+
+            async acquire(cost) {
+                while (true) {
+                    if (state.stopping) {
+                        throw new Error("중지됨");
+                    }
+                    while (state.paused && !state.stopping) {
+                        await sleep(150);
+                    }
+                    const pauseMs = state.globalPauseUntil - Date.now();
+                    if (pauseMs > 0) {
+                        await sleep(Math.min(pauseMs, 1000));
+                        continue;
+                    }
+                    this.refill();
+                    if (this.tokens >= cost) {
+                        this.tokens -= cost;
+                        return;
+                    }
+                    const missing = cost - this.tokens;
+                    const waitMs = Math.ceil(missing / (this.capacity / 60000));
+                    await sleep(Math.max(waitMs, 60));
+                }
+            }
+        }
+
+        function renderStatus() {
+            el.statTotal.textContent = formatNum(state.totalSymbols, 0);
+            el.statDone.textContent = formatNum(state.doneSymbols, 0);
+            el.statMatched.textContent = formatNum(state.matchedSymbols, 0);
+            el.statFailed.textContent = formatNum(state.failedSymbols, 0);
+            el.statRequests.textContent = formatNum(state.requestCount, 0);
+            el.statRetries.textContent = `${formatNum(state.retryCount, 0)} / ${formatNum(state.requeueCount, 0)}`;
+            const progress = state.totalSymbols > 0 ? (state.doneSymbols / state.totalSymbols) * 100 : 0;
+            el.progressFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+            el.remainText.textContent = formatNum(state.remainingTasks, 0);
+            el.workerText.textContent = formatNum(state.activeWorkers, 0);
+            const pauseMs = state.globalPauseUntil - Date.now();
+            el.globalPauseText.textContent = pauseMs > 0 ? `${formatNum(pauseMs / 1000, 1)}초` : "없음";
+            const settings = getSettings();
+            el.budgetText.textContent = formatNum(settings.weightBudget, 0);
+
+            let text = "대기 중";
+            if (state.stopping) {
+                text = "중지 중";
+            } else if (state.running && state.paused) {
+                text = "일시정지";
+            } else if (state.running) {
+                text = "스캔 중";
+            } else if (state.doneSymbols > 0 || state.failedSymbols > 0) {
+                text = "완료";
+            }
+            el.statusText.textContent = text;
+
+            el.startBtn.disabled = state.running;
+            el.pauseBtn.disabled = !state.running;
+            el.pauseBtn.textContent = state.paused ? "재개" : "일시정지";
+            el.stopBtn.disabled = !state.running;
+            el.exportBtn.disabled = state.results.length === 0;
+        }
+
+        function clearResults(keepLogs = false) {
+            state.results = [];
+            renderResults();
+            if (!keepLogs) {
+                state.logs = [];
+                el.log.value = "";
+            }
+            renderStatus();
+        }
+
+        function renderResults() {
+            if (!state.results.length) {
+                el.resultBody.innerHTML = `
+                    <tr>
+                        <td colspan="14" style="color: var(--muted);">아직 결과가 없습니다.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const sorted = [...state.results].sort((a, b) => {
+                const av = Number.isFinite(a.maxLev) ? a.maxLev : -Infinity;
+                const bv = Number.isFinite(b.maxLev) ? b.maxLev : -Infinity;
+                if (bv !== av) return bv - av;
+                return a.symbol.localeCompare(b.symbol);
+            });
+
+            el.resultBody.innerHTML = sorted.map((row) => {
+                return `
+                    <tr>
+                        <td><strong>${row.symbol}</strong></td>
+                        <td>${formatLev(row.maxLev)}</td>
+                        <td>${formatLev(row.recommendedLev)}</td>
+                        <td>${formatNum(row.entry, 8)}</td>
+                        <td>${formatNum(row.refLow, 8)}</td>
+                        <td>${formatPct(row.dropPct, 3)}</td>
+                        <td>${formatNum(row.liqPrice, 8)}</td>
+                        <td>${formatPct(row.mmrPct, 2)}</td>
+                        <td>${formatPct(row.bufferPct, 2)}</td>
+                        <td>${formatNum(row.equalAtlCount, 0)}</td>
+                        <td>${formatDateUTC(row.targetTime)}</td>
+                        <td>${formatDateUTC(row.atlTime)}</td>
+                        <td>${formatNum(row.scannedBars, 0)}</td>
+                        <td>${formatNum(row.klineRequests, 0)}</td>
+                    </tr>
+                `;
+            }).join("");
+        }
+
+        function exportCsv() {
+            if (!state.results.length) return;
+            const headers = [
+                "symbol",
+                "max_leverage",
+                "recommended_leverage",
+                "current_open",
+                "ref_low_a_minus_2",
+                "drop_pct_entry_to_ref_low",
+                "calc_liq_price",
+                "maint_margin_pct",
+                "low_buffer_pct",
+                "equal_atl_count",
+                "target_candle_utc",
+                "atl_time_utc",
+                "scanned_bars",
+                "kline_requests",
+            ];
+
+            const rows = [...state.results]
+                .sort((a, b) => (b.maxLev || -Infinity) - (a.maxLev || -Infinity))
+                .map((r) => [
+                    r.symbol,
+                    Number.isFinite(r.maxLev) ? round(r.maxLev, 6) : "",
+                    Number.isFinite(r.recommendedLev) ? round(r.recommendedLev, 6) : "",
+                    round(r.entry, 12),
+                    round(r.refLow, 12),
+                    round(r.dropPct, 8),
+                    round(r.liqPrice, 12),
+                    round(r.mmrPct, 8),
+                    round(r.bufferPct, 8),
+                    r.equalAtlCount,
+                    formatDateUTC(r.targetTime),
+                    formatDateUTC(r.atlTime),
+                    r.scannedBars,
+                    r.klineRequests,
+                ]);
+
+            const csv = [headers, ...rows]
+                .map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
+                .join("\n");
+
+            const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `binance_1d_atl_ref_scanner_${new Date().toISOString().slice(0, 19).replaceAll(":", "-")}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function setGlobalPause(ms, reason) {
+            const until = Date.now() + Math.max(0, ms);
+            state.globalPauseUntil = Math.max(state.globalPauseUntil, until);
+            addLog(`${reason} → 전역 대기 ${formatNum(ms / 1000, 1)}초`);
+            renderStatus();
+        }
+
+        async function fetchTextWithTimeout(url, timeoutMs) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(new Error("요청 타임아웃")), timeoutMs);
+            try {
+                const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
+                const text = await response.text();
+                return { response, text };
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        function parseRetryAfterMs(response) {
+            const header = response.headers.get("Retry-After");
+            if (!header) return null;
+            const asNum = Number(header);
+            if (Number.isFinite(asNum)) {
+                return Math.max(0, asNum * 1000);
+            }
+            const asDate = new Date(header).getTime();
+            if (Number.isFinite(asDate)) {
+                return Math.max(0, asDate - Date.now());
+            }
+            return null;
+        }
+
+        async function requestJson(path, params, weight, label) {
+            const settings = getSettings();
+            const qs = new URLSearchParams();
+            for (const [key, value] of Object.entries(params || {})) {
+                if (value !== undefined && value !== null && value !== "") {
+                    qs.set(key, String(value));
+                }
+            }
+            const url = `${BASE_URL}${path}?${qs.toString()}`;
+
+            for (let attempt = 1; attempt <= settings.requestRetries; attempt += 1) {
+                if (state.stopping) {
+                    throw new Error("중지됨");
+                }
+
+                while (state.paused && !state.stopping) {
+                    await sleep(150);
+                }
+
+                const globalPauseMs = state.globalPauseUntil - Date.now();
+                if (globalPauseMs > 0) {
+                    await sleep(Math.min(globalPauseMs, 1000));
+                    continue;
+                }
+
+                await state.tokenBucket.acquire(weight);
+                state.requestCount += 1;
+                renderStatus();
+
+                try {
+                    const { response, text } = await fetchTextWithTimeout(url, settings.reqTimeoutMs);
+                    if (response.ok) {
+                        try {
+                            return text ? JSON.parse(text) : null;
+                        } catch (error) {
+                            throw new Error(`${label} JSON 파싱 실패: ${error instanceof Error ? error.message : String(error)}`);
+                        }
+                    }
+
+                    const retryAfterMs = parseRetryAfterMs(response);
+                    const bodySnippet = text ? text.slice(0, 180) : "";
+                    const retriable = [418, 429, 500, 502, 503, 504].includes(response.status);
+                    if (!retriable) {
+                        throw new Error(`${label} HTTP ${response.status}: ${bodySnippet}`);
+                    }
+
+                    state.retryCount += 1;
+                    const fallbackMs = Math.min(60000, 1200 * 2 ** (attempt - 1));
+                    const waitMs = Math.max(retryAfterMs || 0, fallbackMs);
+                    if (response.status === 418 || response.status === 429) {
+                        setGlobalPause(waitMs, `${label} HTTP ${response.status}`);
+                    } else {
+                        addLog(`${label} HTTP ${response.status} → ${formatNum(waitMs / 1000, 1)}초 후 재시도 (${attempt}/${settings.requestRetries})`);
+                    }
+                    renderStatus();
+                    await sleep(waitMs);
+                    continue;
+                } catch (error) {
+                    state.retryCount += 1;
+                    const message = error instanceof Error ? error.message : String(error);
+                    const waitMs = Math.min(45000, 1000 * 2 ** (attempt - 1));
+                    addLog(`${label} 요청 오류: ${message} → ${formatNum(waitMs / 1000, 1)}초 후 재시도 (${attempt}/${settings.requestRetries})`);
+                    renderStatus();
+                    if (attempt >= settings.requestRetries) {
+                        throw new Error(`${label} 요청 실패: ${message}`);
+                    }
+                    await sleep(waitMs);
+                }
+            }
+
+            throw new Error(`${label} 요청 실패: 재시도 한도 초과`);
+        }
+
+        async function fetchExchangeInfo() {
+            const json = await requestJson("/fapi/v1/exchangeInfo", {}, 1, "exchangeInfo");
+            const symbols = Array.isArray(json?.symbols) ? json.symbols : [];
+            return symbols.filter((item) => {
+                return item && item.quoteAsset === "USDT" && item.contractType === "PERPETUAL" && item.status === "TRADING";
+            }).map((item) => ({
+                symbol: item.symbol,
+                onboardDate: Number(item.onboardDate) || 0,
+            }));
+        }
+
+        async function fetchKlines(symbol, limit, endTime) {
+            const weight = getWeightByLimit(limit);
+            const json = await requestJson(
+                "/fapi/v1/klines",
+                { symbol, interval: INTERVAL, limit, endTime },
+                weight,
+                `${symbol} klines(limit=${limit}${endTime ? `, end=${endTime}` : ""})`
+            );
+            if (!Array.isArray(json)) {
+                throw new Error(`${symbol} klines 응답이 배열이 아닙니다.`);
+            }
+            return json;
+        }
+
+        function klineToObj(k) {
+            return {
+                openTime: Number(k[0]),
+                open: Number(k[1]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+            };
+        }
+
+        function computeMaxLeverage(entry, refLow, mmrPct, lowBufferPct) {
+            const mmr = mmrPct / 100;
+            const buffer = lowBufferPct / 100;
+            const effectiveLow = refLow * (1 - buffer);
+            if (!Number.isFinite(entry) || !Number.isFinite(refLow) || !Number.isFinite(effectiveLow)) {
+                return null;
+            }
+            if (entry <= 0 || refLow <= 0 || effectiveLow <= 0) {
+                return null;
+            }
+            if (entry <= effectiveLow) {
+                return null;
+            }
+            const denominator = 1 - (effectiveLow / entry) * (1 - mmr);
+            if (!(denominator > 0)) {
+                return null;
+            }
+            const lev = 1 / denominator;
+            if (!Number.isFinite(lev) || lev <= 0) {
+                return null;
+            }
+            const liqPrice = entry * (1 - 1 / lev) / (1 - mmr);
+            const dropPct = (1 - refLow / entry) * 100;
+            return {
+                maxLev: lev,
+                liqPrice,
+                effectiveLow,
+                dropPct,
+            };
+        }
+
+        async function scanSymbol(meta) {
+            const settings = getSettings();
+            const latestRaw = await fetchKlines(meta.symbol, 3, undefined);
+            if (latestRaw.length < 3) {
+                addLog(`${meta.symbol} 최신 3봉 부족 → 스킵`);
+                return null;
+            }
+
+            const latest = latestRaw.map(klineToObj);
+            const target = latest[0];
+            const previous = latest[1];
+            const current = latest[2];
+
+            const targetLow = target.low;
+            if (previous.low < targetLow - EPS || current.low < targetLow - EPS) {
+                return null;
+            }
+
+            let scannedBars = latest.length;
+            let klineRequests = 1;
+            let atlLow = targetLow;
+            let atlTime = target.openTime;
+            let equalAtlCount = latest.filter((item) => approxEqual(item.low, targetLow)).length;
+            let foundLower = false;
+            let endTime = target.openTime - 1;
+            let loopGuard = 0;
+
+            while (!state.stopping && endTime > 0) {
+                loopGuard += 1;
+                if (loopGuard > 50) {
+                    throw new Error(`${meta.symbol} loop guard 초과`);
+                }
+
+                const chunkRaw = await fetchKlines(meta.symbol, settings.historyLimit, endTime);
+                klineRequests += 1;
+                if (!chunkRaw.length) {
+                    break;
+                }
+
+                scannedBars += chunkRaw.length;
+                const chunk = chunkRaw.map(klineToObj);
+                for (let i = 0; i < chunk.length; i += 1) {
+                    const bar = chunk[i];
+                    if (bar.low < targetLow - EPS) {
+                        atlLow = bar.low;
+                        atlTime = bar.openTime;
+                        foundLower = true;
+                        break;
+                    }
+                    if (approxEqual(bar.low, targetLow)) {
+                        equalAtlCount += 1;
+                        if (bar.openTime < atlTime) {
+                            atlTime = bar.openTime;
+                        }
+                    }
+                    if (bar.low < atlLow - EPS) {
+                        atlLow = bar.low;
+                        atlTime = bar.openTime;
+                    }
+                }
+
+                if (foundLower) {
+                    return null;
+                }
+                if (chunkRaw.length < settings.historyLimit) {
+                    break;
+                }
+                const earliest = Number(chunkRaw[0][0]);
+                if (!Number.isFinite(earliest) || earliest >= endTime) {
+                    break;
+                }
+                endTime = earliest - 1;
+            }
+
+            if (!approxEqual(atlLow, targetLow) && atlLow < targetLow - EPS) {
+                return null;
+            }
+
+            const levInfo = computeMaxLeverage(current.open, targetLow, settings.maintMarginPct, settings.lowBufferPct);
+            const recommendedLev = levInfo?.maxLev ? levInfo.maxLev * settings.recoFactor : null;
+
+            return {
+                symbol: meta.symbol,
+                maxLev: levInfo?.maxLev ?? null,
+                recommendedLev,
+                entry: current.open,
+                refLow: targetLow,
+                dropPct: levInfo?.dropPct ?? ((1 - targetLow / current.open) * 100),
+                liqPrice: levInfo?.liqPrice ?? null,
+                mmrPct: settings.maintMarginPct,
+                bufferPct: settings.lowBufferPct,
+                equalAtlCount,
+                targetTime: target.openTime,
+                atlTime,
+                scannedBars,
+                klineRequests,
+            };
+        }
+
+        function takeNextReadyTask() {
+            if (!state.queue.length) return null;
+            const now = Date.now();
+            let bestIndex = -1;
+            let bestReadyAt = Infinity;
+            for (let i = 0; i < state.queue.length; i += 1) {
+                const task = state.queue[i];
+                if (task.readyAt <= now) {
+                    bestIndex = i;
+                    break;
+                }
+                if (task.readyAt < bestReadyAt) {
+                    bestReadyAt = task.readyAt;
+                    bestIndex = i;
+                }
+            }
+            if (bestIndex === -1) return null;
+            const task = state.queue[bestIndex];
+            if (task.readyAt > now) {
+                return null;
+            }
+            state.queue.splice(bestIndex, 1);
+            return task;
+        }
+
+        async function workerLoop(workerId) {
+            while (state.running && !state.stopping) {
+                if (state.paused) {
+                    await sleep(150);
+                    continue;
+                }
+
+                const task = takeNextReadyTask();
+                if (!task) {
+                    if (state.remainingTasks <= 0) {
+                        return;
+                    }
+                    await sleep(120);
+                    continue;
+                }
+
+                state.activeWorkers += 1;
+                renderStatus();
+
+                try {
+                    const result = await scanSymbol(task.meta);
+                    state.doneSymbols += 1;
+                    state.remainingTasks -= 1;
+                    if (result) {
+                        state.results.push(result);
+                        state.matchedSymbols += 1;
+                        renderResults();
+                        addLog(`${task.meta.symbol} 조건 일치 → 최대 ${formatLev(result.maxLev)} / 권장 ${formatLev(result.recommendedLev)}`);
+                    }
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    const settings = getSettings();
+                    if (!state.stopping && task.tries < settings.symbolRetries) {
+                        const delayMs = 5000 * (task.tries + 1);
+                        task.tries += 1;
+                        task.readyAt = Date.now() + delayMs;
+                        state.queue.push(task);
+                        state.requeueCount += 1;
+                        addLog(`${task.meta.symbol} 심볼 재큐잉 (${task.tries}/${settings.symbolRetries}) → ${formatNum(delayMs / 1000, 1)}초 후 재시도 | ${message}`);
+                    } else {
+                        state.doneSymbols += 1;
+                        state.remainingTasks -= 1;
+                        state.failedSymbols += 1;
+                        addLog(`${task.meta.symbol} 최종 실패 | ${message}`);
+                    }
+                } finally {
+                    state.activeWorkers -= 1;
+                    renderStatus();
+                }
+            }
+        }
+
+        async function startScan() {
+            if (state.running) return;
+            saveSettings();
+            clearResults(true);
+
+            state.running = true;
+            state.paused = false;
+            state.stopping = false;
+            state.totalSymbols = 0;
+            state.doneSymbols = 0;
+            state.matchedSymbols = 0;
+            state.failedSymbols = 0;
+            state.requestCount = 0;
+            state.retryCount = 0;
+            state.requeueCount = 0;
+            state.activeWorkers = 0;
+            state.remainingTasks = 0;
+            state.globalPauseUntil = 0;
+            state.queue = [];
+            state.tokenBucket = new TokenBucket(getSettings().weightBudget);
+            renderStatus();
+            renderResults();
+
+            addLog("스캔 시작");
+
+            try {
+                const settings = getSettings();
+                state.tokenBucket.setCapacity(settings.weightBudget);
+                const symbols = await fetchExchangeInfo();
+                state.totalSymbols = symbols.length;
+                state.remainingTasks = symbols.length;
+                state.queue = symbols.map((meta) => ({ meta, tries: 0, readyAt: Date.now() }));
+                renderStatus();
+                addLog(`대상 심볼 ${symbols.length}개 로드 완료`);
+
+                const workers = Array.from({ length: settings.workers }, (_, index) => workerLoop(index + 1));
+                await Promise.all(workers);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                addLog(`초기화 실패 | ${message}`);
+            } finally {
+                state.running = false;
+                state.paused = false;
+                state.stopping = false;
+                state.activeWorkers = 0;
+                renderStatus();
+                addLog(`스캔 종료 | 완료 ${state.doneSymbols}/${state.totalSymbols}, 조건 일치 ${state.matchedSymbols}, 실패 ${state.failedSymbols}`);
+            }
+        }
+
+        function togglePause() {
+            if (!state.running) return;
+            state.paused = !state.paused;
+            addLog(state.paused ? "일시정지" : "재개");
+            renderStatus();
+        }
+
+        function stopScan() {
+            if (!state.running) return;
+            state.stopping = true;
+            state.paused = false;
+            state.queue = [];
+            state.remainingTasks = 0;
+            addLog("중지 요청됨");
+            renderStatus();
+        }
+
+        Array.from(document.querySelectorAll("input")).forEach((input) => {
+            input.addEventListener("change", saveSettings);
+        });
+
+        el.startBtn.addEventListener("click", startScan);
+        el.pauseBtn.addEventListener("click", togglePause);
+        el.stopBtn.addEventListener("click", stopScan);
+        el.clearBtn.addEventListener("click", () => clearResults(false));
+        el.exportBtn.addEventListener("click", exportCsv);
+
+        loadSettings();
+        renderStatus();
+        renderResults();
+        addLog("준비 완료");
+    </script>
+</body>
+</html>
