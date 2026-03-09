@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="ko-KR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+        />
+        <title>
+            Binance USDⓈ-M Futures - 첫 1M 양봉 + 이후 모든 확정 1M 음봉 스캐너
+        </title>
+        <style>
+            :root {
+                color-scheme: dark;
+                --bg: #0b1020;
+                --panel: #121933;
+                --panel-2: #172041;
+                --line: rgba(255, 255, 255, 0.1);
+                --text: #edf2ff;
+                --muted: rgba(237, 242, 255, 0.68);
+                --accent: #7aa2ff;
+                --good: #44d18f;
+                --bad: #ff6b8a;
+                --warn: #ffcf5a;
+                --mono:
+                    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                    "Liberation Mono", "Courier New", monospace;
+                --sans:
+                    Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont,
+                    "Segoe UI", sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                font-family: var(--sans);
+                background:
+                    radial-gradient(circle at top, rgba(122, 162, 255, 0.15), transparent 30%),
+                    var(--bg);
+                color: var(--text);
+            }
+
+            .wrap {
+                width: min(1480px, calc(100% - 24px));
+                margin: 20px auto 36px;
+            }
+
+            .panel {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+            }
+
+            .hero {
+                padding: 22px 20px;
+                margin-bottom: 16px;
+            }
+
+            .hero h1 {
+                margin: 0 0 8px;
+                font-size: 24px;
+                line-height: 1.3;
+            }
+
+            .hero p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.6;
+                font-size: 14px;
+            }
+
+            .controls {
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .field label {
+                font-size: 13px;
+                color: var(--muted);
+            }
+
+            .field input,
+            .field select {
+                width: 100%;
+                height: 42px;
+                border-radius: 12px;
+                border: 1px solid var(--line);
+                background: var(--panel-2);
+                color: var(--text);
+                padding: 0 12px;
+                outline: none;
+            }
+
+            .field input:focus,
+            .field select:focus {
+                border-color: var(--accent);
+                box-shadow: 0 0 0 3px rgba(122, 162, 255, 0.16);
+            }
+
+            .actions {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-top: 14px;
+            }
+
+            button {
+                border: 0;
+                border-radius: 12px;
+                height: 42px;
+                padding: 0 16px;
+                font-weight: 700;
+                cursor: pointer;
+                font-family: inherit;
+            }
+
+            .btn-primary {
+                background: var(--accent);
+                color: #081020;
+            }
+
+            .btn-secondary {
+                background: rgba(255, 255, 255, 0.07);
+                color: var(--text);
+                border: 1px solid var(--line);
+            }
+
+            .btn-danger {
+                background: rgba(255, 107, 138, 0.16);
+                color: #ffd7e1;
+                border: 1px solid rgba(255, 107, 138, 0.35);
+            }
+
+            .status-wrap {
+                display: grid;
+                grid-template-columns: 1.2fr 1fr;
+                gap: 16px;
+                margin-bottom: 16px;
+            }
+
+            .status-card,
+            .log-card {
+                padding: 16px;
+            }
+
+            .status-title,
+            .log-title,
+            .result-title {
+                margin: 0 0 12px;
+                font-size: 16px;
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .stat {
+                padding: 12px;
+                border-radius: 14px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .stat .k {
+                color: var(--muted);
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+
+            .stat .v {
+                font-size: 18px;
+                font-weight: 800;
+                font-family: var(--mono);
+            }
+
+            .status-text {
+                margin-top: 12px;
+                color: var(--muted);
+                font-size: 13px;
+                line-height: 1.6;
+            }
+
+            .log-box {
+                height: 220px;
+                overflow: auto;
+                white-space: pre-wrap;
+                word-break: break-word;
+                font-family: var(--mono);
+                font-size: 12px;
+                line-height: 1.55;
+                color: #d8e1ff;
+                padding: 12px;
+                border-radius: 12px;
+                background: rgba(0, 0, 0, 0.2);
+                border: 1px solid var(--line);
+            }
+
+            .results {
+                padding: 16px;
+            }
+
+            .result-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 12px;
+            }
+
+            .result-tools {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            .table-wrap {
+                overflow: auto;
+                border-radius: 14px;
+                border: 1px solid var(--line);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 1180px;
+                background: rgba(255, 255, 255, 0.02);
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                z-index: 1;
+                background: #182247;
+                color: #eaf0ff;
+                text-align: left;
+                font-size: 13px;
+                padding: 12px 10px;
+                border-bottom: 1px solid var(--line);
+            }
+
+            tbody td {
+                padding: 10px;
+                border-bottom: 1px solid var(--line);
+                font-size: 13px;
+                color: #edf2ff;
+            }
+
+            tbody tr:hover {
+                background: rgba(122, 162, 255, 0.08);
+            }
+
+            .mono {
+                font-family: var(--mono);
+            }
+
+            .good {
+                color: var(--good);
+                font-weight: 700;
+            }
+
+            .bad {
+                color: var(--bad);
+                font-weight: 700;
+            }
+
+            .muted {
+                color: var(--muted);
+            }
+
+            .footer-note {
+                margin-top: 12px;
+                color: var(--muted);
+                font-size: 12px;
+                line-height: 1.6;
+            }
+
+            @media (max-width: 1100px) {
+                .grid {
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                }
+
+                .status-wrap {
+                    grid-template-columns: 1fr;
+                }
+
+                .stats {
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                }
+            }
+
+            @media (max-width: 720px) {
+                .wrap {
+                    width: min(100%, calc(100% - 16px));
+                }
+
+                .hero h1 {
+                    font-size: 20px;
+                }
+
+                .grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .stats {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+
+            @media (max-width: 520px) {
+                .grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .stats {
+                    grid-template-columns: 1fr 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <section class="panel hero">
+                <h1>첫 1M봉만 양봉 + 이후 모든 확정 1M봉이 음봉인 USDT 무기한 선물 스캐너</h1>
+                <p>
+                    현재 진행 중인 월봉은 제외하고 판정합니다.
+                    <br />
+                    기본값은 요청을 줄이기 위해 심볼 목록 1회 + 심볼당 월봉 1회만 사용하도록 설계되어 있습니다.
+                </p>
+            </section>
+
+            <section class="panel controls">
+                <div class="grid">
+                    <div class="field">
+                        <label for="concurrency">동시 요청 수</label>
+                        <input id="concurrency" type="number" min="1" max="20" step="1" value="6" />
+                    </div>
+                    <div class="field">
+                        <label for="gapMs">요청 간격(ms)</label>
+                        <input id="gapMs" type="number" min="0" max="5000" step="10" value="120" />
+                    </div>
+                    <div class="field">
+                        <label for="retries">재시도 횟수</label>
+                        <input id="retries" type="number" min="0" max="10" step="1" value="3" />
+                    </div>
+                    <div class="field">
+                        <label for="timeoutMs">타임아웃(ms)</label>
+                        <input id="timeoutMs" type="number" min="1000" max="60000" step="500" value="15000" />
+                    </div>
+                    <div class="field">
+                        <label for="minClosedCount">최소 확정 월봉 수</label>
+                        <input id="minClosedCount" type="number" min="2" max="120" step="1" value="2" />
+                    </div>
+                    <div class="field">
+                        <label for="sortBy">정렬 기준</label>
+                        <select id="sortBy">
+                            <option value="closedCountDesc">확정 월봉 수 많은 순</option>
+                            <option value="firstBodyDesc">첫 월봉 상승폭 큰 순</option>
+                            <option value="symbolAsc">심볼명 오름차순</option>
+                            <option value="lastClosedRecent">마지막 확정봉 최근 순</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="scanBtn" class="btn-primary">스캔 시작</button>
+                    <button id="stopBtn" class="btn-danger">중지</button>
+                    <button id="clearBtn" class="btn-secondary">결과 초기화</button>
+                    <button id="copyBtn" class="btn-secondary">결과 복사</button>
+                    <button id="csvBtn" class="btn-secondary">CSV 다운로드</button>
+                </div>
+            </section>
+
+            <section class="status-wrap">
+                <div class="panel status-card">
+                    <h2 class="status-title">진행 상태</h2>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="k">대상 심볼</div>
+                            <div class="v" id="statTotal">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="k">스캔 완료</div>
+                            <div class="v" id="statScanned">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="k">조건 일치</div>
+                            <div class="v" id="statMatched">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="k">총 요청 수</div>
+                            <div class="v" id="statRequests">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="k">에러 수</div>
+                            <div class="v" id="statErrors">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="k">진행률</div>
+                            <div class="v" id="statProgress">0%</div>
+                        </div>
+                    </div>
+                    <div class="status-text" id="statusText">
+                        대기 중
+                    </div>
+                </div>
+
+                <div class="panel log-card">
+                    <h2 class="log-title">로그</h2>
+                    <div id="logBox" class="log-box"></div>
+                </div>
+            </section>
+
+            <section class="panel results">
+                <div class="result-head">
+                    <h2 class="result-title">결과</h2>
+                    <div class="result-tools">
+                        <span class="muted" id="resultSummary">일치 심볼 0개</span>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>심볼</th>
+                                <th>상장일</th>
+                                <th>확정 월봉 수</th>
+                                <th>첫 확정 월봉 시가</th>
+                                <th>첫 확정 월봉 종가</th>
+                                <th>첫 확정 월봉 등락률</th>
+                                <th>마지막 확정 월</th>
+                                <th>마지막 확정봉 시가</th>
+                                <th>마지막 확정봉 종가</th>
+                                <th>마지막 확정봉 등락률</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="footer-note">
+                    판정 규칙:
+                    <br />
+                    1) 첫 번째 확정 1M봉은 <span class="good">종가 &gt; 시가</span>
+                    <br />
+                    2) 그 이후 모든 확정 1M봉은 <span class="bad">종가 &lt; 시가</span>
+                    <br />
+                    3) 현재 진행 중인 1M봉은 완전히 제외
+                    <br />
+                    4) 도지(시가 = 종가)는 양봉/음봉 어느 쪽도 아닌 것으로 처리
+                </div>
+            </section>
+        </div>
+
+        <script>
+            const API_BASE = "https://fapi.binance.com";
+
+            const state = {
+                scanning: false,
+                stopRequested: false,
+                totalSymbols: 0,
+                scanned: 0,
+                matched: 0,
+                requestCount: 0,
+                errorCount: 0,
+                results: [],
+            };
+
+            const els = {
+                concurrency: document.getElementById("concurrency"),
+                gapMs: document.getElementById("gapMs"),
+                retries: document.getElementById("retries"),
+                timeoutMs: document.getElementById("timeoutMs"),
+                minClosedCount: document.getElementById("minClosedCount"),
+                sortBy: document.getElementById("sortBy"),
+                scanBtn: document.getElementById("scanBtn"),
+                stopBtn: document.getElementById("stopBtn"),
+                clearBtn: document.getElementById("clearBtn"),
+                copyBtn: document.getElementById("copyBtn"),
+                csvBtn: document.getElementById("csvBtn"),
+                statTotal: document.getElementById("statTotal"),
+                statScanned: document.getElementById("statScanned"),
+                statMatched: document.getElementById("statMatched"),
+                statRequests: document.getElementById("statRequests"),
+                statErrors: document.getElementById("statErrors"),
+                statProgress: document.getElementById("statProgress"),
+                statusText: document.getElementById("statusText"),
+                logBox: document.getElementById("logBox"),
+                resultBody: document.getElementById("resultBody"),
+                resultSummary: document.getElementById("resultSummary"),
+            };
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            function num(value) {
+                return Number.parseFloat(value);
+            }
+
+            function formatNumber(value, digits = 4) {
+                if (!Number.isFinite(value)) {
+                    return "-";
+                }
+                return value.toLocaleString("en-US", {
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits,
+                });
+            }
+
+            function formatPct(value, digits = 2) {
+                if (!Number.isFinite(value)) {
+                    return "-";
+                }
+                return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+            }
+
+            function formatDateTimeUTC(ms) {
+                const d = new Date(ms);
+                const yyyy = d.getUTCFullYear();
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const dd = String(d.getUTCDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd} UTC`;
+            }
+
+            function formatYearMonthUTC(ms) {
+                const d = new Date(ms);
+                const yyyy = d.getUTCFullYear();
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                return `${yyyy}-${mm}`;
+            }
+
+            function monthStartUTCFromMs(ms) {
+                const d = new Date(ms);
+                return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0);
+            }
+
+            function currentMonthStartUTC() {
+                const now = new Date();
+                return Date.UTC(
+                    now.getUTCFullYear(),
+                    now.getUTCMonth(),
+                    1,
+                    0,
+                    0,
+                    0,
+                    0
+                );
+            }
+
+            function monthsInclusive(fromMs, toMs) {
+                const a = new Date(fromMs);
+                const b = new Date(toMs);
+                return (
+                    (b.getUTCFullYear() - a.getUTCFullYear()) * 12 +
+                    (b.getUTCMonth() - a.getUTCMonth()) +
+                    1
+                );
+            }
+
+            function isBullish(kline) {
+                return num(kline[4]) > num(kline[1]);
+            }
+
+            function isBearish(kline) {
+                return num(kline[4]) < num(kline[1]);
+            }
+
+            function setStatus(text) {
+                els.statusText.textContent = text;
+            }
+
+            function appendLog(text) {
+                const time = new Date();
+                const hh = String(time.getHours()).padStart(2, "0");
+                const mm = String(time.getMinutes()).padStart(2, "0");
+                const ss = String(time.getSeconds()).padStart(2, "0");
+                els.logBox.textContent += `[${hh}:${mm}:${ss}] ${text}\n`;
+                els.logBox.scrollTop = els.logBox.scrollHeight;
+            }
+
+            function resetStatsOnly() {
+                state.totalSymbols = 0;
+                state.scanned = 0;
+                state.matched = 0;
+                state.requestCount = 0;
+                state.errorCount = 0;
+            }
+
+            function clearResults() {
+                state.results = [];
+                renderResults();
+            }
+
+            function renderStats() {
+                const progress =
+                    state.totalSymbols > 0
+                        ? (state.scanned / state.totalSymbols) * 100
+                        : 0;
+
+                els.statTotal.textContent = state.totalSymbols.toLocaleString();
+                els.statScanned.textContent = state.scanned.toLocaleString();
+                els.statMatched.textContent = state.matched.toLocaleString();
+                els.statRequests.textContent = state.requestCount.toLocaleString();
+                els.statErrors.textContent = state.errorCount.toLocaleString();
+                els.statProgress.textContent = `${progress.toFixed(1)}%`;
+                els.resultSummary.textContent = `일치 심볼 ${state.results.length.toLocaleString()}개`;
+            }
+
+            function sortedResults() {
+                const copied = [...state.results];
+                const sortBy = els.sortBy.value;
+
+                if (sortBy === "closedCountDesc") {
+                    copied.sort((a, b) => b.closedCount - a.closedCount || a.symbol.localeCompare(b.symbol));
+                } else if (sortBy === "firstBodyDesc") {
+                    copied.sort((a, b) => b.firstBodyPct - a.firstBodyPct || a.symbol.localeCompare(b.symbol));
+                } else if (sortBy === "symbolAsc") {
+                    copied.sort((a, b) => a.symbol.localeCompare(b.symbol));
+                } else if (sortBy === "lastClosedRecent") {
+                    copied.sort((a, b) => b.lastClosedTime - a.lastClosedTime || a.symbol.localeCompare(b.symbol));
+                }
+
+                return copied;
+            }
+
+            function renderResults() {
+                const rows = sortedResults()
+                    .map((row) => {
+                        const firstClass = row.firstBodyPct > 0 ? "good" : row.firstBodyPct < 0 ? "bad" : "";
+                        const lastClass = row.lastClosedBodyPct > 0 ? "good" : row.lastClosedBodyPct < 0 ? "bad" : "";
+
+                        return `
+                            <tr>
+                                <td class="mono"><strong>${row.symbol}</strong></td>
+                                <td class="mono">${formatDateTimeUTC(row.onboardDate)}</td>
+                                <td class="mono">${row.closedCount}</td>
+                                <td class="mono">${formatNumber(row.firstOpen, 8)}</td>
+                                <td class="mono">${formatNumber(row.firstClose, 8)}</td>
+                                <td class="mono ${firstClass}">${formatPct(row.firstBodyPct, 2)}</td>
+                                <td class="mono">${formatYearMonthUTC(row.lastClosedTime)}</td>
+                                <td class="mono">${formatNumber(row.lastClosedOpen, 8)}</td>
+                                <td class="mono">${formatNumber(row.lastClosedClose, 8)}</td>
+                                <td class="mono ${lastClass}">${formatPct(row.lastClosedBodyPct, 2)}</td>
+                            </tr>
+                        `;
+                    })
+                    .join("");
+
+                els.resultBody.innerHTML = rows;
+                renderStats();
+            }
+
+            async function fetchJSON(path, params = {}, options = {}) {
+                const timeoutMs = options.timeoutMs ?? 15000;
+                const retries = options.retries ?? 3;
+
+                const url = new URL(`${API_BASE}${path}`);
+
+                Object.entries(params).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null && value !== "") {
+                        url.searchParams.set(key, String(value));
+                    }
+                });
+
+                let lastError = null;
+
+                for (let attempt = 0; attempt <= retries; attempt += 1) {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+                    try {
+                        state.requestCount += 1;
+                        renderStats();
+
+                        const response = await fetch(url.toString(), {
+                            method: "GET",
+                            signal: controller.signal,
+                        });
+
+                        if (!response.ok) {
+                            const text = await response.text().catch(() => "");
+                            throw new Error(`HTTP ${response.status} ${text.slice(0, 180)}`);
+                        }
+
+                        const json = await response.json();
+                        clearTimeout(timer);
+                        return json;
+                    } catch (error) {
+                        clearTimeout(timer);
+                        lastError = error;
+
+                        const message =
+                            error instanceof Error ? error.message : String(error);
+
+                        const retriable =
+                            message.includes("HTTP 418") ||
+                            message.includes("HTTP 429") ||
+                            message.includes("HTTP 5") ||
+                            message.includes("AbortError") ||
+                            message.includes("Failed to fetch");
+
+                        if (!retriable || attempt >= retries) {
+                            break;
+                        }
+
+                        const backoff =
+                            700 * Math.pow(2, attempt) + Math.floor(Math.random() * 400);
+                        await sleep(backoff);
+                    }
+                }
+
+                throw lastError instanceof Error
+                    ? lastError
+                    : new Error(String(lastError));
+            }
+
+            async function getTargetSymbols(timeoutMs, retries) {
+                const data = await fetchJSON(
+                    "/fapi/v1/exchangeInfo",
+                    {},
+                    { timeoutMs, retries }
+                );
+
+                if (!data || !Array.isArray(data.symbols)) {
+                    throw new Error("exchangeInfo 응답이 올바르지 않습니다.");
+                }
+
+                return data.symbols
+                    .filter((item) => {
+                        return (
+                            item &&
+                            item.symbol &&
+                            item.quoteAsset === "USDT" &&
+                            item.contractType === "PERPETUAL" &&
+                            item.status === "TRADING" &&
+                            Number.isFinite(Number(item.onboardDate))
+                        );
+                    })
+                    .map((item) => ({
+                        symbol: item.symbol,
+                        onboardDate: Number(item.onboardDate),
+                    }));
+            }
+
+            function buildScanResult(symbolMeta, closedKlines) {
+                const first = closedKlines[0];
+                const lastClosed = closedKlines[closedKlines.length - 1];
+
+                const firstOpen = num(first[1]);
+                const firstClose = num(first[4]);
+                const lastOpen = num(lastClosed[1]);
+                const lastClose = num(lastClosed[4]);
+
+                return {
+                    symbol: symbolMeta.symbol,
+                    onboardDate: symbolMeta.onboardDate,
+                    closedCount: closedKlines.length,
+                    firstOpenTime: Number(first[0]),
+                    firstOpen,
+                    firstClose,
+                    firstBodyPct: ((firstClose - firstOpen) / firstOpen) * 100,
+                    lastClosedTime: Number(lastClosed[0]),
+                    lastClosedOpen: lastOpen,
+                    lastClosedClose: lastClose,
+                    lastClosedBodyPct: ((lastClose - lastOpen) / lastOpen) * 100,
+                };
+            }
+
+            async function scanOneSymbol(symbolMeta, options) {
+                const onboardMonthMs = monthStartUTCFromMs(symbolMeta.onboardDate);
+                const currentMonthMs = currentMonthStartUTC();
+
+                const neededMonths = monthsInclusive(onboardMonthMs, currentMonthMs);
+                const limit = Math.max(neededMonths + 1, 3);
+
+                const klines = await fetchJSON(
+                    "/fapi/v1/klines",
+                    {
+                        symbol: symbolMeta.symbol,
+                        interval: "1M",
+                        limit,
+                    },
+                    {
+                        timeoutMs: options.timeoutMs,
+                        retries: options.retries,
+                    }
+                );
+
+                if (!Array.isArray(klines) || klines.length < 2) {
+                    return null;
+                }
+
+                const closedKlines = klines.slice(0, -1);
+
+                if (closedKlines.length < options.minClosedCount) {
+                    return null;
+                }
+
+                if (!isBullish(closedKlines[0])) {
+                    return null;
+                }
+
+                for (let i = 1; i < closedKlines.length; i += 1) {
+                    if (!isBearish(closedKlines[i])) {
+                        return null;
+                    }
+                }
+
+                return buildScanResult(symbolMeta, closedKlines);
+            }
+
+            async function promisePool(items, worker, concurrency, gapMs) {
+                let index = 0;
+
+                const workers = Array.from(
+                    { length: Math.min(concurrency, items.length) },
+                    () =>
+                        (async () => {
+                            while (true) {
+                                if (state.stopRequested) {
+                                    return;
+                                }
+
+                                const currentIndex = index;
+                                index += 1;
+
+                                if (currentIndex >= items.length) {
+                                    return;
+                                }
+
+                                const item = items[currentIndex];
+
+                                try {
+                                    const result = await worker(item);
+
+                                    if (result) {
+                                        state.results.push(result);
+                                        state.matched = state.results.length;
+                                        renderResults();
+                                        appendLog(`[MATCH] ${result.symbol} / 확정 월봉 ${result.closedCount}개`);
+                                    }
+                                } catch (error) {
+                                    state.errorCount += 1;
+                                    renderStats();
+
+                                    const message =
+                                        error instanceof Error ? error.message : String(error);
+                                    appendLog(`[ERROR] ${item.symbol} / ${message}`);
+                                } finally {
+                                    state.scanned += 1;
+                                    renderStats();
+                                }
+
+                                if (gapMs > 0) {
+                                    await sleep(gapMs);
+                                }
+                            }
+                        })()
+                );
+
+                await Promise.all(workers);
+            }
+
+            function escapeCsv(value) {
+                const text = String(value ?? "");
+                if (
+                    text.includes(",") ||
+                    text.includes('"') ||
+                    text.includes("\n")
+                ) {
+                    return `"${text.replaceAll('"', '""')}"`;
+                }
+                return text;
+            }
+
+            function downloadCsv() {
+                if (state.results.length === 0) {
+                    alert("다운로드할 결과가 없습니다.");
+                    return;
+                }
+
+                const rows = sortedResults();
+                const header = [
+                    "symbol",
+                    "onboardDateUTC",
+                    "closedCount",
+                    "firstOpen",
+                    "firstClose",
+                    "firstBodyPct",
+                    "lastClosedMonthUTC",
+                    "lastClosedOpen",
+                    "lastClosedClose",
+                    "lastClosedBodyPct",
+                ];
+
+                const lines = [header.join(",")];
+
+                rows.forEach((row) => {
+                    lines.push(
+                        [
+                            row.symbol,
+                            formatDateTimeUTC(row.onboardDate),
+                            row.closedCount,
+                            row.firstOpen,
+                            row.firstClose,
+                            row.firstBodyPct,
+                            formatYearMonthUTC(row.lastClosedTime),
+                            row.lastClosedOpen,
+                            row.lastClosedClose,
+                            row.lastClosedBodyPct,
+                        ]
+                            .map(escapeCsv)
+                            .join(",")
+                    );
+                });
+
+                const blob = new Blob([`\uFEFF${lines.join("\n")}`], {
+                    type: "text/csv;charset=utf-8;",
+                });
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "binance_first_month_green_then_all_red_1M.csv";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            }
+
+            async function copyResults() {
+                if (state.results.length === 0) {
+                    alert("복사할 결과가 없습니다.");
+                    return;
+                }
+
+                const rows = sortedResults();
+                const text = rows
+                    .map((row) => {
+                        return [
+                            row.symbol,
+                            `상장일=${formatDateTimeUTC(row.onboardDate)}`,
+                            `확정월봉수=${row.closedCount}`,
+                            `첫월봉=${formatPct(row.firstBodyPct, 2)}`,
+                            `마지막확정월=${formatYearMonthUTC(row.lastClosedTime)}`,
+                            `마지막확정봉=${formatPct(row.lastClosedBodyPct, 2)}`,
+                        ].join(" | ");
+                    })
+                    .join("\n");
+
+                await navigator.clipboard.writeText(text);
+                appendLog("결과를 클립보드에 복사했습니다.");
+            }
+
+            async function startScan() {
+                if (state.scanning) {
+                    return;
+                }
+
+                state.scanning = true;
+                state.stopRequested = false;
+                resetStatsOnly();
+                clearResults();
+                els.logBox.textContent = "";
+                renderStats();
+
+                const concurrency = Math.max(
+                    1,
+                    Number.parseInt(els.concurrency.value, 10) || 6
+                );
+                const gapMs = Math.max(
+                    0,
+                    Number.parseInt(els.gapMs.value, 10) || 0
+                );
+                const retries = Math.max(
+                    0,
+                    Number.parseInt(els.retries.value, 10) || 0
+                );
+                const timeoutMs = Math.max(
+                    1000,
+                    Number.parseInt(els.timeoutMs.value, 10) || 15000
+                );
+                const minClosedCount = Math.max(
+                    2,
+                    Number.parseInt(els.minClosedCount.value, 10) || 2
+                );
+
+                try {
+                    setStatus("exchangeInfo 조회 중...");
+                    appendLog("대상 심볼 목록을 가져오는 중입니다.");
+
+                    const symbols = await getTargetSymbols(timeoutMs, retries);
+
+                    state.totalSymbols = symbols.length;
+                    renderStats();
+
+                    appendLog(`대상 심볼 ${symbols.length}개`);
+                    appendLog(
+                        `설정값: 동시요청=${concurrency}, 간격=${gapMs}ms, 재시도=${retries}, 타임아웃=${timeoutMs}ms, 최소확정월봉=${minClosedCount}`
+                    );
+
+                    setStatus(`월봉 패턴 스캔 중... (총 ${symbols.length}개 심볼)`);
+
+                    await promisePool(
+                        symbols,
+                        (symbolMeta) =>
+                            scanOneSymbol(symbolMeta, {
+                                timeoutMs,
+                                retries,
+                                minClosedCount,
+                            }),
+                        concurrency,
+                        gapMs
+                    );
+
+                    if (state.stopRequested) {
+                        setStatus("사용자 요청으로 중지되었습니다.");
+                        appendLog("스캔이 중지되었습니다.");
+                    } else {
+                        setStatus(`완료 - 일치 심볼 ${state.results.length}개`);
+                        appendLog(`스캔 완료 / 일치 심볼 ${state.results.length}개`);
+                    }
+                } catch (error) {
+                    state.errorCount += 1;
+                    renderStats();
+
+                    const message =
+                        error instanceof Error ? error.message : String(error);
+
+                    setStatus(`실패 - ${message}`);
+                    appendLog(`치명적 오류: ${message}`);
+                } finally {
+                    state.scanning = false;
+                }
+            }
+
+            function stopScan() {
+                if (!state.scanning) {
+                    return;
+                }
+                state.stopRequested = true;
+                setStatus("중지 요청됨...");
+                appendLog("중지 요청을 보냈습니다. 진행 중 요청이 끝나면 멈춥니다.");
+            }
+
+            els.scanBtn.addEventListener("click", startScan);
+            els.stopBtn.addEventListener("click", stopScan);
+            els.clearBtn.addEventListener("click", () => {
+                resetStatsOnly();
+                clearResults();
+                els.logBox.textContent = "";
+                setStatus("초기화 완료");
+                renderStats();
+            });
+            els.copyBtn.addEventListener("click", () => {
+                copyResults().catch((error) => {
+                    const message =
+                        error instanceof Error ? error.message : String(error);
+                    appendLog(`복사 실패: ${message}`);
+                });
+            });
+            els.csvBtn.addEventListener("click", downloadCsv);
+            els.sortBy.addEventListener("change", renderResults);
+
+            renderStats();
+        </script>
+    </body>
+</html>
