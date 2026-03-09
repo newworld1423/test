@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Binance USDT Perp — 1M 선택월 Low == ALL-TIME Min Low + 최대 레버리지</title>
+        <title>Binance USDT Perp — 1M 선택월까지 Min Low + 최대 레버리지</title>
         <style>
             :root {
                 color-scheme: dark;
@@ -28,7 +28,8 @@
             body {
                 margin: 0;
                 font-family: var(--sans);
-                background: radial-gradient(1200px 900px at 10% 0%, rgba(122, 162, 255, 0.12), transparent 55%),
+                background:
+                    radial-gradient(1200px 900px at 10% 0%, rgba(122, 162, 255, 0.12), transparent 55%),
                     radial-gradient(900px 700px at 90% 10%, rgba(68, 209, 143, 0.08), transparent 55%),
                     radial-gradient(1100px 800px at 40% 100%, rgba(255, 90, 122, 0.06), transparent 55%),
                     var(--bg);
@@ -296,12 +297,12 @@
         <div class="wrap">
             <div class="titlebar">
                 <div>
-                    <h1>Binance USDT 무기한 — 1M 전체 스캔: “선택월 Low == ALL-TIME Min Low” + 최대 레버리지</h1>
+                    <h1>Binance USDT 무기한 — 1M 전체 스캔: “선택월 Low == 선택월까지의 Min Low” + 최대 레버리지</h1>
                     <div class="sub">
                         <span class="pill">USDT PERPETUAL</span> 전체 심볼 · <span class="pill">월봉(1M)</span> 조회<br />
-                        선택한 <code>대상월(UTC)</code>의 Low가, 가져온 월봉 전체에서의 <b>ALL-TIME Min Low</b>이면 <b>HIT</b><br />
-                        그리고 <b>ALL-TIME Min Low</b> 기준으로, <code>현재 진행중 월봉(마지막 봉)의 Open</code>에서 진입(Long)했을 때
-                        <b>Min Low까지 와도 청산 안 당하는 최대 레버리지</b>를 계산합니다.
+                        선택한 <code>대상월(UTC)</code>의 Low가, <b>선택월을 포함한 이전 월봉들 범위</b>에서의 <b>Min Low</b>이면 <b>HIT</b><br />
+                        그리고 그 <b>선택월까지의 Min Low</b> 기준으로, <code>현재 진행중 월봉(마지막 봉)의 Open</code>에서 진입(Long)했을 때
+                        <b>해당 Min Low까지 와도 청산 안 당하는 최대 레버리지</b>를 계산합니다.
                     </div>
                 </div>
                 <div class="pill" id="nowBadge">—</div>
@@ -387,7 +388,7 @@
                                 <th>대상월(KST)</th>
                                 <th class="mono">대상월 Low</th>
 
-                                <th class="mono">ALL-TIME Min Low</th>
+                                <th class="mono">선택월까지 Min Low</th>
 
                                 <th>현재봉(UTC)</th>
                                 <th class="mono">현재봉 Open</th>
@@ -411,7 +412,8 @@
 
                 <div class="hint">
                     - 요청 제어: <b>토큰버킷(Weight/분 예산)</b> 기반<br />
-                    - HIT 판정: <code>|targetLow - allTimeMinLow| ≤ epsilon</code><br />
+                    - HIT 판정: <code>|targetLow - rangeMinLow| ≤ epsilon</code><br />
+                    - 여기서 <code>rangeMinLow</code>는 <b>선택월 포함 이전 월봉들</b>만 대상으로 계산합니다.<br />
                     - 레버리지(근사, Long): <code>DD = (Entry - MinLow) / Entry</code>, <code>MaxLev ≈ 1 / (DD + MMR)</code><br />
                     - <code>MMR</code>는 심볼/구간별 실제값과 다를 수 있어요(기본 0.5%로 보수적 근사).<br />
                     - 429 발생 시 <b>자동 감속</b>, 418(밴) 감지 시 <b>즉시 중단</b>
@@ -583,7 +585,7 @@
                 if (limit <= 100) return 1;
                 if (limit <= 500) return 2;
                 if (limit <= 1000) return 5;
-                return 10; // 1001~1500
+                return 10;
             }
 
             function parseRetryAfterSeconds(res) {
@@ -593,9 +595,6 @@
                 return Number.isFinite(n) && n > 0 ? n : null;
             }
 
-            // -------------------------
-            // Token Bucket (Weight-based)
-            // -------------------------
             let bucket = {
                 capacity: 20,
                 tokens: 20,
@@ -687,7 +686,7 @@
                     method: "GET",
                     signal,
                     headers: {
-                        "Accept": "application/json",
+                        Accept: "application/json",
                     },
                 });
 
@@ -761,7 +760,7 @@
             function computeMaxLeverage(entry, worstLow, mmr, levCap) {
                 if (!Number.isFinite(entry) || !Number.isFinite(worstLow) || entry <= 0 || worstLow <= 0) return null;
 
-                const dd = (entry - worstLow) / entry; // 0.2 = -20%
+                const dd = (entry - worstLow) / entry;
                 const denom = dd + Math.max(0, mmr);
 
                 if (denom <= 0) {
@@ -801,7 +800,6 @@
 
                 const count = candles.length;
 
-                // 현재 진행중 월봉 = 마지막 봉
                 const last = candles[count - 1];
                 const currentOpenTime = last.openTime;
                 const currentOpen = last.open;
@@ -815,30 +813,6 @@
                     };
                 }
 
-                // all-time min low
-                let minLow = Infinity;
-                for (let i = 0; i < count; i += 1) {
-                    const v = candles[i].low;
-                    if (v < minLow) minLow = v;
-                }
-
-                if (!Number.isFinite(minLow) || minLow <= 0) {
-                    return {
-                        symbol,
-                        status: "FAIL",
-                        reason: "ALL-TIME Min Low 계산 실패(0 이하/NaN)",
-                        count,
-                    };
-                }
-
-                const minIdx = [];
-                for (let i = 0; i < count; i += 1) {
-                    if (Math.abs(candles[i].low - minLow) <= epsilon) {
-                        minIdx.push(i);
-                    }
-                }
-
-                // target month candle find (UTC month match)
                 let target = null;
                 for (let i = 0; i < count; i += 1) {
                     const ym = tsToUtcMonth(candles[i].openTime);
@@ -856,11 +830,37 @@
                         status: "FAIL",
                         reason: `대상월(${targetYmUtc}) 월봉이 없음 · 보유 범위(UTC): ${earliest} ~ ${latest} · (상장 전이거나 limit이 부족할 수 있음)`,
                         count,
-                        minLow,
-                        minIdx,
                         currentOpenTime,
                         currentOpen,
                     };
+                }
+
+                const rangeEndIndex = target.index;
+
+                let minLow = Infinity;
+                for (let i = 0; i <= rangeEndIndex; i += 1) {
+                    const v = candles[i].low;
+                    if (v < minLow) minLow = v;
+                }
+
+                if (!Number.isFinite(minLow) || minLow <= 0) {
+                    return {
+                        symbol,
+                        status: "FAIL",
+                        reason: "선택월까지 Min Low 계산 실패(0 이하/NaN)",
+                        count,
+                        targetOpenTime: target.openTime,
+                        targetLow: target.low,
+                        currentOpenTime,
+                        currentOpen,
+                    };
+                }
+
+                const minIdx = [];
+                for (let i = 0; i <= rangeEndIndex; i += 1) {
+                    if (Math.abs(candles[i].low - minLow) <= epsilon) {
+                        minIdx.push(i);
+                    }
                 }
 
                 const targetLow = target.low;
@@ -1017,12 +1017,10 @@
                     const ob = order[b.status] ?? 9;
                     if (oa !== ob) return oa - ob;
 
-                    // FAIL은 심볼 정렬
                     if (a.status === "FAIL" || b.status === "FAIL") {
                         return a.symbol.localeCompare(b.symbol);
                     }
 
-                    // HIT/OK는 MaxLev 높은 순
                     const la = levToNumber(a.maxLevText, levCap);
                     const lb = levToNumber(b.maxLevText, levCap);
                     if (lb !== la) return lb - la;
@@ -1074,7 +1072,7 @@
                     "targetMonthUtc",
                     "targetMonthKst",
                     "targetLow",
-                    "allTimeMinLow",
+                    "rangeMinLowUntilTarget",
                     "currentMonthUtc",
                     "currentOpen",
                     "ddPct",
