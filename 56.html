@@ -1,0 +1,1795 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Binance 월간 상승 패턴 비교 스캐너</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            :root {
+                color-scheme: dark;
+                --bg: #0b1020;
+                --panel: #121a30;
+                --panel-2: #16203b;
+                --line: rgba(255, 255, 255, 0.09);
+                --line-strong: rgba(255, 255, 255, 0.18);
+                --text: #ecf2ff;
+                --muted: rgba(236, 242, 255, 0.66);
+                --accent: #78a6ff;
+                --accent-2: #8ef0c7;
+                --warn: #ffd166;
+                --bad: #ff6b8a;
+                --good: #58d68d;
+                --shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+                --radius: 18px;
+                --radius-sm: 12px;
+                --radius-xs: 10px;
+                --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                --sans: Pretendard, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                margin: 0;
+                min-height: 100%;
+                background:
+                    radial-gradient(circle at top left, rgba(120, 166, 255, 0.14), transparent 26%),
+                    radial-gradient(circle at top right, rgba(142, 240, 199, 0.08), transparent 24%),
+                    var(--bg);
+                color: var(--text);
+                font-family: var(--sans);
+            }
+
+            body {
+                padding: 22px;
+            }
+
+            .app {
+                width: min(1480px, 100%);
+                margin: 0 auto;
+                display: grid;
+                gap: 18px;
+            }
+
+            .hero,
+            .panel {
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02));
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+
+            .hero {
+                padding: 24px;
+                display: grid;
+                gap: 14px;
+            }
+
+            .hero h1 {
+                margin: 0;
+                font-size: clamp(1.6rem, 2.4vw, 2.4rem);
+                line-height: 1.15;
+            }
+
+            .hero p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+
+            .badge-row,
+            .toolbar,
+            .meta-row,
+            .result-cards,
+            .chart-grid,
+            .summary-grid {
+                display: grid;
+                gap: 12px;
+            }
+
+            .badge-row {
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            }
+
+            .badge {
+                padding: 14px 16px;
+                border-radius: var(--radius-sm);
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid var(--line);
+            }
+
+            .badge .label {
+                color: var(--muted);
+                font-size: 0.85rem;
+                margin-bottom: 6px;
+            }
+
+            .badge .value {
+                font-weight: 700;
+                letter-spacing: 0.01em;
+            }
+
+            .panel-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 18px 18px 0;
+            }
+
+            .panel-header h2,
+            .panel-header h3 {
+                margin: 0;
+            }
+
+            .panel-body {
+                padding: 18px;
+            }
+
+            .toolbar {
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                align-items: end;
+            }
+
+            .field {
+                display: grid;
+                gap: 8px;
+            }
+
+            .field label {
+                font-size: 0.92rem;
+                color: var(--muted);
+            }
+
+            input,
+            select,
+            button,
+            textarea {
+                font: inherit;
+            }
+
+            input,
+            select,
+            textarea {
+                width: 100%;
+                border: 1px solid var(--line-strong);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text);
+                border-radius: var(--radius-xs);
+                padding: 12px 14px;
+                outline: none;
+            }
+
+            input:focus,
+            select:focus,
+            textarea:focus {
+                border-color: rgba(120, 166, 255, 0.7);
+                box-shadow: 0 0 0 4px rgba(120, 166, 255, 0.14);
+            }
+
+            .actions {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            button {
+                border: 0;
+                border-radius: var(--radius-xs);
+                padding: 12px 16px;
+                cursor: pointer;
+                transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+            }
+
+            button:hover {
+                transform: translateY(-1px);
+            }
+
+            button:disabled {
+                cursor: wait;
+                opacity: 0.7;
+                transform: none;
+            }
+
+            .btn-primary {
+                background: linear-gradient(135deg, var(--accent), #4d84ff);
+                color: #fff;
+                font-weight: 700;
+            }
+
+            .btn-secondary {
+                background: rgba(255, 255, 255, 0.08);
+                color: var(--text);
+                border: 1px solid var(--line-strong);
+            }
+
+            .btn-danger {
+                background: rgba(255, 107, 138, 0.12);
+                color: #ffd8e1;
+                border: 1px solid rgba(255, 107, 138, 0.22);
+                box-shadow: none;
+            }
+
+            .samples-wrap {
+                display: grid;
+                gap: 12px;
+            }
+
+            .sample-row {
+                display: grid;
+                grid-template-columns: minmax(170px, 1.2fr) minmax(170px, 1fr) minmax(170px, 1fr) auto;
+                gap: 10px;
+                padding: 14px;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.025);
+            }
+
+            .sample-hint {
+                font-size: 0.88rem;
+                color: var(--muted);
+            }
+
+            .status-bar {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin-top: 10px;
+            }
+
+            .status {
+                color: var(--muted);
+                font-size: 0.94rem;
+            }
+
+            .code {
+                font-family: var(--mono);
+            }
+
+            .summary-grid {
+                grid-template-columns: 1.1fr 0.9fr;
+            }
+
+            .summary-box,
+            .result-card,
+            .chart-card {
+                padding: 16px;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .summary-box h3,
+            .result-card h3,
+            .chart-card h3 {
+                margin: 0 0 12px;
+                font-size: 1.02rem;
+            }
+
+            .insights {
+                display: grid;
+                gap: 10px;
+            }
+
+            .insight {
+                padding: 12px 14px;
+                border-radius: 14px;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.03);
+            }
+
+            .insight strong {
+                display: block;
+                margin-bottom: 4px;
+            }
+
+            .insight small {
+                color: var(--muted);
+            }
+
+            .result-cards {
+                grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            }
+
+            .result-card .big {
+                font-size: 1.6rem;
+                font-weight: 800;
+                line-height: 1.1;
+            }
+
+            .result-card .sub {
+                margin-top: 6px;
+                color: var(--muted);
+                font-size: 0.9rem;
+            }
+
+            .table-wrap {
+                overflow: auto;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--line);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                min-width: 980px;
+            }
+
+            th,
+            td {
+                padding: 12px 12px;
+                border-bottom: 1px solid var(--line);
+                text-align: left;
+                font-size: 0.94rem;
+                vertical-align: top;
+            }
+
+            thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(14, 21, 40, 0.98);
+                z-index: 1;
+                color: #dce7ff;
+                white-space: nowrap;
+            }
+
+            tbody tr:hover {
+                background: rgba(255, 255, 255, 0.025);
+            }
+
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                border-radius: 999px;
+                font-size: 0.83rem;
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.04);
+                white-space: nowrap;
+            }
+
+            .good {
+                color: #c6ffe3;
+                background: rgba(88, 214, 141, 0.11);
+                border-color: rgba(88, 214, 141, 0.26);
+            }
+
+            .bad {
+                color: #ffd9e2;
+                background: rgba(255, 107, 138, 0.12);
+                border-color: rgba(255, 107, 138, 0.24);
+            }
+
+            .neutral {
+                color: #e7efff;
+            }
+
+            .chart-grid {
+                grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            }
+
+            canvas {
+                width: 100%;
+                height: 320px;
+            }
+
+            .footer-note {
+                color: var(--muted);
+                line-height: 1.7;
+                font-size: 0.92rem;
+            }
+
+            .empty,
+            .error-box {
+                padding: 14px 16px;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.03);
+                color: var(--muted);
+            }
+
+            .error-box {
+                color: #ffd7df;
+                border-color: rgba(255, 107, 138, 0.22);
+                background: rgba(255, 107, 138, 0.08);
+            }
+
+            @media (max-width: 980px) {
+                body {
+                    padding: 14px;
+                }
+
+                .sample-row,
+                .summary-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app">
+            <section class="hero">
+                <h1>Binance 월간 상승 패턴 비교 스캐너</h1>
+                <p>
+                    여러 코인과 각기 다른 기준 월을 넣으면, 해당 월의 <strong>일봉 흐름</strong>을 바탕으로
+                    <strong>공통 패턴</strong>을 자동 추출합니다. 단순 월간 상승률이 아니라
+                    <strong>EMA / RSI / MACD / 볼린저밴드 / 거래량 배수 / 변동성</strong>을 함께 비교합니다.
+                </p>
+                <div class="badge-row">
+                    <div class="badge">
+                        <div class="label">지원 방식</div>
+                        <div class="value">여러 코인 + 각 코인별 다른 월</div>
+                    </div>
+                    <div class="badge">
+                        <div class="label">데이터 기준</div>
+                        <div class="value">Binance USDⓈ-M Futures 1D 캔들 (UTC)</div>
+                    </div>
+                    <div class="badge">
+                        <div class="label">결과 형태</div>
+                        <div class="value">공통점 요약 + 표 + 비교 차트</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>비교 샘플 입력</h2>
+                    <div class="chip neutral">예시 기본값: FHE 2026-01 / POWER 2026-02</div>
+                </div>
+                <div class="panel-body">
+                    <div class="toolbar">
+                        <div class="field">
+                            <label for="consensusThreshold">공통점 기준</label>
+                            <select id="consensusThreshold">
+                                <option value="1">100% 일치만</option>
+                                <option value="0.8" selected>80% 이상</option>
+                                <option value="0.67">67% 이상</option>
+                                <option value="0.5">50% 이상</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="lookbackDays">지표 계산용 과거 일수</label>
+                            <select id="lookbackDays">
+                                <option value="120">120일</option>
+                                <option value="180">180일</option>
+                                <option value="260" selected>260일</option>
+                                <option value="360">360일</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="monthSource">월간 성과 계산 방식</label>
+                            <select id="monthSource">
+                                <option value="open-close" selected>해당 월 첫 시가 → 마지막 종가</option>
+                                <option value="close-close">전월 마지막 종가 → 해당 월 마지막 종가</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="height: 14px"></div>
+
+                    <div id="samples" class="samples-wrap"></div>
+                    <div class="sample-hint">
+                        심볼은 <span class="code">FHE</span>, <span class="code">FHEUSDT</span> 둘 다 입력 가능하며,
+                        월은 <span class="code">YYYY-MM</span> 형식으로 입력하세요.
+                    </div>
+
+                    <div class="status-bar">
+                        <div class="actions">
+                            <button id="addRowBtn" class="btn-secondary" type="button">행 추가</button>
+                            <button id="presetBtn" class="btn-secondary" type="button">예시 다시 불러오기</button>
+                            <button id="analyzeBtn" class="btn-primary" type="button">공통 패턴 분석</button>
+                        </div>
+                        <div id="status" class="status">대기 중</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>분석 결과</h2>
+                    <div id="summaryMeta" class="chip neutral">아직 실행 전</div>
+                </div>
+                <div class="panel-body">
+                    <div id="resultCards" class="result-cards"></div>
+                    <div style="height: 14px"></div>
+                    <div class="summary-grid">
+                        <div class="summary-box">
+                            <h3>공통점 자동 요약</h3>
+                            <div id="insights" class="insights">
+                                <div class="empty">아직 결과가 없습니다.</div>
+                            </div>
+                        </div>
+                        <div class="summary-box">
+                            <h3>해석 포인트</h3>
+                            <div id="narrative" class="footer-note">
+                                비교를 실행하면 “월 시작 전에 이미 추세가 만들어졌는지”, “월 초반 돌파형인지”,
+                                “거래량이 동반됐는지”, “RSI 과열이 빠르게 왔는지” 같은 관찰 포인트를 자동 정리합니다.
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 18px"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>샘플</th>
+                                    <th>월간 상승률</th>
+                                    <th>양봉 비율</th>
+                                    <th>최대 낙폭</th>
+                                    <th>월초 RSI14</th>
+                                    <th>월말 RSI14</th>
+                                    <th>RSI 최고</th>
+                                    <th>월초 EMA 상태</th>
+                                    <th>돌파/밴드</th>
+                                    <th>거래량 배수</th>
+                                    <th>평균 ATR%</th>
+                                    <th>메모</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultTableBody">
+                                <tr>
+                                    <td colspan="12" class="empty">아직 결과가 없습니다.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="height: 18px"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr id="similarityHeadRow">
+                                    <th>유사도 행렬</th>
+                                </tr>
+                            </thead>
+                            <tbody id="similarityTableBody">
+                                <tr>
+                                    <td colspan="2" class="empty">아직 결과가 없습니다.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>비교 차트</h2>
+                    <div class="chip neutral">모든 차트는 선택 월의 일봉만 사용</div>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-grid">
+                        <div class="chart-card">
+                            <h3>정규화 종가 비교 (월 시작 = 100)</h3>
+                            <canvas id="closeChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>RSI14 비교</h3>
+                            <canvas id="rsiChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>거래량 배수 (Volume / SMA20)</h3>
+                            <canvas id="volChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>ATR% 비교</h3>
+                            <canvas id="atrChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-body footer-note">
+                    이 도구는 브라우저에서 직접 Binance 공개 데이터를 호출합니다. 월별 비교는 심볼마다
+                    <strong>필요한 1D 캔들만</strong> 가져오도록 설계해 불필요한 호출을 줄였습니다. 같은 공통점이라도
+                    샘플 수가 적으면 우연일 수 있으니, 가능하면 3개 이상 사례를 넣어 비교하는 것이 좋습니다.
+                </div>
+            </section>
+        </div>
+
+        <template id="sampleRowTemplate">
+            <div class="sample-row">
+                <div class="field">
+                    <label>심볼</label>
+                    <input class="symbol-input" type="text" placeholder="예: FHE 또는 FHEUSDT" />
+                </div>
+                <div class="field">
+                    <label>기준 월</label>
+                    <input class="month-input code" type="month" />
+                </div>
+                <div class="field">
+                    <label>라벨(선택)</label>
+                    <input class="label-input" type="text" placeholder="예: 1월 최고 상승 / 테스트 샘플" />
+                </div>
+                <div class="field">
+                    <label>&nbsp;</label>
+                    <button class="btn-danger remove-btn" type="button">삭제</button>
+                </div>
+            </div>
+        </template>
+
+        <script>
+            const BINANCE_BASE_URL = "https://fapi.binance.com";
+            const samplesEl = document.getElementById("samples");
+            const addRowBtn = document.getElementById("addRowBtn");
+            const presetBtn = document.getElementById("presetBtn");
+            const analyzeBtn = document.getElementById("analyzeBtn");
+            const statusEl = document.getElementById("status");
+            const resultCardsEl = document.getElementById("resultCards");
+            const insightsEl = document.getElementById("insights");
+            const narrativeEl = document.getElementById("narrative");
+            const resultTableBodyEl = document.getElementById("resultTableBody");
+            const similarityTableBodyEl = document.getElementById("similarityTableBody");
+            const similarityHeadRowEl = document.getElementById("similarityHeadRow");
+            const summaryMetaEl = document.getElementById("summaryMeta");
+            const consensusThresholdEl = document.getElementById("consensusThreshold");
+            const lookbackDaysEl = document.getElementById("lookbackDays");
+            const monthSourceEl = document.getElementById("monthSource");
+            const template = document.getElementById("sampleRowTemplate");
+
+            const charts = {
+                close: null,
+                rsi: null,
+                vol: null,
+                atr: null,
+            };
+
+            let exchangeInfoCache = null;
+
+            const palette = [
+                "#78a6ff",
+                "#8ef0c7",
+                "#ffb86b",
+                "#ff7b9f",
+                "#c3a6ff",
+                "#8dd3ff",
+                "#ffd166",
+                "#7ef7ef",
+            ];
+
+            function setStatus(message, isError = false) {
+                statusEl.textContent = message;
+                statusEl.style.color = isError ? "#ffd7df" : "rgba(236, 242, 255, 0.72)";
+            }
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#39;");
+            }
+
+            function numberFmt(value, digits = 2, suffix = "") {
+                if (value === null || value === undefined || Number.isNaN(value)) {
+                    return "-";
+                }
+                return `${Number(value).toLocaleString("ko-KR", {
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits,
+                })}${suffix}`;
+            }
+
+            function compactFmt(value, digits = 2) {
+                if (value === null || value === undefined || Number.isNaN(value)) {
+                    return "-";
+                }
+                return Number(value).toLocaleString("ko-KR", {
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits,
+                });
+            }
+
+            function addSampleRow(sample = {}) {
+                const node = template.content.firstElementChild.cloneNode(true);
+                node.querySelector(".symbol-input").value = sample.symbol ?? "";
+                node.querySelector(".month-input").value = sample.month ?? "";
+                node.querySelector(".label-input").value = sample.label ?? "";
+                node.querySelector(".remove-btn").addEventListener("click", () => {
+                    node.remove();
+                });
+                samplesEl.appendChild(node);
+            }
+
+            function loadDefaultSamples() {
+                samplesEl.innerHTML = "";
+                addSampleRow({ symbol: "FHE", month: "2026-01", label: "1월 강한 상승 사례" });
+                addSampleRow({ symbol: "POWER", month: "2026-02", label: "2월 강한 상승 사례" });
+                addSampleRow({ symbol: "", month: "", label: "추가 비교용" });
+            }
+
+            function getSampleInputs() {
+                return Array.from(samplesEl.querySelectorAll(".sample-row"))
+                    .map((row) => {
+                        const symbol = row.querySelector(".symbol-input").value.trim();
+                        const month = row.querySelector(".month-input").value.trim();
+                        const label = row.querySelector(".label-input").value.trim();
+                        return { symbol, month, label };
+                    })
+                    .filter((item) => item.symbol && item.month);
+            }
+
+            async function fetchJson(path, params = {}) {
+                const url = new URL(`${BINANCE_BASE_URL}${path}`);
+                Object.entries(params).forEach(([key, value]) => {
+                    if (value !== null && value !== undefined && value !== "") {
+                        url.searchParams.set(key, String(value));
+                    }
+                });
+
+                const response = await fetch(url.toString());
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP ${response.status} ${text}`);
+                }
+                return await response.json();
+            }
+
+            async function getExchangeInfo() {
+                if (exchangeInfoCache) {
+                    return exchangeInfoCache;
+                }
+                const data = await fetchJson("/fapi/v1/exchangeInfo");
+                const tradableSymbols = data.symbols.filter((symbol) => {
+                    return (
+                        symbol.contractType === "PERPETUAL" &&
+                        symbol.quoteAsset === "USDT" &&
+                        symbol.status === "TRADING"
+                    );
+                });
+
+                const bySymbol = new Map();
+                const byBase = new Map();
+
+                tradableSymbols.forEach((item) => {
+                    bySymbol.set(item.symbol.toUpperCase(), item);
+                    byBase.set(item.baseAsset.toUpperCase(), item);
+                });
+
+                exchangeInfoCache = { tradableSymbols, bySymbol, byBase };
+                return exchangeInfoCache;
+            }
+
+            async function resolveSymbol(rawInput) {
+                const info = await getExchangeInfo();
+                const clean = rawInput.toUpperCase().replaceAll(/\s+/g, "");
+
+                if (info.bySymbol.has(clean)) {
+                    return info.bySymbol.get(clean).symbol;
+                }
+
+                if (clean.endsWith("USDT") && info.bySymbol.has(clean)) {
+                    return info.bySymbol.get(clean).symbol;
+                }
+
+                if (info.byBase.has(clean)) {
+                    return info.byBase.get(clean).symbol;
+                }
+
+                const maybe = `${clean}USDT`;
+                if (info.bySymbol.has(maybe)) {
+                    return info.bySymbol.get(maybe).symbol;
+                }
+
+                throw new Error(`심볼을 찾을 수 없습니다: ${rawInput}`);
+            }
+
+            function parseMonthRange(monthText) {
+                const [yearText, monthNumText] = monthText.split("-");
+                const year = Number(yearText);
+                const monthIndex = Number(monthNumText) - 1;
+                if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+                    throw new Error(`월 형식이 올바르지 않습니다: ${monthText}`);
+                }
+
+                const start = Date.UTC(year, monthIndex, 1, 0, 0, 0, 0);
+                const end = Date.UTC(year, monthIndex + 1, 1, 0, 0, 0, 0);
+                return { start, end };
+            }
+
+            function utcDateLabel(ms) {
+                const date = new Date(ms);
+                const y = date.getUTCFullYear();
+                const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+                const d = String(date.getUTCDate()).padStart(2, "0");
+                return `${y}-${m}-${d}`;
+            }
+
+            async function fetchDailyKlines(symbol, startTime, endTime) {
+                const raw = await fetchJson("/fapi/v1/klines", {
+                    symbol,
+                    interval: "1d",
+                    startTime,
+                    endTime,
+                    limit: 1500,
+                });
+
+                return raw.map((item) => ({
+                    openTime: Number(item[0]),
+                    open: Number(item[1]),
+                    high: Number(item[2]),
+                    low: Number(item[3]),
+                    close: Number(item[4]),
+                    volume: Number(item[5]),
+                    closeTime: Number(item[6]),
+                    quoteVolume: Number(item[7]),
+                    trades: Number(item[8]),
+                    takerBaseVolume: Number(item[9]),
+                    takerQuoteVolume: Number(item[10]),
+                    dateLabel: utcDateLabel(Number(item[0])),
+                }));
+            }
+
+            function calcSma(values, period) {
+                const result = Array(values.length).fill(null);
+                let sum = 0;
+                for (let i = 0; i < values.length; i += 1) {
+                    sum += values[i];
+                    if (i >= period) {
+                        sum -= values[i - period];
+                    }
+                    if (i >= period - 1) {
+                        result[i] = sum / period;
+                    }
+                }
+                return result;
+            }
+
+            function calcEma(values, period) {
+                const result = Array(values.length).fill(null);
+                const k = 2 / (period + 1);
+                let seed = 0;
+
+                for (let i = 0; i < values.length; i += 1) {
+                    if (i < period) {
+                        seed += values[i];
+                        if (i === period - 1) {
+                            result[i] = seed / period;
+                        }
+                    } else {
+                        result[i] = values[i] * k + result[i - 1] * (1 - k);
+                    }
+                }
+                return result;
+            }
+
+            function calcRsi(closes, period = 14) {
+                const result = Array(closes.length).fill(null);
+                if (closes.length <= period) {
+                    return result;
+                }
+
+                let gain = 0;
+                let loss = 0;
+                for (let i = 1; i <= period; i += 1) {
+                    const diff = closes[i] - closes[i - 1];
+                    if (diff >= 0) {
+                        gain += diff;
+                    } else {
+                        loss += Math.abs(diff);
+                    }
+                }
+
+                let avgGain = gain / period;
+                let avgLoss = loss / period;
+                result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+                for (let i = period + 1; i < closes.length; i += 1) {
+                    const diff = closes[i] - closes[i - 1];
+                    const currentGain = diff > 0 ? diff : 0;
+                    const currentLoss = diff < 0 ? Math.abs(diff) : 0;
+                    avgGain = (avgGain * (period - 1) + currentGain) / period;
+                    avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
+                    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+                }
+
+                return result;
+            }
+
+            function calcTrueRange(candles) {
+                const tr = Array(candles.length).fill(null);
+                for (let i = 0; i < candles.length; i += 1) {
+                    if (i === 0) {
+                        tr[i] = candles[i].high - candles[i].low;
+                    } else {
+                        const prevClose = candles[i - 1].close;
+                        tr[i] = Math.max(
+                            candles[i].high - candles[i].low,
+                            Math.abs(candles[i].high - prevClose),
+                            Math.abs(candles[i].low - prevClose),
+                        );
+                    }
+                }
+                return tr;
+            }
+
+            function calcAtr(candles, period = 14) {
+                const tr = calcTrueRange(candles);
+                const result = Array(candles.length).fill(null);
+                let sum = 0;
+                for (let i = 0; i < tr.length; i += 1) {
+                    if (i < period) {
+                        sum += tr[i] ?? 0;
+                        if (i === period - 1) {
+                            result[i] = sum / period;
+                        }
+                    } else {
+                        result[i] = ((result[i - 1] * (period - 1)) + tr[i]) / period;
+                    }
+                }
+                return result;
+            }
+
+            function calcMacd(values) {
+                const ema12 = calcEma(values, 12);
+                const ema26 = calcEma(values, 26);
+                const macd = Array(values.length).fill(null);
+                for (let i = 0; i < values.length; i += 1) {
+                    if (ema12[i] !== null && ema26[i] !== null) {
+                        macd[i] = ema12[i] - ema26[i];
+                    }
+                }
+
+                const filtered = macd.map((value) => value ?? 0);
+                const signalRaw = calcEma(filtered, 9);
+                const signal = Array(values.length).fill(null);
+                const hist = Array(values.length).fill(null);
+
+                for (let i = 0; i < values.length; i += 1) {
+                    if (macd[i] !== null && signalRaw[i] !== null) {
+                        signal[i] = signalRaw[i];
+                        hist[i] = macd[i] - signalRaw[i];
+                    }
+                }
+
+                return { macd, signal, hist };
+            }
+
+            function calcBollinger(values, period = 20, multiplier = 2) {
+                const sma = calcSma(values, period);
+                const upper = Array(values.length).fill(null);
+                const lower = Array(values.length).fill(null);
+
+                for (let i = period - 1; i < values.length; i += 1) {
+                    const window = values.slice(i - period + 1, i + 1);
+                    const mean = sma[i];
+                    const variance = window.reduce((acc, value) => acc + (value - mean) ** 2, 0) / period;
+                    const std = Math.sqrt(variance);
+                    upper[i] = mean + std * multiplier;
+                    lower[i] = mean - std * multiplier;
+                }
+                return { middle: sma, upper, lower };
+            }
+
+            function calcMaxDrawdown(candles) {
+                let peak = candles[0]?.high ?? 0;
+                let maxDrawdown = 0;
+                for (const candle of candles) {
+                    peak = Math.max(peak, candle.high);
+                    if (peak > 0) {
+                        const dd = ((candle.low / peak) - 1) * 100;
+                        maxDrawdown = Math.min(maxDrawdown, dd);
+                    }
+                }
+                return maxDrawdown;
+            }
+
+            function findMacdBullCrossInWindow(hist, startIdx, endIdx) {
+                let crossCount = 0;
+                let firstCrossIndex = null;
+                for (let i = startIdx + 1; i <= endIdx; i += 1) {
+                    if (hist[i - 1] !== null && hist[i] !== null && hist[i - 1] <= 0 && hist[i] > 0) {
+                        crossCount += 1;
+                        if (firstCrossIndex === null) {
+                            firstCrossIndex = i;
+                        }
+                    }
+                }
+                return { crossCount, firstCrossIndex };
+            }
+
+            function pickIndex(valueArray, fallbackIndex) {
+                if (valueArray[fallbackIndex] !== null && valueArray[fallbackIndex] !== undefined) {
+                    return fallbackIndex;
+                }
+                for (let i = fallbackIndex; i >= 0; i -= 1) {
+                    if (valueArray[i] !== null && valueArray[i] !== undefined) {
+                        return i;
+                    }
+                }
+                return null;
+            }
+
+            function analyzeSample(sample, candles, options) {
+                if (!candles.length) {
+                    throw new Error(`${sample.symbol} ${sample.month}: 캔들 데이터가 없습니다.`);
+                }
+
+                const monthRange = parseMonthRange(sample.month);
+                const monthIndices = candles
+                    .map((candle, index) => ({ candle, index }))
+                    .filter(({ candle }) => candle.openTime >= monthRange.start && candle.openTime < monthRange.end)
+                    .map(({ index }) => index);
+
+                if (!monthIndices.length) {
+                    throw new Error(`${sample.symbol} ${sample.month}: 선택 월의 일봉 데이터가 없습니다.`);
+                }
+
+                const startIdx = monthIndices[0];
+                const endIdx = monthIndices[monthIndices.length - 1];
+                const monthCandles = candles.slice(startIdx, endIdx + 1);
+
+                if (monthCandles.length < 3) {
+                    throw new Error(`${sample.symbol} ${sample.month}: 분석하기에 캔들 수가 너무 적습니다.`);
+                }
+
+                const closes = candles.map((candle) => candle.close);
+                const volumes = candles.map((candle) => candle.volume);
+                const ema20 = calcEma(closes, 20);
+                const ema50 = calcEma(closes, 50);
+                const ema200 = calcEma(closes, 200);
+                const rsi14 = calcRsi(closes, 14);
+                const atr14 = calcAtr(candles, 14);
+                const macd = calcMacd(closes);
+                const bb = calcBollinger(closes, 20, 2);
+                const volumeSma20 = calcSma(volumes, 20);
+
+                const startIndicatorIndex = pickIndex(rsi14, startIdx);
+                const endIndicatorIndex = pickIndex(rsi14, endIdx);
+
+                if (startIndicatorIndex === null || endIndicatorIndex === null) {
+                    throw new Error(`${sample.symbol} ${sample.month}: 지표 계산용 과거 데이터가 부족합니다.`);
+                }
+
+                const startCandle = candles[startIdx];
+                const endCandle = candles[endIdx];
+
+                const openCloseReturn = ((endCandle.close / startCandle.open) - 1) * 100;
+                const prevCloseReturn = startIdx > 0
+                    ? ((endCandle.close / candles[startIdx - 1].close) - 1) * 100
+                    : openCloseReturn;
+                const monthReturn = options.monthSource === "close-close" ? prevCloseReturn : openCloseReturn;
+
+                const greenCount = monthCandles.filter((candle) => candle.close > candle.open).length;
+                const greenRatio = (greenCount / monthCandles.length) * 100;
+
+                const maxDrawdown = calcMaxDrawdown(monthCandles);
+                const peakHigh = Math.max(...monthCandles.map((candle) => candle.high));
+                const minLow = Math.min(...monthCandles.map((candle) => candle.low));
+                const rangePct = ((peakHigh / minLow) - 1) * 100;
+
+                let breakout20Count = 0;
+                let upperBandCloseCount = 0;
+                let volumeBurstCount = 0;
+                let strongestVolumeRatio = null;
+                let avgVolumeRatioSum = 0;
+                let avgVolumeRatioCount = 0;
+                let avgAtrPctSum = 0;
+                let avgAtrPctCount = 0;
+
+                for (let i = startIdx; i <= endIdx; i += 1) {
+                    const priorWindowStart = Math.max(0, i - 20);
+                    const priorHighs = candles.slice(priorWindowStart, i).map((candle) => candle.high);
+                    const priorHighest = priorHighs.length ? Math.max(...priorHighs) : null;
+                    if (priorHighest !== null && candles[i].close > priorHighest) {
+                        breakout20Count += 1;
+                    }
+
+                    if (bb.upper[i] !== null && candles[i].close > bb.upper[i]) {
+                        upperBandCloseCount += 1;
+                    }
+
+                    if (volumeSma20[i] !== null && volumeSma20[i] > 0) {
+                        const volumeRatio = candles[i].volume / volumeSma20[i];
+                        avgVolumeRatioSum += volumeRatio;
+                        avgVolumeRatioCount += 1;
+                        strongestVolumeRatio = strongestVolumeRatio === null
+                            ? volumeRatio
+                            : Math.max(strongestVolumeRatio, volumeRatio);
+                        if (volumeRatio >= 1.8) {
+                            volumeBurstCount += 1;
+                        }
+                    }
+
+                    if (atr14[i] !== null && candles[i].close > 0) {
+                        avgAtrPctSum += (atr14[i] / candles[i].close) * 100;
+                        avgAtrPctCount += 1;
+                    }
+                }
+
+                const monthRsi = rsi14.slice(startIdx, endIdx + 1).filter((value) => value !== null);
+                const monthAtrPct = monthCandles.map((candle, offset) => {
+                    const idx = startIdx + offset;
+                    return atr14[idx] !== null ? (atr14[idx] / candle.close) * 100 : null;
+                }).filter((value) => value !== null);
+
+                const monthHist = macd.hist.slice(startIdx, endIdx + 1).filter((value) => value !== null);
+                const { crossCount: macdBullCrossCount, firstCrossIndex } = findMacdBullCrossInWindow(macd.hist, startIdx, endIdx);
+
+                const startClose = closes[startIdx];
+                const startEma20 = ema20[startIdx] ?? ema20[startIndicatorIndex];
+                const startEma50 = ema50[startIdx] ?? ema50[startIndicatorIndex];
+                const startEma200 = ema200[startIdx] ?? ema200[startIndicatorIndex];
+
+                const notes = [];
+                if (monthReturn > 0 && greenRatio >= 55) {
+                    notes.push("상승 일봉 비율 우세");
+                }
+                if (breakout20Count > 0) {
+                    notes.push(`20일 고점 돌파 ${breakout20Count}회`);
+                }
+                if (volumeBurstCount > 0) {
+                    notes.push(`거래량 급증 ${volumeBurstCount}회`);
+                }
+                if ((monthRsi.length ? Math.max(...monthRsi) : 0) >= 70) {
+                    notes.push("RSI 70 이상 진입");
+                }
+                if (upperBandCloseCount > 0) {
+                    notes.push(`상단 밴드 종가 돌파 ${upperBandCloseCount}회`);
+                }
+                if (macdBullCrossCount > 0) {
+                    notes.push(`MACD 히스토그램 양전환 ${macdBullCrossCount}회`);
+                }
+
+                const firstClose = monthCandles[0].close;
+                const normalizedClose = monthCandles.map((candle) => (candle.close / firstClose) * 100);
+                const monthLabels = monthCandles.map((candle) => candle.dateLabel.slice(8));
+                const monthVolumeRatio = monthCandles.map((candle, offset) => {
+                    const idx = startIdx + offset;
+                    if (volumeSma20[idx] === null || volumeSma20[idx] === 0) {
+                        return null;
+                    }
+                    return candle.volume / volumeSma20[idx];
+                });
+
+                const sampleLabel = sample.label || `${sample.resolvedSymbol} · ${sample.month}`;
+                const startRsi = rsi14[startIndicatorIndex];
+                const endRsi = rsi14[endIndicatorIndex];
+                const peakRsi = monthRsi.length ? Math.max(...monthRsi) : null;
+                const avgVolumeRatio = avgVolumeRatioCount ? avgVolumeRatioSum / avgVolumeRatioCount : null;
+                const avgAtrPct = avgAtrPctCount ? avgAtrPctSum / avgAtrPctCount : null;
+
+                return {
+                    sampleLabel,
+                    rawSample: sample,
+                    symbol: sample.resolvedSymbol,
+                    month: sample.month,
+                    candles,
+                    monthCandles,
+                    monthLabels,
+                    normalizedClose,
+                    monthRsi: monthCandles.map((_, offset) => rsi14[startIdx + offset]),
+                    monthVolumeRatio,
+                    monthAtrPct,
+                    metrics: {
+                        monthReturn,
+                        greenRatio,
+                        maxDrawdown,
+                        rangePct,
+                        startRsi,
+                        endRsi,
+                        peakRsi,
+                        breakout20Count,
+                        upperBandCloseCount,
+                        volumeBurstCount,
+                        strongestVolumeRatio,
+                        avgVolumeRatio,
+                        avgAtrPct,
+                        macdBullCrossCount,
+                        firstMacdBullCrossDay: firstCrossIndex === null ? null : (firstCrossIndex - startIdx + 1),
+                        startCloseToEma20Pct: startEma20 ? ((startClose / startEma20) - 1) * 100 : null,
+                        startCloseToEma50Pct: startEma50 ? ((startClose / startEma50) - 1) * 100 : null,
+                        startCloseToEma200Pct: startEma200 ? ((startClose / startEma200) - 1) * 100 : null,
+                        endMacdHist: macd.hist[endIdx],
+                        peakMacdHist: monthHist.length ? Math.max(...monthHist) : null,
+                        startHist: macd.hist[startIndicatorIndex],
+                    },
+                    patterns: {
+                        startAboveEma20: startEma20 !== null ? startClose > startEma20 : null,
+                        startAboveEma50: startEma50 !== null ? startClose > startEma50 : null,
+                        startAboveEma200: startEma200 !== null ? startClose > startEma200 : null,
+                        ema20Over50: startEma20 !== null && startEma50 !== null ? startEma20 > startEma50 : null,
+                        ema50Over200: startEma50 !== null && startEma200 !== null ? startEma50 > startEma200 : null,
+                        startRsiBullish: startRsi !== null ? startRsi >= 55 : null,
+                        endRsiHot: endRsi !== null ? endRsi >= 60 : null,
+                        peakRsiOver70: peakRsi !== null ? peakRsi >= 70 : null,
+                        hadBreakout20: breakout20Count > 0,
+                        hadVolumeBurst: volumeBurstCount > 0,
+                        hadUpperBandClose: upperBandCloseCount > 0,
+                        hadMacdBullCross: macdBullCrossCount > 0,
+                        greenMajority: greenRatio >= 55,
+                        atrHigh: avgAtrPct !== null ? avgAtrPct >= 5 : null,
+                    },
+                    notes,
+                };
+            }
+
+            function getPatternDefinitions() {
+                return [
+                    {
+                        key: "startAboveEma20",
+                        labelTrue: "월 시작일 종가가 EMA20 위에 위치",
+                        labelFalse: "월 시작일 종가가 EMA20 아래에 위치",
+                        group: "추세",
+                    },
+                    {
+                        key: "startAboveEma50",
+                        labelTrue: "월 시작일 종가가 EMA50 위에 위치",
+                        labelFalse: "월 시작일 종가가 EMA50 아래에 위치",
+                        group: "추세",
+                    },
+                    {
+                        key: "startAboveEma200",
+                        labelTrue: "월 시작일 종가가 EMA200 위에 위치",
+                        labelFalse: "월 시작일 종가가 EMA200 아래에 위치",
+                        group: "추세",
+                    },
+                    {
+                        key: "ema20Over50",
+                        labelTrue: "월 시작 시 EMA20 > EMA50 정배열",
+                        labelFalse: "월 시작 시 EMA20 ≤ EMA50",
+                        group: "추세",
+                    },
+                    {
+                        key: "ema50Over200",
+                        labelTrue: "월 시작 시 EMA50 > EMA200 중장기 우상향",
+                        labelFalse: "월 시작 시 EMA50 ≤ EMA200",
+                        group: "추세",
+                    },
+                    {
+                        key: "startRsiBullish",
+                        labelTrue: "월 시작 RSI14가 이미 55 이상",
+                        labelFalse: "월 시작 RSI14가 55 미만",
+                        group: "모멘텀",
+                    },
+                    {
+                        key: "endRsiHot",
+                        labelTrue: "월말 RSI14가 60 이상으로 마감",
+                        labelFalse: "월말 RSI14가 60 미만으로 마감",
+                        group: "모멘텀",
+                    },
+                    {
+                        key: "peakRsiOver70",
+                        labelTrue: "월중 RSI14가 70 이상 과열 구간 진입",
+                        labelFalse: "월중 RSI14가 70 미만",
+                        group: "모멘텀",
+                    },
+                    {
+                        key: "hadBreakout20",
+                        labelTrue: "월중 20일 고점 돌파 발생",
+                        labelFalse: "월중 20일 고점 돌파 없음",
+                        group: "돌파",
+                    },
+                    {
+                        key: "hadUpperBandClose",
+                        labelTrue: "월중 볼린저 상단 밴드 종가 돌파 발생",
+                        labelFalse: "월중 볼린저 상단 밴드 종가 돌파 없음",
+                        group: "돌파",
+                    },
+                    {
+                        key: "hadVolumeBurst",
+                        labelTrue: "월중 거래량 급증(Volume / SMA20 ≥ 1.8) 발생",
+                        labelFalse: "월중 거래량 급증이 두드러지지 않음",
+                        group: "수급",
+                    },
+                    {
+                        key: "hadMacdBullCross",
+                        labelTrue: "월중 MACD 히스토그램 양전환 발생",
+                        labelFalse: "월중 MACD 히스토그램 양전환 없음",
+                        group: "모멘텀",
+                    },
+                    {
+                        key: "greenMajority",
+                        labelTrue: "해당 월 일봉의 과반이 양봉",
+                        labelFalse: "해당 월 일봉의 과반이 양봉은 아님",
+                        group: "캔들",
+                    },
+                    {
+                        key: "atrHigh",
+                        labelTrue: "평균 ATR%가 5% 이상으로 변동성이 큰 편",
+                        labelFalse: "평균 ATR%가 5% 미만으로 비교적 안정적",
+                        group: "변동성",
+                    },
+                ];
+            }
+
+            function deriveCommonInsights(results, threshold) {
+                const definitions = getPatternDefinitions();
+                const findings = [];
+
+                for (const def of definitions) {
+                    const values = results
+                        .map((result) => result.patterns[def.key])
+                        .filter((value) => value !== null && value !== undefined);
+
+                    if (!values.length) {
+                        continue;
+                    }
+
+                    const trueCount = values.filter(Boolean).length;
+                    const falseCount = values.length - trueCount;
+                    const dominantCount = Math.max(trueCount, falseCount);
+                    const dominantValue = trueCount >= falseCount;
+                    const support = dominantCount / values.length;
+
+                    if (support >= threshold) {
+                        findings.push({
+                            label: dominantValue ? def.labelTrue : def.labelFalse,
+                            support,
+                            supportCount: dominantCount,
+                            totalCount: values.length,
+                            group: def.group,
+                            polarity: dominantValue,
+                        });
+                    }
+                }
+
+                const numericInsights = [];
+                const numericDefs = [
+                    {
+                        key: "startRsi",
+                        label: "월 시작 RSI14",
+                        formatter: (values) => `${numberFmt(avg(values), 1)} 부근`,
+                        rule: (values) => rangeWidth(values) <= 12,
+                        group: "모멘텀",
+                    },
+                    {
+                        key: "avgVolumeRatio",
+                        label: "평균 거래량 배수",
+                        formatter: (values) => `${numberFmt(avg(values), 2)}배 부근`,
+                        rule: (values) => rangeWidth(values) <= 1.0,
+                        group: "수급",
+                    },
+                    {
+                        key: "avgAtrPct",
+                        label: "평균 ATR%",
+                        formatter: (values) => `${numberFmt(avg(values), 2)}% 부근`,
+                        rule: (values) => rangeWidth(values) <= 2.4,
+                        group: "변동성",
+                    },
+                ];
+
+                for (const def of numericDefs) {
+                    const values = results
+                        .map((result) => result.metrics[def.key])
+                        .filter((value) => value !== null && value !== undefined && Number.isFinite(value));
+                    if (values.length >= 2 && def.rule(values)) {
+                        numericInsights.push({
+                            label: `${def.label} 수준이 서로 가깝습니다 (${def.formatter(values)})`,
+                            support: 1,
+                            supportCount: values.length,
+                            totalCount: values.length,
+                            group: def.group,
+                            polarity: true,
+                        });
+                    }
+                }
+
+                return findings
+                    .concat(numericInsights)
+                    .sort((a, b) => b.support - a.support || a.group.localeCompare(b.group));
+            }
+
+            function avg(values) {
+                return values.reduce((sum, value) => sum + value, 0) / values.length;
+            }
+
+            function rangeWidth(values) {
+                return Math.max(...values) - Math.min(...values);
+            }
+
+            function getNarrative(results, commonInsights) {
+                if (!results.length) {
+                    return "분석 결과가 없습니다.";
+                }
+
+                const avgReturn = avg(results.map((result) => result.metrics.monthReturn));
+                const avgGreenRatio = avg(results.map((result) => result.metrics.greenRatio));
+                const avgDrawdown = avg(results.map((result) => Math.abs(result.metrics.maxDrawdown)));
+                const avgBreakout = avg(results.map((result) => result.metrics.breakout20Count));
+                const avgVolumeRatio = avg(results.map((result) => result.metrics.avgVolumeRatio ?? 0));
+
+                const trendFindings = commonInsights.filter((item) => item.group === "추세").slice(0, 2).map((item) => item.label);
+                const momentumFindings = commonInsights.filter((item) => item.group === "모멘텀").slice(0, 2).map((item) => item.label);
+                const breakoutFindings = commonInsights.filter((item) => item.group === "돌파" || item.group === "수급").slice(0, 2).map((item) => item.label);
+
+                const parts = [];
+                parts.push(`선택한 ${results.length}개 사례의 평균 월간 상승률은 ${numberFmt(avgReturn, 2, "%")}이며, 평균 양봉 비율은 ${numberFmt(avgGreenRatio, 1, "%")}입니다.`);
+                parts.push(`평균 최대 낙폭은 ${numberFmt(-avgDrawdown, 2, "%")} 수준이고, 평균 20일 고점 돌파 횟수는 ${numberFmt(avgBreakout, 2, "회")}입니다.`);
+                parts.push(`거래량 배수 평균은 ${numberFmt(avgVolumeRatio, 2, "배")} 정도입니다.`);
+
+                if (trendFindings.length) {
+                    parts.push(`추세 측면에서는 ${trendFindings.join(" / ")} 패턴이 반복됩니다.`);
+                }
+                if (momentumFindings.length) {
+                    parts.push(`모멘텀 측면에서는 ${momentumFindings.join(" / ")} 특징이 보입니다.`);
+                }
+                if (breakoutFindings.length) {
+                    parts.push(`돌파·수급 측면에서는 ${breakoutFindings.join(" / ")} 경향이 나타납니다.`);
+                }
+
+                if (!commonInsights.length) {
+                    parts.push("다만 현재 샘플들 사이에 완전히 겹치는 조건은 많지 않아, 공통점 기준을 67% 또는 50%로 낮춰 다시 보는 것도 좋습니다.");
+                }
+
+                return parts.join(" ");
+            }
+
+            function makeMetricCards(results, insights) {
+                if (!results.length) {
+                    resultCardsEl.innerHTML = '<div class="empty">아직 결과가 없습니다.</div>';
+                    return;
+                }
+
+                const avgReturn = avg(results.map((result) => result.metrics.monthReturn));
+                const avgSimilarity = computeAveragePairwiseSimilarity(results);
+                const topInsight = insights[0]?.label ?? "공통 조건이 아직 두드러지지 않음";
+                const strongVolumeShare = results.filter((result) => result.patterns.hadVolumeBurst).length;
+
+                resultCardsEl.innerHTML = `
+                    <div class="result-card">
+                        <h3>샘플 수</h3>
+                        <div class="big">${results.length}</div>
+                        <div class="sub">동시에 비교된 코인/월 조합</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>평균 월간 상승률</h3>
+                        <div class="big">${numberFmt(avgReturn, 2, "%")}</div>
+                        <div class="sub">선택 월 기준 평균 성과</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>평균 유사도</h3>
+                        <div class="big">${numberFmt(avgSimilarity, 1, "%")}</div>
+                        <div class="sub">지표 벡터 기반 케이스 간 평균 유사도</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>거래량 급증 사례</h3>
+                        <div class="big">${strongVolumeShare}/${results.length}</div>
+                        <div class="sub">Volume / SMA20 ≥ 1.8 발생한 사례 수</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>가장 강한 공통점</h3>
+                        <div class="sub" style="margin-top:0; color: var(--text); line-height: 1.6;">${escapeHtml(topInsight)}</div>
+                    </div>
+                `;
+            }
+
+            function renderInsights(insights) {
+                if (!insights.length) {
+                    insightsEl.innerHTML = '<div class="empty">현재 기준으로는 충분히 강한 공통 패턴이 잡히지 않았습니다. 공통점 기준을 낮추거나 샘플을 더 추가해보세요.</div>';
+                    return;
+                }
+
+                insightsEl.innerHTML = insights
+                    .slice(0, 12)
+                    .map((item) => {
+                        const pct = Math.round(item.support * 100);
+                        return `
+                            <div class="insight">
+                                <strong>[${escapeHtml(item.group)}] ${escapeHtml(item.label)}</strong>
+                                <small>${item.supportCount}/${item.totalCount} 사례 일치 · 일치율 ${pct}%</small>
+                            </div>
+                        `;
+                    })
+                    .join("");
+            }
+
+            function renderResultTable(results) {
+                if (!results.length) {
+                    resultTableBodyEl.innerHTML = '<tr><td colspan="12" class="empty">아직 결과가 없습니다.</td></tr>';
+                    return;
+                }
+
+                resultTableBodyEl.innerHTML = results
+                    .map((result) => {
+                        const emaState = [
+                            result.patterns.startAboveEma20 ? "C>20" : "C≤20",
+                            result.patterns.startAboveEma50 ? "C>50" : "C≤50",
+                            result.patterns.startAboveEma200 ? "C>200" : "C≤200",
+                            result.patterns.ema20Over50 ? "20>50" : "20≤50",
+                            result.patterns.ema50Over200 ? "50>200" : "50≤200",
+                        ].join(" / ");
+
+                        const breakoutState = [
+                            `고점돌파 ${result.metrics.breakout20Count}회`,
+                            `상단밴드 ${result.metrics.upperBandCloseCount}회`,
+                            `MACD+ ${result.metrics.macdBullCrossCount}회`,
+                        ].join(" · ");
+
+                        const volumeState = [
+                            `평균 ${numberFmt(result.metrics.avgVolumeRatio, 2, "배")}`,
+                            `최대 ${numberFmt(result.metrics.strongestVolumeRatio, 2, "배")}`,
+                            `급증 ${result.metrics.volumeBurstCount}회`,
+                        ].join(" · ");
+
+                        return `
+                            <tr>
+                                <td>
+                                    <strong>${escapeHtml(result.sampleLabel)}</strong><br />
+                                    <span class="sample-hint code">${escapeHtml(result.symbol)} · ${escapeHtml(result.month)}</span>
+                                </td>
+                                <td>${numberFmt(result.metrics.monthReturn, 2, "%")}</td>
+                                <td>${numberFmt(result.metrics.greenRatio, 1, "%")}</td>
+                                <td>${numberFmt(result.metrics.maxDrawdown, 2, "%")}</td>
+                                <td>${numberFmt(result.metrics.startRsi, 1)}</td>
+                                <td>${numberFmt(result.metrics.endRsi, 1)}</td>
+                                <td>${numberFmt(result.metrics.peakRsi, 1)}</td>
+                                <td class="code">${escapeHtml(emaState)}</td>
+                                <td>${escapeHtml(breakoutState)}</td>
+                                <td>${escapeHtml(volumeState)}</td>
+                                <td>${numberFmt(result.metrics.avgAtrPct, 2, "%")}</td>
+                                <td>${escapeHtml(result.notes.join(", ") || "-")}</td>
+                            </tr>
+                        `;
+                    })
+                    .join("");
+            }
+
+            function featureVector(result) {
+                return [
+                    result.metrics.monthReturn,
+                    result.metrics.greenRatio,
+                    Math.abs(result.metrics.maxDrawdown),
+                    result.metrics.startRsi,
+                    result.metrics.endRsi,
+                    result.metrics.peakRsi,
+                    result.metrics.startCloseToEma20Pct,
+                    result.metrics.startCloseToEma50Pct,
+                    result.metrics.startCloseToEma200Pct,
+                    result.metrics.avgVolumeRatio,
+                    result.metrics.breakout20Count,
+                    result.metrics.upperBandCloseCount,
+                    result.metrics.avgAtrPct,
+                    result.metrics.macdBullCrossCount,
+                    result.metrics.endMacdHist,
+                ].map((value) => (value === null || value === undefined || Number.isNaN(value) ? 0 : value));
+            }
+
+            function cosineSimilarity(a, b) {
+                let dot = 0;
+                let magA = 0;
+                let magB = 0;
+                for (let i = 0; i < a.length; i += 1) {
+                    dot += a[i] * b[i];
+                    magA += a[i] * a[i];
+                    magB += b[i] * b[i];
+                }
+                if (magA === 0 || magB === 0) {
+                    return 0;
+                }
+                return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+            }
+
+            function similarityPercent(resultA, resultB) {
+                const raw = cosineSimilarity(featureVector(resultA), featureVector(resultB));
+                return Math.max(0, Math.min(100, raw * 100));
+            }
+
+            function computeAveragePairwiseSimilarity(results) {
+                if (results.length < 2) {
+                    return 100;
+                }
+                const values = [];
+                for (let i = 0; i < results.length; i += 1) {
+                    for (let j = i + 1; j < results.length; j += 1) {
+                        values.push(similarityPercent(results[i], results[j]));
+                    }
+                }
+                return values.length ? avg(values) : 100;
+            }
+
+            function renderSimilarityTable(results) {
+                if (!results.length) {
+                    similarityTableBodyEl.innerHTML = '<tr><td colspan="2" class="empty">아직 결과가 없습니다.</td></tr>';
+                    similarityHeadRowEl.innerHTML = "<th>유사도 행렬</th>";
+                    return;
+                }
+
+                const headerHtml = results
+                    .map((result) => `<th>${escapeHtml(result.sampleLabel)}</th>`)
+                    .join("");
+                similarityHeadRowEl.innerHTML = `<th>유사도 행렬</th>${headerHtml}`;
+
+                const body = results
+                    .map((rowResult) => {
+                        const cells = results
+                            .map((colResult) => {
+                                const pct = rowResult === colResult ? 100 : similarityPercent(rowResult, colResult);
+                                const cls = pct >= 80 ? "good" : pct >= 60 ? "neutral" : "bad";
+                                return `<td><span class="chip ${cls}">${numberFmt(pct, 1, "%")}</span></td>`;
+                            })
+                            .join("");
+                        return `<tr><th>${escapeHtml(rowResult.sampleLabel)}</th>${cells}</tr>`;
+                    })
+                    .join("");
+
+                similarityTableBodyEl.innerHTML = body;
+            }
+
+            function destroyChart(instance) {
+                if (instance) {
+                    instance.destroy();
+                }
+            }
+
+            function createLineChart(canvasId, datasets, titleSuffix = "") {
+                const canvas = document.getElementById(canvasId);
+                const maxLength = Math.max(...datasets.map((dataset) => dataset.values.length), 0);
+                const labels = Array.from({ length: maxLength }, (_, index) => `${index + 1}일`);
+
+                return new Chart(canvas.getContext("2d"), {
+                    type: "line",
+                    data: {
+                        labels,
+                        datasets: datasets.map((dataset, index) => ({
+                            label: dataset.label,
+                            data: dataset.values,
+                            borderColor: palette[index % palette.length],
+                            backgroundColor: palette[index % palette.length],
+                            spanGaps: true,
+                            pointRadius: 0,
+                            borderWidth: 2,
+                            tension: 0.18,
+                        })),
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: "index",
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: "rgba(236, 242, 255, 0.86)",
+                                },
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title(items) {
+                                        return `${items[0].label}${titleSuffix}`;
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    color: "rgba(236, 242, 255, 0.62)",
+                                },
+                                grid: {
+                                    color: "rgba(255,255,255,0.05)",
+                                },
+                            },
+                            y: {
+                                ticks: {
+                                    color: "rgba(236, 242, 255, 0.62)",
+                                },
+                                grid: {
+                                    color: "rgba(255,255,255,0.05)",
+                                },
+                            },
+                        },
+                    },
+                });
+            }
+
+            function renderCharts(results) {
+                destroyChart(charts.close);
+                destroyChart(charts.rsi);
+                destroyChart(charts.vol);
+                destroyChart(charts.atr);
+
+                if (!results.length) {
+                    charts.close = null;
+                    charts.rsi = null;
+                    charts.vol = null;
+                    charts.atr = null;
+                    return;
+                }
+
+                charts.close = createLineChart(
+                    "closeChart",
+                    results.map((result) => ({ label: result.sampleLabel, values: result.normalizedClose })),
+                );
+                charts.rsi = createLineChart(
+                    "rsiChart",
+                    results.map((result) => ({ label: result.sampleLabel, values: result.monthRsi })),
+                );
+                charts.vol = createLineChart(
+                    "volChart",
+                    results.map((result) => ({ label: result.sampleLabel, values: result.monthVolumeRatio })),
+                );
+                charts.atr = createLineChart(
+                    "atrChart",
+                    results.map((result) => ({ label: result.sampleLabel, values: result.monthAtrPct })),
+                );
+            }
+
+            function renderError(message) {
+                resultCardsEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
+                insightsEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
+                narrativeEl.innerHTML = escapeHtml(message);
+                resultTableBodyEl.innerHTML = '<tr><td colspan="12" class="error-box">오류가 발생했습니다.</td></tr>';
+                similarityTableBodyEl.innerHTML = '<tr><td colspan="2" class="error-box">오류가 발생했습니다.</td></tr>';
+                summaryMetaEl.textContent = "오류";
+                renderCharts([]);
+            }
+
+            async function analyze() {
+                const rawSamples = getSampleInputs();
+                if (rawSamples.length < 2) {
+                    renderError("최소 2개 이상의 코인/월 조합을 입력해야 비교할 수 있습니다.");
+                    setStatus("최소 2개 입력 필요", true);
+                    return;
+                }
+
+                analyzeBtn.disabled = true;
+                setStatus("심볼 확인 중...");
+
+                try {
+                    const threshold = Number(consensusThresholdEl.value);
+                    const lookbackDays = Number(lookbackDaysEl.value);
+                    const monthSource = monthSourceEl.value;
+
+                    const resolvedSamples = [];
+                    for (let i = 0; i < rawSamples.length; i += 1) {
+                        const item = rawSamples[i];
+                        const resolvedSymbol = await resolveSymbol(item.symbol);
+                        resolvedSamples.push({ ...item, resolvedSymbol });
+                    }
+
+                    const results = [];
+
+                    for (let i = 0; i < resolvedSamples.length; i += 1) {
+                        const sample = resolvedSamples[i];
+                        setStatus(`[${i + 1}/${resolvedSamples.length}] ${sample.resolvedSymbol} ${sample.month} 데이터 가져오는 중...`);
+
+                        const monthRange = parseMonthRange(sample.month);
+                        const startTime = monthRange.start - lookbackDays * 24 * 60 * 60 * 1000;
+                        const endTime = monthRange.end;
+                        const candles = await fetchDailyKlines(sample.resolvedSymbol, startTime, endTime);
+                        results.push(analyzeSample(sample, candles, { monthSource }));
+                    }
+
+                    const commonInsights = deriveCommonInsights(results, threshold);
+                    const narrative = getNarrative(results, commonInsights);
+
+                    makeMetricCards(results, commonInsights);
+                    renderInsights(commonInsights);
+                    narrativeEl.textContent = narrative;
+                    renderResultTable(results);
+                    renderSimilarityTable(results);
+                    renderCharts(results);
+
+                    summaryMetaEl.textContent = `${results.length}개 사례 · 공통점 기준 ${Math.round(threshold * 100)}% 이상`;
+                    setStatus(`완료 · ${results.length}개 사례 분석됨`);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
+                    renderError(message);
+                    setStatus(message, true);
+                    console.error(error);
+                } finally {
+                    analyzeBtn.disabled = false;
+                }
+            }
+
+            addRowBtn.addEventListener("click", () => addSampleRow());
+            presetBtn.addEventListener("click", loadDefaultSamples);
+            analyzeBtn.addEventListener("click", analyze);
+
+            loadDefaultSamples();
+        </script>
+    </body>
+</html>
