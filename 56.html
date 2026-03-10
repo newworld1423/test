@@ -322,7 +322,7 @@
             table {
                 width: 100%;
                 border-collapse: collapse;
-                min-width: 1220px;
+                min-width: 1760px;
             }
 
             th,
@@ -423,7 +423,7 @@
                     </div>
                     <div class="badge">
                         <div class="label">결과 방식</div>
-                        <div class="value">공통패턴 점수 순 랭킹</div>
+                        <div class="value">공통패턴 점수 + 일별 최고점 + 최대 레버리지</div>
                     </div>
                 </div>
                 <p class="note">
@@ -552,6 +552,11 @@
                                     <th>패턴점수</th>
                                     <th>숫자점수</th>
                                     <th>월간 수익률</th>
+                                    <th>이번달 최고 일별점수</th>
+                                    <th>일자별 점수</th>
+                                    <th>현재가</th>
+                                    <th>전체기간 최저점</th>
+                                    <th>최대 레버리지</th>
                                     <th>양봉 비율</th>
                                     <th>월초 RSI</th>
                                     <th>월말 RSI</th>
@@ -563,7 +568,7 @@
                             </thead>
                             <tbody id="resultTableBody">
                                 <tr>
-                                    <td colspan="14" class="empty">아직 결과가 없습니다.</td>
+                                    <td colspan="19" class="empty">아직 결과가 없습니다.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -576,7 +581,7 @@
             <section class="panel">
                 <div class="panel-body note">
                     이 도구는 Binance USDⓈ-M 선물의 공개 REST API를 사용합니다. 요청 실패가 나면 자동 재시도하며,
-                    전체 스캔 중 일부 신규 상장 심볼은 과거 데이터 부족으로 제외될 수 있습니다.
+                    전체 스캔 중 일부 신규 상장 심볼은 과거 데이터 부족으로 제외될 수 있습니다. 레버리지는 현재가와 전체기간 최저점만으로 계산한 단순 이론값입니다.
                 </div>
             </section>
         </div>
@@ -629,7 +634,9 @@
             const sampleRowTemplate = document.getElementById("sampleRowTemplate");
 
             let exchangeInfoCache = null;
+            let tickerPriceMapCache = null;
             const klineCache = new Map();
+            const monthlyKlineCache = new Map();
 
             function wait(ms) {
                 return new Promise((resolve) => {
@@ -763,6 +770,24 @@
                 return exchangeInfoCache;
             }
 
+            async function getTickerPriceMap() {
+                if (tickerPriceMapCache) {
+                    return tickerPriceMapCache;
+                }
+
+                const data = await fetchJson("/fapi/v1/ticker/price", {}, { retryLabel: "ticker/price" });
+                const map = new Map();
+
+                data.forEach((item) => {
+                    if (item?.symbol) {
+                        map.set(String(item.symbol).toUpperCase(), Number(item.price));
+                    }
+                });
+
+                tickerPriceMapCache = map;
+                return tickerPriceMapCache;
+            }
+
             async function resolveSymbol(rawInput) {
                 const info = await getExchangeInfo();
                 const clean = rawInput.toUpperCase().replaceAll(/\s+/g, "");
@@ -843,6 +868,45 @@
                 }));
 
                 klineCache.set(cacheKey, candles);
+                return candles;
+            }
+
+            async function fetchMonthlyKlines(symbol, startTime, endTime) {
+                const cacheKey = `${symbol}|1M|${startTime}|${endTime}`;
+                if (monthlyKlineCache.has(cacheKey)) {
+                    return monthlyKlineCache.get(cacheKey);
+                }
+
+                const raw = await fetchJson(
+                    "/fapi/v1/klines",
+                    {
+                        symbol,
+                        interval: "1M",
+                        startTime,
+                        endTime,
+                        limit: 200,
+                    },
+                    {
+                        retryLabel: `${symbol} 1M`,
+                    },
+                );
+
+                const candles = raw.map((item) => ({
+                    openTime: Number(item[0]),
+                    open: Number(item[1]),
+                    high: Number(item[2]),
+                    low: Number(item[3]),
+                    close: Number(item[4]),
+                    volume: Number(item[5]),
+                    closeTime: Number(item[6]),
+                    quoteVolume: Number(item[7]),
+                    trades: Number(item[8]),
+                    takerBaseVolume: Number(item[9]),
+                    takerQuoteVolume: Number(item[10]),
+                    dateLabel: utcDateLabel(Number(item[0])),
+                }));
+
+                monthlyKlineCache.set(cacheKey, candles);
                 return candles;
             }
 
@@ -1307,6 +1371,8 @@
                         avgAtrPct,
                         macdBullCrossCount,
                         firstMacdBullCrossDay: firstCrossIndex === null ? null : (firstCrossIndex - startIdx + 1),
+                        lastClose: endCandle.close,
+                        lastDate: endCandle.dateLabel,
                     },
                     patterns: {
                         startAboveEma20: startEma20 !== null ? startClose > startEma20 : null,
@@ -1325,6 +1391,81 @@
                         atrHigh: avgAtrPct !== null ? avgAtrPct >= 5 : null,
                     },
                     notes,
+                };
+            }
+
+            function calcMaxSafeLeverage(entryPrice, historicalLow) {
+                if (
+                    entryPrice === null ||
+                    entryPrice === undefined ||
+                    historicalLow === null ||
+                    historicalLow === undefined ||
+                    !Number.isFinite(entryPrice) ||
+                    !Number.isFinite(historicalLow) ||
+                    entryPrice <= 0 ||
+                    historicalLow < 0
+                ) {
+                    return null;
+                }
+
+                if (historicalLow >= entryPrice) {
+                    return Number.POSITIVE_INFINITY;
+                }
+
+                return entryPrice / (entryPrice - historicalLow);
+            }
+
+            function buildDailyScoreSeries(sample, candles, profile, options) {
+                const monthRange = parseMonthRange(sample.month);
+                const monthIndices = candles
+                    .map((candle, index) => ({ candle, index }))
+                    .filter(({ candle }) => candle.openTime >= monthRange.start && candle.openTime < monthRange.end)
+                    .map(({ index }) => index);
+
+                if (!monthIndices.length) {
+                    return {
+                        dailyScores: [],
+                        bestDailyScore: null,
+                        bestDailyDate: null,
+                    };
+                }
+
+                const dailyScores = [];
+
+                monthIndices.forEach((index) => {
+                    const partialCandles = candles.slice(0, index + 1);
+
+                    try {
+                        const partialResult = analyzeSample(sample, partialCandles, options);
+                        const partialScore = scoreTargetAgainstProfile(partialResult, profile);
+                        dailyScores.push({
+                            date: candles[index].dateLabel,
+                            score: partialScore.totalScore,
+                        });
+                    } catch (error) {
+                        void error;
+                    }
+                });
+
+                if (!dailyScores.length) {
+                    return {
+                        dailyScores: [],
+                        bestDailyScore: null,
+                        bestDailyDate: null,
+                    };
+                }
+
+                const best = dailyScores.reduce((acc, item) => {
+                    if (!acc || item.score > acc.score) {
+                        return item;
+                    }
+                    return acc;
+                }, null);
+
+                return {
+                    dailyScores,
+                    bestDailyScore: best?.score ?? null,
+                    bestDailyDate: best?.date ?? null,
                 };
             }
 
@@ -1449,6 +1590,30 @@
                 };
             }
 
+            function formatDailyScoresHtml(dailyScores) {
+                if (!dailyScores || !dailyScores.length) {
+                    return "-";
+                }
+
+                const summary = dailyScores
+                    .slice(0, 3)
+                    .map((item) => `${item.date.slice(5)} ${numberFmt(item.score, 1, "%")}`)
+                    .join(" · ");
+
+                const allRows = dailyScores
+                    .map((item) => `<div>${escapeHtml(item.date)} · ${numberFmt(item.score, 1, "%")}</div>`)
+                    .join("");
+
+                return `
+                    <details>
+                        <summary>${escapeHtml(summary || "일별 점수 보기")}</summary>
+                        <div style="margin-top:8px; display:grid; gap:4px; color:var(--muted); white-space:nowrap;">
+                            ${allRows}
+                        </div>
+                    </details>
+                `;
+            }
+
             function renderReferenceProfile(profile, referenceResults) {
                 if (!referenceResults.length) {
                     referenceInsightsEl.innerHTML = '<div class="empty">아직 결과가 없습니다.</div>';
@@ -1523,12 +1688,20 @@
 
                 topCandidatesEl.innerHTML = rankedResults.slice(0, 10).map((item, index) => {
                     const matches = item.score.matchedPatterns.slice(0, 3).map((pattern) => pattern.label).join(" · ");
+                    const bestDaily = item.dailyScoreSeries?.bestDailyDate
+                        ? `${item.dailyScoreSeries.bestDailyDate} ${numberFmt(item.dailyScoreSeries.bestDailyScore, 1, "%")}`
+                        : "일별 최고점 없음";
+                    const levText = item.maxSafeLeverage === Number.POSITIVE_INFINITY
+                        ? "∞배"
+                        : `${numberFmt(item.maxSafeLeverage, 2)}배`;
+
                     return `
                         <div class="top-item">
                             <div class="rank-badge">#${index + 1}</div>
                             <div>
                                 <strong>${escapeHtml(item.symbol)}</strong>
                                 <div class="meta">총점 ${numberFmt(item.score.totalScore, 1, "%")} · 월간 수익률 ${numberFmt(item.metrics.monthReturn, 2, "%")}</div>
+                                <div class="meta">이번달 최고 일별점수 ${escapeHtml(bestDaily)} · 최대 레버리지 ${escapeHtml(levText)}</div>
                                 <div class="meta">${escapeHtml(matches || "일치 핵심패턴 없음")}</div>
                             </div>
                             <span class="chip ${chipClassByScore(item.score.totalScore)}">${numberFmt(item.score.totalScore, 1, "%")}</span>
@@ -1539,13 +1712,20 @@
 
             function renderResultsTable(rankedResults) {
                 if (!rankedResults.length) {
-                    resultTableBodyEl.innerHTML = '<tr><td colspan="14" class="empty">분석 가능한 결과가 없습니다.</td></tr>';
+                    resultTableBodyEl.innerHTML = '<tr><td colspan="19" class="empty">분석 가능한 결과가 없습니다.</td></tr>';
                     return;
                 }
 
                 resultTableBodyEl.innerHTML = rankedResults.map((item, index) => {
                     const matched = item.score.matchedPatterns.slice(0, 5).map((pattern) => pattern.label).join(" / ");
                     const missed = item.score.missedPatterns.slice(0, 4).map((pattern) => pattern.label).join(" / ");
+                    const bestDaily = item.dailyScoreSeries?.bestDailyDate
+                        ? `${item.dailyScoreSeries.bestDailyDate} · ${numberFmt(item.dailyScoreSeries.bestDailyScore, 1, "%")}`
+                        : "-";
+                    const levText = item.maxSafeLeverage === Number.POSITIVE_INFINITY
+                        ? "∞배"
+                        : numberFmt(item.maxSafeLeverage, 2, "배");
+
                     return `
                         <tr>
                             <td>${index + 1}</td>
@@ -1555,6 +1735,11 @@
                             <td>${numberFmt(item.score.patternScore, 1, "%")}</td>
                             <td>${numberFmt(item.score.numericScore, 1, "%")}</td>
                             <td>${numberFmt(item.metrics.monthReturn, 2, "%")}</td>
+                            <td>${escapeHtml(bestDaily)}</td>
+                            <td>${formatDailyScoresHtml(item.dailyScoreSeries?.dailyScores)}</td>
+                            <td>${numberFmt(item.latestPrice, 6)}</td>
+                            <td>${numberFmt(item.allTimeLow, 6)}</td>
+                            <td>${escapeHtml(levText)}</td>
                             <td>${numberFmt(item.metrics.greenRatio, 1, "%")}</td>
                             <td>${numberFmt(item.metrics.startRsi, 1)}</td>
                             <td>${numberFmt(item.metrics.endRsi, 1)}</td>
@@ -1571,7 +1756,7 @@
                 summaryCardsEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
                 topCandidatesEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
                 summaryTextEl.textContent = message;
-                resultTableBodyEl.innerHTML = '<tr><td colspan="14" class="error-box">오류가 발생했습니다.</td></tr>';
+                resultTableBodyEl.innerHTML = '<tr><td colspan="19" class="error-box">오류가 발생했습니다.</td></tr>';
                 resultErrorBoxEl.innerHTML = "";
                 scanMetaEl.textContent = "오류";
             }
@@ -1597,6 +1782,12 @@
                 const avgTop10 = avg(rankedResults.slice(0, 10).map((item) => item.score.totalScore));
                 const avgMonthReturnTop10 = avg(rankedResults.slice(0, 10).map((item) => item.metrics.monthReturn));
                 const strongestPatterns = profile.dominantPatterns.slice(0, 3).map((item) => item.label);
+                const topBestDaily = top.dailyScoreSeries?.bestDailyDate
+                    ? `${top.dailyScoreSeries.bestDailyDate} ${numberFmt(top.dailyScoreSeries.bestDailyScore, 1, "%")}`
+                    : "일별 최고점 없음";
+                const topLevText = top.maxSafeLeverage === Number.POSITIVE_INFINITY
+                    ? "∞배"
+                    : `${numberFmt(top.maxSafeLeverage, 2)}배`;
 
                 const parts = [];
                 parts.push(`기준 사례 ${referenceResults.length}개를 바탕으로 ${targetMonth} 전체 USDT 무기한 선물을 비교한 결과, 가장 비슷한 후보는 ${top.symbol}이며 총점은 ${numberFmt(top.score.totalScore, 1, "%")}입니다.`);
@@ -1606,6 +1797,7 @@
                 if (strongestPatterns.length) {
                     parts.push(`기준 사례에서 가장 강하게 겹친 핵심 패턴은 ${strongestPatterns.join(" / ")} 입니다.`);
                 }
+                parts.push(`${top.symbol}의 이번달 최고 일별점수는 ${topBestDaily}, 현재가 대비 전체기간 최저점 기준 최대 레버리지는 ${topLevText}입니다.`);
                 parts.push(`상위 10개 후보의 평균 점수는 ${numberFmt(avgTop10, 1, "%")}, 평균 월간 수익률은 ${numberFmt(avgMonthReturnTop10, 2, "%")}입니다.`);
                 return parts.join(" ");
             }
@@ -1667,6 +1859,7 @@
                     const concurrency = Number(scanConcurrencyEl.value);
                     const monthSource = monthSourceEl.value;
                     const exchangeInfo = await getExchangeInfo();
+                    const tickerPriceMap = await getTickerPriceMap();
 
                     const resolvedReferences = [];
                     for (let i = 0; i < rawSamples.length; i += 1) {
@@ -1692,19 +1885,38 @@
                     const targetRange = parseMonthRange(targetMonth);
                     const targetStart = targetRange.start - (lookbackDays * DAY_MS);
                     const targetEnd = targetRange.end;
+                    const historyStart = Date.UTC(2019, 0, 1, 0, 0, 0, 0);
                     const targetSymbols = exchangeInfo.tradableSymbols.map((item) => item.symbol);
 
                     let completedCount = 0;
                     const scanResults = await mapWithConcurrency(
                         targetSymbols,
                         async (symbol) => {
-                            const candles = await fetchDailyKlines(symbol, targetStart, targetEnd);
+                            const [candles, monthlyCandles] = await Promise.all([
+                                fetchDailyKlines(symbol, targetStart, targetEnd),
+                                fetchMonthlyKlines(symbol, historyStart, Date.now() + DAY_MS),
+                            ]);
+
                             const analyzed = analyzeSample({ resolvedSymbol: symbol, month: targetMonth, label: "" }, candles, { monthSource });
                             const score = scoreTargetAgainstProfile(analyzed, profile);
+                            const dailyScoreSeries = buildDailyScoreSeries(
+                                { resolvedSymbol: symbol, month: targetMonth, label: "" },
+                                candles,
+                                profile,
+                                { monthSource },
+                            );
+                            const latestPrice = tickerPriceMap.get(symbol) ?? analyzed.metrics.lastClose ?? null;
+                            const allTimeLow = monthlyCandles.length ? Math.min(...monthlyCandles.map((item) => item.low)) : null;
+                            const maxSafeLeverage = calcMaxSafeLeverage(latestPrice, allTimeLow);
+
                             return {
                                 ok: true,
                                 ...analyzed,
                                 score,
+                                dailyScoreSeries,
+                                latestPrice,
+                                allTimeLow,
+                                maxSafeLeverage,
                             };
                         },
                         concurrency,
