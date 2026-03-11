@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Binance USDT Perp 15m Extreme Candle Scanner</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0b1020;
+            --panel: #121931;
+            --panel-2: #0f1628;
+            --text: #eef3ff;
+            --muted: rgba(238, 243, 255, 0.68);
+            --line: rgba(238, 243, 255, 0.12);
+            --accent: #7aa2ff;
+            --accent-2: #9d7aff;
+            --good: #43d08a;
+            --bad: #ff5b7d;
+            --warn: #ffd166;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            --sans: Pretendard Variable, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+        }
+
+        body {
+            min-width: 1200px;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        .wrap {
+            width: min(1800px, calc(100vw - 32px));
+            margin: 20px auto 80px;
+        }
+
+        .title {
+            margin: 0 0 12px;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .desc {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .card {
+            margin-top: 16px;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+                var(--panel);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+        }
+
+        .grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .grid.cols-4 {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .grid.cols-5 {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .input,
+        .select,
+        .textarea {
+            width: 100%;
+            min-height: 42px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel-2);
+            color: var(--text);
+            outline: none;
+        }
+
+        .textarea {
+            min-height: 98px;
+            resize: vertical;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            min-height: 42px;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(122, 162, 255, 0.22), rgba(122, 162, 255, 0.12));
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn.secondary {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .btn.warn {
+            background: linear-gradient(180deg, rgba(255, 209, 102, 0.24), rgba(255, 209, 102, 0.12));
+        }
+
+        .btn.danger {
+            background: linear-gradient(180deg, rgba(255, 91, 125, 0.24), rgba(255, 91, 125, 0.12));
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .meta {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .meta-item {
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .meta-label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .meta-value {
+            margin-top: 6px;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .progress-wrap {
+            margin-top: 12px;
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transition: width 0.25s ease;
+        }
+
+        .status {
+            margin-top: 10px;
+            color: var(--muted);
+            white-space: pre-wrap;
+            line-height: 1.55;
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            margin-top: 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1700px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #15203b;
+            z-index: 1;
+        }
+
+        th,
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            text-align: right;
+            font-size: 13px;
+        }
+
+        th:first-child,
+        td:first-child,
+        th:nth-child(2),
+        td:nth-child(2),
+        th:nth-child(3),
+        td:nth-child(3),
+        th:nth-child(4),
+        td:nth-child(4),
+        th:nth-child(5),
+        td:nth-child(5) {
+            text-align: left;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .good {
+            color: var(--good);
+            font-weight: 700;
+        }
+
+        .bad {
+            color: var(--bad);
+            font-weight: 700;
+        }
+
+        .mono {
+            font-family: var(--mono);
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 12px;
+        }
+
+        .small {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .footer-space {
+            height: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1 class="title">Binance USDⓈ-M 15분봉 극단 양봉 스캐너</h1>
+        <p class="desc">
+            모든 USDT 무기한 선물 심볼을 대상으로 역대 15분봉 중 <strong>시가 대비 종가 상승률이 가장 컸던 봉</strong>을 찾고,
+            그 <strong>다음봉의 시가→종가 수익률</strong>, 해당 심볼의 <strong>역대 최저점(ATL)</strong> 기준으로
+            <strong>다음봉 시가 진입 시 청산당하지 않을 보수적 권장 레버리지</strong>를 계산합니다.
+            <br />
+            Binance REST 사용량을 낮추기 위해 <strong>낮은 동시성 / 요청 간 지연 / 429·418 백오프 / 진행상황 저장 / 기존 CSV 심볼 제외 재스캔</strong> 구조로 만들었습니다.
+        </p>
+
+        <div class="card">
+            <div class="grid cols-5">
+                <label class="field">
+                    <span class="label">요청 간 최소 지연(ms)</span>
+                    <input id="delayMs" class="input mono" type="number" min="0" step="50" value="350" />
+                </label>
+                <label class="field">
+                    <span class="label">일반 재시도 횟수</span>
+                    <input id="retryCount" class="input mono" type="number" min="0" max="20" step="1" value="6" />
+                </label>
+                <label class="field">
+                    <span class="label">429/418 최초 대기(ms)</span>
+                    <input id="baseBackoffMs" class="input mono" type="number" min="1000" step="500" value="6000" />
+                </label>
+                <label class="field">
+                    <span class="label">심볼당 장기 쿨다운(ms)</span>
+                    <input id="symbolCooldownMs" class="input mono" type="number" min="0" step="500" value="1500" />
+                </label>
+                <label class="field">
+                    <span class="label">안전계수(레버리지)</span>
+                    <input id="safetyFactor" class="input mono" type="number" min="0.1" max="1" step="0.05" value="0.9" />
+                </label>
+            </div>
+
+            <div class="grid cols-4" style="margin-top: 12px;">
+                <label class="field">
+                    <span class="label">Kline LIMIT</span>
+                    <select id="klineLimit" class="select mono">
+                        <option value="499">499 (weight 2)</option>
+                        <option value="1000">1000 (weight 5)</option>
+                        <option value="1500">1500 (weight 10)</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="label">진행상황 자동 저장 주기(심볼마다)</span>
+                    <input id="saveEvery" class="input mono" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="field">
+                    <span class="label">정렬 기준</span>
+                    <select id="sortBy" class="select">
+                        <option value="bestCandlePct">최고 양봉 수익률 순</option>
+                        <option value="nextCandlePct">다음봉 수익률 순</option>
+                        <option value="recommendedLeverage">권장 레버리지 순</option>
+                        <option value="atlDrawdownPct">ATL 여유폭 순</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="label">정렬 방향</span>
+                    <select id="sortDir" class="select">
+                        <option value="desc">내림차순</option>
+                        <option value="asc">오름차순</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="row" style="margin-top: 14px;">
+                <button id="startBtn" class="btn">스캔 시작</button>
+                <button id="stopBtn" class="btn danger" disabled>중지</button>
+                <button id="resumeBtn" class="btn secondary">저장 상태에서 이어서</button>
+                <button id="exportBtn" class="btn secondary">결과 CSV 내보내기</button>
+                <button id="clearStateBtn" class="btn warn">저장 상태 초기화</button>
+                <label class="btn secondary" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+                    기존 결과 CSV 불러오기
+                    <input id="importCsvInput" type="file" accept=".csv,text/csv" hidden />
+                </label>
+            </div>
+
+            <div class="row" style="margin-top: 12px;">
+                <span class="pill">CSV에 있는 심볼은 제외 후 스캔</span>
+                <span class="pill">로컬 저장 키: <span class="mono">binance_15m_extreme_scanner_state_v1</span></span>
+            </div>
+
+            <div class="meta">
+                <div class="meta-item">
+                    <div class="meta-label">전체 심볼</div>
+                    <div id="totalSymbolsValue" class="meta-value mono">0</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">완료 심볼</div>
+                    <div id="doneSymbolsValue" class="meta-value mono">0</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">제외 심볼</div>
+                    <div id="excludedSymbolsValue" class="meta-value mono">0</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">에러 심볼</div>
+                    <div id="errorSymbolsValue" class="meta-value mono">0</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">결과 행 수</div>
+                    <div id="rowCountValue" class="meta-value mono">0</div>
+                </div>
+            </div>
+
+            <div class="progress-wrap">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+
+            <div id="statusText" class="status">대기 중...</div>
+        </div>
+
+        <div class="card">
+            <div class="row" style="justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <div style="font-size: 20px; font-weight: 800;">스캔 결과</div>
+                    <div class="small" style="margin-top: 6px;">
+                        bestCandlePct = (극단 양봉의 종가 - 시가) / 시가 × 100
+                        <br />
+                        nextCandlePct = (다음봉의 종가 - 다음봉 시가) / 다음봉 시가 × 100
+                        <br />
+                        recommendedLeverage = 다음봉 시가에서 역대 최저점까지 버틸 수 있는 보수적 근사치 × 안전계수
+                    </div>
+                </div>
+                <div class="small mono" id="tableSummary">rows: 0</div>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>심볼</th>
+                            <th>극단 양봉 시각(UTC)</th>
+                            <th>다음봉 시각(UTC)</th>
+                            <th>스캔 범위 시작</th>
+                            <th>스캔 범위 종료</th>
+                            <th>극단 양봉 시가</th>
+                            <th>극단 양봉 종가</th>
+                            <th>극단 양봉 상승률(%)</th>
+                            <th>다음봉 시가</th>
+                            <th>다음봉 종가</th>
+                            <th>다음봉 수익률(%)</th>
+                            <th>역대 최저점</th>
+                            <th>ATL 여유폭(%)</th>
+                            <th>권장 레버리지</th>
+                            <th>총 15분봉 수</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultTbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer-space"></div>
+    </div>
+
+    <script>
+        const API_BASE = "https://fapi.binance.com";
+        const STATE_KEY = "binance_15m_extreme_scanner_state_v1";
+        const INTERVAL = "15m";
+        const ONE_CANDLE_MS = 15 * 60 * 1000;
+
+        const els = {
+            delayMs: document.getElementById("delayMs"),
+            retryCount: document.getElementById("retryCount"),
+            baseBackoffMs: document.getElementById("baseBackoffMs"),
+            symbolCooldownMs: document.getElementById("symbolCooldownMs"),
+            safetyFactor: document.getElementById("safetyFactor"),
+            klineLimit: document.getElementById("klineLimit"),
+            saveEvery: document.getElementById("saveEvery"),
+            sortBy: document.getElementById("sortBy"),
+            sortDir: document.getElementById("sortDir"),
+            startBtn: document.getElementById("startBtn"),
+            stopBtn: document.getElementById("stopBtn"),
+            resumeBtn: document.getElementById("resumeBtn"),
+            exportBtn: document.getElementById("exportBtn"),
+            clearStateBtn: document.getElementById("clearStateBtn"),
+            importCsvInput: document.getElementById("importCsvInput"),
+            totalSymbolsValue: document.getElementById("totalSymbolsValue"),
+            doneSymbolsValue: document.getElementById("doneSymbolsValue"),
+            excludedSymbolsValue: document.getElementById("excludedSymbolsValue"),
+            errorSymbolsValue: document.getElementById("errorSymbolsValue"),
+            rowCountValue: document.getElementById("rowCountValue"),
+            progressBar: document.getElementById("progressBar"),
+            statusText: document.getElementById("statusText"),
+            resultTbody: document.getElementById("resultTbody"),
+            tableSummary: document.getElementById("tableSummary"),
+        };
+
+        const runtime = {
+            running: false,
+            stopRequested: false,
+            excludedSymbols: new Set(),
+            results: [],
+            errors: [],
+            completedSymbols: new Set(),
+            allSymbols: [],
+            startedAt: 0,
+        };
+
+        function getSettings() {
+            return {
+                delayMs: Math.max(0, Number(els.delayMs.value) || 0),
+                retryCount: Math.max(0, Number(els.retryCount.value) || 0),
+                baseBackoffMs: Math.max(1000, Number(els.baseBackoffMs.value) || 6000),
+                symbolCooldownMs: Math.max(0, Number(els.symbolCooldownMs.value) || 0),
+                safetyFactor: Math.min(1, Math.max(0.1, Number(els.safetyFactor.value) || 0.9)),
+                klineLimit: Number(els.klineLimit.value) || 499,
+                saveEvery: Math.max(1, Number(els.saveEvery.value) || 1),
+                sortBy: els.sortBy.value,
+                sortDir: els.sortDir.value,
+            };
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        function clampFiniteNumber(value, fallback = 0) {
+            return Number.isFinite(value) ? value : fallback;
+        }
+
+        function formatNumber(value, digits = 6) {
+            if (!Number.isFinite(value)) return "";
+            return Number(value).toLocaleString("en-US", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: digits,
+            });
+        }
+
+        function formatPct(value, digits = 4) {
+            if (!Number.isFinite(value)) return "";
+            const sign = value > 0 ? "+" : "";
+            return `${sign}${value.toFixed(digits)}%`;
+        }
+
+        function formatUtc(ts) {
+            if (!Number.isFinite(ts)) return "";
+            const d = new Date(ts);
+            const y = d.getUTCFullYear();
+            const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+            const day = String(d.getUTCDate()).padStart(2, "0");
+            const hh = String(d.getUTCHours()).padStart(2, "0");
+            const mm = String(d.getUTCMinutes()).padStart(2, "0");
+            return `${y}-${m}-${day} ${hh}:${mm}`;
+        }
+
+        function setStatus(text) {
+            els.statusText.textContent = text;
+        }
+
+        function updateMeta() {
+            els.totalSymbolsValue.textContent = String(runtime.allSymbols.length);
+            els.doneSymbolsValue.textContent = String(runtime.completedSymbols.size);
+            els.excludedSymbolsValue.textContent = String(runtime.excludedSymbols.size);
+            els.errorSymbolsValue.textContent = String(runtime.errors.length);
+            els.rowCountValue.textContent = String(runtime.results.length);
+            els.tableSummary.textContent = `rows: ${runtime.results.length}`;
+
+            const totalTarget = runtime.allSymbols.length;
+            const done = runtime.completedSymbols.size;
+            const percent = totalTarget > 0 ? (done / totalTarget) * 100 : 0;
+            els.progressBar.style.width = `${Math.max(0, Math.min(100, percent)).toFixed(2)}%`;
+        }
+
+        function sortResults() {
+            const { sortBy, sortDir } = getSettings();
+            const dir = sortDir === "asc" ? 1 : -1;
+
+            runtime.results.sort((a, b) => {
+                const av = Number(a[sortBy]);
+                const bv = Number(b[sortBy]);
+
+                if (Number.isFinite(av) && Number.isFinite(bv) && av !== bv) {
+                    return av > bv ? dir * 1 : dir * -1;
+                }
+
+                return a.symbol.localeCompare(b.symbol);
+            });
+        }
+
+        function renderTable() {
+            sortResults();
+
+            const rows = runtime.results.map((row, index) => {
+                const bestClass = row.bestCandlePct >= 0 ? "good" : "bad";
+                const nextClass = row.nextCandlePct >= 0 ? "good" : "bad";
+                const atlClass = row.atlDrawdownPct >= 0 ? "good" : "bad";
+
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td class="mono">${escapeHtml(row.symbol)}</td>
+                        <td class="mono">${escapeHtml(row.bestCandleTimeUtc)}</td>
+                        <td class="mono">${escapeHtml(row.nextCandleTimeUtc)}</td>
+                        <td class="mono">${escapeHtml(row.scanStartUtc)}</td>
+                        <td class="mono">${escapeHtml(row.scanEndUtc)}</td>
+                        <td class="mono">${escapeHtml(row.bestCandleOpen)}</td>
+                        <td class="mono">${escapeHtml(row.bestCandleClose)}</td>
+                        <td class="mono ${bestClass}">${escapeHtml(row.bestCandlePctText)}</td>
+                        <td class="mono">${escapeHtml(row.nextCandleOpen)}</td>
+                        <td class="mono">${escapeHtml(row.nextCandleClose)}</td>
+                        <td class="mono ${nextClass}">${escapeHtml(row.nextCandlePctText)}</td>
+                        <td class="mono">${escapeHtml(row.allTimeLow)}</td>
+                        <td class="mono ${atlClass}">${escapeHtml(row.atlDrawdownPctText)}</td>
+                        <td class="mono">${escapeHtml(row.recommendedLeverageText)}</td>
+                        <td class="mono">${escapeHtml(String(row.totalCandles))}</td>
+                        <td>${escapeHtml(row.note || "")}</td>
+                    </tr>
+                `;
+            }).join("");
+
+            els.resultTbody.innerHTML = rows;
+            updateMeta();
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function toCsv(rows) {
+            const headers = [
+                "symbol",
+                "bestCandleTimeUtc",
+                "nextCandleTimeUtc",
+                "scanStartUtc",
+                "scanEndUtc",
+                "bestCandleOpen",
+                "bestCandleClose",
+                "bestCandlePct",
+                "nextCandleOpen",
+                "nextCandleClose",
+                "nextCandlePct",
+                "allTimeLow",
+                "atlDrawdownPct",
+                "recommendedLeverage",
+                "totalCandles",
+                "note",
+            ];
+
+            const lines = [headers.join(",")];
+
+            for (const row of rows) {
+                const line = headers.map((key) => csvEscape(row[key] ?? "")).join(",");
+                lines.push(line);
+            }
+
+            return "\uFEFF" + lines.join("\n");
+        }
+
+        function csvEscape(value) {
+            const text = String(value ?? "");
+            if (/[",\n]/.test(text)) {
+                return `"${text.replaceAll('"', '""')}"`;
+            }
+            return text;
+        }
+
+        function downloadCsv(filename, rows) {
+            const csv = toCsv(rows);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function parseCsvText(text) {
+            const rows = [];
+            let row = [];
+            let cell = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i += 1) {
+                const char = text[i];
+                const next = text[i + 1];
+
+                if (inQuotes) {
+                    if (char === '"' && next === '"') {
+                        cell += '"';
+                        i += 1;
+                    } else if (char === '"') {
+                        inQuotes = false;
+                    } else {
+                        cell += char;
+                    }
+                } else if (char === '"') {
+                    inQuotes = true;
+                } else if (char === ",") {
+                    row.push(cell);
+                    cell = "";
+                } else if (char === "\n") {
+                    row.push(cell.replace(/\r$/, ""));
+                    rows.push(row);
+                    row = [];
+                    cell = "";
+                } else {
+                    cell += char;
+                }
+            }
+
+            if (cell.length > 0 || row.length > 0) {
+                row.push(cell.replace(/\r$/, ""));
+                rows.push(row);
+            }
+
+            return rows;
+        }
+
+        async function importCsvFile(file) {
+            const text = await file.text();
+            const rows = parseCsvText(text.replace(/^\uFEFF/, ""));
+            if (rows.length <= 1) return { excluded: 0, importedRows: 0 };
+
+            const headers = rows[0].map((v) => String(v).trim());
+            const symbolIndex = headers.findIndex((h) => h === "symbol");
+            if (symbolIndex === -1) {
+                throw new Error("CSV에 symbol 컬럼이 없습니다.");
+            }
+
+            let importedRows = 0;
+
+            for (let i = 1; i < rows.length; i += 1) {
+                const cols = rows[i];
+                const symbol = String(cols[symbolIndex] || "").trim().toUpperCase();
+                if (!symbol) continue;
+                runtime.excludedSymbols.add(symbol);
+                importedRows += 1;
+            }
+
+            updateMeta();
+            persistState();
+            return { excluded: runtime.excludedSymbols.size, importedRows };
+        }
+
+        function persistState() {
+            const payload = {
+                version: 1,
+                savedAt: Date.now(),
+                settings: getSettings(),
+                excludedSymbols: Array.from(runtime.excludedSymbols),
+                completedSymbols: Array.from(runtime.completedSymbols),
+                results: runtime.results,
+                errors: runtime.errors,
+                allSymbols: runtime.allSymbols,
+                startedAt: runtime.startedAt,
+            };
+            localStorage.setItem(STATE_KEY, JSON.stringify(payload));
+        }
+
+        function loadState() {
+            const raw = localStorage.getItem(STATE_KEY);
+            if (!raw) return false;
+
+            try {
+                const payload = JSON.parse(raw);
+                runtime.excludedSymbols = new Set(payload.excludedSymbols || []);
+                runtime.completedSymbols = new Set(payload.completedSymbols || []);
+                runtime.results = Array.isArray(payload.results) ? payload.results : [];
+                runtime.errors = Array.isArray(payload.errors) ? payload.errors : [];
+                runtime.allSymbols = Array.isArray(payload.allSymbols) ? payload.allSymbols : [];
+                runtime.startedAt = Number(payload.startedAt) || 0;
+
+                if (payload.settings) {
+                    if (payload.settings.delayMs != null) els.delayMs.value = String(payload.settings.delayMs);
+                    if (payload.settings.retryCount != null) els.retryCount.value = String(payload.settings.retryCount);
+                    if (payload.settings.baseBackoffMs != null) els.baseBackoffMs.value = String(payload.settings.baseBackoffMs);
+                    if (payload.settings.symbolCooldownMs != null) els.symbolCooldownMs.value = String(payload.settings.symbolCooldownMs);
+                    if (payload.settings.safetyFactor != null) els.safetyFactor.value = String(payload.settings.safetyFactor);
+                    if (payload.settings.klineLimit != null) els.klineLimit.value = String(payload.settings.klineLimit);
+                    if (payload.settings.saveEvery != null) els.saveEvery.value = String(payload.settings.saveEvery);
+                    if (payload.settings.sortBy != null) els.sortBy.value = String(payload.settings.sortBy);
+                    if (payload.settings.sortDir != null) els.sortDir.value = String(payload.settings.sortDir);
+                }
+
+                renderTable();
+                return true;
+            } catch (error) {
+                console.error(error);
+                return false;
+            }
+        }
+
+        function clearState() {
+            localStorage.removeItem(STATE_KEY);
+            runtime.excludedSymbols = new Set();
+            runtime.completedSymbols = new Set();
+            runtime.results = [];
+            runtime.errors = [];
+            runtime.allSymbols = [];
+            runtime.startedAt = 0;
+            renderTable();
+            setStatus("저장 상태를 초기화했습니다.");
+        }
+
+        async function fetchJsonWithRetry(url, options = {}, meta = {}) {
+            const { delayMs, retryCount, baseBackoffMs } = getSettings();
+            let attempt = 0;
+            let waitMs = baseBackoffMs;
+
+            while (true) {
+                if (delayMs > 0) {
+                    await sleep(delayMs);
+                }
+
+                let response;
+                try {
+                    response = await fetch(url, options);
+                } catch (error) {
+                    if (attempt >= retryCount) throw error;
+                    await sleep(waitMs);
+                    waitMs = Math.min(waitMs * 1.7, 120000);
+                    attempt += 1;
+                    continue;
+                }
+
+                if (response.status === 429 || response.status === 418) {
+                    const retryAfterHeader = response.headers.get("Retry-After");
+                    const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+                    const nextWait = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+                        ? retryAfterSec * 1000
+                        : waitMs;
+
+                    setStatus(
+                        `속도 제한 감지: HTTP ${response.status}\n` +
+                        `${meta.label ? `대상: ${meta.label}\n` : ""}` +
+                        `재시도 대기: ${Math.round(nextWait / 1000)}초`
+                    );
+
+                    if (attempt >= retryCount) {
+                        throw new Error(`HTTP ${response.status} after retries`);
+                    }
+
+                    await sleep(nextWait);
+                    waitMs = Math.min(nextWait * 1.8, 300000);
+                    attempt += 1;
+                    continue;
+                }
+
+                if (!response.ok) {
+                    const text = await response.text().catch(() => "");
+                    throw new Error(`HTTP ${response.status} ${response.statusText} ${text}`.trim());
+                }
+
+                return await response.json();
+            }
+        }
+
+        async function fetchExchangeInfo() {
+            const url = `${API_BASE}/fapi/v1/exchangeInfo`;
+            return await fetchJsonWithRetry(url, {}, { label: "exchangeInfo" });
+        }
+
+        async function fetchAllKlinesForSymbol(symbol) {
+            const { klineLimit } = getSettings();
+            const all = [];
+            let startTime = 0;
+            let scanStart = null;
+            let scanEnd = null;
+
+            while (true) {
+                if (runtime.stopRequested) {
+                    throw new Error("STOP_REQUESTED");
+                }
+
+                const params = new URLSearchParams({
+                    symbol,
+                    interval: INTERVAL,
+                    limit: String(klineLimit),
+                });
+
+                if (startTime > 0) {
+                    params.set("startTime", String(startTime));
+                }
+
+                const url = `${API_BASE}/fapi/v1/klines?${params.toString()}`;
+                const chunk = await fetchJsonWithRetry(url, {}, { label: `${symbol} klines` });
+
+                if (!Array.isArray(chunk) || chunk.length === 0) {
+                    break;
+                }
+
+                for (const item of chunk) {
+                    all.push(item);
+                }
+
+                const firstOpenTime = Number(chunk[0]?.[0]);
+                const lastOpenTime = Number(chunk[chunk.length - 1]?.[0]);
+                if (scanStart == null && Number.isFinite(firstOpenTime)) scanStart = firstOpenTime;
+                if (Number.isFinite(lastOpenTime)) scanEnd = lastOpenTime;
+
+                if (chunk.length < klineLimit) {
+                    break;
+                }
+
+                startTime = lastOpenTime + ONE_CANDLE_MS;
+            }
+
+            return {
+                klines: all,
+                scanStart,
+                scanEnd,
+            };
+        }
+
+        function analyzeSymbol(symbol, klines, scanStart, scanEnd) {
+            if (!Array.isArray(klines) || klines.length < 2) {
+                return null;
+            }
+
+            let bestIndex = -1;
+            let bestPct = -Infinity;
+            let atl = Infinity;
+
+            for (let i = 0; i < klines.length; i += 1) {
+                const k = klines[i];
+                const open = Number(k[1]);
+                const high = Number(k[2]);
+                const low = Number(k[3]);
+                const close = Number(k[4]);
+
+                if (Number.isFinite(low) && low < atl) atl = low;
+                if (!Number.isFinite(open) || !Number.isFinite(close) || open <= 0) continue;
+
+                const pct = ((close - open) / open) * 100;
+                if (pct > bestPct) {
+                    bestPct = pct;
+                    bestIndex = i;
+                }
+
+                if (Number.isFinite(high) && high < atl) {
+                    atl = high;
+                }
+            }
+
+            if (bestIndex < 0 || bestIndex >= klines.length - 1) {
+                return null;
+            }
+
+            const best = klines[bestIndex];
+            const next = klines[bestIndex + 1];
+
+            const bestOpen = Number(best[1]);
+            const bestClose = Number(best[4]);
+            const bestOpenTime = Number(best[0]);
+
+            const nextOpen = Number(next[1]);
+            const nextClose = Number(next[4]);
+            const nextOpenTime = Number(next[0]);
+
+            if (![bestOpen, bestClose, nextOpen, nextClose, atl].every(Number.isFinite)) {
+                return null;
+            }
+            if (bestOpen <= 0 || nextOpen <= 0 || atl <= 0) {
+                return null;
+            }
+
+            const nextCandlePct = ((nextClose - nextOpen) / nextOpen) * 100;
+            const atlDrawdownPct = ((nextOpen - atl) / nextOpen) * 100;
+
+            let recommendedLeverage = 0;
+            if (atl < nextOpen) {
+                const rawLev = nextOpen / (nextOpen - atl);
+                recommendedLeverage = rawLev * getSettings().safetyFactor;
+            }
+
+            recommendedLeverage = clampFiniteNumber(recommendedLeverage, 0);
+            if (recommendedLeverage > 125) recommendedLeverage = 125;
+
+            return {
+                symbol,
+                bestCandleTimeUtc: formatUtc(bestOpenTime),
+                nextCandleTimeUtc: formatUtc(nextOpenTime),
+                scanStartUtc: formatUtc(scanStart),
+                scanEndUtc: formatUtc(scanEnd),
+                bestCandleOpen: formatNumber(bestOpen, 8),
+                bestCandleClose: formatNumber(bestClose, 8),
+                bestCandlePct: bestPct,
+                bestCandlePctText: formatPct(bestPct, 4),
+                nextCandleOpen: formatNumber(nextOpen, 8),
+                nextCandleClose: formatNumber(nextClose, 8),
+                nextCandlePct,
+                nextCandlePctText: formatPct(nextCandlePct, 4),
+                allTimeLow: formatNumber(atl, 8),
+                atlDrawdownPct,
+                atlDrawdownPctText: formatPct(atlDrawdownPct, 4),
+                recommendedLeverage,
+                recommendedLeverageText: recommendedLeverage > 0 ? `${recommendedLeverage.toFixed(2)}x` : "",
+                totalCandles: klines.length,
+                note: "",
+            };
+        }
+
+        function buildSymbolList(exchangeInfo) {
+            const symbols = Array.isArray(exchangeInfo?.symbols) ? exchangeInfo.symbols : [];
+            return symbols
+                .filter((item) => {
+                    const symbol = String(item.symbol || "");
+                    const quoteAsset = String(item.quoteAsset || "");
+                    const contractType = String(item.contractType || "");
+                    const status = String(item.status || "");
+                    return quoteAsset === "USDT"
+                        && contractType === "PERPETUAL"
+                        && status === "TRADING"
+                        && !symbol.includes("_");
+                })
+                .map((item) => String(item.symbol || ""))
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b));
+        }
+
+        async function scanAll({ resume = false } = {}) {
+            if (runtime.running) return;
+
+            runtime.running = true;
+            runtime.stopRequested = false;
+            runtime.startedAt = runtime.startedAt || Date.now();
+            els.startBtn.disabled = true;
+            els.resumeBtn.disabled = true;
+            els.stopBtn.disabled = false;
+
+            try {
+                if (!resume || runtime.allSymbols.length === 0) {
+                    setStatus("exchangeInfo 조회 중...");
+                    const exchangeInfo = await fetchExchangeInfo();
+                    runtime.allSymbols = buildSymbolList(exchangeInfo);
+                }
+
+                updateMeta();
+                renderTable();
+
+                const { symbolCooldownMs, saveEvery } = getSettings();
+                let processedSinceSave = 0;
+
+                for (let index = 0; index < runtime.allSymbols.length; index += 1) {
+                    const symbol = runtime.allSymbols[index];
+
+                    if (runtime.stopRequested) {
+                        setStatus("사용자 중지 요청으로 스캔을 멈췄습니다.");
+                        break;
+                    }
+
+                    if (runtime.completedSymbols.has(symbol)) {
+                        continue;
+                    }
+
+                    if (runtime.excludedSymbols.has(symbol)) {
+                        runtime.completedSymbols.add(symbol);
+                        processedSinceSave += 1;
+                        if (processedSinceSave >= saveEvery) {
+                            persistState();
+                            processedSinceSave = 0;
+                        }
+                        updateMeta();
+                        continue;
+                    }
+
+                    const done = runtime.completedSymbols.size;
+                    const total = runtime.allSymbols.length;
+                    setStatus(
+                        `스캔 중... ${done + 1}/${total}\n` +
+                        `심볼: ${symbol}\n` +
+                        `완료: ${done}\n` +
+                        `제외: ${runtime.excludedSymbols.size}\n` +
+                        `에러: ${runtime.errors.length}`
+                    );
+
+                    try {
+                        const { klines, scanStart, scanEnd } = await fetchAllKlinesForSymbol(symbol);
+                        const analyzed = analyzeSymbol(symbol, klines, scanStart, scanEnd);
+                        if (analyzed) {
+                            const existingIndex = runtime.results.findIndex((item) => item.symbol === symbol);
+                            if (existingIndex >= 0) {
+                                runtime.results[existingIndex] = analyzed;
+                            } else {
+                                runtime.results.push(analyzed);
+                            }
+                        }
+                    } catch (error) {
+                        if (String(error?.message || error) === "STOP_REQUESTED") {
+                            setStatus("사용자 중지 요청으로 스캔을 멈췄습니다.");
+                            break;
+                        }
+
+                        runtime.errors.push({
+                            symbol,
+                            message: String(error?.message || error),
+                            timeUtc: formatUtc(Date.now()),
+                        });
+
+                        const existingIndex = runtime.results.findIndex((item) => item.symbol === symbol);
+                        const failedRow = {
+                            symbol,
+                            bestCandleTimeUtc: "",
+                            nextCandleTimeUtc: "",
+                            scanStartUtc: "",
+                            scanEndUtc: "",
+                            bestCandleOpen: "",
+                            bestCandleClose: "",
+                            bestCandlePct: Number.NEGATIVE_INFINITY,
+                            bestCandlePctText: "",
+                            nextCandleOpen: "",
+                            nextCandleClose: "",
+                            nextCandlePct: Number.NEGATIVE_INFINITY,
+                            nextCandlePctText: "",
+                            allTimeLow: "",
+                            atlDrawdownPct: Number.NEGATIVE_INFINITY,
+                            atlDrawdownPctText: "",
+                            recommendedLeverage: Number.NEGATIVE_INFINITY,
+                            recommendedLeverageText: "",
+                            totalCandles: 0,
+                            note: `ERROR: ${String(error?.message || error)}`,
+                        };
+
+                        if (existingIndex >= 0) {
+                            runtime.results[existingIndex] = failedRow;
+                        } else {
+                            runtime.results.push(failedRow);
+                        }
+                    }
+
+                    runtime.completedSymbols.add(symbol);
+                    processedSinceSave += 1;
+
+                    renderTable();
+                    updateMeta();
+
+                    if (processedSinceSave >= saveEvery) {
+                        persistState();
+                        processedSinceSave = 0;
+                    }
+
+                    if (symbolCooldownMs > 0) {
+                        await sleep(symbolCooldownMs);
+                    }
+                }
+
+                persistState();
+
+                if (!runtime.stopRequested) {
+                    setStatus(
+                        `스캔 완료\n` +
+                        `총 심볼: ${runtime.allSymbols.length}\n` +
+                        `완료: ${runtime.completedSymbols.size}\n` +
+                        `제외: ${runtime.excludedSymbols.size}\n` +
+                        `에러: ${runtime.errors.length}`
+                    );
+                }
+            } catch (error) {
+                console.error(error);
+                setStatus(`치명적 오류: ${String(error?.message || error)}`);
+                persistState();
+            } finally {
+                runtime.running = false;
+                els.startBtn.disabled = false;
+                els.resumeBtn.disabled = false;
+                els.stopBtn.disabled = true;
+                updateMeta();
+            }
+        }
+
+        els.startBtn.addEventListener("click", async () => {
+            runtime.completedSymbols = new Set();
+            runtime.results = [];
+            runtime.errors = [];
+            runtime.startedAt = Date.now();
+            renderTable();
+            persistState();
+            await scanAll({ resume: false });
+        });
+
+        els.stopBtn.addEventListener("click", () => {
+            runtime.stopRequested = true;
+            setStatus("중지 요청을 받았습니다. 현재 요청/심볼 처리 후 멈춥니다.");
+        });
+
+        els.resumeBtn.addEventListener("click", async () => {
+            const hasState = loadState();
+            if (!hasState) {
+                setStatus("이어갈 저장 상태가 없습니다.");
+                return;
+            }
+            await scanAll({ resume: true });
+        });
+
+        els.exportBtn.addEventListener("click", () => {
+            if (runtime.results.length === 0) {
+                alert("내보낼 결과가 없습니다.");
+                return;
+            }
+            const stamp = new Date();
+            const filename = `binance_15m_extreme_scanner_${stamp.getUTCFullYear()}${String(stamp.getUTCMonth() + 1).padStart(2, "0")}${String(stamp.getUTCDate()).padStart(2, "0")}_${String(stamp.getUTCHours()).padStart(2, "0")}${String(stamp.getUTCMinutes()).padStart(2, "0")}${String(stamp.getUTCSeconds()).padStart(2, "0")}_utc.csv`;
+            downloadCsv(filename, runtime.results);
+        });
+
+        els.clearStateBtn.addEventListener("click", () => {
+            const ok = window.confirm("저장 상태, 결과, 제외 심볼 목록을 모두 초기화할까요?");
+            if (!ok) return;
+            clearState();
+        });
+
+        els.importCsvInput.addEventListener("change", async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            try {
+                const result = await importCsvFile(file);
+                setStatus(
+                    `CSV 불러오기 완료\n` +
+                    `읽은 행 수: ${result.importedRows}\n` +
+                    `현재 제외 심볼 수: ${result.excluded}`
+                );
+            } catch (error) {
+                console.error(error);
+                alert(`CSV 불러오기 실패: ${String(error?.message || error)}`);
+            } finally {
+                event.target.value = "";
+            }
+        });
+
+        els.sortBy.addEventListener("change", renderTable);
+        els.sortDir.addEventListener("change", renderTable);
+
+        window.addEventListener("beforeunload", () => {
+            persistState();
+        });
+
+        function bootstrap() {
+            const loaded = loadState();
+            if (loaded) {
+                setStatus("저장된 상태를 불러왔습니다. 이어서 실행을 누르거나 바로 새로 시작하세요.");
+            } else {
+                renderTable();
+                setStatus("대기 중... CSV를 먼저 불러오거나 바로 스캔을 시작하세요.");
+            }
+        }
+
+        bootstrap();
+    </script>
+</body>
+</html>
