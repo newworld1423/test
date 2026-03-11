@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Binance USDT Perp Quant Scanner v2</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0b1020;
+            --panel: #121931;
+            --panel-2: #18213f;
+            --text: #eef3ff;
+            --muted: rgba(238, 243, 255, 0.7);
+            --line: rgba(238, 243, 255, 0.12);
+            --accent: #7aa2ff;
+            --accent-2: #9d7aff;
+            --good: #45d38a;
+            --bad: #ff5c7c;
+            --warn: #ffd166;
+            --chip: rgba(255, 255, 255, 0.06);
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            --sans: Inter, Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            background:
+                radial-gradient(circle at 20% 0%, rgba(122, 162, 255, 0.18), transparent 28%),
+                radial-gradient(circle at 80% 0%, rgba(157, 122, 255, 0.14), transparent 24%),
+                var(--bg);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1620px;
+            margin: 0 auto;
+            padding: 28px 18px 70px;
+        }
+
+        .hero {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .title {
+            font-size: clamp(28px, 4vw, 44px);
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            line-height: 1.05;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.6;
+            max-width: 1050px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 420px minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        @media (max-width: 1180px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .card-desc {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .card-body {
+            padding: 16px 18px 18px;
+        }
+
+        .controls {
+            display: grid;
+            gap: 14px;
+        }
+
+        .section-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+
+        .fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .fields.one {
+            grid-template-columns: 1fr;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.045);
+            color: var(--text);
+            border-radius: 12px;
+            padding: 11px 12px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .field textarea {
+            min-height: 82px;
+            resize: vertical;
+            font-family: var(--mono);
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            cursor: pointer;
+            transition: transform 0.14s ease, opacity 0.14s ease, filter 0.14s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        .primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: white;
+        }
+
+        .ghost {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            border: 1px solid var(--line);
+        }
+
+        .danger {
+            background: rgba(255, 92, 124, 0.12);
+            color: #ffc3cf;
+            border: 1px solid rgba(255, 92, 124, 0.22);
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: var(--chip);
+            border: 1px solid var(--line);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .status {
+            display: grid;
+            gap: 10px;
+        }
+
+        .status-box {
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 12px 14px;
+        }
+
+        .status-line {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--muted);
+            white-space: pre-wrap;
+        }
+
+        .progress {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transition: width 0.18s ease;
+        }
+
+        .top-panels {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        @media (max-width: 1060px) {
+            .top-panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .market-regime {
+            display: grid;
+            gap: 12px;
+        }
+
+        .regime-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .badge {
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            border: 1px solid transparent;
+        }
+
+        .badge.good {
+            background: rgba(69, 211, 138, 0.12);
+            color: #adffd1;
+            border-color: rgba(69, 211, 138, 0.2);
+        }
+
+        .badge.bad {
+            background: rgba(255, 92, 124, 0.12);
+            color: #ffc3cf;
+            border-color: rgba(255, 92, 124, 0.2);
+        }
+
+        .badge.warn {
+            background: rgba(255, 209, 102, 0.14);
+            color: #ffe4a1;
+            border-color: rgba(255, 209, 102, 0.2);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        @media (max-width: 960px) {
+            .metric-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .metric {
+            border-radius: 14px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .metric .k {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric .v {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+        }
+
+        .metric .s {
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            border-top: 1px solid var(--line);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1500px;
+        }
+
+        th,
+        td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--line);
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: #121931;
+            z-index: 1;
+            color: #c7d7ff;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .mono {
+            font-family: var(--mono);
+        }
+
+        .good-text {
+            color: var(--good);
+        }
+
+        .bad-text {
+            color: var(--bad);
+        }
+
+        .warn-text {
+            color: var(--warn);
+        }
+
+        .small {
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .footer-note {
+            margin-top: 14px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.65;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <section class="hero">
+            <div class="title">Binance USDT Perp Quant Scanner v2</div>
+            <div class="subtitle">
+                국면 판단 → 크로스섹셔널 랭킹 → 시그널 품질 → 최근 기대값(EV) → 포지션 리스크까지 한 번에 보는 브라우저형 퀀트 스캐너입니다.
+                공용 REST 엔드포인트만 사용하며, 상위 유동성 종목에만 정밀 분석을 적용해 과도한 호출을 피합니다.
+            </div>
+        </section>
+
+        <div class="grid">
+            <aside class="card">
+                <div class="card-header">
+                    <div class="card-title">스캔 설정</div>
+                    <div class="card-desc">
+                        수익 보장은 불가능합니다. 대신 시장 국면, 상대강도, OI, 펀딩, 최근 유사 패턴 성과를 조합해 기대값이 높은 후보만 추립니다.
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="controls">
+                        <div>
+                            <div class="section-label">Universe</div>
+                            <div class="fields">
+                                <div class="field">
+                                    <label for="minNotional">최소 24H 거래대금 (USDT)</label>
+                                    <input id="minNotional" type="number" value="30000000" />
+                                </div>
+                                <div class="field">
+                                    <label for="topN">심층 분석 종목 수</label>
+                                    <input id="topN" type="number" value="36" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="section-label">Signal</div>
+                            <div class="fields">
+                                <div class="field">
+                                    <label for="minScore">최소 점수</label>
+                                    <input id="minScore" type="number" step="0.1" value="66" />
+                                </div>
+                                <div class="field">
+                                    <label for="maxLeverage">허용 최대 레버리지</label>
+                                    <input id="maxLeverage" type="number" step="0.1" value="8" />
+                                </div>
+                                <div class="field">
+                                    <label for="precisionLookback">미니 백테스트 룩백 샘플 수</label>
+                                    <input id="precisionLookback" type="number" value="80" />
+                                </div>
+                                <div class="field">
+                                    <label for="concurrency">동시 요청 수</label>
+                                    <input id="concurrency" type="number" value="4" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="section-label">Risk</div>
+                            <div class="fields">
+                                <div class="field">
+                                    <label for="equity">계좌 크기 (USDT)</label>
+                                    <input id="equity" type="number" step="0.01" value="1000" />
+                                </div>
+                                <div class="field">
+                                    <label for="riskPct">1회 리스크 (%)</label>
+                                    <input id="riskPct" type="number" step="0.01" value="0.75" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="section-label">Optional Allowlist</div>
+                            <div class="fields one">
+                                <div class="field">
+                                    <label for="symbolAllowlist">심볼 직접 제한 (쉼표 구분, 비우면 자동)</label>
+                                    <textarea id="symbolAllowlist" placeholder="예: BTCUSDT,ETHUSDT,SOLUSDT"></textarea>
+                                    <div class="hint">수동으로 특정 심볼만 보고 싶을 때 사용합니다.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <button id="scanBtn" class="primary">스캔 시작</button>
+                            <button id="stopBtn" class="danger" disabled>중단</button>
+                            <button id="sampleBtn" class="ghost">추천값 복원</button>
+                            <button id="csvBtn" class="ghost" disabled>CSV 저장</button>
+                        </div>
+
+                        <div class="chips">
+                            <div class="chip">국면 필터: BTC/ETH 4H + 알트 breadth</div>
+                            <div class="chip">팩터: 1D/4H/1H 추세 · RS · OI · Funding</div>
+                            <div class="chip">트리거: 15M 눌림 재개</div>
+                            <div class="chip">품질 검증: 최근 유사 패턴 EV</div>
+                        </div>
+
+                        <div class="status">
+                            <div class="status-box">
+                                <div id="statusText" class="status-line">대기 중…</div>
+                            </div>
+                            <div class="progress">
+                                <div id="progressBar" class="progress-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <main>
+                <div class="top-panels">
+                    <section class="card">
+                        <div class="card-header">
+                            <div class="card-title">시장 국면</div>
+                            <div class="card-desc">비트코인/이더리움 4시간 추세와 알트 breadth를 조합해 롱/숏 친화 구간인지 판단합니다.</div>
+                        </div>
+                        <div class="card-body market-regime">
+                            <div id="regimeBadges" class="regime-badges"></div>
+                            <div id="regimeSummary" class="small">아직 스캔 전입니다.</div>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-header">
+                            <div class="card-title">집계 메트릭</div>
+                            <div class="card-desc">상위 결과의 점수, 기대값, 승률, 필요 레버리지 분포를 빠르게 확인합니다.</div>
+                        </div>
+                        <div class="card-body">
+                            <div id="metricGrid" class="metric-grid"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="card">
+                    <div class="card-header">
+                        <div class="card-title">스캔 결과</div>
+                        <div class="card-desc">상위 점수 후보만 표시합니다. EV가 음수이거나 필요 레버리지가 과도한 것은 실전에서 우선 제외하는 쪽이 안전합니다.</div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Score</th>
+                                    <th>Entry</th>
+                                    <th>Stop</th>
+                                    <th>TP1</th>
+                                    <th>TP2</th>
+                                    <th>Risk %</th>
+                                    <th>Need Lev</th>
+                                    <th>Size</th>
+                                    <th>EV(R)</th>
+                                    <th>Win %</th>
+                                    <th>RS z</th>
+                                    <th>OI Δ12h</th>
+                                    <th>Funding</th>
+                                    <th>Trend</th>
+                                    <th>Volume x</th>
+                                    <th>24H Notional</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultBody">
+                                <tr>
+                                    <td colspan="20" class="small">결과가 여기에 표시됩니다.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-body">
+                        <div class="footer-note">
+                            주의: 이 도구는 투자 조언이 아니며, 공용 데이터 기반의 통계적 후보 선별기입니다. 실제 주문 전에는 슬리피지, 급변동, 펀딩, 뉴스 이벤트를 반드시 추가로 확인하세요.
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = "https://fapi.binance.com";
+
+        const el = {
+            minNotional: document.getElementById("minNotional"),
+            topN: document.getElementById("topN"),
+            minScore: document.getElementById("minScore"),
+            maxLeverage: document.getElementById("maxLeverage"),
+            precisionLookback: document.getElementById("precisionLookback"),
+            concurrency: document.getElementById("concurrency"),
+            equity: document.getElementById("equity"),
+            riskPct: document.getElementById("riskPct"),
+            symbolAllowlist: document.getElementById("symbolAllowlist"),
+            scanBtn: document.getElementById("scanBtn"),
+            stopBtn: document.getElementById("stopBtn"),
+            sampleBtn: document.getElementById("sampleBtn"),
+            csvBtn: document.getElementById("csvBtn"),
+            statusText: document.getElementById("statusText"),
+            progressBar: document.getElementById("progressBar"),
+            resultBody: document.getElementById("resultBody"),
+            regimeBadges: document.getElementById("regimeBadges"),
+            regimeSummary: document.getElementById("regimeSummary"),
+            metricGrid: document.getElementById("metricGrid"),
+        };
+
+        const state = {
+            stop: false,
+            rows: [],
+            regime: null,
+        };
+
+        function setStatus(text) {
+            el.statusText.textContent = text;
+        }
+
+        function setProgress(value) {
+            const pct = Math.max(0, Math.min(100, Number(value) || 0));
+            el.progressBar.style.width = `${pct}%`;
+        }
+
+        function sleep(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        function fmt(num, digits = 2) {
+            if (!Number.isFinite(num)) return "-";
+            return Number(num).toLocaleString("en-US", {
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits,
+            });
+        }
+
+        function fmtCompact(num) {
+            if (!Number.isFinite(num)) return "-";
+            return new Intl.NumberFormat("en", {
+                notation: "compact",
+                maximumFractionDigits: 2,
+            }).format(num);
+        }
+
+        function pct(num, digits = 2) {
+            if (!Number.isFinite(num)) return "-";
+            return `${fmt(num, digits)}%`;
+        }
+
+        function parseAllowlist(text) {
+            return text
+                .split(",")
+                .map((v) => v.trim().toUpperCase())
+                .filter(Boolean);
+        }
+
+        async function fetchJSON(path, params = {}) {
+            const url = new URL(BASE_URL + path);
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null && v !== "") {
+                    url.searchParams.set(k, String(v));
+                }
+            });
+
+            const response = await fetch(url.toString());
+            if (!response.ok) {
+                const text = await response.text().catch(() => "");
+                throw new Error(`HTTP ${response.status} ${response.statusText} ${text}`.trim());
+            }
+            return await response.json();
+        }
+
+        async function safeFetchJSON(path, params = {}, retries = 4) {
+            let attempt = 0;
+            let lastError = null;
+            while (attempt <= retries) {
+                try {
+                    if (state.stop) throw new Error("사용자 중단");
+                    return await fetchJSON(path, params);
+                } catch (error) {
+                    lastError = error;
+                    const msg = String(error?.message || error);
+                    const transient = msg.includes("429") || msg.includes("418") || msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("Failed to fetch");
+                    if (!transient || attempt === retries) break;
+                    await sleep(600 * Math.pow(2, attempt));
+                }
+                attempt += 1;
+            }
+            throw lastError;
+        }
+
+        function sma(values, period) {
+            if (values.length < period) return null;
+            let sum = 0;
+            for (let i = values.length - period; i < values.length; i += 1) sum += values[i];
+            return sum / period;
+        }
+
+        function emaSeries(values, period) {
+            if (!values.length) return [];
+            const k = 2 / (period + 1);
+            const out = [];
+            let prev = values[0];
+            out.push(prev);
+            for (let i = 1; i < values.length; i += 1) {
+                prev = values[i] * k + prev * (1 - k);
+                out.push(prev);
+            }
+            return out;
+        }
+
+        function atr(candles, period = 14) {
+            if (candles.length < period + 1) return null;
+            const trs = [];
+            for (let i = 1; i < candles.length; i += 1) {
+                const prevClose = candles[i - 1].close;
+                const c = candles[i];
+                const tr = Math.max(
+                    c.high - c.low,
+                    Math.abs(c.high - prevClose),
+                    Math.abs(c.low - prevClose),
+                );
+                trs.push(tr);
+            }
+            return sma(trs, period);
+        }
+
+        function std(values) {
+            if (!values.length) return 0;
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+            return Math.sqrt(variance);
+        }
+
+        function zScore(value, values) {
+            const mean = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+            const sigma = std(values);
+            if (!sigma) return 0;
+            return (value - mean) / sigma;
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function logistic(x) {
+            return 1 / (1 + Math.exp(-x));
+        }
+
+        function parseKlines(data) {
+            return data.map((k) => ({
+                openTime: Number(k[0]),
+                open: Number(k[1]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+                volume: Number(k[5]),
+                closeTime: Number(k[6]),
+                quoteVolume: Number(k[7]),
+                trades: Number(k[8]),
+            }));
+        }
+
+        function last(arr, n = 1) {
+            return arr[arr.length - n];
+        }
+
+        function trendStrength(candles) {
+            const closes = candles.map((c) => c.close);
+            const e20 = emaSeries(closes, 20);
+            const e50 = emaSeries(closes, 50);
+            const e200 = emaSeries(closes, 200);
+            const a20 = last(e20);
+            const a50 = last(e50);
+            const a200 = last(e200);
+            const price = last(closes);
+
+            if (![a20, a50, a200, price].every(Number.isFinite)) {
+                return { side: "NONE", score: 0, text: "insufficient" };
+            }
+
+            const up = a20 > a50 && a50 > a200 && price > a20;
+            const down = a20 < a50 && a50 < a200 && price < a20;
+            const spread = Math.abs((a20 - a50) / a50) + Math.abs((a50 - a200) / a200);
+            const slope = candles.length >= 6 ? (last(closes) - closes[closes.length - 6]) / closes[closes.length - 6] : 0;
+            const score = clamp(spread * 260 + Math.abs(slope) * 180, 0, 100);
+
+            return {
+                side: up ? "LONG" : down ? "SHORT" : "NONE",
+                score,
+                text: `${up ? "bull" : down ? "bear" : "mixed"} / spread ${spread.toFixed(4)} / slope ${(slope * 100).toFixed(2)}%`,
+                ema20: a20,
+                ema50: a50,
+                ema200: a200,
+            };
+        }
+
+        function calcPullbackTrigger(c15, preferredSide) {
+            const closes = c15.map((c) => c.close);
+            const volumes = c15.map((c) => c.quoteVolume || c.volume || 0);
+            const e20 = emaSeries(closes, 20);
+            const e50 = emaSeries(closes, 50);
+            const confirmed = c15.slice(0, -1);
+            if (confirmed.length < 60) return null;
+
+            const i = confirmed.length - 1;
+            const bar = confirmed[i];
+            const prev = confirmed[i - 1];
+            const ema20 = e20[i];
+            const ema50 = e50[i];
+            const atrVal = atr(confirmed.slice(-30), 14);
+            const avgVol = sma(volumes.slice(0, -1), 20) || 0;
+            const volMult = avgVol > 0 ? (bar.quoteVolume || bar.volume || 0) / avgVol : 1;
+            const distToE20 = Math.abs(bar.close - ema20) / ema20;
+            const recentSwingLow = Math.min(...confirmed.slice(-12).map((c) => c.low));
+            const recentSwingHigh = Math.max(...confirmed.slice(-12).map((c) => c.high));
+
+            const longSetup = preferredSide === "LONG"
+                && prev.low <= ema20 * 1.003
+                && bar.close > ema20
+                && bar.close > prev.high
+                && ema20 > ema50;
+
+            const shortSetup = preferredSide === "SHORT"
+                && prev.high >= ema20 * 0.997
+                && bar.close < ema20
+                && bar.close < prev.low
+                && ema20 < ema50;
+
+            if (!longSetup && !shortSetup) return null;
+
+            const side = longSetup ? "LONG" : "SHORT";
+            const entry = last(c15).close;
+            const stop = side === "LONG"
+                ? Math.min(recentSwingLow, bar.low, prev.low) - (atrVal || entry * 0.003) * 0.15
+                : Math.max(recentSwingHigh, bar.high, prev.high) + (atrVal || entry * 0.003) * 0.15;
+
+            const riskPct = side === "LONG"
+                ? ((entry - stop) / entry) * 100
+                : ((stop - entry) / entry) * 100;
+
+            if (!Number.isFinite(riskPct) || riskPct <= 0 || riskPct > 8) return null;
+
+            const tp1 = side === "LONG" ? entry * (1 + riskPct / 100) : entry * (1 - riskPct / 100);
+            const tp2 = side === "LONG" ? entry * (1 + riskPct * 2 / 100) : entry * (1 - riskPct * 2 / 100);
+
+            return {
+                side,
+                entry,
+                stop,
+                tp1,
+                tp2,
+                riskPct,
+                volumeMultiple: volMult,
+                distToE20Pct: distToE20 * 100,
+                atr: atrVal,
+                reason: `${side === "LONG" ? "15M 눌림 후 재돌파" : "15M 반등 후 재이탈"} / vol x${volMult.toFixed(2)} / dist ${distToE20.toFixed(4)}`,
+            };
+        }
+
+        function miniBacktest(c15, preferredSide, lookback = 80) {
+            const closes = c15.map((c) => c.close);
+            const e20 = emaSeries(closes, 20);
+            const e50 = emaSeries(closes, 50);
+            const results = [];
+            const start = Math.max(60, c15.length - lookback - 20);
+            const end = c15.length - 8;
+
+            for (let i = start; i < end; i += 1) {
+                const prev = c15[i - 1];
+                const bar = c15[i];
+                const ema20 = e20[i];
+                const ema50 = e50[i];
+                const recent = c15.slice(Math.max(0, i - 12), i + 1);
+                const swingLow = Math.min(...recent.map((c) => c.low));
+                const swingHigh = Math.max(...recent.map((c) => c.high));
+
+                const longSetup = preferredSide === "LONG"
+                    && prev.low <= ema20 * 1.003
+                    && bar.close > ema20
+                    && bar.close > prev.high
+                    && ema20 > ema50;
+
+                const shortSetup = preferredSide === "SHORT"
+                    && prev.high >= ema20 * 0.997
+                    && bar.close < ema20
+                    && bar.close < prev.low
+                    && ema20 < ema50;
+
+                if (!longSetup && !shortSetup) continue;
+
+                const side = longSetup ? "LONG" : "SHORT";
+                const entry = c15[i + 1]?.open;
+                if (!Number.isFinite(entry)) continue;
+
+                const stop = side === "LONG" ? swingLow : swingHigh;
+                const risk = side === "LONG" ? entry - stop : stop - entry;
+                if (!Number.isFinite(risk) || risk <= 0) continue;
+
+                const tp2 = side === "LONG" ? entry + risk * 2 : entry - risk * 2;
+                let realizedR = 0;
+                let hit = false;
+
+                for (let j = i + 1; j < Math.min(c15.length, i + 9); j += 1) {
+                    const f = c15[j];
+                    if (side === "LONG") {
+                        if (f.low <= stop) {
+                            realizedR = -1;
+                            hit = true;
+                            break;
+                        }
+                        if (f.high >= tp2) {
+                            realizedR = 2;
+                            hit = true;
+                            break;
+                        }
+                    } else {
+                        if (f.high >= stop) {
+                            realizedR = -1;
+                            hit = true;
+                            break;
+                        }
+                        if (f.low <= tp2) {
+                            realizedR = 2;
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hit) {
+                    const exit = c15[Math.min(c15.length - 1, i + 8)].close;
+                    realizedR = side === "LONG" ? (exit - entry) / risk : (entry - exit) / risk;
+                }
+
+                results.push(realizedR);
+            }
+
+            if (!results.length) {
+                return {
+                    trades: 0,
+                    winRate: 0,
+                    ev: 0,
+                    sampleText: "no sample",
+                };
+            }
+
+            const wins = results.filter((r) => r > 0).length;
+            const ev = results.reduce((a, b) => a + b, 0) / results.length;
+            return {
+                trades: results.length,
+                winRate: (wins / results.length) * 100,
+                ev,
+                sampleText: `${results.length} samples`,
+            };
+        }
+
+        function computePosition({ equity, riskPct, entry, stop, maxLeverage }) {
+            const riskCapital = equity * (riskPct / 100);
+            const distance = Math.abs(entry - stop);
+            if (!Number.isFinite(riskCapital) || !Number.isFinite(distance) || distance <= 0) {
+                return { qty: 0, notional: 0, needLev: Infinity };
+            }
+            const qty = riskCapital / distance;
+            const notional = qty * entry;
+            const needLev = equity > 0 ? notional / equity : Infinity;
+            return {
+                qty,
+                notional,
+                needLev,
+                pass: needLev <= maxLeverage,
+            };
+        }
+
+        async function getUniverse() {
+            const [exchangeInfo, tickers, funding] = await Promise.all([
+                safeFetchJSON("/fapi/v1/exchangeInfo"),
+                safeFetchJSON("/fapi/v1/ticker/24hr"),
+                safeFetchJSON("/fapi/v1/premiumIndex"),
+            ]);
+
+            const tradable = new Set(
+                exchangeInfo.symbols
+                    .filter((s) => s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING")
+                    .map((s) => s.symbol),
+            );
+
+            const fundingMap = new Map(funding.map((f) => [f.symbol, Number(f.lastFundingRate || 0)]));
+
+            return tickers
+                .filter((t) => tradable.has(t.symbol))
+                .map((t) => ({
+                    symbol: t.symbol,
+                    lastPrice: Number(t.lastPrice),
+                    quoteVolume: Number(t.quoteVolume),
+                    priceChangePercent: Number(t.priceChangePercent),
+                    fundingRate: fundingMap.get(t.symbol) ?? 0,
+                }));
+        }
+
+        async function getRegime(universe) {
+            const [btc4h, eth4h] = await Promise.all([
+                safeFetchJSON("/fapi/v1/klines", { symbol: "BTCUSDT", interval: "4h", limit: 260 }),
+                safeFetchJSON("/fapi/v1/klines", { symbol: "ETHUSDT", interval: "4h", limit: 260 }),
+            ]);
+
+            const btc = parseKlines(btc4h);
+            const eth = parseKlines(eth4h);
+            const btcTrend = trendStrength(btc);
+            const ethTrend = trendStrength(eth);
+
+            const altUniverse = universe.filter((u) => u.symbol !== "BTCUSDT" && u.symbol !== "ETHUSDT");
+            const pos = altUniverse.filter((u) => u.priceChangePercent > 0).length;
+            const breadth = altUniverse.length ? (pos / altUniverse.length) * 100 : 50;
+            const avgFunding = altUniverse.reduce((a, b) => a + b.fundingRate, 0) / (altUniverse.length || 1);
+
+            let bias = "NEUTRAL";
+            if (btcTrend.side === "LONG" && ethTrend.side === "LONG" && breadth >= 55) bias = "LONG";
+            if (btcTrend.side === "SHORT" && ethTrend.side === "SHORT" && breadth <= 45) bias = "SHORT";
+
+            return {
+                bias,
+                breadth,
+                avgFunding,
+                btcTrend,
+                ethTrend,
+                summary: `BTC ${btcTrend.side}(${btcTrend.score.toFixed(1)}) · ETH ${ethTrend.side}(${ethTrend.score.toFixed(1)}) · breadth ${breadth.toFixed(1)}% · avg funding ${(avgFunding * 100).toFixed(4)}%`,
+            };
+        }
+
+        async function analyzeSymbol(symbol, universeMap, settings, regime) {
+            const [d1Raw, h4Raw, h1Raw, m15Raw, oiRaw] = await Promise.all([
+                safeFetchJSON("/fapi/v1/klines", { symbol, interval: "1d", limit: 260 }),
+                safeFetchJSON("/fapi/v1/klines", { symbol, interval: "4h", limit: 260 }),
+                safeFetchJSON("/fapi/v1/klines", { symbol, interval: "1h", limit: 260 }),
+                safeFetchJSON("/fapi/v1/klines", { symbol, interval: "15m", limit: 240 }),
+                safeFetchJSON("/futures/data/openInterestHist", { symbol, period: "1h", limit: 24 }),
+            ]);
+
+            const d1 = parseKlines(d1Raw);
+            const h4 = parseKlines(h4Raw);
+            const h1 = parseKlines(h1Raw);
+            const m15 = parseKlines(m15Raw);
+            const oi = Array.isArray(oiRaw) ? oiRaw.map((v) => Number(v.sumOpenInterestValue || v.sumOpenInterest || 0)) : [];
+
+            if ([d1, h4, h1, m15].some((arr) => arr.length < 120)) return null;
+
+            const dTrend = trendStrength(d1);
+            const h4Trend = trendStrength(h4);
+            const h1Trend = trendStrength(h1);
+            if (dTrend.side === "NONE" || h4Trend.side === "NONE" || h1Trend.side === "NONE") return null;
+            if (!(dTrend.side === h4Trend.side && h4Trend.side === h1Trend.side)) return null;
+
+            const preferredSide = dTrend.side;
+            if (regime.bias !== "NEUTRAL" && preferredSide !== regime.bias) return null;
+
+            const trigger = calcPullbackTrigger(m15, preferredSide);
+            if (!trigger) return null;
+
+            const rowU = universeMap.get(symbol);
+            const rsValue = rowU?.priceChangePercent ?? 0;
+            const rsPopulation = Array.from(universeMap.values()).map((u) => u.priceChangePercent);
+            const rsZ = zScore(rsValue, rsPopulation);
+
+            const oiNow = oi[oi.length - 1] ?? 0;
+            const oiPast = oi[Math.max(0, oi.length - 13)] ?? oi[0] ?? 0;
+            const oiChange12h = oiPast > 0 ? ((oiNow - oiPast) / oiPast) * 100 : 0;
+            const funding = rowU?.fundingRate ?? 0;
+
+            const bt = miniBacktest(m15, preferredSide, settings.precisionLookback);
+            if (bt.trades < 6) return null;
+
+            const trendComposite = (dTrend.score * 0.35) + (h4Trend.score * 0.35) + (h1Trend.score * 0.30);
+            const volumeScore = clamp(trigger.volumeMultiple * 18, 0, 20);
+            const rsScore = clamp((rsZ + 2.2) * 8, 0, 20);
+            const oiScore = clamp(oiChange12h * (preferredSide === "LONG" ? 0.8 : -0.8) + 8, 0, 14);
+            const fundingPenalty = preferredSide === "LONG"
+                ? clamp(Math.max(0, funding - 0.0004) * 24000, 0, 8)
+                : clamp(Math.max(0, -0.0004 - funding) * 24000, 0, 8);
+            const evScore = clamp(bt.ev * 8 + (bt.winRate - 50) * 0.18 + 8, 0, 26);
+
+            let score = 0;
+            score += clamp(trendComposite * 0.34, 0, 34);
+            score += rsScore;
+            score += volumeScore;
+            score += oiScore;
+            score += evScore;
+            score -= fundingPenalty;
+            score = clamp(score, 0, 100);
+
+            if (score < settings.minScore) return null;
+
+            const pos = computePosition({
+                equity: settings.equity,
+                riskPct: settings.riskPct,
+                entry: trigger.entry,
+                stop: trigger.stop,
+                maxLeverage: settings.maxLeverage,
+            });
+
+            if (!Number.isFinite(pos.needLev) || pos.needLev > settings.maxLeverage) return null;
+            if (bt.ev <= -0.05) return null;
+
+            const reasons = [
+                `${dTrend.side} MTF 정렬`,
+                `RS z ${rsZ.toFixed(2)}`,
+                `OI ${oiChange12h.toFixed(2)}%`,
+                `Funding ${(funding * 100).toFixed(4)}%`,
+                `EV ${bt.ev.toFixed(2)}R / WR ${bt.winRate.toFixed(1)}%`,
+                trigger.reason,
+            ].join(" | ");
+
+            return {
+                symbol,
+                side: preferredSide,
+                score,
+                entry: trigger.entry,
+                stop: trigger.stop,
+                tp1: trigger.tp1,
+                tp2: trigger.tp2,
+                riskPct: trigger.riskPct,
+                needLev: pos.needLev,
+                qty: pos.qty,
+                notional: pos.notional,
+                ev: bt.ev,
+                winRate: bt.winRate,
+                rsZ,
+                oiChange12h,
+                funding,
+                trendText: `${dTrend.score.toFixed(0)}/${h4Trend.score.toFixed(0)}/${h1Trend.score.toFixed(0)}`,
+                volumeMultiple: trigger.volumeMultiple,
+                quoteVolume: rowU?.quoteVolume ?? 0,
+                reason: reasons,
+            };
+        }
+
+        async function mapLimit(items, limit, iterator) {
+            const results = new Array(items.length);
+            let cursor = 0;
+
+            async function worker() {
+                while (cursor < items.length) {
+                    const index = cursor;
+                    cursor += 1;
+                    if (state.stop) return;
+                    try {
+                        results[index] = await iterator(items[index], index);
+                    } catch (error) {
+                        results[index] = { __error: true, error, item: items[index] };
+                    }
+                }
+            }
+
+            const workers = Array.from({ length: Math.max(1, limit) }, () => worker());
+            await Promise.all(workers);
+            return results;
+        }
+
+        function renderRegime(regime) {
+            el.regimeBadges.innerHTML = "";
+            const badges = [
+                {
+                    text: `Bias ${regime.bias}`,
+                    cls: regime.bias === "LONG" ? "good" : regime.bias === "SHORT" ? "bad" : "warn",
+                },
+                {
+                    text: `BTC ${regime.btcTrend.side}`,
+                    cls: regime.btcTrend.side === "LONG" ? "good" : regime.btcTrend.side === "SHORT" ? "bad" : "warn",
+                },
+                {
+                    text: `ETH ${regime.ethTrend.side}`,
+                    cls: regime.ethTrend.side === "LONG" ? "good" : regime.ethTrend.side === "SHORT" ? "bad" : "warn",
+                },
+                {
+                    text: `Breadth ${regime.breadth.toFixed(1)}%`,
+                    cls: regime.breadth >= 55 ? "good" : regime.breadth <= 45 ? "bad" : "warn",
+                },
+            ];
+
+            badges.forEach((b) => {
+                const span = document.createElement("span");
+                span.className = `badge ${b.cls}`;
+                span.textContent = b.text;
+                el.regimeBadges.appendChild(span);
+            });
+            el.regimeSummary.textContent = regime.summary;
+        }
+
+        function renderMetrics(rows) {
+            const metrics = [];
+            const top = rows.slice(0, 10);
+            const avgScore = top.length ? top.reduce((a, b) => a + b.score, 0) / top.length : 0;
+            const avgEv = top.length ? top.reduce((a, b) => a + b.ev, 0) / top.length : 0;
+            const avgWin = top.length ? top.reduce((a, b) => a + b.winRate, 0) / top.length : 0;
+            const avgLev = top.length ? top.reduce((a, b) => a + b.needLev, 0) / top.length : 0;
+
+            metrics.push({ k: "Top10 Avg Score", v: avgScore.toFixed(1), s: "상위 10개 평균 점수" });
+            metrics.push({ k: "Top10 Avg EV", v: `${avgEv.toFixed(2)}R`, s: "상위 10개 최근 기대값" });
+            metrics.push({ k: "Top10 Avg Win", v: `${avgWin.toFixed(1)}%`, s: "상위 10개 최근 승률" });
+            metrics.push({ k: "Top10 Avg Lev", v: `${avgLev.toFixed(2)}x`, s: "상위 10개 필요 레버리지" });
+
+            el.metricGrid.innerHTML = metrics.map((m) => `
+                <div class="metric">
+                    <div class="k">${m.k}</div>
+                    <div class="v">${m.v}</div>
+                    <div class="s">${m.s}</div>
+                </div>
+            `).join("");
+        }
+
+        function renderRows(rows) {
+            if (!rows.length) {
+                el.resultBody.innerHTML = `<tr><td colspan="20" class="small">조건을 만족하는 후보가 없습니다.</td></tr>`;
+                el.csvBtn.disabled = true;
+                renderMetrics([]);
+                return;
+            }
+
+            el.resultBody.innerHTML = rows.map((r, i) => {
+                const sideCls = r.side === "LONG" ? "good-text" : "bad-text";
+                const evCls = r.ev >= 0 ? "good-text" : "bad-text";
+                const levCls = r.needLev <= 4 ? "good-text" : r.needLev <= 8 ? "warn-text" : "bad-text";
+                return `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td class="mono">${r.symbol}</td>
+                        <td class="${sideCls}">${r.side}</td>
+                        <td><strong>${fmt(r.score, 1)}</strong></td>
+                        <td class="mono">${fmt(r.entry, 6)}</td>
+                        <td class="mono">${fmt(r.stop, 6)}</td>
+                        <td class="mono">${fmt(r.tp1, 6)}</td>
+                        <td class="mono">${fmt(r.tp2, 6)}</td>
+                        <td>${pct(r.riskPct, 2)}</td>
+                        <td class="${levCls}">${fmt(r.needLev, 2)}x</td>
+                        <td class="mono">${fmt(r.qty, 4)}</td>
+                        <td class="${evCls}">${fmt(r.ev, 2)}R</td>
+                        <td>${pct(r.winRate, 1)}</td>
+                        <td>${fmt(r.rsZ, 2)}</td>
+                        <td>${pct(r.oiChange12h, 2)}</td>
+                        <td>${pct(r.funding * 100, 4)}</td>
+                        <td>${r.trendText}</td>
+                        <td>${fmt(r.volumeMultiple, 2)}x</td>
+                        <td>${fmtCompact(r.quoteVolume)}</td>
+                        <td class="small">${r.reason}</td>
+                    </tr>
+                `;
+            }).join("");
+            el.csvBtn.disabled = false;
+            renderMetrics(rows);
+        }
+
+        function rowsToCSV(rows) {
+            const headers = [
+                "rank","symbol","side","score","entry","stop","tp1","tp2","riskPct","needLev","qty","notional","ev","winRate","rsZ","oiChange12h","fundingPct","trend","volumeMultiple","quoteVolume","reason"
+            ];
+            const lines = rows.map((r, i) => [
+                i + 1,
+                r.symbol,
+                r.side,
+                r.score,
+                r.entry,
+                r.stop,
+                r.tp1,
+                r.tp2,
+                r.riskPct,
+                r.needLev,
+                r.qty,
+                r.notional,
+                r.ev,
+                r.winRate,
+                r.rsZ,
+                r.oiChange12h,
+                r.funding * 100,
+                r.trendText,
+                r.volumeMultiple,
+                r.quoteVolume,
+                `"${String(r.reason).replaceAll('"', '""')}"`,
+            ].join(","));
+            return [headers.join(","), ...lines].join("\n");
+        }
+
+        function downloadCSV() {
+            const csv = rowsToCSV(state.rows);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `binance_quant_scan_${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadSamples() {
+            el.minNotional.value = 30000000;
+            el.topN.value = 36;
+            el.minScore.value = 66;
+            el.maxLeverage.value = 8;
+            el.precisionLookback.value = 80;
+            el.concurrency.value = 4;
+            el.equity.value = 1000;
+            el.riskPct.value = 0.75;
+            el.symbolAllowlist.value = "";
+        }
+
+        async function runScan() {
+            if (el.scanBtn.disabled) return;
+            state.stop = false;
+            state.rows = [];
+            renderRows([]);
+            setProgress(0);
+            el.scanBtn.disabled = true;
+            el.stopBtn.disabled = false;
+            el.csvBtn.disabled = true;
+
+            const settings = {
+                minNotional: Number(el.minNotional.value),
+                topN: Math.max(1, Number(el.topN.value)),
+                minScore: Number(el.minScore.value),
+                maxLeverage: Number(el.maxLeverage.value),
+                precisionLookback: Math.max(20, Number(el.precisionLookback.value)),
+                concurrency: Math.max(1, Number(el.concurrency.value)),
+                equity: Number(el.equity.value),
+                riskPct: Number(el.riskPct.value),
+                allowlist: parseAllowlist(el.symbolAllowlist.value),
+            };
+
+            try {
+                setStatus("유니버스 로딩 중… exchangeInfo / ticker / funding");
+                const universe = await getUniverse();
+                if (state.stop) throw new Error("사용자 중단");
+
+                let filtered = universe.filter((u) => u.quoteVolume >= settings.minNotional);
+                if (settings.allowlist.length) {
+                    const set = new Set(settings.allowlist);
+                    filtered = filtered.filter((u) => set.has(u.symbol));
+                }
+                filtered.sort((a, b) => b.quoteVolume - a.quoteVolume);
+                filtered = filtered.slice(0, settings.topN);
+
+                if (!filtered.length) throw new Error("조건에 맞는 유니버스가 없습니다.");
+                const universeMap = new Map(universe.map((u) => [u.symbol, u]));
+
+                setProgress(12);
+                setStatus(`시장 국면 분석 중… 후보 ${filtered.length}개`);
+                const regime = await getRegime(universe);
+                state.regime = regime;
+                renderRegime(regime);
+
+                setProgress(18);
+                setStatus(`심층 분석 시작… ${filtered.length}개 종목`);
+
+                let completed = 0;
+                const outputs = await mapLimit(filtered, settings.concurrency, async (item) => {
+                    const row = await analyzeSymbol(item.symbol, universeMap, settings, regime);
+                    completed += 1;
+                    const pctValue = 18 + (completed / filtered.length) * 78;
+                    setProgress(pctValue);
+                    setStatus(`분석 중… ${completed}/${filtered.length} · ${item.symbol}`);
+                    return row;
+                });
+
+                if (state.stop) throw new Error("사용자 중단");
+
+                const rows = outputs
+                    .filter((r) => r && !r.__error)
+                    .sort((a, b) => {
+                        if (b.score !== a.score) return b.score - a.score;
+                        return b.ev - a.ev;
+                    });
+
+                state.rows = rows;
+                renderRows(rows);
+                setProgress(100);
+                setStatus(`완료 · 후보 ${rows.length}개 / 국면 ${regime.bias} / 상위 ${rows[0]?.symbol || "없음"}`);
+            } catch (error) {
+                const msg = String(error?.message || error);
+                setStatus(`오류: ${msg}`);
+                if (!state.rows.length) renderRows([]);
+            } finally {
+                el.scanBtn.disabled = false;
+                el.stopBtn.disabled = true;
+            }
+        }
+
+        el.scanBtn.addEventListener("click", runScan);
+        el.stopBtn.addEventListener("click", () => {
+            state.stop = true;
+            setStatus("중단 요청됨… 진행 중 작업 정리 후 멈춥니다.");
+            el.stopBtn.disabled = true;
+        });
+        el.sampleBtn.addEventListener("click", loadSamples);
+        el.csvBtn.addEventListener("click", downloadCSV);
+
+        loadSamples();
+        renderMetrics([]);
+    </script>
+</body>
+</html>
