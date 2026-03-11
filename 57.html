@@ -488,6 +488,39 @@
                         </div>
 
                         <div>
+                            <div class="section-label">Auto Scan</div>
+                            <div class="fields">
+                                <div class="field">
+                                    <label for="autoSchedule">자동 스캔 주기</label>
+                                    <select id="autoSchedule">
+                                        <option value="15m" selected>15분봉 마감 직후</option>
+                                        <option value="1h">1시간봉 마감 직후</option>
+                                        <option value="custom">사용자 지정 분</option>
+                                        <option value="off">끄기</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label for="autoDelaySec">봉 마감 후 대기 (초)</label>
+                                    <input id="autoDelaySec" type="number" value="8" min="0" step="1" />
+                                </div>
+                                <div class="field">
+                                    <label for="customMinutes">사용자 지정 분</label>
+                                    <input id="customMinutes" type="number" value="15" min="1" step="1" />
+                                </div>
+                                <div class="field">
+                                    <label for="notifyMode">브라우저 알림</label>
+                                    <select id="notifyMode">
+                                        <option value="top3" selected>결과 있으면 알림</option>
+                                        <option value="off">끄기</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="hint">
+                                기본 추천은 15분봉 마감 직후입니다. 지금 스캐너의 트리거가 15M 눌림 재개라서 15/30/45/00분 봉 확정 뒤 자동 스캔이 가장 자연스럽습니다.
+                            </div>
+                        </div>
+
+                        <div>
                             <div class="section-label">Optional Allowlist</div>
                             <div class="fields one">
                                 <div class="field">
@@ -499,8 +532,14 @@
                         </div>
 
                         <div class="row">
-                            <button id="scanBtn" class="primary">스캔 시작</button>
-                            <button id="stopBtn" class="danger" disabled>중단</button>
+                            <button id="scanBtn" class="primary">지금 1회 스캔</button>
+                            <button id="stopBtn" class="danger" disabled>현재 스캔 중단</button>
+                            <button id="autoStartBtn" class="ghost">자동 스캔 시작</button>
+                            <button id="autoStopBtn" class="ghost" disabled>자동 스캔 중지</button>
+                        </div>
+
+                        <div class="row">
+                            <button id="notifyPermBtn" class="ghost">알림 권한 요청</button>
                             <button id="sampleBtn" class="ghost">추천값 복원</button>
                             <button id="csvBtn" class="ghost" disabled>CSV 저장</button>
                         </div>
@@ -510,11 +549,16 @@
                             <div class="chip">팩터: 1D/4H/1H 추세 · RS · OI · Funding</div>
                             <div class="chip">트리거: 15M 눌림 재개</div>
                             <div class="chip">품질 검증: 최근 유사 패턴 EV</div>
+                            <div class="chip">자동 스캔: 15분봉 마감 정렬</div>
                         </div>
 
                         <div class="status">
                             <div class="status-box">
                                 <div id="statusText" class="status-line">대기 중…</div>
+                            </div>
+                            <div class="status-box">
+                                <div id="autoStatusText" class="status-line">자동 스캔 꺼짐</div>
+                                <div id="nextRunText" class="small">다음 자동 스캔 없음</div>
                             </div>
                             <div class="progress">
                                 <div id="progressBar" class="progress-bar"></div>
@@ -608,12 +652,21 @@
             concurrency: document.getElementById("concurrency"),
             equity: document.getElementById("equity"),
             riskPct: document.getElementById("riskPct"),
+            autoSchedule: document.getElementById("autoSchedule"),
+            autoDelaySec: document.getElementById("autoDelaySec"),
+            customMinutes: document.getElementById("customMinutes"),
+            notifyMode: document.getElementById("notifyMode"),
             symbolAllowlist: document.getElementById("symbolAllowlist"),
             scanBtn: document.getElementById("scanBtn"),
             stopBtn: document.getElementById("stopBtn"),
+            autoStartBtn: document.getElementById("autoStartBtn"),
+            autoStopBtn: document.getElementById("autoStopBtn"),
+            notifyPermBtn: document.getElementById("notifyPermBtn"),
             sampleBtn: document.getElementById("sampleBtn"),
             csvBtn: document.getElementById("csvBtn"),
             statusText: document.getElementById("statusText"),
+            autoStatusText: document.getElementById("autoStatusText"),
+            nextRunText: document.getElementById("nextRunText"),
             progressBar: document.getElementById("progressBar"),
             resultBody: document.getElementById("resultBody"),
             regimeBadges: document.getElementById("regimeBadges"),
@@ -625,15 +678,26 @@
             stop: false,
             rows: [],
             regime: null,
+            runningScan: false,
+            autoEnabled: false,
+            autoTimerId: null,
+            autoTickId: null,
+            nextRunAt: null,
+            lastNotificationSignature: "",
+            lastNotificationAt: 0,
         };
 
         function setStatus(text) {
             el.statusText.textContent = text;
         }
 
+        function setAutoStatus(text) {
+            el.autoStatusText.textContent = text;
+        }
+
         function setProgress(value) {
-            const pct = Math.max(0, Math.min(100, Number(value) || 0));
-            el.progressBar.style.width = `${pct}%`;
+            const pctValue = Math.max(0, Math.min(100, Number(value) || 0));
+            el.progressBar.style.width = `${pctValue}%`;
         }
 
         function sleep(ms) {
@@ -661,6 +725,32 @@
             return `${fmt(num, digits)}%`;
         }
 
+        function formatDateTime(date) {
+            if (!(date instanceof Date)) return "-";
+            return date.toLocaleString("ko-KR", {
+                hour12: false,
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+            });
+        }
+
+        function formatCountdown(ms) {
+            const totalSec = Math.max(0, Math.floor(ms / 1000));
+            const hours = Math.floor(totalSec / 3600);
+            const minutes = Math.floor((totalSec % 3600) / 60);
+            const seconds = totalSec % 60;
+            if (hours > 0) {
+                return `${hours}시간 ${minutes}분 ${seconds}초`;
+            }
+            if (minutes > 0) {
+                return `${minutes}분 ${seconds}초`;
+            }
+            return `${seconds}초`;
+        }
+
         function parseAllowlist(text) {
             return text
                 .split(",")
@@ -668,11 +758,23 @@
                 .filter(Boolean);
         }
 
+        function getAutoModeText(mode) {
+            if (mode === "15m") return "15분봉 마감 직후";
+            if (mode === "1h") return "1시간봉 마감 직후";
+            if (mode === "custom") return "사용자 지정 분";
+            return "꺼짐";
+        }
+
+        function getNotificationPermissionText() {
+            if (!("Notification" in window)) return "지원 안 함";
+            return Notification.permission;
+        }
+
         async function fetchJSON(path, params = {}) {
             const url = new URL(BASE_URL + path);
-            Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== null && v !== "") {
-                    url.searchParams.set(k, String(v));
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== "") {
+                    url.searchParams.set(key, String(value));
                 }
             });
 
@@ -693,8 +795,13 @@
                     return await fetchJSON(path, params);
                 } catch (error) {
                     lastError = error;
-                    const msg = String(error?.message || error);
-                    const transient = msg.includes("429") || msg.includes("418") || msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("Failed to fetch");
+                    const message = String(error?.message || error);
+                    const transient = message.includes("429")
+                        || message.includes("418")
+                        || message.includes("502")
+                        || message.includes("503")
+                        || message.includes("504")
+                        || message.includes("Failed to fetch");
                     if (!transient || attempt === retries) break;
                     await sleep(600 * Math.pow(2, attempt));
                 }
@@ -706,7 +813,9 @@
         function sma(values, period) {
             if (values.length < period) return null;
             let sum = 0;
-            for (let i = values.length - period; i < values.length; i += 1) sum += values[i];
+            for (let i = values.length - period; i < values.length; i += 1) {
+                sum += values[i];
+            }
             return sum / period;
         }
 
@@ -728,11 +837,11 @@
             const trs = [];
             for (let i = 1; i < candles.length; i += 1) {
                 const prevClose = candles[i - 1].close;
-                const c = candles[i];
+                const candle = candles[i];
                 const tr = Math.max(
-                    c.high - c.low,
-                    Math.abs(c.high - prevClose),
-                    Math.abs(c.low - prevClose),
+                    candle.high - candle.low,
+                    Math.abs(candle.high - prevClose),
+                    Math.abs(candle.low - prevClose),
                 );
                 trs.push(tr);
             }
@@ -757,21 +866,17 @@
             return Math.max(min, Math.min(max, value));
         }
 
-        function logistic(x) {
-            return 1 / (1 + Math.exp(-x));
-        }
-
         function parseKlines(data) {
-            return data.map((k) => ({
-                openTime: Number(k[0]),
-                open: Number(k[1]),
-                high: Number(k[2]),
-                low: Number(k[3]),
-                close: Number(k[4]),
-                volume: Number(k[5]),
-                closeTime: Number(k[6]),
-                quoteVolume: Number(k[7]),
-                trades: Number(k[8]),
+            return data.map((kline) => ({
+                openTime: Number(kline[0]),
+                open: Number(kline[1]),
+                high: Number(kline[2]),
+                low: Number(kline[3]),
+                close: Number(kline[4]),
+                volume: Number(kline[5]),
+                closeTime: Number(kline[6]),
+                quoteVolume: Number(kline[7]),
+                trades: Number(kline[8]),
             }));
         }
 
@@ -780,22 +885,22 @@
         }
 
         function trendStrength(candles) {
-            const closes = candles.map((c) => c.close);
-            const e20 = emaSeries(closes, 20);
-            const e50 = emaSeries(closes, 50);
-            const e200 = emaSeries(closes, 200);
-            const a20 = last(e20);
-            const a50 = last(e50);
-            const a200 = last(e200);
+            const closes = candles.map((candle) => candle.close);
+            const ema20Series = emaSeries(closes, 20);
+            const ema50Series = emaSeries(closes, 50);
+            const ema200Series = emaSeries(closes, 200);
+            const ema20 = last(ema20Series);
+            const ema50 = last(ema50Series);
+            const ema200 = last(ema200Series);
             const price = last(closes);
 
-            if (![a20, a50, a200, price].every(Number.isFinite)) {
+            if (![ema20, ema50, ema200, price].every(Number.isFinite)) {
                 return { side: "NONE", score: 0, text: "insufficient" };
             }
 
-            const up = a20 > a50 && a50 > a200 && price > a20;
-            const down = a20 < a50 && a50 < a200 && price < a20;
-            const spread = Math.abs((a20 - a50) / a50) + Math.abs((a50 - a200) / a200);
+            const up = ema20 > ema50 && ema50 > ema200 && price > ema20;
+            const down = ema20 < ema50 && ema50 < ema200 && price < ema20;
+            const spread = Math.abs((ema20 - ema50) / ema50) + Math.abs((ema50 - ema200) / ema200);
             const slope = candles.length >= 6 ? (last(closes) - closes[closes.length - 6]) / closes[closes.length - 6] : 0;
             const score = clamp(spread * 260 + Math.abs(slope) * 180, 0, 100);
 
@@ -803,31 +908,31 @@
                 side: up ? "LONG" : down ? "SHORT" : "NONE",
                 score,
                 text: `${up ? "bull" : down ? "bear" : "mixed"} / spread ${spread.toFixed(4)} / slope ${(slope * 100).toFixed(2)}%`,
-                ema20: a20,
-                ema50: a50,
-                ema200: a200,
+                ema20,
+                ema50,
+                ema200,
             };
         }
 
         function calcPullbackTrigger(c15, preferredSide) {
-            const closes = c15.map((c) => c.close);
-            const volumes = c15.map((c) => c.quoteVolume || c.volume || 0);
-            const e20 = emaSeries(closes, 20);
-            const e50 = emaSeries(closes, 50);
+            const closes = c15.map((candle) => candle.close);
+            const volumes = c15.map((candle) => candle.quoteVolume || candle.volume || 0);
+            const ema20Series = emaSeries(closes, 20);
+            const ema50Series = emaSeries(closes, 50);
             const confirmed = c15.slice(0, -1);
             if (confirmed.length < 60) return null;
 
             const i = confirmed.length - 1;
             const bar = confirmed[i];
             const prev = confirmed[i - 1];
-            const ema20 = e20[i];
-            const ema50 = e50[i];
-            const atrVal = atr(confirmed.slice(-30), 14);
+            const ema20 = ema20Series[i];
+            const ema50 = ema50Series[i];
+            const atrValue = atr(confirmed.slice(-30), 14);
             const avgVol = sma(volumes.slice(0, -1), 20) || 0;
             const volMult = avgVol > 0 ? (bar.quoteVolume || bar.volume || 0) / avgVol : 1;
             const distToE20 = Math.abs(bar.close - ema20) / ema20;
-            const recentSwingLow = Math.min(...confirmed.slice(-12).map((c) => c.low));
-            const recentSwingHigh = Math.max(...confirmed.slice(-12).map((c) => c.high));
+            const recentSwingLow = Math.min(...confirmed.slice(-12).map((candle) => candle.low));
+            const recentSwingHigh = Math.max(...confirmed.slice(-12).map((candle) => candle.high));
 
             const longSetup = preferredSide === "LONG"
                 && prev.low <= ema20 * 1.003
@@ -846,8 +951,8 @@
             const side = longSetup ? "LONG" : "SHORT";
             const entry = last(c15).close;
             const stop = side === "LONG"
-                ? Math.min(recentSwingLow, bar.low, prev.low) - (atrVal || entry * 0.003) * 0.15
-                : Math.max(recentSwingHigh, bar.high, prev.high) + (atrVal || entry * 0.003) * 0.15;
+                ? Math.min(recentSwingLow, bar.low, prev.low) - (atrValue || entry * 0.003) * 0.15
+                : Math.max(recentSwingHigh, bar.high, prev.high) + (atrValue || entry * 0.003) * 0.15;
 
             const riskPct = side === "LONG"
                 ? ((entry - stop) / entry) * 100
@@ -867,15 +972,15 @@
                 riskPct,
                 volumeMultiple: volMult,
                 distToE20Pct: distToE20 * 100,
-                atr: atrVal,
+                atr: atrValue,
                 reason: `${side === "LONG" ? "15M 눌림 후 재돌파" : "15M 반등 후 재이탈"} / vol x${volMult.toFixed(2)} / dist ${distToE20.toFixed(4)}`,
             };
         }
 
         function miniBacktest(c15, preferredSide, lookback = 80) {
-            const closes = c15.map((c) => c.close);
-            const e20 = emaSeries(closes, 20);
-            const e50 = emaSeries(closes, 50);
+            const closes = c15.map((candle) => candle.close);
+            const ema20Series = emaSeries(closes, 20);
+            const ema50Series = emaSeries(closes, 50);
             const results = [];
             const start = Math.max(60, c15.length - lookback - 20);
             const end = c15.length - 8;
@@ -883,11 +988,11 @@
             for (let i = start; i < end; i += 1) {
                 const prev = c15[i - 1];
                 const bar = c15[i];
-                const ema20 = e20[i];
-                const ema50 = e50[i];
+                const ema20 = ema20Series[i];
+                const ema50 = ema50Series[i];
                 const recent = c15.slice(Math.max(0, i - 12), i + 1);
-                const swingLow = Math.min(...recent.map((c) => c.low));
-                const swingHigh = Math.max(...recent.map((c) => c.high));
+                const swingLow = Math.min(...recent.map((candle) => candle.low));
+                const swingHigh = Math.max(...recent.map((candle) => candle.high));
 
                 const longSetup = preferredSide === "LONG"
                     && prev.low <= ema20 * 1.003
@@ -916,25 +1021,25 @@
                 let hit = false;
 
                 for (let j = i + 1; j < Math.min(c15.length, i + 9); j += 1) {
-                    const f = c15[j];
+                    const future = c15[j];
                     if (side === "LONG") {
-                        if (f.low <= stop) {
+                        if (future.low <= stop) {
                             realizedR = -1;
                             hit = true;
                             break;
                         }
-                        if (f.high >= tp2) {
+                        if (future.high >= tp2) {
                             realizedR = 2;
                             hit = true;
                             break;
                         }
                     } else {
-                        if (f.high >= stop) {
+                        if (future.high >= stop) {
                             realizedR = -1;
                             hit = true;
                             break;
                         }
-                        if (f.low <= tp2) {
+                        if (future.low <= tp2) {
                             realizedR = 2;
                             hit = true;
                             break;
@@ -959,7 +1064,7 @@
                 };
             }
 
-            const wins = results.filter((r) => r > 0).length;
+            const wins = results.filter((result) => result > 0).length;
             const ev = results.reduce((a, b) => a + b, 0) / results.length;
             return {
                 trades: results.length,
@@ -969,7 +1074,7 @@
             };
         }
 
-        function computePosition({ equity, riskPct, entry, stop, maxLeverage }) {
+        function computePosition({ equity, riskPct, entry, stop }) {
             const riskCapital = equity * (riskPct / 100);
             const distance = Math.abs(entry - stop);
             if (!Number.isFinite(riskCapital) || !Number.isFinite(distance) || distance <= 0) {
@@ -982,7 +1087,6 @@
                 qty,
                 notional,
                 needLev,
-                pass: needLev <= maxLeverage,
             };
         }
 
@@ -995,20 +1099,20 @@
 
             const tradable = new Set(
                 exchangeInfo.symbols
-                    .filter((s) => s.contractType === "PERPETUAL" && s.quoteAsset === "USDT" && s.status === "TRADING")
-                    .map((s) => s.symbol),
+                    .filter((symbolInfo) => symbolInfo.contractType === "PERPETUAL" && symbolInfo.quoteAsset === "USDT" && symbolInfo.status === "TRADING")
+                    .map((symbolInfo) => symbolInfo.symbol),
             );
 
-            const fundingMap = new Map(funding.map((f) => [f.symbol, Number(f.lastFundingRate || 0)]));
+            const fundingMap = new Map(funding.map((fundingRow) => [fundingRow.symbol, Number(fundingRow.lastFundingRate || 0)]));
 
             return tickers
-                .filter((t) => tradable.has(t.symbol))
-                .map((t) => ({
-                    symbol: t.symbol,
-                    lastPrice: Number(t.lastPrice),
-                    quoteVolume: Number(t.quoteVolume),
-                    priceChangePercent: Number(t.priceChangePercent),
-                    fundingRate: fundingMap.get(t.symbol) ?? 0,
+                .filter((ticker) => tradable.has(ticker.symbol))
+                .map((ticker) => ({
+                    symbol: ticker.symbol,
+                    lastPrice: Number(ticker.lastPrice),
+                    quoteVolume: Number(ticker.quoteVolume),
+                    priceChangePercent: Number(ticker.priceChangePercent),
+                    fundingRate: fundingMap.get(ticker.symbol) ?? 0,
                 }));
         }
 
@@ -1023,9 +1127,9 @@
             const btcTrend = trendStrength(btc);
             const ethTrend = trendStrength(eth);
 
-            const altUniverse = universe.filter((u) => u.symbol !== "BTCUSDT" && u.symbol !== "ETHUSDT");
-            const pos = altUniverse.filter((u) => u.priceChangePercent > 0).length;
-            const breadth = altUniverse.length ? (pos / altUniverse.length) * 100 : 50;
+            const altUniverse = universe.filter((item) => item.symbol !== "BTCUSDT" && item.symbol !== "ETHUSDT");
+            const positiveCount = altUniverse.filter((item) => item.priceChangePercent > 0).length;
+            const breadth = altUniverse.length ? (positiveCount / altUniverse.length) * 100 : 50;
             const avgFunding = altUniverse.reduce((a, b) => a + b.fundingRate, 0) / (altUniverse.length || 1);
 
             let bias = "NEUTRAL";
@@ -1055,7 +1159,7 @@
             const h4 = parseKlines(h4Raw);
             const h1 = parseKlines(h1Raw);
             const m15 = parseKlines(m15Raw);
-            const oi = Array.isArray(oiRaw) ? oiRaw.map((v) => Number(v.sumOpenInterestValue || v.sumOpenInterest || 0)) : [];
+            const oi = Array.isArray(oiRaw) ? oiRaw.map((value) => Number(value.sumOpenInterestValue || value.sumOpenInterest || 0)) : [];
 
             if ([d1, h4, h1, m15].some((arr) => arr.length < 120)) return null;
 
@@ -1071,15 +1175,15 @@
             const trigger = calcPullbackTrigger(m15, preferredSide);
             if (!trigger) return null;
 
-            const rowU = universeMap.get(symbol);
-            const rsValue = rowU?.priceChangePercent ?? 0;
-            const rsPopulation = Array.from(universeMap.values()).map((u) => u.priceChangePercent);
+            const universeRow = universeMap.get(symbol);
+            const rsValue = universeRow?.priceChangePercent ?? 0;
+            const rsPopulation = Array.from(universeMap.values()).map((item) => item.priceChangePercent);
             const rsZ = zScore(rsValue, rsPopulation);
 
             const oiNow = oi[oi.length - 1] ?? 0;
             const oiPast = oi[Math.max(0, oi.length - 13)] ?? oi[0] ?? 0;
             const oiChange12h = oiPast > 0 ? ((oiNow - oiPast) / oiPast) * 100 : 0;
-            const funding = rowU?.fundingRate ?? 0;
+            const funding = universeRow?.fundingRate ?? 0;
 
             const bt = miniBacktest(m15, preferredSide, settings.precisionLookback);
             if (bt.trades < 6) return null;
@@ -1104,15 +1208,14 @@
 
             if (score < settings.minScore) return null;
 
-            const pos = computePosition({
+            const position = computePosition({
                 equity: settings.equity,
                 riskPct: settings.riskPct,
                 entry: trigger.entry,
                 stop: trigger.stop,
-                maxLeverage: settings.maxLeverage,
             });
 
-            if (!Number.isFinite(pos.needLev) || pos.needLev > settings.maxLeverage) return null;
+            if (!Number.isFinite(position.needLev) || position.needLev > settings.maxLeverage) return null;
             if (bt.ev <= -0.05) return null;
 
             const reasons = [
@@ -1133,9 +1236,9 @@
                 tp1: trigger.tp1,
                 tp2: trigger.tp2,
                 riskPct: trigger.riskPct,
-                needLev: pos.needLev,
-                qty: pos.qty,
-                notional: pos.notional,
+                needLev: position.needLev,
+                qty: position.qty,
+                notional: position.notional,
                 ev: bt.ev,
                 winRate: bt.winRate,
                 rsZ,
@@ -1143,7 +1246,7 @@
                 funding,
                 trendText: `${dTrend.score.toFixed(0)}/${h4Trend.score.toFixed(0)}/${h1Trend.score.toFixed(0)}`,
                 volumeMultiple: trigger.volumeMultiple,
-                quoteVolume: rowU?.quoteVolume ?? 0,
+                quoteVolume: universeRow?.quoteVolume ?? 0,
                 reason: reasons,
             };
         }
@@ -1191,33 +1294,34 @@
                 },
             ];
 
-            badges.forEach((b) => {
+            badges.forEach((badge) => {
                 const span = document.createElement("span");
-                span.className = `badge ${b.cls}`;
-                span.textContent = b.text;
+                span.className = `badge ${badge.cls}`;
+                span.textContent = badge.text;
                 el.regimeBadges.appendChild(span);
             });
             el.regimeSummary.textContent = regime.summary;
         }
 
         function renderMetrics(rows) {
-            const metrics = [];
             const top = rows.slice(0, 10);
             const avgScore = top.length ? top.reduce((a, b) => a + b.score, 0) / top.length : 0;
             const avgEv = top.length ? top.reduce((a, b) => a + b.ev, 0) / top.length : 0;
             const avgWin = top.length ? top.reduce((a, b) => a + b.winRate, 0) / top.length : 0;
             const avgLev = top.length ? top.reduce((a, b) => a + b.needLev, 0) / top.length : 0;
 
-            metrics.push({ k: "Top10 Avg Score", v: avgScore.toFixed(1), s: "상위 10개 평균 점수" });
-            metrics.push({ k: "Top10 Avg EV", v: `${avgEv.toFixed(2)}R`, s: "상위 10개 최근 기대값" });
-            metrics.push({ k: "Top10 Avg Win", v: `${avgWin.toFixed(1)}%`, s: "상위 10개 최근 승률" });
-            metrics.push({ k: "Top10 Avg Lev", v: `${avgLev.toFixed(2)}x`, s: "상위 10개 필요 레버리지" });
+            const metrics = [
+                { k: "Top10 Avg Score", v: avgScore.toFixed(1), s: "상위 10개 평균 점수" },
+                { k: "Top10 Avg EV", v: `${avgEv.toFixed(2)}R`, s: "상위 10개 최근 기대값" },
+                { k: "Top10 Avg Win", v: `${avgWin.toFixed(1)}%`, s: "상위 10개 최근 승률" },
+                { k: "Top10 Avg Lev", v: `${avgLev.toFixed(2)}x`, s: "상위 10개 필요 레버리지" },
+            ];
 
-            el.metricGrid.innerHTML = metrics.map((m) => `
+            el.metricGrid.innerHTML = metrics.map((metric) => `
                 <div class="metric">
-                    <div class="k">${m.k}</div>
-                    <div class="v">${m.v}</div>
-                    <div class="s">${m.s}</div>
+                    <div class="k">${metric.k}</div>
+                    <div class="v">${metric.v}</div>
+                    <div class="s">${metric.s}</div>
                 </div>
             `).join("");
         }
@@ -1230,32 +1334,32 @@
                 return;
             }
 
-            el.resultBody.innerHTML = rows.map((r, i) => {
-                const sideCls = r.side === "LONG" ? "good-text" : "bad-text";
-                const evCls = r.ev >= 0 ? "good-text" : "bad-text";
-                const levCls = r.needLev <= 4 ? "good-text" : r.needLev <= 8 ? "warn-text" : "bad-text";
+            el.resultBody.innerHTML = rows.map((row, index) => {
+                const sideClass = row.side === "LONG" ? "good-text" : "bad-text";
+                const evClass = row.ev >= 0 ? "good-text" : "bad-text";
+                const levClass = row.needLev <= 4 ? "good-text" : row.needLev <= 8 ? "warn-text" : "bad-text";
                 return `
                     <tr>
-                        <td>${i + 1}</td>
-                        <td class="mono">${r.symbol}</td>
-                        <td class="${sideCls}">${r.side}</td>
-                        <td><strong>${fmt(r.score, 1)}</strong></td>
-                        <td class="mono">${fmt(r.entry, 6)}</td>
-                        <td class="mono">${fmt(r.stop, 6)}</td>
-                        <td class="mono">${fmt(r.tp1, 6)}</td>
-                        <td class="mono">${fmt(r.tp2, 6)}</td>
-                        <td>${pct(r.riskPct, 2)}</td>
-                        <td class="${levCls}">${fmt(r.needLev, 2)}x</td>
-                        <td class="mono">${fmt(r.qty, 4)}</td>
-                        <td class="${evCls}">${fmt(r.ev, 2)}R</td>
-                        <td>${pct(r.winRate, 1)}</td>
-                        <td>${fmt(r.rsZ, 2)}</td>
-                        <td>${pct(r.oiChange12h, 2)}</td>
-                        <td>${pct(r.funding * 100, 4)}</td>
-                        <td>${r.trendText}</td>
-                        <td>${fmt(r.volumeMultiple, 2)}x</td>
-                        <td>${fmtCompact(r.quoteVolume)}</td>
-                        <td class="small">${r.reason}</td>
+                        <td>${index + 1}</td>
+                        <td class="mono">${row.symbol}</td>
+                        <td class="${sideClass}">${row.side}</td>
+                        <td><strong>${fmt(row.score, 1)}</strong></td>
+                        <td class="mono">${fmt(row.entry, 6)}</td>
+                        <td class="mono">${fmt(row.stop, 6)}</td>
+                        <td class="mono">${fmt(row.tp1, 6)}</td>
+                        <td class="mono">${fmt(row.tp2, 6)}</td>
+                        <td>${pct(row.riskPct, 2)}</td>
+                        <td class="${levClass}">${fmt(row.needLev, 2)}x</td>
+                        <td class="mono">${fmt(row.qty, 4)}</td>
+                        <td class="${evClass}">${fmt(row.ev, 2)}R</td>
+                        <td>${pct(row.winRate, 1)}</td>
+                        <td>${fmt(row.rsZ, 2)}</td>
+                        <td>${pct(row.oiChange12h, 2)}</td>
+                        <td>${pct(row.funding * 100, 4)}</td>
+                        <td>${row.trendText}</td>
+                        <td>${fmt(row.volumeMultiple, 2)}x</td>
+                        <td>${fmtCompact(row.quoteVolume)}</td>
+                        <td class="small">${row.reason}</td>
                     </tr>
                 `;
             }).join("");
@@ -1267,42 +1371,43 @@
             const headers = [
                 "rank","symbol","side","score","entry","stop","tp1","tp2","riskPct","needLev","qty","notional","ev","winRate","rsZ","oiChange12h","fundingPct","trend","volumeMultiple","quoteVolume","reason"
             ];
-            const lines = rows.map((r, i) => [
-                i + 1,
-                r.symbol,
-                r.side,
-                r.score,
-                r.entry,
-                r.stop,
-                r.tp1,
-                r.tp2,
-                r.riskPct,
-                r.needLev,
-                r.qty,
-                r.notional,
-                r.ev,
-                r.winRate,
-                r.rsZ,
-                r.oiChange12h,
-                r.funding * 100,
-                r.trendText,
-                r.volumeMultiple,
-                r.quoteVolume,
-                `"${String(r.reason).replaceAll('"', '""')}"`,
+            const lines = rows.map((row, index) => [
+                index + 1,
+                row.symbol,
+                row.side,
+                row.score,
+                row.entry,
+                row.stop,
+                row.tp1,
+                row.tp2,
+                row.riskPct,
+                row.needLev,
+                row.qty,
+                row.notional,
+                row.ev,
+                row.winRate,
+                row.rsZ,
+                row.oiChange12h,
+                row.funding * 100,
+                row.trendText,
+                row.volumeMultiple,
+                row.quoteVolume,
+                `"${String(row.reason).replaceAll('"', '""')}"`,
             ].join(","));
-            return [headers.join(","), ...lines].join("\n");
+            return [headers.join(","), ...lines].join("
+");
         }
 
         function downloadCSV() {
             const csv = rowsToCSV(state.rows);
             const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `binance_quant_scan_${Date.now()}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = `binance_quant_scan_${Date.now()}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
             URL.revokeObjectURL(url);
         }
 
@@ -1315,20 +1420,16 @@
             el.concurrency.value = 4;
             el.equity.value = 1000;
             el.riskPct.value = 0.75;
+            el.autoSchedule.value = "15m";
+            el.autoDelaySec.value = 8;
+            el.customMinutes.value = 15;
+            el.notifyMode.value = "top3";
             el.symbolAllowlist.value = "";
+            refreshAutoPreview();
         }
 
-        async function runScan() {
-            if (el.scanBtn.disabled) return;
-            state.stop = false;
-            state.rows = [];
-            renderRows([]);
-            setProgress(0);
-            el.scanBtn.disabled = true;
-            el.stopBtn.disabled = false;
-            el.csvBtn.disabled = true;
-
-            const settings = {
+        function getSettings() {
+            return {
                 minNotional: Number(el.minNotional.value),
                 topN: Math.max(1, Number(el.topN.value)),
                 minScore: Number(el.minScore.value),
@@ -1338,47 +1439,267 @@
                 equity: Number(el.equity.value),
                 riskPct: Number(el.riskPct.value),
                 allowlist: parseAllowlist(el.symbolAllowlist.value),
+                autoSchedule: el.autoSchedule.value,
+                autoDelaySec: Math.max(0, Number(el.autoDelaySec.value) || 0),
+                customMinutes: Math.max(1, Number(el.customMinutes.value) || 1),
+                notifyMode: el.notifyMode.value,
             };
+        }
+
+        function getNextRunDate(settings) {
+            const now = new Date();
+            const delayMs = settings.autoDelaySec * 1000;
+
+            if (settings.autoSchedule === "15m") {
+                const next = new Date(now);
+                next.setSeconds(0, 0);
+                const minute = next.getMinutes();
+                const nextMinute = Math.floor(minute / 15) * 15 + 15;
+                if (nextMinute >= 60) {
+                    next.setHours(next.getHours() + 1, 0, 0, 0);
+                } else {
+                    next.setMinutes(nextMinute, 0, 0);
+                }
+                return new Date(next.getTime() + delayMs);
+            }
+
+            if (settings.autoSchedule === "1h") {
+                const next = new Date(now);
+                next.setMinutes(0, 0, 0);
+                next.setHours(next.getHours() + 1);
+                return new Date(next.getTime() + delayMs);
+            }
+
+            if (settings.autoSchedule === "custom") {
+                return new Date(now.getTime() + settings.customMinutes * 60 * 1000);
+            }
+
+            return null;
+        }
+
+        function stopAutoTicker() {
+            if (state.autoTickId) {
+                clearInterval(state.autoTickId);
+                state.autoTickId = null;
+            }
+        }
+
+        function updateNextRunText() {
+            if (!state.autoEnabled || !(state.nextRunAt instanceof Date)) {
+                el.nextRunText.textContent = "다음 자동 스캔 없음";
+                return;
+            }
+            const remain = state.nextRunAt.getTime() - Date.now();
+            el.nextRunText.textContent = `다음 자동 스캔: ${formatDateTime(state.nextRunAt)} · 남은 시간 ${formatCountdown(remain)}`;
+        }
+
+        function startAutoTicker() {
+            stopAutoTicker();
+            updateNextRunText();
+            state.autoTickId = setInterval(updateNextRunText, 1000);
+        }
+
+        function refreshAutoPreview() {
+            const settings = getSettings();
+            if (!state.autoEnabled) {
+                const previewDate = getNextRunDate(settings);
+                const previewText = previewDate
+                    ? `${getAutoModeText(settings.autoSchedule)} 예정: ${formatDateTime(previewDate)}`
+                    : "다음 자동 스캔 없음";
+                el.nextRunText.textContent = previewText;
+                el.autoStatusText.textContent = `자동 스캔 꺼짐 · 알림 ${settings.notifyMode === "off" ? "OFF" : getNotificationPermissionText()}`;
+                return;
+            }
+            updateNextRunText();
+        }
+
+        function clearAutoTimer() {
+            if (state.autoTimerId) {
+                clearTimeout(state.autoTimerId);
+                state.autoTimerId = null;
+            }
+        }
+
+        async function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                setAutoStatus("이 브라우저는 Notification API를 지원하지 않습니다.");
+                return;
+            }
+            try {
+                const permission = await Notification.requestPermission();
+                setAutoStatus(`알림 권한 상태: ${permission}`);
+                refreshAutoPreview();
+            } catch (error) {
+                setAutoStatus(`알림 권한 요청 실패: ${String(error?.message || error)}`);
+            }
+        }
+
+        function maybeSendNotification(rows, triggerSource) {
+            const settings = getSettings();
+            if (settings.notifyMode === "off") return;
+            if (!rows.length) return;
+            if (!("Notification" in window)) return;
+            if (Notification.permission !== "granted") return;
+            if (triggerSource !== "AUTO" && !document.hidden) return;
+
+            const topRows = rows.slice(0, 3);
+            const signature = topRows.map((row) => `${row.symbol}:${row.side}:${Math.round(row.score)}`).join("|");
+            const now = Date.now();
+            if (signature === state.lastNotificationSignature && now - state.lastNotificationAt < 10 * 60 * 1000) {
+                return;
+            }
+
+            state.lastNotificationSignature = signature;
+            state.lastNotificationAt = now;
+
+            const summary = topRows
+                .map((row) => `${row.symbol} ${row.side} ${row.score.toFixed(1)}`)
+                .join(" / ");
 
             try {
-                setStatus("유니버스 로딩 중… exchangeInfo / ticker / funding");
+                const notice = new Notification(`스캐너 결과 ${rows.length}개`, {
+                    body: summary,
+                    tag: "binance-quant-scanner",
+                    renotify: true,
+                });
+                notice.onclick = () => {
+                    window.focus();
+                    notice.close();
+                };
+            } catch (error) {
+                setAutoStatus(`알림 전송 실패: ${String(error?.message || error)}`);
+            }
+        }
+
+        function scheduleNextAutoScan() {
+            clearAutoTimer();
+            stopAutoTicker();
+
+            if (!state.autoEnabled) {
+                state.nextRunAt = null;
+                refreshAutoPreview();
+                return;
+            }
+
+            const settings = getSettings();
+            if (settings.autoSchedule === "off") {
+                state.autoEnabled = false;
+                el.autoStartBtn.disabled = false;
+                el.autoStopBtn.disabled = true;
+                state.nextRunAt = null;
+                setAutoStatus("자동 스캔이 꺼져 있습니다.");
+                refreshAutoPreview();
+                return;
+            }
+
+            const nextRunDate = getNextRunDate(settings);
+            if (!(nextRunDate instanceof Date)) {
+                state.autoEnabled = false;
+                el.autoStartBtn.disabled = false;
+                el.autoStopBtn.disabled = true;
+                state.nextRunAt = null;
+                setAutoStatus("자동 스캔 스케줄 계산에 실패했습니다.");
+                refreshAutoPreview();
+                return;
+            }
+
+            state.nextRunAt = nextRunDate;
+            setAutoStatus(`자동 스캔 실행 중 · 주기 ${getAutoModeText(settings.autoSchedule)} · 알림 ${settings.notifyMode === "off" ? "OFF" : getNotificationPermissionText()}`);
+            startAutoTicker();
+
+            const delay = Math.max(500, nextRunDate.getTime() - Date.now());
+            state.autoTimerId = setTimeout(async () => {
+                if (!state.autoEnabled) return;
+                if (state.runningScan) {
+                    scheduleNextAutoScan();
+                    return;
+                }
+                await runScan("AUTO");
+                if (state.autoEnabled) {
+                    scheduleNextAutoScan();
+                }
+            }, delay);
+        }
+
+        function startAutoScan() {
+            const settings = getSettings();
+            if (settings.autoSchedule === "off") {
+                setAutoStatus("자동 스캔 주기를 먼저 15분봉, 1시간봉, 사용자 지정 중 하나로 바꿔주세요.");
+                return;
+            }
+            state.autoEnabled = true;
+            el.autoStartBtn.disabled = true;
+            el.autoStopBtn.disabled = false;
+            scheduleNextAutoScan();
+        }
+
+        function stopAutoScan() {
+            state.autoEnabled = false;
+            clearAutoTimer();
+            stopAutoTicker();
+            state.nextRunAt = null;
+            el.autoStartBtn.disabled = false;
+            el.autoStopBtn.disabled = true;
+            setAutoStatus(`자동 스캔 꺼짐 · 알림 ${getSettings().notifyMode === "off" ? "OFF" : getNotificationPermissionText()}`);
+            refreshAutoPreview();
+        }
+
+        async function runScan(triggerSource = "MANUAL") {
+            if (state.runningScan) {
+                setStatus("이미 스캔이 실행 중입니다.");
+                return;
+            }
+
+            state.stop = false;
+            state.rows = [];
+            state.runningScan = true;
+            renderRows([]);
+            setProgress(0);
+            el.scanBtn.disabled = true;
+            el.stopBtn.disabled = false;
+            el.csvBtn.disabled = true;
+
+            const settings = getSettings();
+
+            try {
+                setStatus(`${triggerSource === "AUTO" ? "자동" : "수동"} 스캔 시작 · 유니버스 로딩 중… exchangeInfo / ticker / funding`);
                 const universe = await getUniverse();
                 if (state.stop) throw new Error("사용자 중단");
 
-                let filtered = universe.filter((u) => u.quoteVolume >= settings.minNotional);
+                let filtered = universe.filter((item) => item.quoteVolume >= settings.minNotional);
                 if (settings.allowlist.length) {
-                    const set = new Set(settings.allowlist);
-                    filtered = filtered.filter((u) => set.has(u.symbol));
+                    const allowSet = new Set(settings.allowlist);
+                    filtered = filtered.filter((item) => allowSet.has(item.symbol));
                 }
                 filtered.sort((a, b) => b.quoteVolume - a.quoteVolume);
                 filtered = filtered.slice(0, settings.topN);
 
                 if (!filtered.length) throw new Error("조건에 맞는 유니버스가 없습니다.");
-                const universeMap = new Map(universe.map((u) => [u.symbol, u]));
+                const universeMap = new Map(universe.map((item) => [item.symbol, item]));
 
                 setProgress(12);
-                setStatus(`시장 국면 분석 중… 후보 ${filtered.length}개`);
+                setStatus(`${triggerSource === "AUTO" ? "자동" : "수동"} 스캔 · 시장 국면 분석 중… 후보 ${filtered.length}개`);
                 const regime = await getRegime(universe);
                 state.regime = regime;
                 renderRegime(regime);
 
                 setProgress(18);
-                setStatus(`심층 분석 시작… ${filtered.length}개 종목`);
+                setStatus(`${triggerSource === "AUTO" ? "자동" : "수동"} 스캔 · 심층 분석 시작… ${filtered.length}개 종목`);
 
                 let completed = 0;
                 const outputs = await mapLimit(filtered, settings.concurrency, async (item) => {
                     const row = await analyzeSymbol(item.symbol, universeMap, settings, regime);
                     completed += 1;
-                    const pctValue = 18 + (completed / filtered.length) * 78;
-                    setProgress(pctValue);
-                    setStatus(`분석 중… ${completed}/${filtered.length} · ${item.symbol}`);
+                    const progressValue = 18 + (completed / filtered.length) * 78;
+                    setProgress(progressValue);
+                    setStatus(`${triggerSource === "AUTO" ? "자동" : "수동"} 스캔 · 분석 중… ${completed}/${filtered.length} · ${item.symbol}`);
                     return row;
                 });
 
                 if (state.stop) throw new Error("사용자 중단");
 
                 const rows = outputs
-                    .filter((r) => r && !r.__error)
+                    .filter((row) => row && !row.__error)
                     .sort((a, b) => {
                         if (b.score !== a.score) return b.score - a.score;
                         return b.ev - a.ev;
@@ -1387,28 +1708,60 @@
                 state.rows = rows;
                 renderRows(rows);
                 setProgress(100);
-                setStatus(`완료 · 후보 ${rows.length}개 / 국면 ${regime.bias} / 상위 ${rows[0]?.symbol || "없음"}`);
+                setStatus(`${triggerSource === "AUTO" ? "자동" : "수동"} 스캔 완료 · 후보 ${rows.length}개 / 국면 ${regime.bias} / 상위 ${rows[0]?.symbol || "없음"}`);
+                maybeSendNotification(rows, triggerSource);
             } catch (error) {
-                const msg = String(error?.message || error);
-                setStatus(`오류: ${msg}`);
+                const message = String(error?.message || error);
+                setStatus(`오류: ${message}`);
                 if (!state.rows.length) renderRows([]);
             } finally {
+                state.runningScan = false;
                 el.scanBtn.disabled = false;
                 el.stopBtn.disabled = true;
             }
         }
 
-        el.scanBtn.addEventListener("click", runScan);
+        el.scanBtn.addEventListener("click", () => runScan("MANUAL"));
         el.stopBtn.addEventListener("click", () => {
             state.stop = true;
             setStatus("중단 요청됨… 진행 중 작업 정리 후 멈춥니다.");
             el.stopBtn.disabled = true;
         });
+        el.autoStartBtn.addEventListener("click", startAutoScan);
+        el.autoStopBtn.addEventListener("click", stopAutoScan);
+        el.notifyPermBtn.addEventListener("click", requestNotificationPermission);
         el.sampleBtn.addEventListener("click", loadSamples);
         el.csvBtn.addEventListener("click", downloadCSV);
 
+        [
+            el.autoSchedule,
+            el.autoDelaySec,
+            el.customMinutes,
+            el.notifyMode,
+        ].forEach((node) => {
+            node.addEventListener("change", () => {
+                if (state.autoEnabled) {
+                    scheduleNextAutoScan();
+                } else {
+                    refreshAutoPreview();
+                }
+            });
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                document.title = "Binance USDT Perp Quant Scanner v2";
+            }
+        });
+
+        window.addEventListener("beforeunload", () => {
+            clearAutoTimer();
+            stopAutoTicker();
+        });
+
         loadSamples();
         renderMetrics([]);
+        refreshAutoPreview();
     </script>
 </body>
 </html>
