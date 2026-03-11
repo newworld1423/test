@@ -26,7 +26,8 @@
             box-sizing: border-box;
         }
 
-        html, body {
+        html,
+        body {
             margin: 0;
             padding: 0;
             background: var(--bg);
@@ -85,14 +86,6 @@
 
         .grid.cols-5 {
             grid-template-columns: repeat(5, minmax(0, 1fr));
-        }
-
-        .grid.cols-4 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
-
-        .grid.cols-3 {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .field {
@@ -306,8 +299,8 @@
     <div class="wrap">
         <h1 class="title">Binance USDT 무기한 선물 전체 15분봉 스캐너</h1>
         <p class="desc">
-            모든 USDT 무기한 선물의 <strong>모든 닫힌 15분봉</strong>을 수집해서 각 봉의 상승률, 다음봉 시가→종가 수익률,
-            심볼별 역대 최저점(ATL) 기준 권장 레버리지를 저장합니다.
+            모든 USDT 무기한 선물의 <strong>상장 이후부터 현재까지의 모든 닫힌 15분봉</strong>을 수집해서
+            각 봉의 상승률, 다음봉 시가→종가 수익률, 심볼별 역대 최저점(ATL) 기준 권장 레버리지를 저장합니다.
             <br />
             데이터는 브라우저 <strong>IndexedDB</strong>에 저장되며, 표에는 상위 일부만 렌더링하고 CSV 전체 내보내기도 가능합니다.
         </p>
@@ -319,11 +312,11 @@
                     <input id="delayMs" class="input mono" type="number" min="0" step="50" value="350" />
                 </label>
                 <label class="field">
-                    <span class="label">Kline LIMIT</span>
+                    <span class="label">요청당 Kline LIMIT</span>
                     <select id="klineLimit" class="select mono">
                         <option value="499">499</option>
                         <option value="1000">1000</option>
-                        <option value="1500">1500</option>
+                        <option value="1500" selected>1500</option>
                     </select>
                 </label>
                 <label class="field">
@@ -358,6 +351,7 @@
             </div>
 
             <div class="row" style="margin-top: 12px;">
+                <span class="pill">Kline LIMIT는 요청당 페이지 크기일 뿐 총 수집 개수 제한이 아님</span>
                 <span class="pill">CSV의 symbol 컬럼 기준으로 심볼 제외</span>
                 <span class="pill">전체 봉 데이터는 IndexedDB 저장</span>
                 <span class="pill">표는 성능상 상위 일부만 표시</span>
@@ -402,7 +396,8 @@
                 <div>
                     <h2 class="section-title">저장된 전체 봉 결과 조회</h2>
                     <div class="small" style="margin-top: 6px;">
-                        저장은 전체 봉을 다 하지만, 화면에는 설정한 개수만 표시합니다.
+                        저장은 전체 닫힌 15분봉을 다 하지만, 화면에는 설정한 개수만 표시합니다.
+                        마지막 닫힌 봉은 다음봉 종가가 아직 없을 수 있으므로 관련 칼럼이 비어 있을 수 있습니다.
                     </div>
                 </div>
                 <div id="tableSummary" class="small mono">rows: 0</div>
@@ -476,6 +471,8 @@
                     <div class="small" style="margin-top: 6px;">
                         조건: <strong>현재 15분봉 상승률 ≥ 임계치</strong> 일 때,
                         <strong>다음봉 시가 진입 → 다음봉 종가 청산</strong> 기준 통계
+                        <br />
+                        마지막 닫힌 봉처럼 다음봉 종가가 없는 행은 통계에서 자동 제외됩니다.
                     </div>
                 </div>
                 <div id="bestThresholdSummary" class="small mono">best threshold: -</div>
@@ -522,64 +519,12 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="row" style="justify-content: space-between; align-items: flex-end;">
-                <div>
-                    <h2 class="section-title">실시간 15분 후보 체크</h2>
-                    <div class="small" style="margin-top: 6px;">
-                        방금 막 닫힌 15분봉의 상승률이 설정 임계치 이상인 심볼만 추려서 보여줍니다.
-                        다음봉 시가 진입 가정용 참고용입니다.
-                    </div>
-                </div>
-                <div id="recentSummary" class="small mono">recent rows: 0</div>
-            </div>
-
-            <div class="grid cols-4" style="margin-top: 14px;">
-                <label class="field">
-                    <span class="label">실시간 체크 임계치(%)</span>
-                    <input id="recentThreshold" class="input mono" type="number" step="0.1" value="3" />
-                </label>
-                <label class="field">
-                    <span class="label">실시간 체크용 요청 지연(ms)</span>
-                    <input id="recentDelayMs" class="input mono" type="number" min="0" step="50" value="120" />
-                </label>
-                <label class="field">
-                    <span class="label">자동 반복</span>
-                    <select id="autoRecentMode" class="select">
-                        <option value="off">끄기</option>
-                        <option value="on">1분마다 체크</option>
-                    </select>
-                </label>
-                <label class="field">
-                    <span class="label">실시간 후보 조회</span>
-                    <button id="checkRecentBtn" class="btn secondary">지금 체크</button>
-                </label>
-            </div>
-
-            <div class="table-wrap">
-                <table class="medium-table">
-                    <thead>
-                        <tr>
-                            <th class="left">심볼</th>
-                            <th class="left">방금 닫힌 봉 시각(UTC)</th>
-                            <th>방금 닫힌 봉 상승률(%)</th>
-                            <th>현재 진행중 봉 시가</th>
-                            <th>역대 최저점</th>
-                            <th>ATL 여유폭(%)</th>
-                            <th>권장 레버리지</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recentTbody"></tbody>
-                </table>
-            </div>
-        </div>
-
         <div class="footer-space"></div>
     </div>
 
     <script>
         const API_BASE = "https://fapi.binance.com";
-        const DB_NAME = "binance_all_15m_scanner_v3";
+        const DB_NAME = "binance_all_15m_scanner_v4";
         const DB_VERSION = 1;
         const META_EXCLUDED = "excludedSymbols";
         const META_SCANNED = "scannedSymbols";
@@ -627,13 +572,6 @@
             analyzeStatsBtn: document.getElementById("analyzeStatsBtn"),
             statsTbody: document.getElementById("statsTbody"),
             bestThresholdSummary: document.getElementById("bestThresholdSummary"),
-
-            recentThreshold: document.getElementById("recentThreshold"),
-            recentDelayMs: document.getElementById("recentDelayMs"),
-            autoRecentMode: document.getElementById("autoRecentMode"),
-            checkRecentBtn: document.getElementById("checkRecentBtn"),
-            recentSummary: document.getElementById("recentSummary"),
-            recentTbody: document.getElementById("recentTbody"),
         };
 
         const runtime = {
@@ -644,14 +582,12 @@
             nextRequestAt: 0,
             currentAllSymbols: [],
             currentStats: [],
-            recentRows: [],
-            autoRecentTimerId: null,
         };
 
         function getSettings() {
             return {
                 delayMs: Math.max(0, Number(els.delayMs.value) || 0),
-                klineLimit: Number(els.klineLimit.value) || 499,
+                klineLimit: Number(els.klineLimit.value) || 1500,
                 retryCount: Math.max(0, Number(els.retryCount.value) || 0),
                 baseBackoffMs: Math.max(1000, Number(els.baseBackoffMs.value) || 6000),
                 symbolCooldownMs: Math.max(0, Number(els.symbolCooldownMs.value) || 0),
@@ -671,10 +607,6 @@
 
         function sleep(ms) {
             return new Promise((resolve) => setTimeout(resolve, ms));
-        }
-
-        function toNumber(value, fallback = 0) {
-            return Number.isFinite(Number(value)) ? Number(value) : fallback;
         }
 
         function formatNumber(value, digits = 8) {
@@ -822,19 +754,6 @@
             });
         }
 
-        function idbClearStore(storeName) {
-            return openDb().then((db) => {
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(storeName, "readwrite");
-                    const store = tx.objectStore(storeName);
-                    store.clear();
-
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error || new Error("idb clear error"));
-                });
-            });
-        }
-
         function deleteDatabase() {
             return new Promise((resolve, reject) => {
                 if (runtime.db) {
@@ -950,7 +869,7 @@
                 .sort((a, b) => a.localeCompare(b));
         }
 
-        async function fetchAllClosedKlines(symbol) {
+        async function fetchAllKlines(symbol) {
             const settings = getSettings();
             const allRows = [];
             let startTime = 0;
@@ -988,24 +907,32 @@
 
                 const last = chunk[chunk.length - 1];
                 const lastCloseTime = Number(last?.[6]);
+
+                if (!Number.isFinite(lastCloseTime)) {
+                    break;
+                }
+
                 startTime = lastCloseTime + 1;
                 page += 1;
             }
 
-            const now = Date.now();
-            return allRows.filter((row) => Number(row?.[6]) <= now);
+            return allRows;
         }
 
-        function buildCandleRecords(symbol, rows) {
-            if (!Array.isArray(rows) || rows.length < 2) {
+        function buildCandleRecords(symbol, allRows) {
+            const now = Date.now();
+            const closedCount = allRows.filter((row) => Number(row?.[6]) <= now).length;
+            const closedRows = allRows.slice(0, closedCount);
+
+            if (closedRows.length === 0) {
                 return {
                     records: [],
                     symbolSummary: {
                         symbol,
                         allTimeLow: null,
-                        totalClosedCandles: rows.length,
-                        firstOpenTime: rows[0] ? Number(rows[0][0]) : null,
-                        lastOpenTime: rows[rows.length - 1] ? Number(rows[rows.length - 1][0]) : null,
+                        totalClosedCandles: 0,
+                        firstOpenTime: null,
+                        lastOpenTime: null,
                         lastScannedAt: Date.now(),
                     },
                 };
@@ -1014,58 +941,79 @@
             const settings = getSettings();
             let atl = Infinity;
 
-            for (const row of rows) {
-                const low = Number(row[3]);
+            for (const row of closedRows) {
+                const low = Number(row?.[3]);
                 if (Number.isFinite(low) && low < atl) {
                     atl = low;
                 }
             }
 
             const safeAtl = Number.isFinite(atl) ? atl : null;
-            const totalClosedCandles = rows.length;
+            const totalClosedCandles = closedRows.length;
             const records = [];
 
-            for (let i = 0; i < rows.length - 1; i += 1) {
-                const current = rows[i];
-                const next = rows[i + 1];
+            for (let i = 0; i < closedCount; i += 1) {
+                const current = allRows[i];
+                const next = allRows[i + 1] || null;
 
-                const openTime = Number(current[0]);
-                const candleOpen = Number(current[1]);
-                const candleHigh = Number(current[2]);
-                const candleLow = Number(current[3]);
-                const candleClose = Number(current[4]);
+                const openTime = Number(current?.[0]);
+                const candleOpen = Number(current?.[1]);
+                const candleHigh = Number(current?.[2]);
+                const candleLow = Number(current?.[3]);
+                const candleClose = Number(current?.[4]);
 
-                const nextOpenTime = Number(next[0]);
-                const nextCandleOpen = Number(next[1]);
-                const nextCandleClose = Number(next[4]);
-
-                if (![
-                    openTime,
-                    candleOpen,
-                    candleHigh,
-                    candleLow,
-                    candleClose,
-                    nextOpenTime,
-                    nextCandleOpen,
-                    nextCandleClose,
-                ].every(Number.isFinite)) {
+                if (![openTime, candleOpen, candleHigh, candleLow, candleClose].every(Number.isFinite)) {
                     continue;
                 }
 
-                if (candleOpen <= 0 || nextCandleOpen <= 0) {
+                if (candleOpen <= 0) {
                     continue;
                 }
 
                 const candlePct = ((candleClose - candleOpen) / candleOpen) * 100;
-                const nextCandlePct = ((nextCandleClose - nextCandleOpen) / nextCandleOpen) * 100;
-                const atlGapPct = safeAtl != null ? ((nextCandleOpen - safeAtl) / nextCandleOpen) * 100 : null;
 
+                let nextOpenTime = null;
+                let nextOpenTimeUtc = "";
+                let nextCandleOpen = null;
+                let nextCandleClose = null;
+                let nextCandlePct = null;
+
+                if (next) {
+                    const candidateNextOpenTime = Number(next?.[0]);
+                    const candidateNextOpen = Number(next?.[1]);
+                    const candidateNextClose = Number(next?.[4]);
+                    const candidateNextCloseTime = Number(next?.[6]);
+
+                    if (Number.isFinite(candidateNextOpenTime) && Number.isFinite(candidateNextOpen) && candidateNextOpen > 0) {
+                        nextOpenTime = candidateNextOpenTime;
+                        nextOpenTimeUtc = formatUtc(candidateNextOpenTime);
+                        nextCandleOpen = candidateNextOpen;
+                    }
+
+                    if (
+                        Number.isFinite(candidateNextClose)
+                        && Number.isFinite(candidateNextCloseTime)
+                        && candidateNextCloseTime <= now
+                        && Number.isFinite(candidateNextOpen)
+                        && candidateNextOpen > 0
+                    ) {
+                        nextCandleClose = candidateNextClose;
+                        nextCandlePct = ((candidateNextClose - candidateNextOpen) / candidateNextOpen) * 100;
+                    }
+                }
+
+                let atlGapPct = null;
                 let recommendedLeverage = null;
-                if (safeAtl != null) {
-                    if (safeAtl < nextCandleOpen) {
-                        const rawLev = nextCandleOpen / (nextCandleOpen - safeAtl);
+
+                const leverageBasePrice = Number.isFinite(nextCandleOpen) ? nextCandleOpen : candleClose;
+
+                if (safeAtl != null && Number.isFinite(leverageBasePrice) && leverageBasePrice > 0) {
+                    atlGapPct = ((leverageBasePrice - safeAtl) / leverageBasePrice) * 100;
+
+                    if (safeAtl < leverageBasePrice) {
+                        const rawLev = leverageBasePrice / (leverageBasePrice - safeAtl);
                         recommendedLeverage = Math.min(125, rawLev * settings.safetyFactor);
-                    } else if (safeAtl === nextCandleOpen) {
+                    } else if (safeAtl === leverageBasePrice) {
                         recommendedLeverage = 125;
                     } else {
                         recommendedLeverage = 0;
@@ -1083,7 +1031,7 @@
                     candleClose,
                     candlePct,
                     nextOpenTime,
-                    nextOpenTimeUtc: formatUtc(nextOpenTime),
+                    nextOpenTimeUtc,
                     nextCandleOpen,
                     nextCandleClose,
                     nextCandlePct,
@@ -1100,8 +1048,8 @@
                     symbol,
                     allTimeLow: safeAtl,
                     totalClosedCandles,
-                    firstOpenTime: Number(rows[0][0]),
-                    lastOpenTime: Number(rows[rows.length - 1][0]),
+                    firstOpenTime: Number(closedRows[0]?.[0]),
+                    lastOpenTime: Number(closedRows[closedRows.length - 1]?.[0]),
                     lastScannedAt: Date.now(),
                 },
             };
@@ -1115,7 +1063,7 @@
         }
 
         async function processSymbol(symbol) {
-            const rows = await fetchAllClosedKlines(symbol);
+            const rows = await fetchAllKlines(symbol);
             const { records, symbolSummary } = buildCandleRecords(symbol, rows);
 
             await putRecordsInBatches(records);
@@ -1178,7 +1126,6 @@
                 await countAllMeta();
 
                 const settings = getSettings();
-                let doneCount = scannedSet.size;
 
                 for (const symbol of runtime.currentAllSymbols) {
                     if (runtime.stopRequested) {
@@ -1200,8 +1147,6 @@
                         const result = await processSymbol(symbol);
                         scannedSet.add(symbol);
                         await setScannedSymbolsSet(scannedSet);
-
-                        doneCount += 1;
 
                         addLog(
                             `${symbol} 완료 | 저장 행 수 ${result.insertedRows} | 닫힌 봉 ${result.totalClosedCandles} | ATL ${result.allTimeLow != null ? formatNumber(result.allTimeLow, 8) : "-"}`
@@ -1234,16 +1179,6 @@
                 els.startScanBtn.disabled = false;
                 els.stopScanBtn.disabled = true;
             }
-        }
-
-        function openCursorPromise(req, handler) {
-            return new Promise((resolve, reject) => {
-                req.onsuccess = (event) => {
-                    const cursor = event.target.result;
-                    handler(cursor, resolve, reject);
-                };
-                req.onerror = () => reject(req.error || new Error("cursor error"));
-            });
         }
 
         async function getTopRowsFromDb() {
@@ -1290,9 +1225,12 @@
         async function renderTable() {
             const rows = await getTopRowsFromDb();
             els.tableSummary.textContent = `rows: ${rows.length}`;
+
             els.resultTbody.innerHTML = rows.map((row, index) => {
-                const candleClass = row.candlePct >= 0 ? "good" : "bad";
-                const nextClass = row.nextCandlePct >= 0 ? "good" : "bad";
+                const candleClass = Number(row.candlePct) >= 0 ? "good" : "bad";
+                const nextClass = Number.isFinite(row.nextCandlePct)
+                    ? (row.nextCandlePct >= 0 ? "good" : "bad")
+                    : "";
                 const atlClass = Number.isFinite(row.atlGapPct) && row.atlGapPct >= 0 ? "good" : "bad";
 
                 return `
@@ -1303,7 +1241,7 @@
                         <td class="mono">${escapeHtml(formatNumber(row.candleOpen, 8))}</td>
                         <td class="mono">${escapeHtml(formatNumber(row.candleClose, 8))}</td>
                         <td class="mono ${candleClass}">${escapeHtml(formatPct(row.candlePct, 4))}</td>
-                        <td class="left mono">${escapeHtml(row.nextOpenTimeUtc)}</td>
+                        <td class="left mono">${escapeHtml(row.nextOpenTimeUtc || "")}</td>
                         <td class="mono">${escapeHtml(formatNumber(row.nextCandleOpen, 8))}</td>
                         <td class="mono">${escapeHtml(formatNumber(row.nextCandleClose, 8))}</td>
                         <td class="mono ${nextClass}">${escapeHtml(formatPct(row.nextCandlePct, 4))}</td>
@@ -1378,16 +1316,24 @@
                         pointer -= 1;
                     }
 
+                    const nextPct = Number(row.nextCandlePct);
+
+                    if (!Number.isFinite(nextPct)) {
+                        cursor.continue();
+                        return;
+                    }
+
                     total += 1;
-                    if (row.nextCandlePct > 0) {
+
+                    if (nextPct > 0) {
                         wins += 1;
-                    } else if (row.nextCandlePct < 0) {
+                    } else if (nextPct < 0) {
                         losses += 1;
                     } else {
                         flats += 1;
                     }
-                    sumNextPct += Number(row.nextCandlePct) || 0;
 
+                    sumNextPct += nextPct;
                     cursor.continue();
                 };
 
@@ -1614,164 +1560,6 @@
             await countAllMeta();
         }
 
-        async function getAllSymbolSummariesMap() {
-            const db = await openDb();
-
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction("symbols", "readonly");
-                const store = tx.objectStore("symbols");
-                const req = store.openCursor();
-                const map = new Map();
-
-                req.onsuccess = (event) => {
-                    const cursor = event.target.result;
-                    if (!cursor) {
-                        resolve(map);
-                        return;
-                    }
-
-                    const row = cursor.value;
-                    map.set(row.symbol, row);
-                    cursor.continue();
-                };
-
-                req.onerror = () => reject(req.error || new Error("symbol cursor error"));
-            });
-        }
-
-        async function fetchRecentSignalCandidates() {
-            const threshold = Number(els.recentThreshold.value) || 0;
-            const recentDelayMs = Math.max(0, Number(els.recentDelayMs.value) || 0);
-
-            addLog(`실시간 후보 체크 시작 | threshold ${threshold}%`);
-
-            if (runtime.currentAllSymbols.length === 0) {
-                runtime.currentAllSymbols = await fetchExchangeInfo();
-            }
-
-            const summaryMap = await getAllSymbolSummariesMap();
-            const resultRows = [];
-
-            for (const symbol of runtime.currentAllSymbols) {
-                if (runtime.stopRequested) {
-                    throw new Error("STOP_REQUESTED");
-                }
-
-                const params = new URLSearchParams({
-                    symbol,
-                    interval: INTERVAL,
-                    limit: "3",
-                });
-
-                const url = `${API_BASE}/fapi/v1/klines?${params.toString()}`;
-                const rows = await fetchJsonWithRetry(url, `${symbol} recent`, recentDelayMs);
-
-                if (!Array.isArray(rows) || rows.length < 2) {
-                    continue;
-                }
-
-                const now = Date.now();
-                const last = rows[rows.length - 1];
-                const currentOpenCandle = Number(last?.[6]) > now ? last : null;
-                const justClosed = currentOpenCandle ? rows[rows.length - 2] : null;
-
-                if (!justClosed || !currentOpenCandle) {
-                    continue;
-                }
-
-                const closedOpenTime = Number(justClosed[0]);
-                const closedOpen = Number(justClosed[1]);
-                const closedClose = Number(justClosed[4]);
-                const entryOpen = Number(currentOpenCandle[1]);
-
-                if (![closedOpenTime, closedOpen, closedClose, entryOpen].every(Number.isFinite)) {
-                    continue;
-                }
-
-                if (closedOpen <= 0 || entryOpen <= 0) {
-                    continue;
-                }
-
-                const candlePct = ((closedClose - closedOpen) / closedOpen) * 100;
-                if (candlePct < threshold) {
-                    continue;
-                }
-
-                const summary = summaryMap.get(symbol);
-                const atl = Number(summary?.allTimeLow);
-                const atlGapPct = Number.isFinite(atl) ? ((entryOpen - atl) / entryOpen) * 100 : null;
-
-                let recommendedLeverage = null;
-                if (Number.isFinite(atl)) {
-                    const safetyFactor = getSettings().safetyFactor;
-                    if (atl < entryOpen) {
-                        recommendedLeverage = Math.min(125, (entryOpen / (entryOpen - atl)) * safetyFactor);
-                    } else if (atl === entryOpen) {
-                        recommendedLeverage = 125;
-                    } else {
-                        recommendedLeverage = 0;
-                    }
-                }
-
-                resultRows.push({
-                    symbol,
-                    closedTimeUtc: formatUtc(closedOpenTime),
-                    closedCandlePct: candlePct,
-                    entryOpen,
-                    allTimeLow: Number.isFinite(atl) ? atl : null,
-                    atlGapPct,
-                    recommendedLeverage,
-                });
-            }
-
-            resultRows.sort((a, b) => b.closedCandlePct - a.closedCandlePct);
-            runtime.recentRows = resultRows;
-            renderRecentRows();
-            addLog(`실시간 후보 체크 완료 | 후보 ${resultRows.length}개`);
-        }
-
-        function renderRecentRows() {
-            els.recentSummary.textContent = `recent rows: ${runtime.recentRows.length}`;
-
-            els.recentTbody.innerHTML = runtime.recentRows.map((row) => {
-                const pctClass = row.closedCandlePct >= 0 ? "good" : "bad";
-                const atlClass = Number.isFinite(row.atlGapPct) && row.atlGapPct >= 0 ? "good" : "bad";
-
-                return `
-                    <tr>
-                        <td class="left mono">${escapeHtml(row.symbol)}</td>
-                        <td class="left mono">${escapeHtml(row.closedTimeUtc)}</td>
-                        <td class="mono ${pctClass}">${escapeHtml(formatPct(row.closedCandlePct, 4))}</td>
-                        <td class="mono">${escapeHtml(formatNumber(row.entryOpen, 8))}</td>
-                        <td class="mono">${escapeHtml(formatNumber(row.allTimeLow, 8))}</td>
-                        <td class="mono ${atlClass}">${escapeHtml(formatPct(row.atlGapPct, 4))}</td>
-                        <td class="mono">${escapeHtml(Number.isFinite(row.recommendedLeverage) ? `${row.recommendedLeverage.toFixed(2)}x` : "")}</td>
-                    </tr>
-                `;
-            }).join("");
-        }
-
-        function setupAutoRecentMode() {
-            if (runtime.autoRecentTimerId) {
-                clearInterval(runtime.autoRecentTimerId);
-                runtime.autoRecentTimerId = null;
-            }
-
-            if (els.autoRecentMode.value !== "on") {
-                return;
-            }
-
-            runtime.autoRecentTimerId = setInterval(async () => {
-                if (runtime.running) return;
-
-                try {
-                    await fetchRecentSignalCandidates();
-                } catch (error) {
-                    addLog(`자동 실시간 체크 오류: ${String(error?.message || error)}`);
-                }
-            }, 60000);
-        }
-
         async function refreshEverything() {
             await countAllMeta();
             await renderTable();
@@ -1780,6 +1568,9 @@
             runtime.currentStats = stats;
             if (stats.length > 0) {
                 renderStats(stats);
+            } else {
+                els.statsTbody.innerHTML = "";
+                els.bestThresholdSummary.textContent = "best threshold: -";
             }
         }
 
@@ -1852,13 +1643,10 @@
                 addLog("DB 초기화 시작");
                 await deleteDatabase();
                 runtime.currentStats = [];
-                runtime.recentRows = [];
                 runtime.currentAllSymbols = [];
                 els.resultTbody.innerHTML = "";
                 els.statsTbody.innerHTML = "";
-                els.recentTbody.innerHTML = "";
                 els.bestThresholdSummary.textContent = "best threshold: -";
-                els.recentSummary.textContent = "recent rows: 0";
                 els.tableSummary.textContent = "rows: 0";
                 addLog("DB 초기화 완료");
                 await refreshEverything();
@@ -1881,23 +1669,9 @@
             }
         });
 
-        els.checkRecentBtn.addEventListener("click", async () => {
-            try {
-                await fetchRecentSignalCandidates();
-            } catch (error) {
-                addLog(`실시간 후보 체크 실패: ${String(error?.message || error)}`);
-            }
-        });
-
-        els.autoRecentMode.addEventListener("change", () => {
-            setupAutoRecentMode();
-            addLog(`자동 실시간 체크 ${els.autoRecentMode.value === "on" ? "시작" : "중지"}`);
-        });
-
         async function bootstrap() {
             addLog("초기화 시작");
             await refreshEverything();
-            setupAutoRecentMode();
             addLog("준비 완료");
         }
 
