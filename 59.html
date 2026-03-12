@@ -3,1345 +3,1019 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PERP SCANNER — Binance Futures</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>PERP SCANNER v2 — Binance Futures</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #080c10;
-    --surface: #0d1117;
-    --surface2: #161b22;
-    --border: #21262d;
-    --accent-long: #00e676;
-    --accent-short: #ff3d71;
-    --accent-blue: #00b4d8;
-    --accent-yellow: #ffd60a;
-    --text: #e6edf3;
-    --text-muted: #7d8590;
-    --text-dim: #3d444d;
-    --glow-long: rgba(0,230,118,0.15);
-    --glow-short: rgba(255,61,113,0.15);
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* Grid background */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,180,216,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,180,216,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 24px;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Header */
-  header {
-    padding: 28px 0 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .logo-icon {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-long));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Space Mono', monospace;
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--bg);
-    box-shadow: 0 0 20px rgba(0,180,216,0.4);
-  }
-
-  .logo-text h1 {
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-  }
-
-  .logo-text span {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: 'Space Mono', monospace;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
-
-  .header-status {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-
-  .live-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  .live-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--accent-long);
-    box-shadow: 0 0 8px var(--accent-long);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
-  }
-
-  .clock {
-    font-family: 'Space Mono', monospace;
-    font-size: 13px;
-    color: var(--text-muted);
-  }
-
-  /* Control Panel */
-  .control-panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    margin: 24px 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    align-items: end;
-  }
-
-  .ctrl-group label {
-    display: block;
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    font-family: 'Space Mono', monospace;
-  }
-
-  .ctrl-select, .ctrl-input {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    font-size: 13px;
-    padding: 10px 14px;
-    outline: none;
-    transition: border-color 0.2s;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-
-  .ctrl-select:focus, .ctrl-input:focus {
-    border-color: var(--accent-blue);
-    box-shadow: 0 0 0 3px rgba(0,180,216,0.1);
-  }
-
-  .scan-btn {
-    background: linear-gradient(135deg, var(--accent-blue), #0077b6);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 32px;
-    font-family: 'Syne', sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 1px;
-    transition: all 0.2s;
-    box-shadow: 0 4px 20px rgba(0,180,216,0.3);
-    width: 100%;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .scan-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 28px rgba(0,180,216,0.45);
-  }
-
-  .scan-btn:active { transform: translateY(0); }
-
-  .scan-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .scan-btn .spinner {
-    width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: none;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Stats bar */
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .stat-card::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--accent-blue);
-  }
-
-  .stat-card.long::after { background: var(--accent-long); }
-  .stat-card.short::after { background: var(--accent-short); }
-  .stat-card.warn::after { background: var(--accent-yellow); }
-
-  .stat-label {
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    font-family: 'Space Mono', monospace;
-    margin-bottom: 8px;
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  .stat-card.long .stat-value { color: var(--accent-long); }
-  .stat-card.short .stat-value { color: var(--accent-short); }
-  .stat-card.warn .stat-value { color: var(--accent-yellow); }
-
-  /* Strategy Legend */
-  .strategy-legend {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-  }
-
-  .legend-title {
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    font-family: 'Space Mono', monospace;
-    margin-right: 4px;
-  }
-
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-family: 'Space Mono', monospace;
-  }
-
-  .legend-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-  }
-
-  /* Results Table */
-  .results-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-  }
-
-  .results-header {
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .results-title {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    font-family: 'Space Mono', monospace;
-  }
-
-  .filter-tabs {
-    display: flex;
-    gap: 4px;
-    background: var(--surface2);
-    border-radius: 8px;
-    padding: 4px;
-  }
-
-  .filter-tab {
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    font-family: 'Space Mono', monospace;
-    cursor: pointer;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    transition: all 0.2s;
-    letter-spacing: 0.5px;
-  }
-
-  .filter-tab.active {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .filter-tab.long.active { color: var(--accent-long); border-color: var(--accent-long); }
-  .filter-tab.short.active { color: var(--accent-short); border-color: var(--accent-short); }
-
-  .table-wrap { overflow-x: auto; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-  }
-
-  thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  thead th:hover { color: var(--text); }
-
-  tbody tr {
-    border-bottom: 1px solid rgba(33,38,45,0.5);
-    transition: background 0.15s;
-    animation: rowIn 0.3s ease both;
-  }
-
-  tbody tr:hover { background: var(--surface2); }
-
-  @keyframes rowIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  td {
-    padding: 13px 16px;
-    white-space: nowrap;
-    vertical-align: middle;
-  }
-
-  .sym {
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--text);
-  }
-
-  .price {
-    color: var(--text);
-    font-weight: 700;
-  }
-
-  .chg-pos { color: var(--accent-long); }
-  .chg-neg { color: var(--accent-short); }
-
-  .signal-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-  }
-
-  .signal-badge.LONG {
-    background: var(--glow-long);
-    color: var(--accent-long);
-    border: 1px solid rgba(0,230,118,0.3);
-  }
-
-  .signal-badge.SHORT {
-    background: var(--glow-short);
-    color: var(--accent-short);
-    border: 1px solid rgba(255,61,113,0.3);
-  }
-
-  .strategy-tag {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    background: var(--surface2);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    white-space: nowrap;
-  }
-
-  .strength-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .bar-track {
-    width: 60px;
-    height: 4px;
-    background: var(--surface2);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .bar-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.5s ease;
-  }
-
-  .bar-fill.long { background: var(--accent-long); }
-  .bar-fill.short { background: var(--accent-short); }
-
-  .bar-num {
-    font-size: 11px;
-    color: var(--text-muted);
-    min-width: 28px;
-    text-align: right;
-  }
-
-  /* Funding rate indicators */
-  .fund-pos { color: var(--accent-long); }
-  .fund-neg { color: var(--accent-short); }
-  .fund-neu { color: var(--text-muted); }
-
-  /* Empty/Loading state */
-  .empty-state {
-    padding: 80px 24px;
-    text-align: center;
-  }
-
-  .empty-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.3;
-  }
-
-  .empty-state h3 {
-    color: var(--text-muted);
-    font-size: 16px;
-    margin-bottom: 8px;
-  }
-
-  .empty-state p {
-    color: var(--text-dim);
-    font-size: 13px;
-    font-family: 'Space Mono', monospace;
-  }
-
-  /* Progress bar */
-  .progress-bar {
-    height: 2px;
-    background: var(--surface2);
-    overflow: hidden;
-    display: none;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-blue), var(--accent-long));
-    width: 0%;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 8px var(--accent-blue);
-  }
-
-  /* Tooltips for strategy */
-  .info-col {
-    position: relative;
-  }
-
-  /* Score */
-  .score-circle {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .score-high { background: rgba(0,230,118,0.15); color: var(--accent-long); border: 1.5px solid rgba(0,230,118,0.4); }
-  .score-med { background: rgba(255,214,10,0.15); color: var(--accent-yellow); border: 1.5px solid rgba(255,214,10,0.4); }
-  .score-low { background: rgba(255,61,113,0.15); color: var(--accent-short); border: 1.5px solid rgba(255,61,113,0.4); }
-
-  /* Volume indicator */
-  .vol-indicator {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 11px;
-  }
-
-  .vol-bar {
-    display: flex; gap: 2px;
-  }
-
-  .vol-seg {
-    width: 4px; height: 12px;
-    border-radius: 1px;
-    background: var(--surface2);
-  }
-
-  /* Alert toast */
-  #alert-toast {
-    position: fixed;
-    top: 20px; right: 20px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 18px;
-    z-index: 9999;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    transform: translateX(150%);
-    transition: transform 0.3s ease;
-    max-width: 300px;
-  }
-
-  #alert-toast.show { transform: translateX(0); }
-
-  /* Footer */
-  footer {
-    padding: 24px 0;
-    margin-top: 32px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  footer p {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-
-  .disclaimer {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    color: var(--text-dim);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 24px;
-    line-height: 1.6;
-  }
-
-  @media (max-width: 768px) {
-    .control-panel { grid-template-columns: 1fr 1fr; }
-    .stats-bar { grid-template-columns: repeat(2, 1fr); }
-    header { padding: 16px 0; }
-  }
-
-  @media (max-width: 480px) {
-    .control-panel { grid-template-columns: 1fr; }
-    .stats-bar { grid-template-columns: 1fr 1fr; }
-  }
+:root {
+  --bg:#080c10; --s1:#0d1117; --s2:#161b22; --s3:#1c2333;
+  --border:#21262d; --border2:#30363d;
+  --long:#00e676; --short:#ff3d71; --blue:#00b4d8; --yellow:#ffd60a; --purple:#c084fc;
+  --text:#e6edf3; --muted:#7d8590; --dim:#3d444d;
+  --glong:rgba(0,230,118,0.12); --gshort:rgba(255,61,113,0.12); --gblue:rgba(0,180,216,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,180,216,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,216,0.025) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none;z-index:0;}
+
+.wrap{max-width:1500px;margin:0 auto;padding:0 20px;position:relative;z-index:1;}
+
+/* ── HEADER ── */
+.hdr{padding:20px 0 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--blue),var(--long));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#000;box-shadow:0 0 18px rgba(0,180,216,0.4);}
+.logo-name{font-size:19px;font-weight:800;letter-spacing:-.5px;}
+.logo-sub{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:1px;}
+.hdr-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.live-pill{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--long);box-shadow:0 0 7px var(--long);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.8);}}
+.auto-pill{display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.auto-pill.active{border-color:var(--long);color:var(--long);background:var(--glong);}
+.auto-countdown{font-family:'Space Mono',monospace;font-size:12px;color:var(--blue);}
+.clock{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin:14px 0 0;}
+.tab{padding:10px 20px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;background:transparent;border-top:none;border-left:none;border-right:none;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.tab-content{display:none;padding-top:16px;}
+.tab-content.active{display:block;}
+
+/* ── CONTROL PANEL ── */
+.ctrl{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end;}
+.cg label{display:block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.cs,.ci{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;padding:8px 11px;outline:none;appearance:none;transition:border-color .15s;}
+.cs:focus,.ci:focus{border-color:var(--blue);}
+
+/* ── AUTO SCAN PANEL ── */
+.auto-panel{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.auto-toggle{display:flex;align-items:center;gap:10px;}
+.toggle-switch{position:relative;width:44px;height:24px;cursor:pointer;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:var(--s3);border-radius:12px;transition:.3s;border:1px solid var(--border);}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:.3s;}
+.toggle-switch input:checked + .toggle-slider{background:rgba(0,230,118,.2);border-color:var(--long);}
+.toggle-switch input:checked + .toggle-slider::before{background:var(--long);transform:translateX(20px);box-shadow:0 0 8px var(--long);}
+.auto-label{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;}
+.auto-info{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.notif-btn{background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:7px 14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;}
+.notif-btn.granted{border-color:var(--long);color:var(--long);background:var(--glong);}
+.notif-btn.denied{border-color:var(--short);color:var(--short);}
+.progress-ring{width:36px;height:36px;transform:rotate(-90deg);}
+.progress-ring circle{fill:none;stroke-width:3;stroke-linecap:round;}
+.progress-ring .track{stroke:var(--s3);}
+.progress-ring .fill{stroke:var(--blue);stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .5s linear;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.5px;transition:all .15s;white-space:nowrap;padding:9px 20px;font-size:13px;}
+.btn-scan{background:linear-gradient(135deg,var(--blue),#0077b6);color:#fff;box-shadow:0 3px 16px rgba(0,180,216,.3);width:100%;}
+.btn-scan:hover{transform:translateY(-1px);box-shadow:0 5px 22px rgba(0,180,216,.45);}
+.btn-scan:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.btn-sm{background:var(--s2);border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s;}
+.btn-sm:hover{border-color:var(--blue);color:var(--blue);}
+.spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── PROGRESS BAR ── */
+.prog-bar{height:2px;background:var(--s2);overflow:hidden;display:none;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--long));width:0%;transition:width .25s;box-shadow:0 0 6px var(--blue);}
+
+/* ── STAT CARDS ── */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.sc{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px 16px;position:relative;overflow:hidden;}
+.sc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.sc.cb::after{background:var(--blue);}
+.sc.cl::after{background:var(--long);}
+.sc.cs::after{background:var(--short);}
+.sc.cy::after{background:var(--yellow);}
+.sc.cp::after{background:var(--purple);}
+.sc-val{font-size:26px;font-weight:800;line-height:1;margin-bottom:3px;}
+.sc.cb .sc-val{color:var(--blue);}
+.sc.cl .sc-val{color:var(--long);}
+.sc.cs .sc-val{color:var(--short);}
+.sc.cy .sc-val{color:var(--yellow);}
+.sc.cp .sc-val{color:var(--purple);}
+.sc-lbl{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+
+/* ── FILTER TABS ── */
+.ftabs{display:flex;gap:4px;background:var(--s2);border-radius:8px;padding:3px;}
+.ftab{padding:5px 14px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Space Mono',monospace;cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .15s;letter-spacing:.5px;}
+.ftab.active{background:var(--s1);color:var(--text);border:1px solid var(--border);}
+.ftab.long.active{color:var(--long);border-color:var(--long);}
+.ftab.short.active{color:var(--short);border-color:var(--short);}
+
+/* ── RESULTS TABLE ── */
+.tbl-wrap{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.tbl-hdr{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.tbl-title{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+.tbl-scroll{overflow-x:auto;}
+.tbl-scroll::-webkit-scrollbar{height:4px;}
+.tbl-scroll::-webkit-scrollbar-track{background:var(--s2);}
+.tbl-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+table{width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:11px;}
+thead th{padding:9px 13px;text-align:left;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;transition:color .1s;}
+thead th:hover{color:var(--text);}
+thead th.sa{color:var(--blue);}
+tbody tr{border-bottom:1px solid rgba(33,38,45,.5);transition:background .1s;}
+tbody tr:hover{background:var(--s2);}
+tbody tr.nr{animation:rowIn .3s ease both;}
+@keyframes rowIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+td{padding:10px 13px;white-space:nowrap;vertical-align:middle;}
+.sym{font-weight:700;font-size:12px;}
+.sig-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.5px;}
+.sig-badge.LONG{background:var(--glong);color:var(--long);border:1px solid rgba(0,230,118,.25);}
+.sig-badge.SHORT{background:var(--gshort);color:var(--short);border:1px solid rgba(255,61,113,.25);}
+.str-bar{display:flex;align-items:center;gap:7px;}
+.bar-tr{width:54px;height:3px;background:var(--s2);border-radius:2px;overflow:hidden;}
+.bar-fi{height:100%;border-radius:2px;}
+.bar-fi.long{background:var(--long);}
+.bar-fi.short{background:var(--short);}
+.stag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;background:var(--s2);color:var(--muted);border:1px solid var(--border);white-space:nowrap;}
+.sc-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
+.sc-h{background:rgba(0,230,118,.12);color:var(--long);border:1.5px solid rgba(0,230,118,.35);}
+.sc-m{background:rgba(255,214,10,.12);color:var(--yellow);border:1.5px solid rgba(255,214,10,.35);}
+.sc-l{background:rgba(255,61,113,.12);color:var(--short);border:1.5px solid rgba(255,61,113,.35);}
+
+/* ── TP/SL CELL ── */
+.tp-sl{display:flex;flex-direction:column;gap:2px;font-size:10px;}
+.tp{color:var(--long);}
+.sl{color:var(--short);}
+.lev-badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
+.lev-h{background:rgba(0,230,118,.1);color:var(--long);border:1px solid rgba(0,230,118,.25);}
+.lev-m{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.25);}
+.lev-l{background:rgba(255,61,113,.1);color:var(--short);border:1px solid rgba(255,61,113,.25);}
+
+/* ── EMPTY ── */
+.empty{padding:60px 20px;text-align:center;}
+.empty-ic{font-size:40px;opacity:.25;margin-bottom:12px;}
+.empty h3{color:var(--muted);font-size:15px;margin-bottom:6px;}
+.empty p{color:var(--dim);font-size:11px;font-family:'Space Mono',monospace;}
+
+/* ── HISTORY TAB ── */
+.hist-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.hist-count{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.hist-item{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;transition:background .1s;}
+.hist-item:hover{background:var(--s2);}
+.hist-item.LONG{border-left:3px solid var(--long);}
+.hist-item.SHORT{border-left:3px solid var(--short);}
+.hist-time{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+.hist-sym{font-weight:700;font-size:13px;}
+.hist-mid{display:flex;flex-direction:column;gap:3px;}
+.hist-detail{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+.hist-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.hist-new{display:inline-block;background:var(--gblue);color:var(--blue);border:1px solid rgba(0,180,216,.25);border-radius:3px;font-family:'Space Mono',monospace;font-size:8px;padding:1px 5px;animation:blink 1.5s 3;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+.hist-empty{padding:40px 20px;text-align:center;color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;}
+
+/* ── TOAST ── */
+#toast{position:fixed;top:18px;right:18px;background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;z-index:9999;font-family:'Space Mono',monospace;font-size:11px;transform:translateX(150%);transition:transform .25s;max-width:280px;line-height:1.5;}
+#toast.show{transform:translateX(0);}
+
+/* ── DISCLAIMER ── */
+.disc{font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin:12px 0;line-height:1.7;}
+footer{padding:18px 0 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+footer p{font-family:'Space Mono',monospace;font-size:9px;color:var(--dim);}
+
+@media(max-width:768px){
+  .ctrl{grid-template-columns:1fr 1fr;}
+  .stat-row{grid-template-columns:repeat(2,1fr);}
+}
+@media(max-width:480px){
+  .ctrl{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<div class="container">
-  <!-- Header -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">▲</div>
-      <div class="logo-text">
-        <h1>PERP SCANNER</h1>
-        <span>Binance Perpetual Futures · Quant Signal Engine</span>
-      </div>
+<!-- HEADER -->
+<header class="hdr">
+  <div class="logo">
+    <div class="logo-icon">▲</div>
+    <div>
+      <div class="logo-name">PERP SCANNER <span style="font-size:11px;color:var(--blue);font-weight:600">v2</span></div>
+      <div class="logo-sub">Binance Perpetual Futures · Quant Signal Engine</div>
     </div>
-    <div class="header-status">
-      <div class="live-badge">
-        <div class="live-dot"></div>
-        BINANCE LIVE
-      </div>
-      <div class="clock" id="clock">--:--:--</div>
+  </div>
+  <div class="hdr-right">
+    <div class="auto-pill" id="autoPill">
+      <span id="autoIcon">⏸</span>
+      <span id="autoLabel">자동스캔 OFF</span>
     </div>
-  </header>
+    <div class="auto-countdown" id="autoCountdown" style="display:none"></div>
+    <div class="live-pill"><div class="live-dot"></div>BINANCE LIVE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
 
-  <!-- Control Panel -->
-  <div class="control-panel">
-    <div class="ctrl-group">
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="showTab('scan',this)">📡 스캐너</button>
+  <button class="tab" onclick="showTab('history',this)">📋 시그널 히스토리 <span id="histBadge" style="display:none;background:var(--blue);color:#fff;border-radius:10px;padding:1px 6px;font-size:9px;margin-left:4px">0</span></button>
+</div>
+
+<!-- ══════ TAB: SCANNER ══════ -->
+<div class="tab-content active" id="tab-scan">
+
+  <!-- Controls -->
+  <div class="ctrl">
+    <div class="cg">
       <label>타임프레임</label>
-      <select class="ctrl-select" id="interval">
+      <select class="cs" id="interval" onchange="onIntervalChange()">
         <option value="5m">5분봉</option>
         <option value="15m" selected>15분봉</option>
         <option value="1h">1시간봉</option>
         <option value="4h">4시간봉</option>
       </select>
     </div>
-    <div class="ctrl-group">
+    <div class="cg">
       <label>최소 거래량 (USDT)</label>
-      <select class="ctrl-select" id="minVolume">
+      <select class="cs" id="minVolume">
         <option value="10000000">1,000만+</option>
         <option value="50000000" selected>5,000만+</option>
         <option value="100000000">1억+</option>
         <option value="500000000">5억+</option>
       </select>
     </div>
-    <div class="ctrl-group">
+    <div class="cg">
       <label>시그널 강도</label>
-      <select class="ctrl-select" id="minStrength">
+      <select class="cs" id="minStrength">
         <option value="50">50+ (넓게)</option>
         <option value="65" selected>65+ (추천)</option>
-        <option value="75">75+ (강한것만)</option>
+        <option value="75">75+ (강함)</option>
         <option value="85">85+ (최강)</option>
       </select>
     </div>
-    <div class="ctrl-group">
+    <div class="cg">
+      <label>ATR 손절 배수</label>
+      <select class="cs" id="atrSlMult">
+        <option value="1">1x ATR</option>
+        <option value="1.5" selected>1.5x ATR (추천)</option>
+        <option value="2">2x ATR</option>
+        <option value="3">3x ATR</option>
+      </select>
+    </div>
+    <div class="cg">
+      <label>TP/SL 비율 (RR)</label>
+      <select class="cs" id="rrRatio">
+        <option value="1">1:1</option>
+        <option value="1.5" selected>1:1.5 (추천)</option>
+        <option value="2">1:2</option>
+        <option value="3">1:3</option>
+      </select>
+    </div>
+    <div class="cg">
       <label>스캔 코인 수</label>
-      <select class="ctrl-select" id="scanCount">
+      <select class="cs" id="scanCount">
         <option value="30">상위 30개</option>
         <option value="50" selected>상위 50개</option>
         <option value="100">상위 100개</option>
       </select>
     </div>
-    <div class="ctrl-group">
+    <div class="cg">
       <label>스캔 실행</label>
-      <button class="scan-btn" id="scanBtn" onclick="startScan()">
-        <div class="spinner" id="spinner"></div>
-        <span id="scanBtnText">🔍 스캔하기</span>
+      <button class="btn btn-scan" id="scanBtn" onclick="startScan()">
+        <div class="spin" id="spin"></div>
+        <span id="scanTxt">🔍 스캔하기</span>
       </button>
     </div>
   </div>
 
-  <!-- Stats Bar -->
-  <div class="stats-bar">
-    <div class="stat-card">
-      <div class="stat-label">스캔 종목</div>
-      <div class="stat-value" id="statTotal" style="color:var(--accent-blue)">—</div>
+  <!-- Auto Scan Panel -->
+  <div class="auto-panel">
+    <label class="toggle-switch">
+      <input type="checkbox" id="autoToggle" onchange="toggleAuto()">
+      <span class="toggle-slider"></span>
+    </label>
+    <div>
+      <div class="auto-label" id="autoToggleLabel">자동 스캔 OFF</div>
+      <div class="auto-info" id="autoInfo">켜면 타임프레임 주기마다 자동 스캔</div>
     </div>
-    <div class="stat-card long">
-      <div class="stat-label">🟢 LONG 시그널</div>
-      <div class="stat-value" id="statLong">—</div>
-    </div>
-    <div class="stat-card short">
-      <div class="stat-label">🔴 SHORT 시그널</div>
-      <div class="stat-value" id="statShort">—</div>
-    </div>
-    <div class="stat-card warn">
-      <div class="stat-label">⚡ 고강도 (75+)</div>
-      <div class="stat-value" id="statHigh">—</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <svg class="progress-ring" viewBox="0 0 36 36" id="autoRing" style="display:none">
+        <circle class="track" cx="18" cy="18" r="15.9"/>
+        <circle class="fill" id="autoRingFill" cx="18" cy="18" r="15.9"/>
+      </svg>
+      <div id="nextScanInfo" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)"></div>
+      <button class="notif-btn" id="notifBtn" onclick="requestNotification()">
+        🔔 알림 허용
+      </button>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)" id="notifStatus">알림 미허용</div>
     </div>
   </div>
 
-  <!-- Strategy Legend -->
-  <div class="strategy-legend">
-    <span class="legend-title">전략 범례:</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#00b4d8"></span>RSI 다이버전스</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>볼린저 브레이크</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>EMA 크로스</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#ec4899"></span>거래량 급등</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>지지/저항 돌파</span>
-    <span class="legend-item"><span class="legend-dot" style="background:#f97316"></span>펀딩비 역전</span>
+  <!-- Progress -->
+  <div class="prog-bar" id="progBar"><div class="prog-fill" id="progFill"></div></div>
+
+  <!-- Stats -->
+  <div class="stat-row">
+    <div class="sc cb"><div class="sc-val" id="stTotal">—</div><div class="sc-lbl">스캔 종목</div></div>
+    <div class="sc cl"><div class="sc-val" id="stLong">—</div><div class="sc-lbl">🟢 LONG</div></div>
+    <div class="sc cs"><div class="sc-val" id="stShort">—</div><div class="sc-lbl">🔴 SHORT</div></div>
+    <div class="sc cy"><div class="sc-val" id="stHigh">—</div><div class="sc-lbl">⚡ 강도 75+</div></div>
+    <div class="sc cp"><div class="sc-val" id="stScan">—</div><div class="sc-lbl">🔄 스캔 횟수</div></div>
   </div>
 
-  <!-- Results -->
-  <div class="results-wrap">
-    <div class="progress-bar" id="progressBar">
-      <div class="progress-fill" id="progressFill"></div>
+  <!-- Filter + Sort -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div class="ftabs">
+      <button class="ftab active" onclick="setFilter('all',this)">ALL</button>
+      <button class="ftab long"   onclick="setFilter('LONG',this)">LONG</button>
+      <button class="ftab short"  onclick="setFilter('SHORT',this)">SHORT</button>
     </div>
-    <div class="results-header">
-      <div class="results-title" id="resultTitle">스캔 대기 중</div>
-      <div class="filter-tabs">
-        <button class="filter-tab active" onclick="filterResults('all', this)">ALL</button>
-        <button class="filter-tab long" onclick="filterResults('LONG', this)">LONG</button>
-        <button class="filter-tab short" onclick="filterResults('SHORT', this)">SHORT</button>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--dim)" id="sortNote">▼ 종합점수 순</div>
+  </div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <div class="prog-bar" style="display:none" id="progBar2"><div class="prog-fill" id="progFill2"></div></div>
+    <div class="tbl-hdr">
+      <span class="tbl-title" id="tblTitle">스캔 대기 중</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-sm" onclick="exportCSV()">↓ CSV</button>
       </div>
     </div>
-    <div class="table-wrap">
+    <div class="tbl-scroll">
       <table>
-        <thead>
-          <tr>
-            <th onclick="sortTable('symbol')">심볼 ↕</th>
-            <th onclick="sortTable('price')">현재가 ↕</th>
-            <th onclick="sortTable('change')">변동률 ↕</th>
-            <th>시그널</th>
-            <th onclick="sortTable('strength')">강도 ↕</th>
-            <th>전략</th>
-            <th onclick="sortTable('volume')">24h 거래량 ↕</th>
-            <th onclick="sortTable('funding')">펀딩비 ↕</th>
-            <th>RSI</th>
-            <th>진입 추천가</th>
-            <th onclick="sortTable('score')">종합점수 ↕</th>
-          </tr>
-        </thead>
-        <tbody id="resultsBody">
-          <tr>
-            <td colspan="11">
-              <div class="empty-state">
-                <div class="empty-icon">📡</div>
-                <h3>스캐너 준비 완료</h3>
-                <p>설정 후 [스캔하기] 버튼을 클릭하세요</p>
-              </div>
-            </td>
-          </tr>
+        <thead><tr>
+          <th onclick="sortBy('symbol')">심볼<span id="sa-symbol"></span></th>
+          <th onclick="sortBy('price')">현재가<span id="sa-price"></span></th>
+          <th onclick="sortBy('change')">24h 변동<span id="sa-change"></span></th>
+          <th>시그널</th>
+          <th onclick="sortBy('strength')">강도<span id="sa-strength"></span></th>
+          <th>전략</th>
+          <th onclick="sortBy('volume')">거래량<span id="sa-volume"></span></th>
+          <th onclick="sortBy('funding')">펀딩비<span id="sa-funding"></span></th>
+          <th>RSI</th>
+          <th>진입가</th>
+          <th>TP / SL</th>
+          <th onclick="sortBy('maxLev')">최대레버리지<span id="sa-maxLev"></span></th>
+          <th onclick="sortBy('score')" class="sa">종합점수<span id="sa-score"> ▼</span></th>
+        </tr></thead>
+        <tbody id="tBody">
+          <tr><td colspan="13"><div class="empty">
+            <div class="empty-ic">📡</div><h3>스캐너 준비 완료</h3>
+            <p>설정 후 [스캔하기] 버튼을 클릭하세요</p>
+          </div></td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- Disclaimer -->
-  <div class="disclaimer" style="margin-top:16px">
-    ⚠️ <strong>투자 주의사항:</strong> 이 스캐너는 기술적 분석 지표를 기반으로 시그널을 제공합니다. 시그널은 투자 참고용이며 손실을 보장하지 않습니다. 선물거래는 레버리지로 인해 원금 이상의 손실이 발생할 수 있습니다. 반드시 손절가를 설정하고 리스크를 관리하세요.
-  </div>
+</div><!-- /tab-scan -->
 
-  <footer>
-    <p>© 2025 PERP SCANNER · Binance Public API · No API Key Required</p>
-    <p>Data: Binance Futures REST API · 실시간 가격 데이터</p>
-  </footer>
+<!-- ══════ TAB: HISTORY ══════ -->
+<div class="tab-content" id="tab-history">
+  <div class="hist-toolbar">
+    <span class="hist-count" id="histCount">총 0개 시그널</span>
+    <button class="btn-sm" onclick="clearHistory()">✕ 히스토리 초기화</button>
+    <button class="btn-sm" onclick="exportHistoryCSV()">↓ CSV 내보내기</button>
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <button class="ftab active" id="hf-all"   onclick="setHistFilter('all',this)">전체</button>
+      <button class="ftab long"   id="hf-long"  onclick="setHistFilter('LONG',this)">LONG</button>
+      <button class="ftab short"  id="hf-short" onclick="setHistFilter('SHORT',this)">SHORT</button>
+    </div>
+  </div>
+  <div id="histList">
+    <div class="hist-empty">아직 시그널 히스토리가 없습니다.<br>스캔을 실행하면 발견된 시그널이 여기에 기록됩니다.</div>
+  </div>
 </div>
 
-<!-- Alert Toast -->
-<div id="alert-toast"></div>
+<div class="disc">⚠️ <strong>투자 주의:</strong> 본 스캐너는 기술적 분석 참고용 도구입니다. TP/SL·레버리지 수치는 ATR 기반 이론값이며 실제 매매 결과를 보장하지 않습니다. 선물거래는 레버리지로 인해 원금 이상의 손실이 발생할 수 있습니다. 반드시 리스크를 관리하세요.</div>
+<footer>
+  <p>© 2025 PERP SCANNER v2 · Binance Public API · No API Key Required</p>
+  <p id="lastScanNote">마지막 스캔: —</p>
+</footer>
+</div><!-- /wrap -->
+
+<div id="toast"></div>
 
 <script>
-// ─── CONSTANTS ────────────────────────────────────────────────
-const BINANCE_API = 'https://fapi.binance.com';
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// ══════════════════════════════════════════════════════
+//  CONFIG & STATE
+// ══════════════════════════════════════════════════════
+const API = 'https://fapi.binance.com';
 
-// Top USDT perpetual symbols to scan (by market cap)
-const TOP_SYMBOLS_50 = [
-  'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT',
-  'ADAUSDT','AVAXUSDT','DOGEUSDT','DOTUSDT','LINKUSDT',
-  'LTCUSDT','UNIUSDT','ATOMUSDT','ETCUSDT','XLMUSDT',
-  'NEARUSDT','ALGOUSDT','FILUSDT','VETUSDT','ICPUSDT',
-  'AAVEUSDT','SANDUSDT','MANAUSDT','AXSUSDT','GALAUSDT',
-  'FTMUSDT','MATICUSDT','CRVUSDT','MKRUSDT','SNXUSDT',
-  'COMPUSDT','APEUSDT','OPUSDT','ARBUSDT','INJUSDT',
-  'STXUSDT','LDOUSDT','SEIUSDT','SUIUSDT','TIAUSDT',
-  'WLDUSDT','PENDLEUSDT','PYTHUSDT','JUPUSDT','WIFUSDT',
-  'BOMEUSDT','ENAUSDT','NOTUSDT','RUNEUSDT','ORDIUSDT'
-];
+// Timeframe → milliseconds
+const TF_MS = {'1m':60000,'3m':180000,'5m':300000,'15m':900000,'30m':1800000,'1h':3600000,'4h':14400000};
 
-const TOP_SYMBOLS_100 = [
-  ...TOP_SYMBOLS_50,
-  'TRXUSDT','SHIBUSDT','TONUSDT','IMXUSDT','APTUSDT',
-  'FLOWUSDT','GMTUSDT','CHZUSDT','GRTUSDT','1INCHUSDT',
-  'MASKUSDT','ENJUSDT','BATUSDT','ZRXUSDT','STORJUSDT',
-  'CELRUSDT','DYDXUSDT','WOOUSDT','FLMUSDT','IOTAUSDT',
-  'ZECUSDT','WAVESUSDT','DASHUSDT','NEOUSDT','XTZUSDT',
-  'EGLDUSDT','XMRUSDT','QNTUSDT','IOTXUSDT','RSRUSDT',
-  'RENUSDT','COTIUSDT','BTSUSDT','STMXUSDT','SFPUSDT',
-  'CVCUSDT','CKBUSDT','XVGUSDT','KAVAUSDT','BANDUSDT',
-  'OCEANUSDT','ANKRUSDT','BLZUSDT','MTLUSDT','HFTUSDT',
-  'JOEUSDT','RADUSDT','CTSIUSDT','FIDAUSDT','AGLDUSDT'
-];
+const SYMS_50 = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','AVAXUSDT','DOGEUSDT','DOTUSDT','LINKUSDT','LTCUSDT','UNIUSDT','ATOMUSDT','ETCUSDT','XLMUSDT','NEARUSDT','ALGOUSDT','FILUSDT','VETUSDT','ICPUSDT','AAVEUSDT','SANDUSDT','MANAUSDT','AXSUSDT','GALAUSDT','FTMUSDT','MATICUSDT','CRVUSDT','MKRUSDT','SNXUSDT','COMPUSDT','APEUSDT','OPUSDT','ARBUSDT','INJUSDT','STXUSDT','LDOUSDT','SEIUSDT','SUIUSDT','TIAUSDT','WLDUSDT','PENDLEUSDT','PYTHUSDT','JUPUSDT','WIFUSDT','BOMEUSDT','ENAUSDT','NOTUSDT','RUNEUSDT','ORDIUSDT'];
+const SYMS_100 = [...SYMS_50,'TRXUSDT','SHIBUSDT','TONUSDT','IMXUSDT','APTUSDT','FLOWUSDT','GMTUSDT','CHZUSDT','GRTUSDT','1INCHUSDT','MASKUSDT','ENJUSDT','BATUSDT','ZRXUSDT','STORJUSDT','CELRUSDT','DYDXUSDT','WOOUSDT','FLMUSDT','IOTAUSDT','ZECUSDT','WAVESUSDT','DASHUSDT','NEOUSDT','XTZUSDT','EGLDUSDT','XMRUSDT','QNTUSDT','IOTXUSDT','RSRUSDT','RENUSDT','COTIUSDT','BTSUSDT','STMXUSDT','SFPUSDT','CVCUSDT','CKBUSDT','XVGUSDT','KAVAUSDT','BANDUSDT','OCEANUSDT','ANKRUSDT','BLZUSDT','MTLUSDT','HFTUSDT','JOEUSDT','RADUSDT','CTSIUSDT','FIDAUSDT','AGLDUSDT'];
 
-// State
 let allResults = [];
-let currentFilter = 'all';
-let sortKey = 'score';
-let sortAsc = false;
+let curFilter  = 'all';
+let sortKey    = 'score';
+let sortAsc    = false;
 let scanActive = false;
+let scanCount  = 0;
+let autoTimer  = null;
+let autoCountdownTimer = null;
+let autoNextAt = null;
+let notifGranted = false;
+let signalHistory = [];   // [{...result, time, scanIdx, isNew}]
+let histFilter = 'all';
+let seenSignals = new Set();  // symbol+signal key to avoid duplicate toasts
 
-// ─── UTILITIES ────────────────────────────────────────────────
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function formatNum(n) {
-  if (!n && n !== 0) return '—';
-  if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(2)+'B';
-  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M';
-  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(0)+'K';
-  return n.toFixed(0);
-}
-
-function formatPrice(p) {
-  if (!p) return '—';
-  if (p >= 1000) return p.toLocaleString('en-US', {maximumFractionDigits:1});
-  if (p >= 1) return p.toFixed(4);
-  return p.toFixed(6);
-}
-
-function showToast(msg, color='#00b4d8') {
-  const t = document.getElementById('alert-toast');
-  t.innerHTML = `<span style="color:${color}">●</span> ${msg}`;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3500);
-}
-
-function updateClock() {
-  const now = new Date();
+// ══════════════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════════════
+const p2 = n => String(n).padStart(2,'0');
+function tick() {
+  const d = new Date();
   document.getElementById('clock').textContent =
-    now.toLocaleTimeString('ko-KR', {hour12:false});
+    `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+setInterval(tick,1000); tick();
+
+// ══════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════
+function showTab(id, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='history') renderHistory();
 }
 
-setInterval(updateClock, 1000);
-updateClock();
+// ══════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════
+function toast(msg, col='var(--blue)') {
+  const el = document.getElementById('toast');
+  el.innerHTML = `<span style="color:${col}">●</span> ${msg}`;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3200);
+}
 
-// ─── API CALLS ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+//  NOTIFICATION
+// ══════════════════════════════════════════════════════
+async function requestNotification() {
+  if (!('Notification' in window)) {
+    toast('이 브라우저는 알림을 지원하지 않습니다','var(--short)');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  notifGranted = perm === 'granted';
+  updateNotifUI();
+  toast(notifGranted ? '브라우저 알림이 허용되었습니다 🔔' : '알림이 거부되었습니다', notifGranted ? 'var(--long)':'var(--short)');
+}
+
+function updateNotifUI() {
+  const btn = document.getElementById('notifBtn');
+  const stat = document.getElementById('notifStatus');
+  if(notifGranted) {
+    btn.classList.add('granted'); btn.textContent='✅ 알림 허용됨';
+    stat.textContent='알림 활성';stat.style.color='var(--long)';
+  } else {
+    btn.classList.remove('granted');
+    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    if(perm==='denied'){btn.classList.add('denied');btn.textContent='🚫 알림 차단됨';stat.textContent='알림 차단';stat.style.color='var(--short)';}
+    else{btn.textContent='🔔 알림 허용';stat.textContent='알림 미허용';stat.style.color='';}
+  }
+}
+
+function sendNotification(title, body, tag) {
+  if(!notifGranted || Notification.permission !== 'granted') return;
+  new Notification(title, {body, tag, icon:'https://bin.bnbstatic.com/static/images/common/favicon.ico', silent:false});
+}
+
+// Check notification on load
+(function(){
+  if('Notification' in window && Notification.permission === 'granted') {
+    notifGranted = true; updateNotifUI();
+  }
+})();
+
+// ══════════════════════════════════════════════════════
+//  AUTO SCAN
+// ══════════════════════════════════════════════════════
+function onIntervalChange() {
+  if(document.getElementById('autoToggle').checked) {
+    // restart auto with new interval
+    stopAuto(); startAuto();
+  }
+}
+
+function toggleAuto() {
+  const on = document.getElementById('autoToggle').checked;
+  if(on) startAuto(); else stopAuto();
+}
+
+function startAuto() {
+  const tf = document.getElementById('interval').value;
+  const ms = TF_MS[tf] || 900000;
+  document.getElementById('autoToggleLabel').textContent = `자동 스캔 ON`;
+  document.getElementById('autoInfo').textContent = `${tf} 봉 마감마다 자동 스캔`;
+  document.getElementById('autoPill').classList.add('active');
+  document.getElementById('autoIcon').textContent = '▶';
+  document.getElementById('autoLabel').textContent = `자동 ON · ${tf}`;
+  document.getElementById('autoRing').style.display = 'block';
+
+  // Schedule next scan aligned to candle close
+  scheduleNextAutoScan(ms);
+}
+
+function stopAuto() {
+  if(autoTimer) clearTimeout(autoTimer);
+  if(autoCountdownTimer) clearInterval(autoCountdownTimer);
+  autoTimer = null; autoCountdownTimer = null; autoNextAt = null;
+  document.getElementById('autoToggleLabel').textContent = '자동 스캔 OFF';
+  document.getElementById('autoInfo').textContent = '켜면 타임프레임 주기마다 자동 스캔';
+  document.getElementById('autoPill').classList.remove('active');
+  document.getElementById('autoIcon').textContent = '⏸';
+  document.getElementById('autoLabel').textContent = '자동스캔 OFF';
+  document.getElementById('autoRing').style.display = 'none';
+  document.getElementById('nextScanInfo').textContent = '';
+  document.getElementById('autoCountdown').style.display = 'none';
+}
+
+function scheduleNextAutoScan(intervalMs) {
+  // Align to next candle boundary
+  const now = Date.now();
+  const msUntilNext = intervalMs - (now % intervalMs);
+  autoNextAt = now + msUntilNext;
+
+  startCountdown(msUntilNext);
+  autoTimer = setTimeout(async () => {
+    await startScan();
+    if(document.getElementById('autoToggle').checked) {
+      scheduleNextAutoScan(intervalMs);
+    }
+  }, msUntilNext);
+}
+
+function startCountdown(totalMs) {
+  if(autoCountdownTimer) clearInterval(autoCountdownTimer);
+  const ringFill = document.getElementById('autoRingFill');
+  const circumference = 2 * Math.PI * 15.9;
+
+  autoCountdownTimer = setInterval(() => {
+    const remaining = Math.max(0, autoNextAt - Date.now());
+    const pct = remaining / totalMs;
+    const offset = circumference * (1 - pct);
+    ringFill.style.strokeDasharray = circumference;
+    ringFill.style.strokeDashoffset = circumference - offset;
+
+    const s = Math.ceil(remaining / 1000);
+    const m = Math.floor(s / 60), sec = s % 60;
+    const txt = m > 0 ? `${m}:${p2(sec)}` : `${sec}s`;
+    document.getElementById('nextScanInfo').textContent = `다음 스캔까지 ${txt}`;
+    document.getElementById('autoCountdown').textContent = txt;
+    document.getElementById('autoCountdown').style.display = 'block';
+
+    if(remaining <= 0) clearInterval(autoCountdownTimer);
+  }, 500);
+}
+
+// ══════════════════════════════════════════════════════
+//  API
+// ══════════════════════════════════════════════════════
 async function fetchJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('API error: ' + res.status);
-  return res.json();
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
 }
 
-async function fetchKlines(symbol, interval, limit=100) {
-  const url = `${BINANCE_API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+async function fetchKlines(sym, interval, limit=100) {
+  return fetchJSON(`${API}/fapi/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
+}
+
+async function fetchTicker(sym) {
+  return fetchJSON(`${API}/fapi/v1/ticker/24hr?symbol=${sym}`);
+}
+
+async function fetchFunding(sym) {
   try {
-    return await fetchJSON(url);
-  } catch(e) {
-    // fallback via proxy
-    try {
-      return await fetchJSON(CORS_PROXY + encodeURIComponent(url));
-    } catch(e2) { return null; }
-  }
+    const d = await fetchJSON(`${API}/fapi/v1/fundingRate?symbol=${sym}&limit=1`);
+    return d && d[0] ? parseFloat(d[0].fundingRate)*100 : null;
+  } catch(e) { return null; }
 }
 
-async function fetchTicker24h(symbol) {
-  const url = `${BINANCE_API}/fapi/v1/ticker/24hr?symbol=${symbol}`;
-  try {
-    return await fetchJSON(url);
-  } catch(e) {
-    try { return await fetchJSON(CORS_PROXY + encodeURIComponent(url)); }
-    catch(e2) { return null; }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ══════════════════════════════════════════════════════
+//  INDICATORS
+// ══════════════════════════════════════════════════════
+function calcRSI(closes, p=14) {
+  if(closes.length < p+1) return null;
+  let g=0,l=0;
+  for(let i=closes.length-p;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    if(d>0)g+=d;else l-=d;
   }
+  const ag=g/p,al=l/p;
+  if(al===0)return 100;
+  return 100-(100/(1+ag/al));
 }
 
-async function fetchFundingRate(symbol) {
-  const url = `${BINANCE_API}/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
-  try {
-    const data = await fetchJSON(url);
-    return data && data[0] ? parseFloat(data[0].fundingRate) * 100 : null;
-  } catch(e) {
-    try {
-      const data = await fetchJSON(CORS_PROXY + encodeURIComponent(url));
-      return data && data[0] ? parseFloat(data[0].fundingRate) * 100 : null;
-    } catch(e2) { return null; }
-  }
+function calcEMA(closes, p) {
+  if(closes.length<p)return null;
+  const k=2/(p+1);
+  let e=closes.slice(0,p).reduce((a,b)=>a+b,0)/p;
+  for(let i=p;i<closes.length;i++) e=closes[i]*k+e*(1-k);
+  return e;
 }
 
-// ─── INDICATORS ───────────────────────────────────────────────
-function calcRSI(closes, period=14) {
-  if (closes.length < period + 1) return null;
-  let gains = 0, losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i-1];
-    if (diff > 0) gains += diff; else losses -= diff;
-  }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
+function calcBB(closes, p=20, m=2) {
+  if(closes.length<p)return null;
+  const sl=closes.slice(-p);
+  const mn=sl.reduce((a,b)=>a+b,0)/p;
+  const std=Math.sqrt(sl.reduce((a,b)=>a+(b-mn)**2,0)/p);
+  return {upper:mn+m*std,lower:mn-m*std,mid:mn,std};
 }
 
-function calcEMA(closes, period) {
-  if (closes.length < period) return null;
-  const k = 2 / (period + 1);
-  let ema = closes.slice(0, period).reduce((a,b) => a+b, 0) / period;
-  for (let i = period; i < closes.length; i++) {
-    ema = closes[i] * k + ema * (1 - k);
-  }
-  return ema;
+function calcATR(highs, lows, closes, p=14) {
+  if(closes.length<p+1)return null;
+  const trs=[];
+  for(let i=1;i<closes.length;i++)
+    trs.push(Math.max(highs[i]-lows[i],Math.abs(highs[i]-closes[i-1]),Math.abs(lows[i]-closes[i-1])));
+  return trs.slice(-p).reduce((a,b)=>a+b,0)/p;
 }
 
-function calcBollingerBands(closes, period=20, stdMult=2) {
-  if (closes.length < period) return null;
-  const slice = closes.slice(-period);
-  const mean = slice.reduce((a,b) => a+b, 0) / period;
-  const variance = slice.reduce((a,b) => a + Math.pow(b - mean, 2), 0) / period;
-  const std = Math.sqrt(variance);
-  return { upper: mean + stdMult * std, lower: mean - stdMult * std, mid: mean, std };
+function calcVWAP(highs, lows, closes, vols) {
+  let ctpv=0,cv=0;
+  for(let i=0;i<closes.length;i++){ctpv+=(highs[i]+lows[i]+closes[i])/3*vols[i];cv+=vols[i];}
+  return ctpv/cv;
 }
 
-function calcMACD(closes) {
-  const ema12 = calcEMA(closes, 12);
-  const ema26 = calcEMA(closes, 26);
-  if (!ema12 || !ema26) return null;
-  return { macd: ema12 - ema26, ema12, ema26 };
-}
+// ══════════════════════════════════════════════════════
+//  SIGNAL ANALYSIS + TP/SL/LEV
+// ══════════════════════════════════════════════════════
+function analyze(sym, klines, ticker, funding) {
+  if(!klines||klines.length<30)return null;
+  const opens=klines.map(k=>+k[1]),highs=klines.map(k=>+k[2]),lows=klines.map(k=>+k[3]);
+  const closes=klines.map(k=>+k[4]),vols=klines.map(k=>+k[5]);
+  const lc=closes[closes.length-1],pc=closes[closes.length-2];
+  const lv=vols[vols.length-1],avgv=vols.slice(-20).reduce((a,b)=>a+b,0)/20;
+  const rsi=calcRSI(closes);
+  const ema9=calcEMA(closes,9),ema21=calcEMA(closes,21),ema50=calcEMA(closes,50);
+  const bb=calcBB(closes),macd_v=calcEMA(closes,12),macd_s=calcEMA(closes,26);
+  const atr=calcATR(highs,lows,closes);
+  const vwap=calcVWAP(highs,lows,closes,vols);
+  const chg=ticker?+ticker.priceChangePercent:0;
+  const vol24=ticker?+ticker.quoteVolume:0;
 
-function calcATR(highs, lows, closes, period=14) {
-  if (closes.length < period + 1) return null;
-  const trs = [];
-  for (let i = 1; i < closes.length; i++) {
-    trs.push(Math.max(
-      highs[i] - lows[i],
-      Math.abs(highs[i] - closes[i-1]),
-      Math.abs(lows[i] - closes[i-1])
-    ));
+  let ls=0,ss=0,strats=[],reasons=[];
+
+  if(rsi!=null){
+    if(rsi<30){ls+=25;strats.push({n:'RSI 과매도',c:'#00b4d8'});reasons.push(`RSI ${rsi.toFixed(1)}`);}
+    else if(rsi>70){ss+=25;strats.push({n:'RSI 과매수',c:'#00b4d8'});reasons.push(`RSI ${rsi.toFixed(1)}`);}
+    else if(rsi<40)ls+=12;
+    else if(rsi>60)ss+=12;
   }
-  return trs.slice(-period).reduce((a,b) => a+b, 0) / period;
-}
-
-function calcVWAP(highs, lows, closes, volumes) {
-  let cumTPV = 0, cumVol = 0;
-  for (let i = 0; i < closes.length; i++) {
-    const tp = (highs[i] + lows[i] + closes[i]) / 3;
-    cumTPV += tp * volumes[i];
-    cumVol += volumes[i];
+  if(bb){
+    const bw=(bb.upper-bb.lower)/bb.mid;
+    if(lc<=bb.lower&&pc>bb.lower){ls+=20;strats.push({n:'BB 하단',c:'#7c3aed'});}
+    else if(lc>=bb.upper&&pc<bb.upper){ss+=20;strats.push({n:'BB 상단',c:'#7c3aed'});}
+    else if(lc>bb.upper){ls+=15;strats.push({n:'BB 돌파',c:'#7c3aed'});}
+    if(bw<0.04){ls+=8;ss+=8;}
   }
-  return cumTPV / cumVol;
-}
-
-// ─── SIGNAL ANALYSIS ─────────────────────────────────────────
-function analyzeSymbol(symbol, klines, ticker24h, fundingRate) {
-  if (!klines || klines.length < 30) return null;
-
-  const opens   = klines.map(k => parseFloat(k[1]));
-  const highs   = klines.map(k => parseFloat(k[2]));
-  const lows    = klines.map(k => parseFloat(k[3]));
-  const closes  = klines.map(k => parseFloat(k[4]));
-  const volumes = klines.map(k => parseFloat(k[5]));
-
-  const lastClose = closes[closes.length - 1];
-  const prevClose = closes[closes.length - 2];
-  const lastVol = volumes[volumes.length - 1];
-  const avgVol = volumes.slice(-20).reduce((a,b) => a+b, 0) / 20;
-
-  const rsi = calcRSI(closes);
-  const ema9 = calcEMA(closes, 9);
-  const ema21 = calcEMA(closes, 21);
-  const ema50 = calcEMA(closes, 50);
-  const bb = calcBollingerBands(closes);
-  const macd = calcMACD(closes);
-  const atr = calcATR(highs, lows, closes);
-  const vwap = calcVWAP(highs, lows, closes, volumes);
-
-  const change24h = ticker24h ? parseFloat(ticker24h.priceChangePercent) : 0;
-  const vol24h = ticker24h ? parseFloat(ticker24h.quoteVolume) : 0;
-
-  // ── Signal scoring
-  let longScore = 0, shortScore = 0;
-  let strategies = [];
-  let reasons = [];
-
-  // 1. RSI Divergence
-  if (rsi !== null) {
-    if (rsi < 30) {
-      longScore += 25;
-      strategies.push({ name: 'RSI 과매도', color: '#00b4d8' });
-      reasons.push(`RSI ${rsi.toFixed(1)} 과매도`);
-    } else if (rsi > 70) {
-      shortScore += 25;
-      strategies.push({ name: 'RSI 과매수', color: '#00b4d8' });
-      reasons.push(`RSI ${rsi.toFixed(1)} 과매수`);
-    } else if (rsi < 40 && rsi > 30) {
-      longScore += 12;
-    } else if (rsi > 60 && rsi < 70) {
-      shortScore += 12;
-    }
+  if(ema9&&ema21){
+    if(ema9>ema21&&closes[closes.length-2]<calcEMA(closes.slice(0,-1),21)){ls+=20;strats.push({n:'EMA 골든X',c:'#f59e0b'});}
+    else if(ema9<ema21&&closes[closes.length-2]>calcEMA(closes.slice(0,-1),21)){ss+=20;strats.push({n:'EMA 데드X',c:'#f59e0b'});}
+    else if(ema9>ema21)ls+=10;
+    else ss+=10;
   }
-
-  // 2. Bollinger Bands
-  if (bb) {
-    const bbWidth = (bb.upper - bb.lower) / bb.mid;
-    if (lastClose <= bb.lower && prevClose > bb.lower) {
-      longScore += 20;
-      strategies.push({ name: 'BB 하단 터치', color: '#7c3aed' });
-      reasons.push('볼린저 하단 터치');
-    } else if (lastClose >= bb.upper && prevClose < bb.upper) {
-      shortScore += 20;
-      strategies.push({ name: 'BB 상단 터치', color: '#7c3aed' });
-      reasons.push('볼린저 상단 터치');
-    } else if (lastClose > bb.upper) {
-      // squeeze breakout upward
-      longScore += 15;
-      strategies.push({ name: 'BB 상단 돌파', color: '#7c3aed' });
-    }
-    // BB squeeze (low volatility = pending breakout)
-    if (bbWidth < 0.04) {
-      longScore += 8; shortScore += 8;
-    }
+  const vr=lv/avgv;
+  if(vr>2.5){
+    if(lc>pc){ls+=18;strats.push({n:'거래량↑',c:'#ec4899'});reasons.push(`${vr.toFixed(1)}x`);}
+    else{ss+=18;strats.push({n:'거래량↓',c:'#ec4899'});}
+  } else if(vr>1.5){if(lc>pc)ls+=8;else ss+=8;}
+  const r20h=Math.max(...highs.slice(-21,-1)),r20l=Math.min(...lows.slice(-21,-1));
+  if(lc>r20h*0.998&&pc<r20h){ls+=22;strats.push({n:'저항 돌파',c:'#10b981'});}
+  else if(lc<r20l*1.002&&pc>r20l){ss+=22;strats.push({n:'지지 붕괴',c:'#10b981'});}
+  if(vwap){
+    if(lc>vwap&&pc<=vwap){ls+=12;reasons.push('VWAP↑');}
+    else if(lc<vwap&&pc>=vwap){ss+=12;reasons.push('VWAP↓');}
   }
-
-  // 3. EMA Cross
-  if (ema9 && ema21) {
-    if (ema9 > ema21 && closes[closes.length-2] < calcEMA(closes.slice(0,-1), 21)) {
-      longScore += 20;
-      strategies.push({ name: 'EMA 골든크로스', color: '#f59e0b' });
-      reasons.push('EMA9 > EMA21 교차');
-    } else if (ema9 < ema21 && closes[closes.length-2] > calcEMA(closes.slice(0,-1), 21)) {
-      shortScore += 20;
-      strategies.push({ name: 'EMA 데드크로스', color: '#f59e0b' });
-      reasons.push('EMA9 < EMA21 교차');
-    } else if (ema9 > ema21 && ema21 > (ema50 || ema21)) {
-      longScore += 10;
-    } else if (ema9 < ema21) {
-      shortScore += 10;
-    }
+  if(funding!=null){
+    if(funding>0.05){ss+=10;strats.push({n:'펀딩 역전',c:'#f97316'});}
+    else if(funding<-0.05){ls+=10;strats.push({n:'펀딩 역전',c:'#f97316'});}
   }
+  if(macd_v&&macd_s){if(macd_v>macd_s)ls+=8;else ss+=8;}
+  const mom=(lc-closes[closes.length-6])/closes[closes.length-6]*100;
+  if(mom>2)ls+=10;else if(mom<-2)ss+=10;
 
-  // 4. Volume Surge
-  const volRatio = lastVol / avgVol;
-  if (volRatio > 2.5) {
-    if (lastClose > prevClose) {
-      longScore += 18;
-      strategies.push({ name: '거래량 급등 ↑', color: '#ec4899' });
-      reasons.push(`거래량 ${volRatio.toFixed(1)}x 급등`);
-    } else {
-      shortScore += 18;
-      strategies.push({ name: '거래량 급등 ↓', color: '#ec4899' });
-      reasons.push(`거래량 ${volRatio.toFixed(1)}x 급등`);
-    }
-  } else if (volRatio > 1.5) {
-    if (lastClose > prevClose) longScore += 8;
-    else shortScore += 8;
-  }
+  const isLong=ls>=ss;
+  const dir=isLong?'LONG':'SHORT';
+  const maxS=Math.max(ls,ss);
+  const diff=Math.abs(ls-ss);
+  const strength=Math.min(100,Math.round((maxS/120)*100*(1+diff/200)));
+  const score=Math.min(100,Math.round(maxS*0.85+(vr>1.5?8:0)));
+  const uniqueStrats=strats.filter((s,i,a)=>a.findIndex(x=>x.n===s.n)===i).slice(0,3);
 
-  // 5. Support/Resistance Breakout
-  const recent20High = Math.max(...highs.slice(-21, -1));
-  const recent20Low = Math.min(...lows.slice(-21, -1));
-  if (lastClose > recent20High * 0.998 && prevClose < recent20High) {
-    longScore += 22;
-    strategies.push({ name: '저항 돌파', color: '#10b981' });
-    reasons.push('20봉 고점 돌파');
-  } else if (lastClose < recent20Low * 1.002 && prevClose > recent20Low) {
-    shortScore += 22;
-    strategies.push({ name: '지지 붕괴', color: '#10b981' });
-    reasons.push('20봉 저점 하향 돌파');
-  }
+  // ── TP / SL / Leverage calculation (ATR-based)
+  const atrMult=parseFloat(document.getElementById('atrSlMult')?.value||1.5);
+  const rrRatio=parseFloat(document.getElementById('rrRatio')?.value||1.5);
+  const slDist=atr ? atr*atrMult : lc*0.015;
+  const tpDist=slDist*rrRatio;
 
-  // 6. VWAP
-  if (vwap) {
-    if (lastClose > vwap && prevClose <= vwap) {
-      longScore += 12;
-      reasons.push('VWAP 상향 돌파');
-    } else if (lastClose < vwap && prevClose >= vwap) {
-      shortScore += 12;
-      reasons.push('VWAP 하향 이탈');
-    }
-  }
+  const entryPrice=isLong
+    ? lc*(1-(atr?atr/lc*0.3:0.002))
+    : lc*(1+(atr?atr/lc*0.3:0.002));
 
-  // 7. Funding Rate Signal
-  if (fundingRate !== null) {
-    if (fundingRate > 0.05) {
-      // Very positive funding = shorts more likely to be squeezed, but longs pay
-      // Contrarian: high funding often means overheated long
-      shortScore += 10;
-      strategies.push({ name: '펀딩비 역전', color: '#f97316' });
-      reasons.push(`펀딩비 +${fundingRate.toFixed(4)}% 과열`);
-    } else if (fundingRate < -0.05) {
-      longScore += 10;
-      strategies.push({ name: '펀딩비 역전', color: '#f97316' });
-      reasons.push(`펀딩비 ${fundingRate.toFixed(4)}% 음수`);
-    }
-  }
+  const tp=isLong ? entryPrice+tpDist : entryPrice-tpDist;
+  const sl=isLong ? entryPrice-slDist : entryPrice+slDist;
 
-  // 8. MACD
-  if (macd) {
-    if (macd.macd > 0 && macd.ema12 > macd.ema26) longScore += 8;
-    else if (macd.macd < 0) shortScore += 8;
-  }
+  // Max leverage: position wiped if price moves slDist adverse
+  // Using: maxLev = floor(entryPrice / slDist * 0.9)  (0.9 = 10% maintenance margin buffer)
+  const rawLev=slDist>0 ? Math.floor((entryPrice/slDist)*0.9) : 1;
+  const maxLev=Math.max(1,Math.min(125,rawLev));
+  const levClass=maxLev>=20?'lev-h':maxLev>=5?'lev-m':'lev-l';
 
-  // 9. Trend momentum
-  const momentum5 = (lastClose - closes[closes.length-6]) / closes[closes.length-6] * 100;
-  if (momentum5 > 2) { longScore += 10; reasons.push(`모멘텀 +${momentum5.toFixed(1)}%`); }
-  else if (momentum5 < -2) { shortScore += 10; reasons.push(`모멘텀 ${momentum5.toFixed(1)}%`); }
-
-  // ── Determine signal
-  const signalDiff = Math.abs(longScore - shortScore);
-  const isLong = longScore >= shortScore;
-  const maxScore = Math.max(longScore, shortScore);
-
-  // Remove duplicate strategies
-  const uniqueStrategies = strategies.filter((s, i, arr) =>
-    arr.findIndex(x => x.name === s.name) === i
-  ).slice(0, 3);
-
-  // Composite score (0-100)
-  const compositeScore = Math.min(100, Math.round(maxScore * 0.85 + (volRatio > 1.5 ? 8 : 0)));
-
-  // Entry suggestion
-  const direction = isLong ? 'LONG' : 'SHORT';
-  const entryPrice = isLong
-    ? lastClose * (1 - (atr ? atr/lastClose*0.3 : 0.002))
-    : lastClose * (1 + (atr ? atr/lastClose*0.3 : 0.002));
-
-  const strength = Math.min(100, Math.round(
-    (maxScore / 120) * 100 * (1 + signalDiff / 200)
-  ));
+  const rsiPct=rsi?+rsi.toFixed(1):null;
+  const rsiCol=rsiPct<30?'var(--long)':rsiPct>70?'var(--short)':'var(--muted)';
 
   return {
-    symbol: symbol.replace('USDT', '/USDT'),
-    rawSymbol: symbol,
-    price: lastClose,
-    change: change24h,
-    signal: direction,
-    strength,
-    strategies: uniqueStrategies,
-    reasons,
-    volume: vol24h,
-    funding: fundingRate,
-    rsi: rsi ? rsi.toFixed(1) : null,
-    entryPrice,
-    score: compositeScore,
-    volRatio,
-    atr
+    symbol:sym.replace('USDT','/USDT'),rawSym:sym,
+    price:lc,change:chg,signal:dir,strength,strategies:uniqueStrats,
+    volume:vol24,funding,rsi:rsiPct,rsiCol,
+    entryPrice,tp,sl,maxLev,levClass,atr,
+    score,volRatio:vr,reasons
   };
 }
 
-// ─── SCAN ENGINE ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+//  SCAN ENGINE
+// ══════════════════════════════════════════════════════
 async function startScan() {
-  if (scanActive) return;
-  scanActive = true;
+  if(scanActive)return;
+  scanActive=true;
+  const btn=document.getElementById('scanBtn');
+  const spin=document.getElementById('spin');
+  btn.disabled=true;spin.style.display='block';
+  document.getElementById('scanTxt').textContent='스캔 중...';
+  document.getElementById('progBar').style.display='block';
 
-  const btn = document.getElementById('scanBtn');
-  const spinner = document.getElementById('spinner');
-  const btnText = document.getElementById('scanBtnText');
-  const progressBar = document.getElementById('progressBar');
-  const progressFill = document.getElementById('progressFill');
+  allResults=[];
+  renderTable([]);
+  document.getElementById('tblTitle').textContent='스캔 중...';
 
-  btn.disabled = true;
-  spinner.style.display = 'block';
-  btnText.textContent = '스캔 중...';
-  progressBar.style.display = 'block';
+  const interval=document.getElementById('interval').value;
+  const minVol=+document.getElementById('minVolume').value;
+  const minStr=+document.getElementById('minStrength').value;
+  const cnt=+document.getElementById('scanCount').value;
+  const syms=cnt>=100?SYMS_100.slice(0,cnt):SYMS_50.slice(0,cnt);
 
-  allResults = [];
-  renderResults([]);
-  document.getElementById('resultTitle').textContent = '스캔 중...';
+  let processed=0;
+  const newSignalsThisScan=[];
 
-  const interval = document.getElementById('interval').value;
-  const minVolume = parseFloat(document.getElementById('minVolume').value);
-  const minStrength = parseFloat(document.getElementById('minStrength').value);
-  const scanCount = parseInt(document.getElementById('scanCount').value);
-
-  const symbols = scanCount >= 100
-    ? TOP_SYMBOLS_100.slice(0, scanCount)
-    : TOP_SYMBOLS_50.slice(0, scanCount);
-
-  let processed = 0;
-  showToast(`${symbols.length}개 종목 스캔 시작`, '#00b4d8');
-
-  // Process in batches of 5 to avoid rate limiting
-  const batchSize = 5;
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    const batch = symbols.slice(i, i + batchSize);
-    await Promise.all(batch.map(async (sym) => {
-      try {
-        const [klines, ticker, funding] = await Promise.all([
-          fetchKlines(sym, interval, 100),
-          fetchTicker24h(sym),
-          fetchFundingRate(sym)
-        ]);
-
-        const result = analyzeSymbol(sym, klines, ticker, funding);
+  for(let i=0;i<syms.length;i+=5){
+    const batch=syms.slice(i,i+5);
+    await Promise.all(batch.map(async sym=>{
+      try{
+        const [kl,tk,fr]=await Promise.all([fetchKlines(sym,interval,100),fetchTicker(sym),fetchFunding(sym)]);
+        const res=analyze(sym,kl,tk,fr);
         processed++;
-        progressFill.style.width = `${(processed / symbols.length) * 100}%`;
-
-        if (result && result.strength >= minStrength && result.volume >= minVolume) {
-          allResults.push(result);
-          renderResults(getFilteredSorted());
+        document.getElementById('progFill').style.width=`${processed/syms.length*100}%`;
+        if(res&&res.strength>=minStr&&res.volume>=minVol){
+          allResults.push(res);
+          // Check if it's a new signal not seen in seenSignals
+          const sigKey=`${res.rawSym}_${res.signal}`;
+          if(!seenSignals.has(sigKey)){
+            seenSignals.add(sigKey);
+            newSignalsThisScan.push(res);
+          }
+          renderTable(getFiltered());
           updateStats();
         }
-      } catch(e) {
-        processed++;
-      }
+      }catch(e){processed++;}
     }));
-    await sleep(200); // rate limit buffer
+    await sleep(180);
   }
 
-  // Done
-  progressBar.style.display = 'none';
-  btn.disabled = false;
-  spinner.style.display = 'none';
-  btnText.textContent = '🔍 스캔하기';
-  scanActive = false;
+  // Add new signals to history
+  if(newSignalsThisScan.length>0){
+    const now=new Date();
+    const nowStr=`${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`;
+    for(const r of newSignalsThisScan){
+      signalHistory.unshift({...r,time:nowStr,date:now.toLocaleDateString('ko-KR'),scanIdx:scanCount+1,isNew:true});
+    }
+    // Cap history at 500
+    if(signalHistory.length>500)signalHistory.splice(500);
+    updateHistBadge();
 
-  const filtered = getFilteredSorted();
-  document.getElementById('resultTitle').textContent =
-    `스캔 완료 — ${allResults.length}개 시그널 발견 (${symbols.length}개 스캔)`;
+    // Send browser notification for high-strength signals
+    const highStr=newSignalsThisScan.filter(r=>r.strength>=75);
+    if(highStr.length>0){
+      const r=highStr[0];
+      sendNotification(
+        `🔥 ${r.signal} 시그널 — ${r.symbol}`,
+        `강도 ${r.strength}% · 진입가 $${fmtPrice(r.entryPrice)} · TP $${fmtPrice(r.tp)} · SL $${fmtPrice(r.sl)}`,
+        r.rawSym
+      );
+    }
+
+    // Toast for any new signal
+    if(newSignalsThisScan.length===1){
+      const r=newSignalsThisScan[0];
+      toast(`${r.signal==='LONG'?'🟢':'🔴'} ${r.symbol} ${r.signal} (${r.strength}%)`,r.signal==='LONG'?'var(--long)':'var(--short)');
+    } else {
+      const l=newSignalsThisScan.filter(r=>r.signal==='LONG').length;
+      const s=newSignalsThisScan.filter(r=>r.signal==='SHORT').length;
+      toast(`새 시그널 ${newSignalsThisScan.length}개 — 롱 ${l} · 숏 ${s}`,'var(--blue)');
+    }
+  }
+
+  // Reset new flags after 30s
+  setTimeout(()=>{signalHistory.forEach(h=>{if(h.isNew)h.isNew=false;});renderHistory();},30000);
+
+  scanCount++;
+  document.getElementById('progBar').style.display='none';
+  btn.disabled=false;spin.style.display='none';
+  document.getElementById('scanTxt').textContent='🔍 스캔하기';
+  scanActive=false;
+
+  const now2=new Date();
+  const ts=`${p2(now2.getHours())}:${p2(now2.getMinutes())}:${p2(now2.getSeconds())}`;
+  document.getElementById('tblTitle').textContent=`스캔 완료 — ${allResults.length}개 시그널 (${syms.length}개 스캔)`;
+  document.getElementById('lastScanNote').textContent=`마지막 스캔: ${ts}`;
+  document.getElementById('stScan').textContent=scanCount;
   updateStats();
-
-  if (allResults.length === 0) {
-    showToast('시그널 없음. 강도 기준을 낮춰보세요', '#ffd60a');
-  } else {
-    const longs = allResults.filter(r => r.signal === 'LONG').length;
-    const shorts = allResults.filter(r => r.signal === 'SHORT').length;
-    showToast(`롱 ${longs}개 · 숏 ${shorts}개 발견!`, '#00e676');
-  }
 }
 
-// ─── RENDER ───────────────────────────────────────────────────
-function getFilteredSorted() {
-  let data = [...allResults];
-  if (currentFilter !== 'all') data = data.filter(r => r.signal === currentFilter);
-  data.sort((a, b) => {
-    const va = a[sortKey] ?? 0, vb = b[sortKey] ?? 0;
-    return sortAsc ? va - vb : vb - va;
+// ══════════════════════════════════════════════════════
+//  RENDER TABLE
+// ══════════════════════════════════════════════════════
+function getFiltered() {
+  let d=[...allResults];
+  if(curFilter!=='all')d=d.filter(r=>r.signal===curFilter);
+  d.sort((a,b)=>{
+    const va=a[sortKey]??0,vb=b[sortKey]??0;
+    return sortAsc?va-vb:vb-va;
   });
-  return data;
+  return d;
 }
 
-function renderResults(data) {
-  const tbody = document.getElementById('resultsBody');
-
-  if (!data || data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state">
-      <div class="empty-icon">🔍</div>
-      <h3>조건에 맞는 시그널 없음</h3>
-      <p>강도 기준 낮추거나 거래량 필터를 조정해보세요</p>
+function renderTable(data) {
+  const tbody=document.getElementById('tBody');
+  if(!data||data.length===0){
+    tbody.innerHTML=`<tr><td colspan="13"><div class="empty">
+      <div class="empty-ic">🔍</div><h3>조건에 맞는 시그널 없음</h3>
+      <p>강도 기준을 낮추거나 거래량 필터를 조정하세요</p>
     </div></td></tr>`;
     return;
   }
-
-  tbody.innerHTML = data.map((r, idx) => {
-    const chgClass = r.change >= 0 ? 'chg-pos' : 'chg-neg';
-    const chgSign = r.change >= 0 ? '+' : '';
-    const fundClass = r.funding === null ? 'fund-neu' : r.funding > 0 ? 'fund-pos' : 'fund-neg';
-    const fundStr = r.funding !== null ? `${r.funding > 0 ? '+' : ''}${r.funding.toFixed(4)}%` : '—';
-
-    const strengthClass = r.signal === 'LONG' ? 'long' : 'short';
-    const barPct = Math.min(100, r.strength);
-
-    const scoreClass = r.score >= 75 ? 'score-high' : r.score >= 55 ? 'score-med' : 'score-low';
-
-    const rsiColor = r.rsi < 30 ? 'var(--accent-long)' : r.rsi > 70 ? 'var(--accent-short)' : 'var(--text-muted)';
-
-    const volSegs = Math.min(5, Math.round(r.volRatio));
-    const volBars = Array.from({length:5}, (_, i) =>
-      `<div class="vol-seg" style="${i < volSegs ? 'background:var(--accent-blue)' : ''}"></div>`
-    ).join('');
-
-    const stratTags = r.strategies.map(s =>
-      `<span class="strategy-tag" style="color:${s.color};border-color:${s.color}33">${s.name}</span>`
-    ).join(' ');
-
-    const animDelay = `animation-delay:${idx * 0.04}s`;
-
-    return `<tr style="${animDelay}">
+  tbody.innerHTML=data.map((r,i)=>{
+    const cc=r.change>=0?'var(--long)':'var(--short)';
+    const cs=r.signal==='LONG'?'long':'short';
+    const sc=r.score>=75?'sc-h':r.score>=55?'sc-m':'sc-l';
+    const fC=r.funding===null?'var(--muted)':r.funding>0?'var(--long)':'var(--short)';
+    const fS=r.funding!==null?`${r.funding>0?'+':''}${r.funding.toFixed(4)}%`:'—';
+    const stags=r.strategies.map(s=>`<span class="stag" style="color:${s.c};border-color:${s.c}33">${s.n}</span>`).join(' ')||'<span class="stag">복합</span>';
+    const tpStr=`$${fmtPrice(r.tp)}`;
+    const slStr=`$${fmtPrice(r.sl)}`;
+    return `<tr class="nr" style="animation-delay:${i*0.03}s">
       <td><span class="sym">${r.symbol}</span></td>
-      <td><span class="price">$${formatPrice(r.price)}</span></td>
-      <td><span class="${chgClass}">${chgSign}${r.change.toFixed(2)}%</span></td>
-      <td>
-        <span class="signal-badge ${r.signal}">
-          ${r.signal === 'LONG' ? '▲' : '▼'} ${r.signal}
-        </span>
-      </td>
-      <td>
-        <div class="strength-bar">
-          <div class="bar-track">
-            <div class="bar-fill ${strengthClass}" style="width:${barPct}%"></div>
-          </div>
-          <span class="bar-num">${r.strength}%</span>
-        </div>
-      </td>
-      <td>${stratTags || '<span class="strategy-tag">복합</span>'}</td>
-      <td>
-        <div class="vol-indicator">
-          <div class="vol-bar">${volBars}</div>
-          <span style="color:var(--text-muted);font-size:11px">${formatNum(r.volume)}</span>
-        </div>
-      </td>
-      <td><span class="${fundClass}">${fundStr}</span></td>
-      <td><span style="color:${rsiColor}">${r.rsi ?? '—'}</span></td>
-      <td>
-        <span style="color:${r.signal === 'LONG' ? 'var(--accent-long)' : 'var(--accent-short)'};font-size:11px">
-          $${formatPrice(r.entryPrice)}
-        </span>
-      </td>
-      <td><div class="score-circle ${scoreClass}">${r.score}</div></td>
+      <td style="font-weight:700">$${fmtPrice(r.price)}</td>
+      <td style="color:${cc}">${r.change>=0?'+':''}${r.change.toFixed(2)}%</td>
+      <td><span class="sig-badge ${r.signal}">${r.signal==='LONG'?'▲':'▼'} ${r.signal}</span></td>
+      <td><div class="str-bar"><div class="bar-tr"><div class="bar-fi ${cs}" style="width:${r.strength}%"></div></div><span style="font-size:10px;color:var(--muted)">${r.strength}%</span></div></td>
+      <td>${stags}</td>
+      <td style="color:var(--muted);font-size:10px">${fmtNum(r.volume)}</td>
+      <td style="color:${fC}">${fS}</td>
+      <td style="color:${r.rsiCol}">${r.rsi??'—'}</td>
+      <td style="font-size:10px;color:${r.signal==='LONG'?'var(--long)':'var(--short)'}">$${fmtPrice(r.entryPrice)}</td>
+      <td><div class="tp-sl"><span class="tp">TP $${fmtPrice(r.tp)}</span><span class="sl">SL $${fmtPrice(r.sl)}</span></div></td>
+      <td><span class="lev-badge ${r.levClass}">×${r.maxLev}</span></td>
+      <td><div class="sc-circle ${sc}">${r.score}</div></td>
     </tr>`;
   }).join('');
 }
 
 function updateStats() {
-  const longs = allResults.filter(r => r.signal === 'LONG').length;
-  const shorts = allResults.filter(r => r.signal === 'SHORT').length;
-  const high = allResults.filter(r => r.strength >= 75).length;
-
-  document.getElementById('statTotal').textContent = allResults.length;
-  document.getElementById('statLong').textContent = longs;
-  document.getElementById('statShort').textContent = shorts;
-  document.getElementById('statHigh').textContent = high;
+  const l=allResults.filter(r=>r.signal==='LONG').length;
+  const s=allResults.filter(r=>r.signal==='SHORT').length;
+  const h=allResults.filter(r=>r.strength>=75).length;
+  document.getElementById('stTotal').textContent=allResults.length;
+  document.getElementById('stLong').textContent=l;
+  document.getElementById('stShort').textContent=s;
+  document.getElementById('stHigh').textContent=h;
 }
 
-function filterResults(f, el) {
-  currentFilter = f;
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+function setFilter(f, el) {
+  curFilter=f;
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  renderResults(getFilteredSorted());
+  renderTable(getFiltered());
 }
 
-function sortTable(key) {
-  if (sortKey === key) sortAsc = !sortAsc;
-  else { sortKey = key; sortAsc = false; }
-  renderResults(getFilteredSorted());
+function sortBy(key) {
+  document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sa'));
+  document.querySelectorAll('[id^="sa-"]').forEach(s=>s.textContent='');
+  if(sortKey===key)sortAsc=!sortAsc;else{sortKey=key;sortAsc=false;}
+  const el=document.getElementById('sa-'+key);
+  if(el){el.textContent=' '+(sortAsc?'▲':'▼');el.closest('th').classList.add('sa');}
+  document.getElementById('sortNote').textContent=(sortAsc?'▲':'▼')+' '+key+' 순';
+  renderTable(getFiltered());
+}
+
+// ══════════════════════════════════════════════════════
+//  HISTORY
+// ══════════════════════════════════════════════════════
+function updateHistBadge() {
+  const badge=document.getElementById('histBadge');
+  const newCnt=signalHistory.filter(h=>h.isNew).length;
+  if(newCnt>0){badge.style.display='inline';badge.textContent=newCnt;}
+  else badge.style.display='none';
+  document.getElementById('histCount').textContent=`총 ${signalHistory.length}개 시그널`;
+}
+
+function setHistFilter(f,el){
+  histFilter=f;
+  document.querySelectorAll('[id^="hf-"]').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory() {
+  const el=document.getElementById('histList');
+  let data=signalHistory;
+  if(histFilter!=='all')data=data.filter(h=>h.signal===histFilter);
+  if(data.length===0){
+    el.innerHTML='<div class="hist-empty">히스토리가 없습니다.<br>스캔을 실행하면 시그널이 기록됩니다.</div>';
+    return;
+  }
+  el.innerHTML=data.map(h=>{
+    const col=h.signal==='LONG'?'var(--long)':'var(--short)';
+    const sc=h.score>=75?'sc-h':h.score>=55?'sc-m':'sc-l';
+    const stags=h.strategies.map(s=>`<span class="stag" style="color:${s.c};border-color:${s.c}22;font-size:9px">${s.n}</span>`).join(' ')||'';
+    return `<div class="hist-item ${h.signal}">
+      <div>
+        <div class="hist-time">${h.date} ${h.time}</div>
+        <div class="hist-time" style="margin-top:2px">스캔 #${h.scanIdx}</div>
+      </div>
+      <div class="hist-mid">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="hist-sym">${h.symbol}</span>
+          <span class="sig-badge ${h.signal}" style="font-size:9px;padding:2px 6px">${h.signal==='LONG'?'▲':'▼'} ${h.signal}</span>
+          ${h.isNew?'<span class="hist-new">NEW</span>':''}
+        </div>
+        <div class="hist-detail">진입 $${fmtPrice(h.entryPrice)} · TP $${fmtPrice(h.tp)} · SL $${fmtPrice(h.sl)} · ×${h.maxLev}</div>
+        <div style="margin-top:3px">${stags}</div>
+      </div>
+      <div class="hist-right">
+        <div class="sc-circle ${sc}" style="font-size:9px">${h.score}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)">강도 ${h.strength}%</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:${h.funding>0?'var(--long)':h.funding<0?'var(--short)':'var(--muted)'}">${h.funding!==null?`펀딩 ${h.funding.toFixed(4)}%`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  updateHistBadge();
+}
+
+function clearHistory() {
+  if(!confirm('히스토리를 모두 삭제할까요?'))return;
+  signalHistory=[];seenSignals=new Set();
+  renderHistory();updateHistBadge();
+  toast('히스토리 초기화 완료','var(--yellow)');
+}
+
+// ══════════════════════════════════════════════════════
+//  FORMAT
+// ══════════════════════════════════════════════════════
+function fmtPrice(p) {
+  if(!p&&p!==0)return'—';
+  if(p>=10000)return p.toLocaleString('en',{maximumFractionDigits:1});
+  if(p>=1)return p.toFixed(4);
+  return p.toFixed(6);
+}
+function fmtNum(n) {
+  if(!n&&n!==0)return'—';
+  if(Math.abs(n)>=1e9)return(n/1e9).toFixed(1)+'B';
+  if(Math.abs(n)>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3)return(n/1e3).toFixed(0)+'K';
+  return n.toFixed(0);
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════════
+function exportCSV() {
+  if(!allResults.length){toast('내보낼 데이터 없음','var(--yellow)');return;}
+  const hdr='symbol,signal,strength,score,price,entry,tp,sl,maxLev,rsi,funding,volume,strategies\n';
+  const rows=allResults.map(r=>`${r.symbol},${r.signal},${r.strength},${r.score},${r.price},${r.entryPrice.toFixed(6)},${r.tp.toFixed(6)},${r.sl.toFixed(6)},${r.maxLev},${r.rsi??''},${r.funding??''},${r.volume.toFixed(0)},"${r.strategies.map(s=>s.n).join('|')}"`).join('\n');
+  dlCSV(hdr+rows,`perp_signals_${new Date().toISOString().slice(0,10)}.csv`);
+}
+
+function exportHistoryCSV() {
+  if(!signalHistory.length){toast('히스토리 없음','var(--yellow)');return;}
+  const hdr='date,time,scan#,symbol,signal,strength,score,entry,tp,sl,maxLev,rsi,funding,strategies\n';
+  const rows=signalHistory.map(r=>`${r.date},${r.time},${r.scanIdx},${r.symbol},${r.signal},${r.strength},${r.score},${r.entryPrice.toFixed(6)},${r.tp.toFixed(6)},${r.sl.toFixed(6)},${r.maxLev},${r.rsi??''},${r.funding??''},"${r.strategies.map(s=>s.n).join('|')}"`).join('\n');
+  dlCSV(hdr+rows,`perp_history_${new Date().toISOString().slice(0,10)}.csv`);
+}
+
+function dlCSV(content,name) {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'}));
+  a.download=name;a.click();
+  toast('CSV 다운로드 완료','var(--long)');
 }
 </script>
 </body>
