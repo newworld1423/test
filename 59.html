@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PERP SCANNER — Binance Futures</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0d1117;
+    --surface2: #161b22;
+    --border: #21262d;
+    --accent-long: #00e676;
+    --accent-short: #ff3d71;
+    --accent-blue: #00b4d8;
+    --accent-yellow: #ffd60a;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --text-dim: #3d444d;
+    --glow-long: rgba(0,230,118,0.15);
+    --glow-short: rgba(255,61,113,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,180,216,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,216,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    padding: 28px 0 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-long));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(0,180,216,0.4);
+  }
+
+  .logo-text h1 {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent-long);
+    box-shadow: 0 0 8px var(--accent-long);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .clock {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Control Panel */
+  .control-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 24px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    align-items: end;
+  }
+
+  .ctrl-group label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .ctrl-select, .ctrl-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .ctrl-select:focus, .ctrl-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0,180,216,0.1);
+  }
+
+  .scan-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #0077b6);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 32px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(0,180,216,0.3);
+    width: 100%;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .scan-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(0,180,216,0.45);
+  }
+
+  .scan-btn:active { transform: translateY(0); }
+
+  .scan-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .scan-btn .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-blue);
+  }
+
+  .stat-card.long::after { background: var(--accent-long); }
+  .stat-card.short::after { background: var(--accent-short); }
+  .stat-card.warn::after { background: var(--accent-yellow); }
+
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stat-card.long .stat-value { color: var(--accent-long); }
+  .stat-card.short .stat-value { color: var(--accent-short); }
+  .stat-card.warn .stat-value { color: var(--accent-yellow); }
+
+  /* Strategy Legend */
+  .strategy-legend {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .legend-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-family: 'Space Mono', monospace;
+    margin-right: 4px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Results Table */
+  .results-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .results-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .results-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .filter-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 4px;
+  }
+
+  .filter-tab {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'Space Mono', monospace;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .filter-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .filter-tab.long.active { color: var(--accent-long); border-color: var(--accent-long); }
+  .filter-tab.short.active { color: var(--accent-short); border-color: var(--accent-short); }
+
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+
+  thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  thead th:hover { color: var(--text); }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(33,38,45,0.5);
+    transition: background 0.15s;
+    animation: rowIn 0.3s ease both;
+  }
+
+  tbody tr:hover { background: var(--surface2); }
+
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  td {
+    padding: 13px 16px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .sym {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .price {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .chg-pos { color: var(--accent-long); }
+  .chg-neg { color: var(--accent-short); }
+
+  .signal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .signal-badge.LONG {
+    background: var(--glow-long);
+    color: var(--accent-long);
+    border: 1px solid rgba(0,230,118,0.3);
+  }
+
+  .signal-badge.SHORT {
+    background: var(--glow-short);
+    color: var(--accent-short);
+    border: 1px solid rgba(255,61,113,0.3);
+  }
+
+  .strategy-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .strength-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bar-track {
+    width: 60px;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .bar-fill.long { background: var(--accent-long); }
+  .bar-fill.short { background: var(--accent-short); }
+
+  .bar-num {
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  /* Funding rate indicators */
+  .fund-pos { color: var(--accent-long); }
+  .fund-neg { color: var(--accent-short); }
+  .fund-neu { color: var(--text-muted); }
+
+  /* Empty/Loading state */
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-state h3 {
+    color: var(--text-muted);
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+
+  .empty-state p {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 2px;
+    background: var(--surface2);
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-long));
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--accent-blue);
+  }
+
+  /* Tooltips for strategy */
+  .info-col {
+    position: relative;
+  }
+
+  /* Score */
+  .score-circle {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .score-high { background: rgba(0,230,118,0.15); color: var(--accent-long); border: 1.5px solid rgba(0,230,118,0.4); }
+  .score-med { background: rgba(255,214,10,0.15); color: var(--accent-yellow); border: 1.5px solid rgba(255,214,10,0.4); }
+  .score-low { background: rgba(255,61,113,0.15); color: var(--accent-short); border: 1.5px solid rgba(255,61,113,0.4); }
+
+  /* Volume indicator */
+  .vol-indicator {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px;
+  }
+
+  .vol-bar {
+    display: flex; gap: 2px;
+  }
+
+  .vol-seg {
+    width: 4px; height: 12px;
+    border-radius: 1px;
+    background: var(--surface2);
+  }
+
+  /* Alert toast */
+  #alert-toast {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    z-index: 9999;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    transform: translateX(150%);
+    transition: transform 0.3s ease;
+    max-width: 300px;
+  }
+
+  #alert-toast.show { transform: translateX(0); }
+
+  /* Footer */
+  footer {
+    padding: 24px 0;
+    margin-top: 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  footer p {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .disclaimer {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 768px) {
+    .control-panel { grid-template-columns: 1fr 1fr; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    header { padding: 16px 0; }
+  }
+
+  @media (max-width: 480px) {
+    .control-panel { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">▲</div>
+      <div class="logo-text">
+        <h1>PERP SCANNER</h1>
+        <span>Binance Perpetual Futures · Quant Signal Engine</span>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        BINANCE LIVE
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div class="ctrl-group">
+      <label>타임프레임</label>
+      <select class="ctrl-select" id="interval">
+        <option value="5m">5분봉</option>
+        <option value="15m" selected>15분봉</option>
+        <option value="1h">1시간봉</option>
+        <option value="4h">4시간봉</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>최소 거래량 (USDT)</label>
+      <select class="ctrl-select" id="minVolume">
+        <option value="10000000">1,000만+</option>
+        <option value="50000000" selected>5,000만+</option>
+        <option value="100000000">1억+</option>
+        <option value="500000000">5억+</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>시그널 강도</label>
+      <select class="ctrl-select" id="minStrength">
+        <option value="50">50+ (넓게)</option>
+        <option value="65" selected>65+ (추천)</option>
+        <option value="75">75+ (강한것만)</option>
+        <option value="85">85+ (최강)</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>스캔 코인 수</label>
+      <select class="ctrl-select" id="scanCount">
+        <option value="30">상위 30개</option>
+        <option value="50" selected>상위 50개</option>
+        <option value="100">상위 100개</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>스캔 실행</label>
+      <button class="scan-btn" id="scanBtn" onclick="startScan()">
+        <div class="spinner" id="spinner"></div>
+        <span id="scanBtnText">🔍 스캔하기</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">스캔 종목</div>
+      <div class="stat-value" id="statTotal" style="color:var(--accent-blue)">—</div>
+    </div>
+    <div class="stat-card long">
+      <div class="stat-label">🟢 LONG 시그널</div>
+      <div class="stat-value" id="statLong">—</div>
+    </div>
+    <div class="stat-card short">
+      <div class="stat-label">🔴 SHORT 시그널</div>
+      <div class="stat-value" id="statShort">—</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-label">⚡ 고강도 (75+)</div>
+      <div class="stat-value" id="statHigh">—</div>
+    </div>
+  </div>
+
+  <!-- Strategy Legend -->
+  <div class="strategy-legend">
+    <span class="legend-title">전략 범례:</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#00b4d8"></span>RSI 다이버전스</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>볼린저 브레이크</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>EMA 크로스</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#ec4899"></span>거래량 급등</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>지지/저항 돌파</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f97316"></span>펀딩비 역전</span>
+  </div>
+
+  <!-- Results -->
+  <div class="results-wrap">
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="results-header">
+      <div class="results-title" id="resultTitle">스캔 대기 중</div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterResults('all', this)">ALL</button>
+        <button class="filter-tab long" onclick="filterResults('LONG', this)">LONG</button>
+        <button class="filter-tab short" onclick="filterResults('SHORT', this)">SHORT</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortTable('symbol')">심볼 ↕</th>
+            <th onclick="sortTable('price')">현재가 ↕</th>
+            <th onclick="sortTable('change')">변동률 ↕</th>
+            <th>시그널</th>
+            <th onclick="sortTable('strength')">강도 ↕</th>
+            <th>전략</th>
+            <th onclick="sortTable('volume')">24h 거래량 ↕</th>
+            <th onclick="sortTable('funding')">펀딩비 ↕</th>
+            <th>RSI</th>
+            <th>진입 추천가</th>
+            <th onclick="sortTable('score')">종합점수 ↕</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr>
+            <td colspan="11">
+              <div class="empty-state">
+                <div class="empty-icon">📡</div>
+                <h3>스캐너 준비 완료</h3>
+                <p>설정 후 [스캔하기] 버튼을 클릭하세요</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="disclaimer" style="margin-top:16px">
+    ⚠️ <strong>투자 주의사항:</strong> 이 스캐너는 기술적 분석 지표를 기반으로 시그널을 제공합니다. 시그널은 투자 참고용이며 손실을 보장하지 않습니다. 선물거래는 레버리지로 인해 원금 이상의 손실이 발생할 수 있습니다. 반드시 손절가를 설정하고 리스크를 관리하세요.
+  </div>
+
+  <footer>
+    <p>© 2025 PERP SCANNER · Binance Public API · No API Key Required</p>
+    <p>Data: Binance Futures REST API · 실시간 가격 데이터</p>
+  </footer>
+</div>
+
+<!-- Alert Toast -->
+<div id="alert-toast"></div>
+
+<script>
+// ─── CONSTANTS ────────────────────────────────────────────────
+const BINANCE_API = 'https://fapi.binance.com';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+// Top USDT perpetual symbols to scan (by market cap)
+const TOP_SYMBOLS_50 = [
+  'BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT',
+  'ADAUSDT','AVAXUSDT','DOGEUSDT','DOTUSDT','LINKUSDT',
+  'LTCUSDT','UNIUSDT','ATOMUSDT','ETCUSDT','XLMUSDT',
+  'NEARUSDT','ALGOUSDT','FILUSDT','VETUSDT','ICPUSDT',
+  'AAVEUSDT','SANDUSDT','MANAUSDT','AXSUSDT','GALAUSDT',
+  'FTMUSDT','MATICUSDT','CRVUSDT','MKRUSDT','SNXUSDT',
+  'COMPUSDT','APEUSDT','OPUSDT','ARBUSDT','INJUSDT',
+  'STXUSDT','LDOUSDT','SEIUSDT','SUIUSDT','TIAUSDT',
+  'WLDUSDT','PENDLEUSDT','PYTHUSDT','JUPUSDT','WIFUSDT',
+  'BOMEUSDT','ENAUSDT','NOTUSDT','RUNEUSDT','ORDIUSDT'
+];
+
+const TOP_SYMBOLS_100 = [
+  ...TOP_SYMBOLS_50,
+  'TRXUSDT','SHIBUSDT','TONUSDT','IMXUSDT','APTUSDT',
+  'FLOWUSDT','GMTUSDT','CHZUSDT','GRTUSDT','1INCHUSDT',
+  'MASKUSDT','ENJUSDT','BATUSDT','ZRXUSDT','STORJUSDT',
+  'CELRUSDT','DYDXUSDT','WOOUSDT','FLMUSDT','IOTAUSDT',
+  'ZECUSDT','WAVESUSDT','DASHUSDT','NEOUSDT','XTZUSDT',
+  'EGLDUSDT','XMRUSDT','QNTUSDT','IOTXUSDT','RSRUSDT',
+  'RENUSDT','COTIUSDT','BTSUSDT','STMXUSDT','SFPUSDT',
+  'CVCUSDT','CKBUSDT','XVGUSDT','KAVAUSDT','BANDUSDT',
+  'OCEANUSDT','ANKRUSDT','BLZUSDT','MTLUSDT','HFTUSDT',
+  'JOEUSDT','RADUSDT','CTSIUSDT','FIDAUSDT','AGLDUSDT'
+];
+
+// State
+let allResults = [];
+let currentFilter = 'all';
+let sortKey = 'score';
+let sortAsc = false;
+let scanActive = false;
+
+// ─── UTILITIES ────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function formatNum(n) {
+  if (!n && n !== 0) return '—';
+  if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(2)+'B';
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(0)+'K';
+  return n.toFixed(0);
+}
+
+function formatPrice(p) {
+  if (!p) return '—';
+  if (p >= 1000) return p.toLocaleString('en-US', {maximumFractionDigits:1});
+  if (p >= 1) return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+function showToast(msg, color='#00b4d8') {
+  const t = document.getElementById('alert-toast');
+  t.innerHTML = `<span style="color:${color}">●</span> ${msg}`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('ko-KR', {hour12:false});
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── API CALLS ────────────────────────────────────────────────
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('API error: ' + res.status);
+  return res.json();
+}
+
+async function fetchKlines(symbol, interval, limit=100) {
+  const url = `${BINANCE_API}/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  try {
+    return await fetchJSON(url);
+  } catch(e) {
+    // fallback via proxy
+    try {
+      return await fetchJSON(CORS_PROXY + encodeURIComponent(url));
+    } catch(e2) { return null; }
+  }
+}
+
+async function fetchTicker24h(symbol) {
+  const url = `${BINANCE_API}/fapi/v1/ticker/24hr?symbol=${symbol}`;
+  try {
+    return await fetchJSON(url);
+  } catch(e) {
+    try { return await fetchJSON(CORS_PROXY + encodeURIComponent(url)); }
+    catch(e2) { return null; }
+  }
+}
+
+async function fetchFundingRate(symbol) {
+  const url = `${BINANCE_API}/fapi/v1/fundingRate?symbol=${symbol}&limit=1`;
+  try {
+    const data = await fetchJSON(url);
+    return data && data[0] ? parseFloat(data[0].fundingRate) * 100 : null;
+  } catch(e) {
+    try {
+      const data = await fetchJSON(CORS_PROXY + encodeURIComponent(url));
+      return data && data[0] ? parseFloat(data[0].fundingRate) * 100 : null;
+    } catch(e2) { return null; }
+  }
+}
+
+// ─── INDICATORS ───────────────────────────────────────────────
+function calcRSI(closes, period=14) {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+function calcEMA(closes, period) {
+  if (closes.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a,b) => a+b, 0) / period;
+  for (let i = period; i < closes.length; i++) {
+    ema = closes[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calcBollingerBands(closes, period=20, stdMult=2) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  const mean = slice.reduce((a,b) => a+b, 0) / period;
+  const variance = slice.reduce((a,b) => a + Math.pow(b - mean, 2), 0) / period;
+  const std = Math.sqrt(variance);
+  return { upper: mean + stdMult * std, lower: mean - stdMult * std, mid: mean, std };
+}
+
+function calcMACD(closes) {
+  const ema12 = calcEMA(closes, 12);
+  const ema26 = calcEMA(closes, 26);
+  if (!ema12 || !ema26) return null;
+  return { macd: ema12 - ema26, ema12, ema26 };
+}
+
+function calcATR(highs, lows, closes, period=14) {
+  if (closes.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < closes.length; i++) {
+    trs.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i-1]),
+      Math.abs(lows[i] - closes[i-1])
+    ));
+  }
+  return trs.slice(-period).reduce((a,b) => a+b, 0) / period;
+}
+
+function calcVWAP(highs, lows, closes, volumes) {
+  let cumTPV = 0, cumVol = 0;
+  for (let i = 0; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    cumTPV += tp * volumes[i];
+    cumVol += volumes[i];
+  }
+  return cumTPV / cumVol;
+}
+
+// ─── SIGNAL ANALYSIS ─────────────────────────────────────────
+function analyzeSymbol(symbol, klines, ticker24h, fundingRate) {
+  if (!klines || klines.length < 30) return null;
+
+  const opens   = klines.map(k => parseFloat(k[1]));
+  const highs   = klines.map(k => parseFloat(k[2]));
+  const lows    = klines.map(k => parseFloat(k[3]));
+  const closes  = klines.map(k => parseFloat(k[4]));
+  const volumes = klines.map(k => parseFloat(k[5]));
+
+  const lastClose = closes[closes.length - 1];
+  const prevClose = closes[closes.length - 2];
+  const lastVol = volumes[volumes.length - 1];
+  const avgVol = volumes.slice(-20).reduce((a,b) => a+b, 0) / 20;
+
+  const rsi = calcRSI(closes);
+  const ema9 = calcEMA(closes, 9);
+  const ema21 = calcEMA(closes, 21);
+  const ema50 = calcEMA(closes, 50);
+  const bb = calcBollingerBands(closes);
+  const macd = calcMACD(closes);
+  const atr = calcATR(highs, lows, closes);
+  const vwap = calcVWAP(highs, lows, closes, volumes);
+
+  const change24h = ticker24h ? parseFloat(ticker24h.priceChangePercent) : 0;
+  const vol24h = ticker24h ? parseFloat(ticker24h.quoteVolume) : 0;
+
+  // ── Signal scoring
+  let longScore = 0, shortScore = 0;
+  let strategies = [];
+  let reasons = [];
+
+  // 1. RSI Divergence
+  if (rsi !== null) {
+    if (rsi < 30) {
+      longScore += 25;
+      strategies.push({ name: 'RSI 과매도', color: '#00b4d8' });
+      reasons.push(`RSI ${rsi.toFixed(1)} 과매도`);
+    } else if (rsi > 70) {
+      shortScore += 25;
+      strategies.push({ name: 'RSI 과매수', color: '#00b4d8' });
+      reasons.push(`RSI ${rsi.toFixed(1)} 과매수`);
+    } else if (rsi < 40 && rsi > 30) {
+      longScore += 12;
+    } else if (rsi > 60 && rsi < 70) {
+      shortScore += 12;
+    }
+  }
+
+  // 2. Bollinger Bands
+  if (bb) {
+    const bbWidth = (bb.upper - bb.lower) / bb.mid;
+    if (lastClose <= bb.lower && prevClose > bb.lower) {
+      longScore += 20;
+      strategies.push({ name: 'BB 하단 터치', color: '#7c3aed' });
+      reasons.push('볼린저 하단 터치');
+    } else if (lastClose >= bb.upper && prevClose < bb.upper) {
+      shortScore += 20;
+      strategies.push({ name: 'BB 상단 터치', color: '#7c3aed' });
+      reasons.push('볼린저 상단 터치');
+    } else if (lastClose > bb.upper) {
+      // squeeze breakout upward
+      longScore += 15;
+      strategies.push({ name: 'BB 상단 돌파', color: '#7c3aed' });
+    }
+    // BB squeeze (low volatility = pending breakout)
+    if (bbWidth < 0.04) {
+      longScore += 8; shortScore += 8;
+    }
+  }
+
+  // 3. EMA Cross
+  if (ema9 && ema21) {
+    if (ema9 > ema21 && closes[closes.length-2] < calcEMA(closes.slice(0,-1), 21)) {
+      longScore += 20;
+      strategies.push({ name: 'EMA 골든크로스', color: '#f59e0b' });
+      reasons.push('EMA9 > EMA21 교차');
+    } else if (ema9 < ema21 && closes[closes.length-2] > calcEMA(closes.slice(0,-1), 21)) {
+      shortScore += 20;
+      strategies.push({ name: 'EMA 데드크로스', color: '#f59e0b' });
+      reasons.push('EMA9 < EMA21 교차');
+    } else if (ema9 > ema21 && ema21 > (ema50 || ema21)) {
+      longScore += 10;
+    } else if (ema9 < ema21) {
+      shortScore += 10;
+    }
+  }
+
+  // 4. Volume Surge
+  const volRatio = lastVol / avgVol;
+  if (volRatio > 2.5) {
+    if (lastClose > prevClose) {
+      longScore += 18;
+      strategies.push({ name: '거래량 급등 ↑', color: '#ec4899' });
+      reasons.push(`거래량 ${volRatio.toFixed(1)}x 급등`);
+    } else {
+      shortScore += 18;
+      strategies.push({ name: '거래량 급등 ↓', color: '#ec4899' });
+      reasons.push(`거래량 ${volRatio.toFixed(1)}x 급등`);
+    }
+  } else if (volRatio > 1.5) {
+    if (lastClose > prevClose) longScore += 8;
+    else shortScore += 8;
+  }
+
+  // 5. Support/Resistance Breakout
+  const recent20High = Math.max(...highs.slice(-21, -1));
+  const recent20Low = Math.min(...lows.slice(-21, -1));
+  if (lastClose > recent20High * 0.998 && prevClose < recent20High) {
+    longScore += 22;
+    strategies.push({ name: '저항 돌파', color: '#10b981' });
+    reasons.push('20봉 고점 돌파');
+  } else if (lastClose < recent20Low * 1.002 && prevClose > recent20Low) {
+    shortScore += 22;
+    strategies.push({ name: '지지 붕괴', color: '#10b981' });
+    reasons.push('20봉 저점 하향 돌파');
+  }
+
+  // 6. VWAP
+  if (vwap) {
+    if (lastClose > vwap && prevClose <= vwap) {
+      longScore += 12;
+      reasons.push('VWAP 상향 돌파');
+    } else if (lastClose < vwap && prevClose >= vwap) {
+      shortScore += 12;
+      reasons.push('VWAP 하향 이탈');
+    }
+  }
+
+  // 7. Funding Rate Signal
+  if (fundingRate !== null) {
+    if (fundingRate > 0.05) {
+      // Very positive funding = shorts more likely to be squeezed, but longs pay
+      // Contrarian: high funding often means overheated long
+      shortScore += 10;
+      strategies.push({ name: '펀딩비 역전', color: '#f97316' });
+      reasons.push(`펀딩비 +${fundingRate.toFixed(4)}% 과열`);
+    } else if (fundingRate < -0.05) {
+      longScore += 10;
+      strategies.push({ name: '펀딩비 역전', color: '#f97316' });
+      reasons.push(`펀딩비 ${fundingRate.toFixed(4)}% 음수`);
+    }
+  }
+
+  // 8. MACD
+  if (macd) {
+    if (macd.macd > 0 && macd.ema12 > macd.ema26) longScore += 8;
+    else if (macd.macd < 0) shortScore += 8;
+  }
+
+  // 9. Trend momentum
+  const momentum5 = (lastClose - closes[closes.length-6]) / closes[closes.length-6] * 100;
+  if (momentum5 > 2) { longScore += 10; reasons.push(`모멘텀 +${momentum5.toFixed(1)}%`); }
+  else if (momentum5 < -2) { shortScore += 10; reasons.push(`모멘텀 ${momentum5.toFixed(1)}%`); }
+
+  // ── Determine signal
+  const signalDiff = Math.abs(longScore - shortScore);
+  const isLong = longScore >= shortScore;
+  const maxScore = Math.max(longScore, shortScore);
+
+  // Remove duplicate strategies
+  const uniqueStrategies = strategies.filter((s, i, arr) =>
+    arr.findIndex(x => x.name === s.name) === i
+  ).slice(0, 3);
+
+  // Composite score (0-100)
+  const compositeScore = Math.min(100, Math.round(maxScore * 0.85 + (volRatio > 1.5 ? 8 : 0)));
+
+  // Entry suggestion
+  const direction = isLong ? 'LONG' : 'SHORT';
+  const entryPrice = isLong
+    ? lastClose * (1 - (atr ? atr/lastClose*0.3 : 0.002))
+    : lastClose * (1 + (atr ? atr/lastClose*0.3 : 0.002));
+
+  const strength = Math.min(100, Math.round(
+    (maxScore / 120) * 100 * (1 + signalDiff / 200)
+  ));
+
+  return {
+    symbol: symbol.replace('USDT', '/USDT'),
+    rawSymbol: symbol,
+    price: lastClose,
+    change: change24h,
+    signal: direction,
+    strength,
+    strategies: uniqueStrategies,
+    reasons,
+    volume: vol24h,
+    funding: fundingRate,
+    rsi: rsi ? rsi.toFixed(1) : null,
+    entryPrice,
+    score: compositeScore,
+    volRatio,
+    atr
+  };
+}
+
+// ─── SCAN ENGINE ──────────────────────────────────────────────
+async function startScan() {
+  if (scanActive) return;
+  scanActive = true;
+
+  const btn = document.getElementById('scanBtn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('scanBtnText');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  btnText.textContent = '스캔 중...';
+  progressBar.style.display = 'block';
+
+  allResults = [];
+  renderResults([]);
+  document.getElementById('resultTitle').textContent = '스캔 중...';
+
+  const interval = document.getElementById('interval').value;
+  const minVolume = parseFloat(document.getElementById('minVolume').value);
+  const minStrength = parseFloat(document.getElementById('minStrength').value);
+  const scanCount = parseInt(document.getElementById('scanCount').value);
+
+  const symbols = scanCount >= 100
+    ? TOP_SYMBOLS_100.slice(0, scanCount)
+    : TOP_SYMBOLS_50.slice(0, scanCount);
+
+  let processed = 0;
+  showToast(`${symbols.length}개 종목 스캔 시작`, '#00b4d8');
+
+  // Process in batches of 5 to avoid rate limiting
+  const batchSize = 5;
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+    await Promise.all(batch.map(async (sym) => {
+      try {
+        const [klines, ticker, funding] = await Promise.all([
+          fetchKlines(sym, interval, 100),
+          fetchTicker24h(sym),
+          fetchFundingRate(sym)
+        ]);
+
+        const result = analyzeSymbol(sym, klines, ticker, funding);
+        processed++;
+        progressFill.style.width = `${(processed / symbols.length) * 100}%`;
+
+        if (result && result.strength >= minStrength && result.volume >= minVolume) {
+          allResults.push(result);
+          renderResults(getFilteredSorted());
+          updateStats();
+        }
+      } catch(e) {
+        processed++;
+      }
+    }));
+    await sleep(200); // rate limit buffer
+  }
+
+  // Done
+  progressBar.style.display = 'none';
+  btn.disabled = false;
+  spinner.style.display = 'none';
+  btnText.textContent = '🔍 스캔하기';
+  scanActive = false;
+
+  const filtered = getFilteredSorted();
+  document.getElementById('resultTitle').textContent =
+    `스캔 완료 — ${allResults.length}개 시그널 발견 (${symbols.length}개 스캔)`;
+  updateStats();
+
+  if (allResults.length === 0) {
+    showToast('시그널 없음. 강도 기준을 낮춰보세요', '#ffd60a');
+  } else {
+    const longs = allResults.filter(r => r.signal === 'LONG').length;
+    const shorts = allResults.filter(r => r.signal === 'SHORT').length;
+    showToast(`롱 ${longs}개 · 숏 ${shorts}개 발견!`, '#00e676');
+  }
+}
+
+// ─── RENDER ───────────────────────────────────────────────────
+function getFilteredSorted() {
+  let data = [...allResults];
+  if (currentFilter !== 'all') data = data.filter(r => r.signal === currentFilter);
+  data.sort((a, b) => {
+    const va = a[sortKey] ?? 0, vb = b[sortKey] ?? 0;
+    return sortAsc ? va - vb : vb - va;
+  });
+  return data;
+}
+
+function renderResults(data) {
+  const tbody = document.getElementById('resultsBody');
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h3>조건에 맞는 시그널 없음</h3>
+      <p>강도 기준 낮추거나 거래량 필터를 조정해보세요</p>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map((r, idx) => {
+    const chgClass = r.change >= 0 ? 'chg-pos' : 'chg-neg';
+    const chgSign = r.change >= 0 ? '+' : '';
+    const fundClass = r.funding === null ? 'fund-neu' : r.funding > 0 ? 'fund-pos' : 'fund-neg';
+    const fundStr = r.funding !== null ? `${r.funding > 0 ? '+' : ''}${r.funding.toFixed(4)}%` : '—';
+
+    const strengthClass = r.signal === 'LONG' ? 'long' : 'short';
+    const barPct = Math.min(100, r.strength);
+
+    const scoreClass = r.score >= 75 ? 'score-high' : r.score >= 55 ? 'score-med' : 'score-low';
+
+    const rsiColor = r.rsi < 30 ? 'var(--accent-long)' : r.rsi > 70 ? 'var(--accent-short)' : 'var(--text-muted)';
+
+    const volSegs = Math.min(5, Math.round(r.volRatio));
+    const volBars = Array.from({length:5}, (_, i) =>
+      `<div class="vol-seg" style="${i < volSegs ? 'background:var(--accent-blue)' : ''}"></div>`
+    ).join('');
+
+    const stratTags = r.strategies.map(s =>
+      `<span class="strategy-tag" style="color:${s.color};border-color:${s.color}33">${s.name}</span>`
+    ).join(' ');
+
+    const animDelay = `animation-delay:${idx * 0.04}s`;
+
+    return `<tr style="${animDelay}">
+      <td><span class="sym">${r.symbol}</span></td>
+      <td><span class="price">$${formatPrice(r.price)}</span></td>
+      <td><span class="${chgClass}">${chgSign}${r.change.toFixed(2)}%</span></td>
+      <td>
+        <span class="signal-badge ${r.signal}">
+          ${r.signal === 'LONG' ? '▲' : '▼'} ${r.signal}
+        </span>
+      </td>
+      <td>
+        <div class="strength-bar">
+          <div class="bar-track">
+            <div class="bar-fill ${strengthClass}" style="width:${barPct}%"></div>
+          </div>
+          <span class="bar-num">${r.strength}%</span>
+        </div>
+      </td>
+      <td>${stratTags || '<span class="strategy-tag">복합</span>'}</td>
+      <td>
+        <div class="vol-indicator">
+          <div class="vol-bar">${volBars}</div>
+          <span style="color:var(--text-muted);font-size:11px">${formatNum(r.volume)}</span>
+        </div>
+      </td>
+      <td><span class="${fundClass}">${fundStr}</span></td>
+      <td><span style="color:${rsiColor}">${r.rsi ?? '—'}</span></td>
+      <td>
+        <span style="color:${r.signal === 'LONG' ? 'var(--accent-long)' : 'var(--accent-short)'};font-size:11px">
+          $${formatPrice(r.entryPrice)}
+        </span>
+      </td>
+      <td><div class="score-circle ${scoreClass}">${r.score}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateStats() {
+  const longs = allResults.filter(r => r.signal === 'LONG').length;
+  const shorts = allResults.filter(r => r.signal === 'SHORT').length;
+  const high = allResults.filter(r => r.strength >= 75).length;
+
+  document.getElementById('statTotal').textContent = allResults.length;
+  document.getElementById('statLong').textContent = longs;
+  document.getElementById('statShort').textContent = shorts;
+  document.getElementById('statHigh').textContent = high;
+}
+
+function filterResults(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderResults(getFilteredSorted());
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  renderResults(getFilteredSorted());
+}
+</script>
+</body>
+</html>
