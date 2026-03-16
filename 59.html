@@ -723,10 +723,20 @@ function analyze(sym, klines, ticker, funding) {
   const tp=isLong ? entryPrice+tpDist : entryPrice-tpDist;
   const sl=isLong ? entryPrice-slDist : entryPrice+slDist;
 
-  // Max leverage: position wiped if price moves slDist adverse
-  // Using: maxLev = floor(entryPrice / slDist * 0.9)  (0.9 = 10% maintenance margin buffer)
-  const rawLev=slDist>0 ? Math.floor((entryPrice/slDist)*0.9) : 1;
-  const maxLev=Math.max(1,Math.min(125,rawLev));
+  // Max leverage: SL 도달 전 청산당하지 않는 최대 레버리지
+  // 바이낸스 선물 청산가(롱) = entry × (1 - 1/lev + MMR)
+  // 바이낸스 선물 청산가(숏) = entry × (1 + 1/lev - MMR)
+  // 역산: 롱 → lev < 1 / (1 + MMR - sl/entry)
+  //       숏 → lev < 1 / (sl/entry - 1 + MMR)
+  // floor-1: SL이 청산가와 완전히 겹치는 엣지케이스 배제
+  const MMR = 0.005; // 유지증거금률 0.5% (Binance 티어1)
+  let maxLevExact;
+  if(isLong) {
+    maxLevExact = sl < entryPrice ? 1 / (1 + MMR - sl / entryPrice) : 1;
+  } else {
+    maxLevExact = sl > entryPrice ? 1 / (sl / entryPrice - 1 + MMR) : 1;
+  }
+  const maxLev = Math.max(1, Math.min(125, Math.floor(maxLevExact) - 1));
   const levClass=maxLev>=20?'lev-h':maxLev>=5?'lev-m':'lev-l';
 
   const rsiPct=rsi?+rsi.toFixed(1):null;
