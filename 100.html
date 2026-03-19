@@ -618,23 +618,47 @@ function startCountdown() {
   },1000);
 }
 
+// ── 다음 정각(00/15/30/45분) 계산
+function getNextSlot() {
+  const now = new Date();
+  const min = now.getMinutes();
+  const nextMin = [0,15,30,45].find(m => m > min) ?? 60;
+  const next = new Date(now);
+  if(nextMin === 60) {
+    next.setHours(next.getHours()+1, 0, 0, 0);
+  } else {
+    next.setMinutes(nextMin, 0, 0);
+  }
+  return next.getTime();
+}
+
 // ── 자동 스캔 루프
 async function autoScanLoop() {
   $('autoBadge').style.display='inline-flex';
-  log('🚀 자동 스캔 시작 (15분 간격)','log-info');
+  log('🚀 자동 스캔 시작 (매 00/15/30/45분)','log-info');
+
+  // 즉시 첫 스캔
+  await doScan();
+  if(stopReq) { cleanup(); return; }
+
   while(!stopReq){
-    nextScanAt=Date.now()+SCAN_INTERVAL_MS;
-    // 즉시 첫 스캔
-    await doScan();
-    if(stopReq) break;
-    // 15분 대기
-    nextScanAt=Date.now()+SCAN_INTERVAL_MS;
+    // 다음 정각 슬롯까지 대기
+    nextScanAt = getNextSlot();
+    const slotStr = new Date(nextScanAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    log(`다음 스캔: ${slotStr}`, 'log-info');
+
     await new Promise(r=>{
       const t=setInterval(()=>{
         if(stopReq||Date.now()>=nextScanAt){clearInterval(t);r();}
-      },1000);
+      },500);
     });
+    if(stopReq) break;
+    await doScan();
   }
+  cleanup();
+}
+
+function cleanup() {
   $('autoBadge').style.display='none';
   nextScanAt=null;
   $('ringLabel').textContent='—';
