@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    />
+    <title>Binance USDT Perp 1시간봉 99MA 필터 + 15분봉 이전봉 스캐너</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b1020;
+            color: #e5e7eb;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            padding: 20px;
+        }
+
+        .wrap {
+            max-width: 1700px;
+            margin: 0 auto;
+        }
+
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .title-box h1 {
+            margin: 0 0 6px;
+            font-size: 26px;
+            line-height: 1.2;
+        }
+
+        .title-box p {
+            margin: 0;
+            color: #9ca3af;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        button {
+            border: 0;
+            background: #2563eb;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            opacity: 0.92;
+        }
+
+        button.secondary {
+            background: #374151;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            border: 1px solid #374151;
+            background: #111827;
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .card {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        .card .label {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        .card .value {
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+
+        .status-line {
+            margin-bottom: 14px;
+            font-size: 14px;
+            color: #cbd5e1;
+        }
+
+        .status-line.ok {
+            color: #22c55e;
+            font-weight: bold;
+        }
+
+        .status-line.warn {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        .status-line.bad {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .table-wrap {
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            overflow: auto;
+            background: #111827;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1300px;
+        }
+
+        thead {
+            background: #0f172a;
+        }
+
+        th,
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #1f2937;
+            text-align: right;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        th:first-child,
+        td:first-child,
+        th:nth-child(2),
+        td:nth-child(2) {
+            text-align: left;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .up {
+            color: #22c55e;
+            font-weight: bold;
+        }
+
+        .down {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .muted {
+            color: #94a3b8;
+        }
+
+        .footer-note {
+            margin-top: 12px;
+            color: #9ca3af;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 1400px) {
+            .stats {
+                grid-template-columns: repeat(4, minmax(140px, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .stats {
+                grid-template-columns: repeat(2, minmax(140px, 1fr));
+            }
+
+            .title-box h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="topbar">
+            <div class="title-box">
+                <h1>Binance USDT 무기한 선물 99MA 필터 스캐너</h1>
+                <p>
+                    1시간봉 직전봉 종가가 99MA(SMA99)보다 작은 종목만 남기고,
+                    15분봉 직전봉 상승률이 높은 순서대로 정렬합니다.
+                </p>
+            </div>
+
+            <div class="controls">
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="심볼 검색 (예: BTC)"
+                />
+                <input
+                    type="number"
+                    id="minChangeInput"
+                    placeholder="최소 15분 상승률(%)"
+                    step="0.01"
+                />
+                <button id="scanBtn">지금 전체 재스캔</button>
+                <button id="refreshSymbolsBtn" class="secondary">심볼 목록 새로고침</button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="card">
+                <div class="label">전체 대상 심볼 수</div>
+                <div class="value" id="totalSymbols">-</div>
+            </div>
+            <div class="card">
+                <div class="label">99MA 필터 통과 수</div>
+                <div class="value" id="passedCount">-</div>
+            </div>
+            <div class="card">
+                <div class="label">부족한 데이터 제외</div>
+                <div class="value" id="notEnoughCount">-</div>
+            </div>
+            <div class="card">
+                <div class="label">실패 건수</div>
+                <div class="value" id="failedCount">-</div>
+            </div>
+            <div class="card">
+                <div class="label">마지막 스캔</div>
+                <div class="value" id="lastScanAt">-</div>
+            </div>
+            <div class="card">
+                <div class="label">다음 자동 스캔까지</div>
+                <div class="value" id="nextScanCountdown">-</div>
+            </div>
+            <div class="card">
+                <div class="label">상태</div>
+                <div class="value" id="mainStatus">대기</div>
+            </div>
+        </div>
+
+        <div class="status-line" id="statusLine">
+            준비 중...
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>심볼</th>
+                        <th>15분 이전봉 시작</th>
+                        <th>15분 이전봉 종료</th>
+                        <th>15분 시가</th>
+                        <th>15분 종가</th>
+                        <th>15분 상승률(%)</th>
+                        <th>1시간 이전봉 종가</th>
+                        <th>1시간 99MA</th>
+                        <th>99MA 대비 괴리(%)</th>
+                        <th>15분 거래량</th>
+                        <th>15분 거래대금(USDT)</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr>
+                        <td colspan="12" style="text-align:center;">데이터 로딩 중...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-note">
+            - 99MA는 1시간봉 종가 기준 SMA 99로 계산했습니다.<br />
+            - 1시간봉 비교 대상은 현재 진행 중 봉이 아니라 직전 종료된 봉입니다.<br />
+            - 자동 스캔은 15분 경계 직후 3초 뒤에 다시 실행됩니다.<br />
+            - 신규 상장처럼 1시간봉 데이터가 100개 미만이면 99MA 계산이 불가능해서 제외됩니다.
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const REST_BASE = "https://fapi.binance.com";
+            const REST_CONCURRENCY = 6;
+            const PER_SYMBOL_DELAY_MS = 35;
+            const AUTO_SCAN_DELAY_SEC = 3;
+            const SYMBOL_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+            const state = {
+                symbols: [],
+                rows: [],
+                isScanning: false,
+                lastScanTime: null,
+                nextScanTime: null,
+                autoScanTimer: null,
+                lastSymbolsLoadAt: null,
+                summary: {
+                    totalSymbols: 0,
+                    passedCount: 0,
+                    notEnoughCount: 0,
+                    failedCount: 0
+                }
+            };
+
+            const el = {
+                totalSymbols: document.getElementById("totalSymbols"),
+                passedCount: document.getElementById("passedCount"),
+                notEnoughCount: document.getElementById("notEnoughCount"),
+                failedCount: document.getElementById("failedCount"),
+                lastScanAt: document.getElementById("lastScanAt"),
+                nextScanCountdown: document.getElementById("nextScanCountdown"),
+                mainStatus: document.getElementById("mainStatus"),
+                statusLine: document.getElementById("statusLine"),
+                tbody: document.getElementById("tbody"),
+                searchInput: document.getElementById("searchInput"),
+                minChangeInput: document.getElementById("minChangeInput"),
+                scanBtn: document.getElementById("scanBtn"),
+                refreshSymbolsBtn: document.getElementById("refreshSymbolsBtn")
+            };
+
+            function setStatus(text, tone) {
+                el.statusLine.className = "status-line";
+
+                if (tone === "ok") {
+                    el.statusLine.classList.add("ok");
+                }
+
+                if (tone === "warn") {
+                    el.statusLine.classList.add("warn");
+                }
+
+                if (tone === "bad") {
+                    el.statusLine.classList.add("bad");
+                }
+
+                el.statusLine.textContent = text;
+            }
+
+            function setMainStatus(text) {
+                el.mainStatus.textContent = text;
+            }
+
+            function sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            function formatNumber(value, digits = 4) {
+                const num = Number(value);
+
+                if (!Number.isFinite(num)) {
+                    return "-";
+                }
+
+                return num.toLocaleString("en-US", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: digits
+                });
+            }
+
+            function formatPrice(value) {
+                const num = Number(value);
+
+                if (!Number.isFinite(num)) {
+                    return "-";
+                }
+
+                if (num >= 1000) {
+                    return formatNumber(num, 2);
+                }
+
+                if (num >= 1) {
+                    return formatNumber(num, 4);
+                }
+
+                if (num >= 0.01) {
+                    return formatNumber(num, 6);
+                }
+
+                return formatNumber(num, 8);
+            }
+
+            function formatDateTime(ms) {
+                if (!ms) {
+                    return "-";
+                }
+
+                const date = new Date(ms);
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, "0");
+                const dd = String(date.getDate()).padStart(2, "0");
+                const hh = String(date.getHours()).padStart(2, "0");
+                const mi = String(date.getMinutes()).padStart(2, "0");
+                const ss = String(date.getSeconds()).padStart(2, "0");
+
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+            }
+
+            function formatCountdown(ms) {
+                if (!Number.isFinite(ms) || ms < 0) {
+                    ms = 0;
+                }
+
+                const totalSec = Math.floor(ms / 1000);
+                const min = Math.floor(totalSec / 60);
+                const sec = totalSec % 60;
+
+                return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+            }
+
+            function updateNextScanCountdown() {
+                if (!state.nextScanTime) {
+                    el.nextScanCountdown.textContent = "-";
+                    return;
+                }
+
+                const remain = state.nextScanTime - Date.now();
+                el.nextScanCountdown.textContent = formatCountdown(remain);
+            }
+
+            function getNextQuarterTime(delaySec = 3) {
+                const now = Date.now();
+                const intervalMs = 15 * 60 * 1000;
+                const currentBoundary = Math.floor(now / intervalMs) * intervalMs;
+                const currentBoundaryWithDelay = currentBoundary + delaySec * 1000;
+
+                if (now < currentBoundaryWithDelay) {
+                    return currentBoundaryWithDelay;
+                }
+
+                return currentBoundary + intervalMs + delaySec * 1000;
+            }
+
+            function calculateSma(values) {
+                if (!Array.isArray(values) || values.length === 0) {
+                    return null;
+                }
+
+                let sum = 0;
+
+                for (const value of values) {
+                    const num = Number(value);
+
+                    if (!Number.isFinite(num)) {
+                        return null;
+                    }
+
+                    sum += num;
+                }
+
+                return sum / values.length;
+            }
+
+            async function fetchJson(url) {
+                const response = await fetch(url, {
+                    method: "GET",
+                    cache: "no-store"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${url}`);
+                }
+
+                return response.json();
+            }
+
+            async function loadSymbols(force = false) {
+                const shouldReuse =
+                    !force &&
+                    state.symbols.length > 0 &&
+                    state.lastSymbolsLoadAt &&
+                    Date.now() - state.lastSymbolsLoadAt < SYMBOL_REFRESH_INTERVAL_MS;
+
+                if (shouldReuse) {
+                    return state.symbols;
+                }
+
+                const data = await fetchJson(`${REST_BASE}/fapi/v1/exchangeInfo`);
+
+                const symbols = (data.symbols || [])
+                    .filter((item) => {
+                        return (
+                            item.quoteAsset === "USDT" &&
+                            item.contractType === "PERPETUAL" &&
+                            item.status === "TRADING"
+                        );
+                    })
+                    .map((item) => item.symbol)
+                    .sort();
+
+                state.symbols = symbols;
+                state.lastSymbolsLoadAt = Date.now();
+                state.summary.totalSymbols = symbols.length;
+                el.totalSymbols.textContent = symbols.length.toLocaleString("en-US");
+
+                return symbols;
+            }
+
+            function buildKlineUrl(symbol, interval, limit) {
+                return `${REST_BASE}/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${limit}`;
+            }
+
+            async function scanSymbol(symbol) {
+                try {
+                    const [data15m, data1h] = await Promise.all([
+                        fetchJson(buildKlineUrl(symbol, "15m", 2)),
+                        fetchJson(buildKlineUrl(symbol, "1h", 100))
+                    ]);
+
+                    if (!Array.isArray(data15m) || data15m.length < 2) {
+                        return {
+                            status: "notEnough"
+                        };
+                    }
+
+                    if (!Array.isArray(data1h) || data1h.length < 100) {
+                        return {
+                            status: "notEnough"
+                        };
+                    }
+
+                    const prev15m = data15m[data15m.length - 2];
+                    const prev1h = data1h[data1h.length - 2];
+                    const maWindow = data1h.slice(data1h.length - 100, data1h.length - 1);
+
+                    if (!prev15m || !prev1h || maWindow.length !== 99) {
+                        return {
+                            status: "notEnough"
+                        };
+                    }
+
+                    const prev15mOpen = Number(prev15m[1]);
+                    const prev15mClose = Number(prev15m[4]);
+                    const prev15mVolume = Number(prev15m[5]);
+                    const prev15mQuoteVolume = Number(prev15m[7]);
+
+                    const prev1hClose = Number(prev1h[4]);
+                    const ma99 = calculateSma(maWindow.map((item) => Number(item[4])));
+
+                    if (
+                        !Number.isFinite(prev15mOpen) ||
+                        !Number.isFinite(prev15mClose) ||
+                        !Number.isFinite(prev15mVolume) ||
+                        !Number.isFinite(prev15mQuoteVolume) ||
+                        !Number.isFinite(prev1hClose) ||
+                        !Number.isFinite(ma99) ||
+                        ma99 === 0
+                    ) {
+                        return {
+                            status: "failed"
+                        };
+                    }
+
+                    const passFilter = prev1hClose < ma99;
+
+                    if (!passFilter) {
+                        return {
+                            status: "filteredOut"
+                        };
+                    }
+
+                    const change15mPct =
+                        prev15mOpen !== 0
+                            ? ((prev15mClose - prev15mOpen) / prev15mOpen) * 100
+                            : 0;
+
+                    const diffFromMaPct = ((prev1hClose - ma99) / ma99) * 100;
+
+                    return {
+                        status: "pass",
+                        row: {
+                            symbol,
+                            prev15mOpenTime: Number(prev15m[0]),
+                            prev15mCloseTime: Number(prev15m[6]),
+                            prev15mOpen,
+                            prev15mClose,
+                            change15mPct,
+                            prev15mVolume,
+                            prev15mQuoteVolume,
+                            prev1hClose,
+                            ma99,
+                            diffFromMaPct
+                        }
+                    };
+                } catch (error) {
+                    console.error("[SCAN ERROR]", symbol, error);
+
+                    return {
+                        status: "failed"
+                    };
+                }
+            }
+
+            function getFilteredRowsForView() {
+                const keyword = el.searchInput.value.trim().toUpperCase();
+                const minChangeRaw = el.minChangeInput.value.trim();
+
+                let rows = state.rows.slice();
+
+                rows.sort((a, b) => b.change15mPct - a.change15mPct);
+
+                if (keyword) {
+                    rows = rows.filter((row) => row.symbol.includes(keyword));
+                }
+
+                if (minChangeRaw !== "") {
+                    const minChange = Number(minChangeRaw);
+
+                    if (Number.isFinite(minChange)) {
+                        rows = rows.filter((row) => row.change15mPct >= minChange);
+                    }
+                }
+
+                return rows;
+            }
+
+            function renderSummary() {
+                el.totalSymbols.textContent = formatNumber(state.summary.totalSymbols, 0);
+                el.passedCount.textContent = formatNumber(state.summary.passedCount, 0);
+                el.notEnoughCount.textContent = formatNumber(state.summary.notEnoughCount, 0);
+                el.failedCount.textContent = formatNumber(state.summary.failedCount, 0);
+                el.lastScanAt.textContent = state.lastScanTime
+                    ? formatDateTime(state.lastScanTime)
+                    : "-";
+            }
+
+            function renderRows() {
+                const rows = getFilteredRowsForView();
+
+                if (rows.length === 0) {
+                    el.tbody.innerHTML = `
+                        <tr>
+                            <td colspan="12" style="text-align:center;">조건에 맞는 데이터가 없습니다.</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                el.tbody.innerHTML = rows
+                    .map((row, index) => {
+                        const changeClass = row.change15mPct >= 0 ? "up" : "down";
+                        const diffClass = row.diffFromMaPct >= 0 ? "up" : "down";
+
+                        return `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td><strong>${row.symbol}</strong></td>
+                                <td class="muted">${formatDateTime(row.prev15mOpenTime)}</td>
+                                <td class="muted">${formatDateTime(row.prev15mCloseTime)}</td>
+                                <td>${formatPrice(row.prev15mOpen)}</td>
+                                <td>${formatPrice(row.prev15mClose)}</td>
+                                <td class="${changeClass}">${formatNumber(row.change15mPct, 4)}%</td>
+                                <td>${formatPrice(row.prev1hClose)}</td>
+                                <td>${formatPrice(row.ma99)}</td>
+                                <td class="${diffClass}">${formatNumber(row.diffFromMaPct, 4)}%</td>
+                                <td>${formatNumber(row.prev15mVolume, 2)}</td>
+                                <td>${formatNumber(row.prev15mQuoteVolume, 2)}</td>
+                            </tr>
+                        `;
+                    })
+                    .join("");
+            }
+
+            async function scanAllSymbols(scanType = "manual", forceSymbolReload = false) {
+                if (state.isScanning) {
+                    return;
+                }
+
+                state.isScanning = true;
+                state.rows = [];
+                state.summary = {
+                    totalSymbols: 0,
+                    passedCount: 0,
+                    notEnoughCount: 0,
+                    failedCount: 0
+                };
+
+                renderSummary();
+                renderRows();
+
+                setMainStatus("스캔 중");
+                setStatus(
+                    scanType === "auto"
+                        ? "자동 스캔 실행 중..."
+                        : "전체 심볼 스캔 실행 중...",
+                    "warn"
+                );
+
+                try {
+                    const symbols = await loadSymbols(forceSymbolReload);
+                    const queue = symbols.slice();
+                    const rows = [];
+                    let done = 0;
+                    let filteredOutCount = 0;
+
+                    state.summary.totalSymbols = symbols.length;
+                    renderSummary();
+
+                    async function worker() {
+                        while (queue.length) {
+                            const symbol = queue.shift();
+
+                            if (!symbol) {
+                                continue;
+                            }
+
+                            const result = await scanSymbol(symbol);
+
+                            if (result.status === "pass") {
+                                rows.push(result.row);
+                                state.summary.passedCount += 1;
+                            } else if (result.status === "notEnough") {
+                                state.summary.notEnoughCount += 1;
+                            } else if (result.status === "filteredOut") {
+                                filteredOutCount += 1;
+                            } else {
+                                state.summary.failedCount += 1;
+                            }
+
+                            done += 1;
+
+                            if (done % 15 === 0 || done === symbols.length) {
+                                state.rows = rows.slice().sort((a, b) => b.change15mPct - a.change15mPct);
+                                renderSummary();
+                                renderRows();
+
+                                setStatus(
+                                    `스캔 진행 중... ${done}/${symbols.length} | 필터 통과 ${state.summary.passedCount} | 필터 제외 ${filteredOutCount}`,
+                                    "warn"
+                                );
+                            }
+
+                            await sleep(PER_SYMBOL_DELAY_MS);
+                        }
+                    }
+
+                    const workers = [];
+
+                    for (let i = 0; i < REST_CONCURRENCY; i += 1) {
+                        workers.push(worker());
+                    }
+
+                    await Promise.all(workers);
+
+                    state.rows = rows.slice().sort((a, b) => b.change15mPct - a.change15mPct);
+                    state.lastScanTime = Date.now();
+
+                    renderSummary();
+                    renderRows();
+
+                    setMainStatus("대기");
+                    setStatus(
+                        `스캔 완료. 전체 ${symbols.length}개 중 99MA 조건 통과 ${state.summary.passedCount}개.`,
+                        "ok"
+                    );
+                } catch (error) {
+                    console.error(error);
+                    setMainStatus("오류");
+                    setStatus(`스캔 실패: ${error.message}`, "bad");
+                } finally {
+                    state.isScanning = false;
+                }
+            }
+
+            function clearAutoScanTimer() {
+                if (state.autoScanTimer) {
+                    clearTimeout(state.autoScanTimer);
+                    state.autoScanTimer = null;
+                }
+            }
+
+            function scheduleNextAutoScan() {
+                clearAutoScanTimer();
+
+                const nextTime = getNextQuarterTime(AUTO_SCAN_DELAY_SEC);
+                state.nextScanTime = nextTime;
+                updateNextScanCountdown();
+
+                const delay = Math.max(0, nextTime - Date.now());
+
+                state.autoScanTimer = setTimeout(async () => {
+                    await scanAllSymbols("auto", false);
+                    scheduleNextAutoScan();
+                }, delay);
+            }
+
+            function bindEvents() {
+                el.searchInput.addEventListener("input", renderRows);
+                el.minChangeInput.addEventListener("input", renderRows);
+
+                el.scanBtn.addEventListener("click", async () => {
+                    await scanAllSymbols("manual", false);
+                    scheduleNextAutoScan();
+                });
+
+                el.refreshSymbolsBtn.addEventListener("click", async () => {
+                    await scanAllSymbols("manual", true);
+                    scheduleNextAutoScan();
+                });
+            }
+
+            async function init() {
+                bindEvents();
+                updateNextScanCountdown();
+                setInterval(updateNextScanCountdown, 1000);
+
+                try {
+                    await scanAllSymbols("manual", true);
+                    scheduleNextAutoScan();
+                } catch (error) {
+                    console.error(error);
+                    setMainStatus("오류");
+                    setStatus(`초기화 실패: ${error.message}`, "bad");
+                }
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
