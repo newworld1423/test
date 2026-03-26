@@ -1,729 +1,555 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8" />
-    <title>Binance Perp USDT — 1D 직전봉 단일캔들 스캐너</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-        :root {
-            --bg: #0b0c10;
-            --card: #121318;
-            --muted: #9aa0a6;
-            --text: #e8eaed;
-            --accent: #3ea6ff;
-            --good: #00c853;
-            --bad: #ff5252;
-            --warn: #ffd54f;
-            --border: #2a2e36;
-        }
-        body {
-            margin: 0;
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
-                         "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
-                         "Segoe UI Emoji";
-            background: var(--bg);
-            color: var(--text);
-        }
-        header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            background: linear-gradient(180deg, #0f1116, #0b0c10);
-        }
-        h1 {
-            margin: 0 0 6px 0;
-            font-size: 20px;
-            font-weight: 700;
-        }
-        .sub {
-            color: var(--muted);
-            font-size: 13px;
-        }
-        .wrap {
-            padding: 16px 20px 40px;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr auto auto auto;
-            gap: 12px;
-            align-items: end;
-            margin-bottom: 16px;
-        }
-        .field {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-        }
-        .field label {
-            display: block;
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-        .field input[type="date"],
-        .field input[type="text"],
-        .field input[type="number"] {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: #0c0d12;
-            color: var(--text);
-            font-size: 14px;
-        }
-        .actions {
-            display: flex;
-            gap: 8px;
-        }
-        button {
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: #1a1f2b;
-            color: var(--text);
-            font-weight: 600;
-            cursor: pointer;
-        }
-        button.primary { background: var(--accent); color: #001f33; border: none; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .progress {
-            margin: 12px 0 0;
-            height: 8px;
-            background: #0f1320;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            overflow: hidden;
-        }
-        .bar { height: 100%; width: 0%; background: linear-gradient(90deg,#3ea6ff,#7cf3ff); }
-
-        .summary {
-            margin: 16px 0;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .chip {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            padding: 8px 12px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-        .chip strong { color: var(--text); }
-
-        /* ---------- 테이블 영역 ---------- */
-        .table-wrap {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            background: var(--card);
-            overflow: visible;
-        }
-        .table-scroller {
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            border-radius: 14px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-            min-width: 1600px;
-        }
-        thead th {
-            position: sticky;
-            top: 0;
-            background: #111319;
-            z-index: 2;
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border);
-            text-align: right;
-            white-space: nowrap;
-        }
-        thead th:first-child,
-        tbody td:first-child { text-align: left; }
-        tbody td {
-            padding: 10px 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            text-align: right;
-            white-space: nowrap;
-        }
-        tbody tr:hover { background: rgba(62,166,255,0.06); }
-        .num.pos { color: var(--good); }
-        .num.neg { color: var(--bad); }
-        .muted { color: var(--muted); }
-
-        .head-flex {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-        .sort-arrows {
-            display: inline-flex;
-            gap: 2px;
-        }
-        .sort-arrows button {
-            border: 1px solid var(--border);
-            background: #0f1320;
-            padding: 2px 6px;
-            line-height: 1;
-            border-radius: 6px;
-            color: var(--muted);
-            font-size: 11px;
-        }
-        .sort-arrows button.active { color: var(--accent); border-color: var(--accent); }
-
-        .searchline {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin: 10px 0 16px;
-        }
-        .searchline input {
-            width: 240px;
-            padding: 9px 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: #0c0d12;
-            color: var(--text);
-        }
-        .note { font-size: 12px; color: var(--muted); }
-        .pill {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-weight: 700;
-        }
-        .pill.ok { background: rgba(0,200,83,.15); color: var(--good); }
-        .pill.no { background: rgba(255,82,82,.15); color: var(--bad); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>선행신호 백테스팅</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#050810;color:#c8d4e8;font-family:-apple-system,'Noto Sans KR',sans-serif;padding:20px 16px;min-height:100vh;}
+h1{font-size:17px;font-weight:700;color:#e8f0ff;margin-bottom:4px;}
+.sub{font-size:11px;color:#4a5a7a;font-family:monospace;margin-bottom:20px;}
+.card{background:#0a0f1e;border:1px solid #1a2340;border-radius:10px;padding:18px;margin-bottom:14px;}
+.card-title{font-size:11px;font-weight:700;color:#4a5a7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px;}
+label{font-size:11px;color:#4a5a7a;}
+input,select{background:#050810;border:1px solid #1a2340;border-radius:6px;color:#e8f0ff;font-size:13px;padding:8px 11px;outline:none;width:100%;transition:border-color .15s;font-family:monospace;}
+input:focus,select:focus{border-color:#378add;}
+input::placeholder{color:#2a3a5a;}
+select option{background:#0a0f1e;}
+.btn{width:100%;padding:11px;border-radius:8px;border:none;font-size:14px;font-weight:700;cursor:pointer;}
+.btn-run{background:linear-gradient(90deg,#378add,#00c6f5);color:#fff;}
+.btn-run:hover{filter:brightness(1.1);}
+.btn-run:disabled{opacity:.5;cursor:not-allowed;}
+.loading{display:none;padding:14px;text-align:center;font-size:12px;color:#4a5a7a;font-family:monospace;}
+.loading.show{display:block;}
+.blink{animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.err{color:#ff4560;font-size:12px;padding:8px 12px;background:rgba(255,69,96,.08);border:1px solid rgba(255,69,96,.2);border-radius:6px;margin-top:8px;display:none;}
+.err.show{display:block;}
+.hidden{display:none;}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.metric{background:#050810;border-radius:8px;padding:11px 13px;}
+.metric-label{font-size:10px;color:#4a5a7a;margin-bottom:5px;text-transform:uppercase;}
+.metric-value{font-size:20px;font-weight:700;}
+.metric-sub{font-size:10px;color:#4a5a7a;margin-top:3px;font-family:monospace;}
+.chart-wrap{position:relative;height:300px;margin-bottom:14px;}
+.signal-table{width:100%;border-collapse:collapse;font-size:12px;}
+.signal-table th{background:#050810;padding:8px 10px;text-align:left;font-size:10px;color:#4a5a7a;font-weight:700;text-transform:uppercase;border-bottom:1px solid #1a2340;}
+.signal-table td{padding:8px 10px;border-bottom:1px solid #0d1525;font-family:monospace;vertical-align:middle;}
+.signal-table tr:hover td{background:rgba(255,255,255,.02);}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:3px;font-family:monospace;}
+.b-long{background:rgba(0,232,122,.1);color:#00e87a;border:1px solid rgba(0,232,122,.2);}
+.b-short{background:rgba(255,69,96,.1);color:#ff4560;border:1px solid rgba(255,69,96,.2);}
+.up{color:#00e87a;}
+.dn{color:#ff4560;}
+.neu{color:#4a5a7a;}
+.progress-bar{height:4px;background:#1a2340;border-radius:2px;margin-top:6px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:2px;transition:width .3s;}
+.log-box{background:#050810;border-radius:6px;padding:10px 12px;font-family:monospace;font-size:10px;color:#4a5a7a;max-height:120px;overflow-y:auto;line-height:1.8;}
+.tabs{display:flex;border-bottom:1px solid #1a2340;margin-bottom:14px;}
+.tab{padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#4a5a7a;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;}
+.tab.active{color:#00c6f5;border-color:#00c6f5;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+</style>
 </head>
 <body>
-    <header>
-        <h1>1일봉 직전봉 단일캔들 스캐너 (Binance Perp USDT)</h1>
-        <div class="sub">선택한 날짜(UTC)의 <strong>직전봉</strong> 하나만으로 예측점수/예측확률을 계산합니다. 백테스트를 켜면 해당 날짜의 실제 결과(Open→High/Close)도 함께 표시합니다. (성공/실패는 시가→종가 기준)</div>
-    </header>
 
-    <div class="wrap">
-        <div class="controls">
-            <div class="field">
-                <label>스캔 기준 날짜 (UTC 00:00:00Z)</label>
-                <input id="dateInput" type="date" />
-                <div class="note" style="margin-top:6px;">※ Binance 1D 캔들은 <strong>UTC</strong> 기준입니다.</div>
-            </div>
-            <div class="field">
-                <label>옵션</label>
-                <div>
-                    <label><input id="backtestChk" type="checkbox" /> 백테스트 (D일 실제 결과 포함)</label>
-                </div>
-                <div style="margin-top:6px;">
-                    <label><input id="minQuoteVolChk" type="checkbox" /> 직전봉 거래대금 하한(USDT)</label>
-                    <input id="minQuoteVol" type="number" placeholder="예: 5,000,000" style="margin-top:6px;" />
-                    <div class="note">※ 유동성 낮은 종목 제외용(선택)</div>
-                </div>
-            </div>
-            <div class="field">
-                <label>검색</label>
-                <div class="searchline">
-                    <input id="searchSym" type="text" placeholder="심볼 필터 (예: BTC, ETH...)" />
-                    <span class="note">표시된 목록 실시간 필터</span>
-                </div>
-            </div>
-            <div class="actions">
-                <button id="scanBtn" class="primary">스캔 시작</button>
-                <button id="stopBtn">중지</button>
-            </div>
-        </div>
+<h1>선행신호 백테스팅</h1>
+<p class="sub">과거 데이터로 선행신호 스캐너가 언제 신호를 냈고, 이후 급등/급락이 실제로 발생했는지 검증</p>
 
-        <div class="summary" id="summary"></div>
-
-        <div class="progress"><div class="bar" id="bar"></div></div>
-
-        <div class="table-wrap" style="margin-top:14px;">
-            <div class="table-scroller">
-                <table id="resultTable">
-                    <thead id="thead"></thead>
-                    <tbody id="tbody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <p class="note" style="margin-top:12px;">
-            * 점수 산식(직전봉 하나만 사용): <code>Score = 0.5·(방향×몸통비율) + 0.3·(2·CLV−1) + 0.2·(아랫꼬리−윗꼬리) + 0.1·tanh(범위%) + 0.1·(직전봉 USDT 거래대금 z)</code><br>
-            * <strong>예측확률</strong>은 같은 날짜 전체 심볼의 점수 분포를 z-score로 정규화 후 시그모이드로 변환한 상대적 확률값입니다.
-        </p>
+<div class="card">
+  <div class="card-title">백테스팅 설정</div>
+  <div class="row">
+    <div class="field">
+      <label>심볼</label>
+      <input type="text" id="sym" placeholder="예: BTC 또는 BTCUSDT" oninput="this.value=this.value.toUpperCase().replace(/USDT$/,'')">
     </div>
+    <div class="field">
+      <label>기간</label>
+      <select id="period">
+        <option value="30">최근 1개월</option>
+        <option value="90" selected>최근 3개월</option>
+        <option value="180">최근 6개월</option>
+        <option value="365">최근 1년</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>BB 수축 기간 (캔들)</label>
+      <input type="number" id="bbPeriod" value="20" min="10" max="50">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>펀딩비 임계값 (%)</label>
+      <input type="number" id="fundThresh" value="0.05" step="0.01" min="0.01">
+    </div>
+    <div class="field">
+      <label>최소 점수</label>
+      <input type="number" id="minScore" value="60" min="30" max="100">
+    </div>
+    <div class="field">
+      <label>신호 후 추적 기간 (시간)</label>
+      <select id="trackHours">
+        <option value="4">4시간</option>
+        <option value="12">12시간</option>
+        <option value="24" selected>24시간</option>
+        <option value="48">48시간</option>
+        <option value="72">72시간</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-run" id="btnRun" onclick="runBacktest()">백테스팅 실행</button>
+  <div class="loading" id="loading"><span class="blink" id="loadMsg">데이터 조회 중...</span><div class="progress-bar" style="margin-top:8px"><div class="progress-fill" id="progressFill" style="width:0%;background:#378add"></div></div></div>
+  <div class="err" id="errMsg"></div>
+</div>
 
-    <script>
-        "use strict";
+<div class="card hidden" id="logCard">
+  <div class="card-title">진행 로그</div>
+  <div class="log-box" id="logBox"></div>
+</div>
 
-        // ==========================
-        // 유틸
-        // ==========================
-        function toUTCDateString(date = new Date()) {
-            const y = date.getUTCFullYear();
-            const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-            const d = String(date.getUTCDate()).padStart(2, "0");
-            return `${y}-${m}-${d}`;
-        }
-        function parseDateUTC(yyyy_mm_dd) {
-            return new Date(`${yyyy_mm_dd}T00:00:00.000Z`);
-        }
-        function tanh(x) {
-            const e2x = Math.exp(2 * x);
-            return (e2x - 1) / (e2x + 1);
-        }
-        function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
-        function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
-        function stddev(arr) {
-            if (arr.length <= 1) return 1;
-            const m = mean(arr);
-            const v = mean(arr.map(x => (x - m) ** 2));
-            return Math.sqrt(v) || 1;
-        }
-        function fmtNum(x, d = 2) {
-            if (x === null || x === undefined || Number.isNaN(x)) return "-";
-            const v = Number(x);
-            const abs = Math.abs(v);
-            if (abs >= 1e10) return v.toExponential(2);
-            return v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
-        }
-        function fmtPct(x, d = 2) {
-            if (x === null || x === undefined || Number.isNaN(x)) return "-";
-            const v = Number(x);
-            const cls = v >= 0 ? "pos" : "neg";
-            return `<span class="num ${cls}">${fmtNum(v, d)}%</span>`;
-        }
-        function el(tag, attrs = {}, html = "") {
-            const e = document.createElement(tag);
-            Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
-            e.innerHTML = html;
-            return e;
-        }
+<div class="card hidden" id="resultCard">
+  <div class="card-title">백테스팅 결과 — <span id="resTitle" style="color:#e8f0ff"></span></div>
 
-        // ==========================
-        // 컬럼 정의
-        // ==========================
-        const BASE_COLUMNS = [
-            { key: "symbol", label: "심볼" },
-            { key: "prevOpen", label: "O-1" },
-            { key: "prevHigh", label: "H-1" },
-            { key: "prevLow",  label: "L-1" },
-            { key: "prevClose",label: "C-1" },
-            { key: "chgPct",   label: "등락률(%)" },
-            { key: "rangePct", label: "범위(%)" },
-            { key: "bodyPct",  label: "몸통비율" },
-            { key: "upperW",   label: "윗꼬리" },
-            { key: "lowerW",   label: "아랫꼬리" },
-            { key: "clv",      label: "CLV" },
-            { key: "quoteVol", label: "거래대금(USDT)" },
-            { key: "score",    label: "예측점수(원시)" },
-            { key: "prob",     label: "예측확률(%)" },
-        ];
-        const BACKTEST_COLUMNS = [
-            { key: "dayOpen",        label: "D 시가" },
-            { key: "dayLow",         label: "D 저가" },
-            { key: "dayHigh",        label: "D 고가" },
-            { key: "dayClose",       label: "D 종가" },
-            { key: "dayRetHighPct",  label: "D 수익률(시→고,%)" },
-            { key: "dayRetClosePct", label: "D 수익률(시→종,%)" },
-            { key: "result",         label: "결과" },
-        ];
+  <div class="summary-grid">
+    <div class="metric">
+      <div class="metric-label">총 신호 수</div>
+      <div class="metric-value" id="totalSignals" style="color:#00c6f5">—</div>
+      <div class="metric-sub" id="totalSub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">적중률 (롱)</div>
+      <div class="metric-value" id="longWinRate" style="color:#00e87a">—</div>
+      <div class="metric-sub" id="longWinSub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">적중률 (숏)</div>
+      <div class="metric-value" id="shortWinRate" style="color:#ff4560">—</div>
+      <div class="metric-sub" id="shortWinSub">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">평균 최대수익</div>
+      <div class="metric-value" id="avgMaxGain" style="color:#ff9020">—</div>
+      <div class="metric-sub" id="avgMaxSub">신호 후 추적기간 내</div>
+    </div>
+  </div>
 
-        // ==========================
-        // Binance API
-        // ==========================
-        const BASE = "https://fapi.binance.com";
+  <div class="chart-wrap">
+    <canvas id="priceChart"></canvas>
+  </div>
 
-        async function fetchUSDTPerpSymbols(abortSignal) {
-            const url = `${BASE}/fapi/v1/exchangeInfo`;
-            const res = await fetch(url, { signal: abortSignal });
-            if (!res.ok) throw new Error("exchangeInfo error");
-            const data = await res.json();
-            const syms = data.symbols
-                .filter(s =>
-                    s.status === "TRADING" &&
-                    s.contractType === "PERPETUAL" &&
-                    s.quoteAsset === "USDT"
-                )
-                .map(s => s.symbol);
-            return syms;
-        }
+  <div class="tabs">
+    <button class="tab active" id="tabAll" onclick="switchTab('all')">전체 신호</button>
+    <button class="tab" id="tabLong" onclick="switchTab('long')">롱 신호</button>
+    <button class="tab" id="tabShort" onclick="switchTab('short')">숏 신호</button>
+  </div>
 
-        async function fetchDailyCandle(symbol, openTimeMs, abortSignal) {
-            const start = openTimeMs;
-            const end = openTimeMs + 24 * 60 * 60 * 1000 - 1;
-            const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&startTime=${start}&endTime=${end}&limit=1`;
-            const res = await fetch(url, { signal: abortSignal });
-            if (!res.ok) throw new Error(`klines error ${symbol}`);
-            const arr = await res.json();
-            if (!Array.isArray(arr) || !arr.length) return null;
-            const k = arr[0];
-            return {
-                symbol,
-                openTime: Number(k[0]),
-                open: Number(k[1]),
-                high: Number(k[2]),
-                low: Number(k[3]),
-                close: Number(k[4]),
-                volume: Number(k[5]),
-                closeTime: Number(k[6]),
-                quoteVolume: Number(k[7]),
-                trades: Number(k[8]),
-                takerBuyBase: Number(k[9]),
-                takerBuyQuote: Number(k[10]),
-            };
-        }
+  <div id="panelAll" class="tab-panel active">
+    <table class="signal-table">
+      <thead><tr><th>시각</th><th>방향</th><th>점수</th><th>신호 가격</th><th>1h후</th><th>4h후</th><th>24h후</th><th>최대변동</th><th>주요신호</th></tr></thead>
+      <tbody id="tableAll"></tbody>
+    </table>
+  </div>
+  <div id="panelLong" class="tab-panel">
+    <table class="signal-table">
+      <thead><tr><th>시각</th><th>점수</th><th>신호 가격</th><th>1h후</th><th>4h후</th><th>24h후</th><th>최대변동</th><th>주요신호</th></tr></thead>
+      <tbody id="tableLong"></tbody>
+    </table>
+  </div>
+  <div id="panelShort" class="tab-panel">
+    <table class="signal-table">
+      <thead><tr><th>시각</th><th>점수</th><th>신호 가격</th><th>1h후</th><th>4h후</th><th>24h후</th><th>최대변동</th><th>주요신호</th></tr></thead>
+      <tbody id="tableShort"></tbody>
+    </table>
+  </div>
+</div>
 
-        // ==========================
-        // 점수/확률 계산 (직전봉 하나)
-        // ==========================
-        function featuresFromCandle(k) {
-            const O = k.open, H = k.high, L = k.low, C = k.close;
-            const QV = k.quoteVolume ?? 0;
-            const range = Math.max(1e-12, (H - L));
-            const body = Math.abs(C - O);
-            const dir = (C > O) ? 1 : (C < O) ? -1 : 0;
+<script>
+const BASE = 'https://fapi.binance.com';
+let chart = null;
+let allSignals = [];
 
-            const bodyPct = body / range;
-            const upper = H - Math.max(C, O);
-            const lower = Math.min(C, O) - L;
-            const upperW = upper / range;
-            const lowerW = lower / range;
-            const clv = (C - L) / range;
-            const chgPct = (C - O) / (O || 1e-12) * 100;
-            const rangePct = (H - L) / (O || 1e-12) * 100;
+function log(msg) {
+  const box = document.getElementById('logBox');
+  const ts = new Date().toLocaleTimeString('ko-KR');
+  box.innerHTML += `<div>[${ts}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
 
-            return { dir, bodyPct, upperW, lowerW, clv, chgPct, rangePct, quoteVol: QV };
-        }
+function setProgress(pct, msg) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('loadMsg').textContent = msg;
+}
 
-        function buildScores(rows) {
-            const logs = rows.map(r => Math.log10(Math.max(1, r.features.quoteVol)));
-            const mu = mean(logs), sd = stddev(logs);
-            rows.forEach(r => {
-                const vZ = (Math.log10(Math.max(1, r.features.quoteVol)) - mu) / sd;
-                const f = r.features;
-                const score =
-                    0.5 * (f.dir * f.bodyPct) +
-                    0.3 * ((2 * f.clv) - 1) +
-                    0.2 * (f.lowerW - f.upperW) +
-                    0.1 * tanh(f.rangePct / 10) +
-                    0.1 * vZ;
+function showErr(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg; el.classList.add('show');
+}
+function clearErr() { document.getElementById('errMsg').classList.remove('show'); }
 
-                r.score = score;
-                r._volZ = vZ;
-            });
-            const sArr = rows.map(r => r.score);
-            const sMu = mean(sArr), sSd = stddev(sArr);
-            const k = 1.2;
-            rows.forEach(r => {
-                const z = (r.score - sMu) / sSd;
-                r.prob = 1 / (1 + Math.exp(-k * z));
-            });
-        }
+function fp(v) {
+  if (v == null) return '—';
+  if (v >= 10000) return v.toLocaleString('ko-KR', {maximumFractionDigits: 0});
+  if (v >= 100)   return v.toFixed(2);
+  if (v >= 1)     return v.toFixed(4);
+  return v.toFixed(6);
+}
 
-        // ==========================
-        // 렌더링
-        // ==========================
-        function updateTableMinWidth() {
-            const thCount = document.querySelectorAll('#thead th').length || 14;
-            const perCol = 120;
-            const min = Math.max(1400, thCount * perCol);
-            const table = document.getElementById('resultTable');
-            table.style.minWidth = `${min}px`;
-        }
+function pct(v) {
+  if (v == null) return '—';
+  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  return s;
+}
 
-        function renderHeader(isBacktest, sortState) {
-            const thead = document.getElementById("thead");
-            thead.innerHTML = "";
-            const tr = document.createElement("tr");
-            const cols = isBacktest ? [...BASE_COLUMNS, ...BACKTEST_COLUMNS] : BASE_COLUMNS;
-            cols.forEach(col => {
-                const th = document.createElement("th");
-                const wrap = el("div", { class: "head-flex" });
-                const label = el("span", {}, col.label);
-                const arrows = el("span", { class: "sort-arrows" });
-                const up = el("button", { "data-key": col.key, "data-dir": "asc", title: "오름차순" }, "▲");
-                const down = el("button", { "data-key": col.key, "data-dir": "desc", title: "내림차순" }, "▼");
-                if (sortState.key === col.key) {
-                    (sortState.dir === "asc" ? up : down).classList.add("active");
-                }
-                arrows.appendChild(up);
-                arrows.appendChild(down);
-                wrap.appendChild(label);
-                wrap.appendChild(arrows);
-                th.appendChild(wrap);
-                tr.appendChild(th);
-            });
-            thead.appendChild(tr);
+function pctColor(v) {
+  if (v == null) return 'neu';
+  return v >= 1 ? 'up' : v <= -1 ? 'dn' : 'neu';
+}
 
-            thead.querySelectorAll(".sort-arrows button").forEach(btn => {
-                btn.addEventListener("click", () => {
-                    const key = btn.getAttribute("data-key");
-                    const dir = btn.getAttribute("data-dir");
-                    state.sort = { key, dir };
-                    renderHeader(state.isBacktest, state.sort);
-                    drawTable();
-                });
-            });
+function switchTab(t) {
+  ['all','long','short'].forEach(x => {
+    document.getElementById('panel' + x.charAt(0).toUpperCase() + x.slice(1)).classList.toggle('active', x === t);
+    document.getElementById('tab' + x.charAt(0).toUpperCase() + x.slice(1)).classList.toggle('active', x === t);
+  });
+}
 
-            updateTableMinWidth();
-        }
+// ── BB 폭 계산 ──────────────────────────────────────
+function calcBBWidth(closes, period) {
+  if (closes.length < period) return null;
+  const window = closes.slice(-period);
+  const mid = window.reduce((a, b) => a + b, 0) / period;
+  const std = Math.sqrt(window.reduce((a, b) => a + (b - mid) ** 2, 0) / period);
+  return mid > 0 ? (4 * std) / mid * 100 : 0;
+}
 
-        function drawTable() {
-            const tbody = document.getElementById("tbody");
-            const { rows, isBacktest, sort, symbolFilter } = state;
+function isBBSqueeze(closes, period, lookback = 30) {
+  if (closes.length < period + lookback) return false;
+  const widths = [];
+  for (let i = period; i <= closes.length; i++) {
+    const w = calcBBWidth(closes.slice(0, i), period);
+    if (w !== null) widths.push(w);
+  }
+  if (widths.length < lookback) return false;
+  const curr = widths[widths.length - 1];
+  const recent = widths.slice(-lookback);
+  const minW = Math.min(...recent);
+  return curr <= minW * 1.05;
+}
 
-            const visible = rows.filter(r => {
-                if (!symbolFilter) return true;
-                return r.symbol.toLowerCase().includes(symbolFilter.toLowerCase());
-            });
+// ── 선행 신호 점수 계산 (스캐너와 동일 로직) ─────────
+function calcScore(direction, funding, fundHist, oiChg, isSqueeze, chg24h) {
+  let score = 0;
+  const reasons = [];
+  const isLong = direction === 'LONG';
+  const THRESH = parseFloat(document.getElementById('fundThresh').value) || 0.05;
 
-            visible.sort((a, b) => {
-                const k = sort.key;
-                const dir = sort.dir === "asc" ? 1 : -1;
-                const av = a[k];
-                const bv = b[k];
-                if (typeof av === "string" || typeof bv === "string") {
-                    return String(av).localeCompare(String(bv)) * dir;
-                }
-                return ((av ?? -Infinity) - (bv ?? -Infinity)) * dir;
-            });
+  // BB 수축 (최대 20pt)
+  if (isSqueeze) { score += 20; reasons.push('BB수축'); }
 
-            const nf2 = (v) => fmtNum(v, 2);
-            const nf3 = (v) => fmtNum(v, 3);
-            const nf4 = (v) => fmtNum(v, 4);
+  if (isLong) {
+    // 펀딩비 현재 (최대 30pt)
+    if (funding <= -0.3)       { score += 30; reasons.push(`펀딩${funding.toFixed(3)}% 극단`); }
+    else if (funding <= -0.1)  { score += 20; reasons.push(`펀딩${funding.toFixed(3)}%`); }
+    else if (funding <= -THRESH){ score += 12; reasons.push(`펀딩${funding.toFixed(3)}%`); }
 
-            const frag = document.createDocumentFragment();
-            visible.forEach(r => {
-                const tr = document.createElement("tr");
-                const cells = [];
+    // 펀딩비 누적 (최대 20pt)
+    const negCount = fundHist.filter(f => f <= -THRESH).length;
+    if (negCount >= 3)      { score += 20; reasons.push('펀딩3회연속↓'); }
+    else if (negCount >= 2) { score += 10; reasons.push('펀딩2회연속↓'); }
 
-                // 기본 컬럼
-                cells.push(`<td>${r.symbol}</td>`);
-                cells.push(`<td>${nf4(r.prevOpen)}</td>`);
-                cells.push(`<td>${nf4(r.prevHigh)}</td>`);
-                cells.push(`<td>${nf4(r.prevLow)}</td>`);
-                cells.push(`<td>${nf4(r.prevClose)}</td>`);
-                cells.push(`<td>${fmtPct(r.chgPct)}</td>`);
-                cells.push(`<td>${fmtNum(r.rangePct, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.bodyPct * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.upperW * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.lowerW * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.clv, 3)}</td>`);
-                cells.push(`<td>${fmtNum(r.quoteVol, 0)}</td>`);
-                cells.push(`<td>${nf3(r.score)}</td>`);
-                cells.push(`<td>${fmtNum(r.prob * 100, 2)}%</td>`);
+    // OI + 횡보 (최대 30pt)
+    if (oiChg !== null) {
+      const sideways = Math.abs(chg24h) <= 5;
+      if (oiChg >= 15 && sideways)      { score += 30; reasons.push(`OI+${oiChg.toFixed(1)}% 횡보매집`); }
+      else if (oiChg >= 10 && sideways) { score += 22; reasons.push(`OI+${oiChg.toFixed(1)}% 횡보`); }
+      else if (oiChg >= 5 && sideways)  { score += 14; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+      else if (oiChg >= 10)             { score += 12; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+      else if (oiChg >= 5)              { score +=  7; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+    }
+  } else {
+    if (funding >= 0.3)       { score += 30; reasons.push(`펀딩+${funding.toFixed(3)}% 극단`); }
+    else if (funding >= 0.1)  { score += 20; reasons.push(`펀딩+${funding.toFixed(3)}%`); }
+    else if (funding >= THRESH){ score += 12; reasons.push(`펀딩+${funding.toFixed(3)}%`); }
 
-                // 백테스트 컬럼
-                if (isBacktest) {
-                    const resPill = (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct >= 0)
-                        ? `<span class="pill ok">성공</span>`
-                        : (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct < 0)
-                            ? `<span class="pill no">실패</span>` : `<span class="pill">-</span>`;
+    const posCount = fundHist.filter(f => f >= THRESH).length;
+    if (posCount >= 3)      { score += 20; reasons.push('펀딩3회연속↑'); }
+    else if (posCount >= 2) { score += 10; reasons.push('펀딩2회연속↑'); }
 
-                    cells.push(`<td>${r.dayOpen  != null ? nf4(r.dayOpen)  : '-'}</td>`);
-                    cells.push(`<td>${r.dayLow   != null ? nf4(r.dayLow)   : '-'}</td>`);
-                    cells.push(`<td>${r.dayHigh  != null ? nf4(r.dayHigh)  : '-'}</td>`);
-                    cells.push(`<td>${r.dayClose != null ? nf4(r.dayClose) : '-'}</td>`);
-                    cells.push(`<td>${typeof r.dayRetHighPct  === 'number' ? fmtPct(r.dayRetHighPct)  : '-'}</td>`);
-                    cells.push(`<td>${typeof r.dayRetClosePct === 'number' ? fmtPct(r.dayRetClosePct) : '-'}</td>`);
-                    cells.push(`<td>${resPill}</td>`);
-                }
+    if (oiChg !== null) {
+      const sideways = Math.abs(chg24h) <= 5;
+      if (oiChg >= 15 && sideways)      { score += 30; reasons.push(`OI+${oiChg.toFixed(1)}% 횡보매집`); }
+      else if (oiChg >= 10 && sideways) { score += 22; reasons.push(`OI+${oiChg.toFixed(1)}% 횡보`); }
+      else if (oiChg >= 5 && sideways)  { score += 14; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+      else if (oiChg >= 10)             { score += 12; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+      else if (oiChg >= 5)              { score +=  7; reasons.push(`OI+${oiChg.toFixed(1)}%`); }
+    }
+  }
+  return { score, reasons };
+}
 
-                tr.innerHTML = cells.join("");
-                frag.appendChild(tr);
-            });
+// ── 메인 백테스팅 ────────────────────────────────────
+async function runBacktest() {
+  clearErr();
+  const rawSym = document.getElementById('sym').value.trim();
+  if (!rawSym) return showErr('심볼을 입력해주세요.');
+  const sym = rawSym.toUpperCase().replace(/USDT$/, '') + 'USDT';
+  const days = parseInt(document.getElementById('period').value);
+  const bbPeriod = parseInt(document.getElementById('bbPeriod').value) || 20;
+  const minScore = parseInt(document.getElementById('minScore').value) || 60;
+  const trackHours = parseInt(document.getElementById('trackHours').value) || 24;
 
-            tbody.innerHTML = "";
-            tbody.appendChild(frag);
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('loading').classList.add('show');
+  document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('logCard').classList.remove('hidden');
+  document.getElementById('logBox').innerHTML = '';
+  allSignals = [];
 
-            // 요약 (성공률은 시→종 기준)
-            const sum = document.getElementById("summary");
-            sum.innerHTML = "";
-            const total = visible.length;
-            const top5 = visible.slice(0, 5).map(r => r.symbol).join(", ");
-            sum.appendChild(el("div", { class: "chip" }, `표시 종목: <strong>${total.toLocaleString()}</strong>개`));
-            sum.appendChild(el("div", { class: "chip" }, `정렬: <strong>${state.sort.key}</strong> (${state.sort.dir})`));
-            sum.appendChild(el("div", { class: "chip" }, `Top5: <strong>${top5 || "-"}</strong>`));
+  try {
+    const totalCandles = days * 24 + trackHours + 50;
+    const limit = Math.min(totalCandles, 1500);
 
-            if (isBacktest) {
-                const tested = visible.filter(r => typeof r.dayRetClosePct === 'number');
-                const success = tested.filter(r => r.dayRetClosePct >= 0).length;
-                const rate = tested.length ? (success / tested.length) * 100 : 0;
-                sum.appendChild(el("div", { class: "chip" }, `백테스트 성공: <strong>${success}</strong> / ${tested.length} (${fmtNum(rate, 1)}%)`));
-            }
-        }
+    log(`${sym} 1h봉 ${limit}개 조회 중...`);
+    setProgress(10, '1시간봉 가격 데이터 조회 중...');
 
-        function setProgress(done, total) {
-            const bar = document.getElementById("bar");
-            const pct = total ? Math.floor(done / total * 100) : 0;
-            bar.style.width = `${pct}%`;
-        }
+    const klRes = await fetch(`${BASE}/fapi/v1/klines?symbol=${sym}&interval=1h&limit=${limit}`);
+    if (!klRes.ok) {
+      const e = await klRes.json().catch(() => ({}));
+      throw new Error(e.msg || `'${sym}' 심볼을 찾을 수 없습니다.`);
+    }
+    const klines = await klRes.json();
+    log(`1h봉 ${klines.length}개 수신`);
 
-        // ==========================
-        // 스캔 로직
-        // ==========================
-        const state = {
-            isBacktest: false,
-            rows: [],
-            sort: { key: "prob", dir: "desc" },
-            symbolFilter: "",
-            abortController: null,
-            running: false,
-        };
+    setProgress(25, '펀딩비 히스토리 조회 중...');
+    log('펀딩비 히스토리 조회 중...');
 
-        function poolRun(list, limit, worker, onTick) {
-            return new Promise((resolve) => {
-                let i = 0, done = 0;
-                const total = list.length;
-                const results = new Array(total);
-                function next() {
-                    if (i >= total) return;
-                    const idx = i++;
-                    worker(list[idx], idx).then(res => {
-                        results[idx] = res;
-                    }).catch(() => {
-                        results[idx] = null;
-                    }).finally(() => {
-                        done++;
-                        onTick?.(done, total);
-                        if (done === total) resolve(results);
-                        else next();
-                    });
-                }
-                const c = Math.min(limit, total);
-                for (let k = 0; k < c; k++) next();
-            });
-        }
+    // 펀딩비 (8시간마다 → 최근 500개)
+    const fundRes = await fetch(`${BASE}/fapi/v1/fundingRate?symbol=${sym}&limit=500`);
+    const fundData = fundRes.ok ? await fundRes.json() : [];
+    log(`펀딩비 ${fundData.length}개 수신`);
 
-        async function runScan() {
-            if (state.running) return;
-            state.running = true;
-            state.rows = [];
-            setProgress(0, 1);
+    // 펀딩비를 timestamp 맵으로 변환
+    const fundMap = {};
+    fundData.forEach(d => { fundMap[parseInt(d['fundingTime'])] = parseFloat(d['fundingRate']) * 100; });
 
-            const dateStr = document.getElementById("dateInput").value || toUTCDateString(new Date());
-            const isBacktest = document.getElementById("backtestChk").checked;
-            const minQVOn = document.getElementById("minQuoteVolChk").checked;
-            const minQV = Number(document.getElementById("minQuoteVol").value || 0);
-            state.isBacktest = isBacktest;
+    setProgress(50, 'OI 히스토리 조회 중...');
+    log('OI 히스토리 조회 중...');
 
-            // 헤더 렌더
-            renderHeader(isBacktest, state.sort);
-            drawTable();
+    // OI 1h 히스토리
+    const oiRes = await fetch(`${BASE}/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=${Math.min(limit, 500)}`);
+    const oiData = oiRes.ok ? await oiRes.json() : [];
+    log(`OI ${oiData.length}개 수신`);
 
-            // Abort
-            if (state.abortController) state.abortController.abort();
-            const ac = new AbortController();
-            state.abortController = ac;
+    // OI를 timestamp 맵으로 변환
+    const oiMap = {};
+    oiData.forEach(d => { oiMap[parseInt(d['timestamp'])] = parseFloat(d['sumOpenInterest']); });
 
-            try {
-                const D = parseDateUTC(dateStr).getTime();               // D일 00:00:00Z
-                const prevOpenTime = D - 24 * 60 * 60 * 1000;            // 직전봉 openTime
-                const symbols = await fetchUSDTPerpSymbols(ac.signal);
+    setProgress(70, '신호 분석 중...');
+    log('신호 분석 시작...');
 
-                const CONCURRENCY = 10;
+    const closes   = klines.map(k => parseFloat(k[4]));
+    const highs    = klines.map(k => parseFloat(k[2]));
+    const lows     = klines.map(k => parseFloat(k[3]));
+    const times    = klines.map(k => parseInt(k[0]));
 
-                const results = await poolRun(symbols, CONCURRENCY, async (sym) => {
-                    if (ac.signal.aborted) return null;
+    // 분석 시작 인덱스 (BB 계산에 필요한 캔들 확보 후)
+    const startIdx = Math.max(bbPeriod + 30, 50);
+    // 추적 기간 확보를 위해 마지막 trackHours개 제외
+    const endIdx = klines.length - trackHours - 1;
 
-                    // 직전봉
-                    const prev = await fetchDailyCandle(sym, prevOpenTime, ac.signal);
-                    if (!prev) return null;
+    const signals = [];
+    const fundHistMap = {}; // sym별 최근 펀딩비 추이
 
-                    // 거래대금 하한 필터
-                    if (minQVOn && (prev.quoteVolume ?? 0) < minQV) return null;
+    for (let i = startIdx; i < endIdx; i++) {
+      const ts = times[i];
+      const price = closes[i];
 
-                    const f = featuresFromCandle(prev);
-                    const row = {
-                        symbol: sym,
-                        prevOpen: prev.open,
-                        prevHigh: prev.high,
-                        prevLow: prev.low,
-                        prevClose: prev.close,
-                        chgPct: f.chgPct,
-                        rangePct: f.rangePct,
-                        bodyPct: f.bodyPct,
-                        upperW: f.upperW,
-                        lowerW: f.lowerW,
-                        clv: f.clv,
-                        quoteVol: f.quoteVol,
-                        features: f,
-                        score: null,
-                        prob: null,
-                    };
+      // 현재 시점의 펀딩비 (가장 가까운 과거 펀딩비)
+      const fundTs = Object.keys(fundMap).map(Number).filter(t => t <= ts).sort((a,b) => b-a)[0];
+      const funding = fundTs ? fundMap[fundTs] : 0;
 
-                    if (isBacktest) {
-                        // D일 실제 캔들
-                        const cur = await fetchDailyCandle(sym, D, ac.signal);
-                        if (cur) {
-                            row.dayOpen  = cur.open;
-                            row.dayLow   = cur.low;
-                            row.dayHigh  = cur.high;
-                            row.dayClose = cur.close;
-                            row.dayRetHighPct  = (cur.high  - cur.open) / (cur.open || 1e-12) * 100; // 시→고
-                            row.dayRetClosePct = (cur.close - cur.open) / (cur.open || 1e-12) * 100; // 시→종
-                            row.result = row.dayRetClosePct >= 0 ? "성공" : "실패"; // 종가 기준 판정
-                        } else {
-                            row.dayOpen = row.dayLow = row.dayHigh = row.dayClose = null;
-                            row.dayRetHighPct = row.dayRetClosePct = null;
-                            row.result = "-";
-                        }
-                    }
-                    return row;
-                }, (done, total) => setProgress(done, total));
+      // 펀딩비 히스토리 (최근 3개)
+      const recentFunds = Object.entries(fundMap)
+        .filter(([t]) => parseInt(t) <= ts)
+        .sort(([a],[b]) => b-a)
+        .slice(0, 3)
+        .map(([,v]) => v);
 
-                const rows = results.filter(Boolean);
-                buildScores(rows);
+      // OI 변화율 (24h 전 대비)
+      const oiNow = (() => {
+        const k = Object.keys(oiMap).map(Number).filter(t => t <= ts).sort((a,b) => b-a)[0];
+        return k ? oiMap[k] : null;
+      })();
+      const oi24hAgo = (() => {
+        const target = ts - 24*3600*1000;
+        const k = Object.keys(oiMap).map(Number).filter(t => t <= target).sort((a,b) => b-a)[0];
+        return k ? oiMap[k] : null;
+      })();
+      const oiChg = (oiNow && oi24hAgo && oi24hAgo > 0) ? (oiNow - oi24hAgo) / oi24hAgo * 100 : null;
 
-                state.rows = rows;
+      // BB 수축
+      const squeeze = isBBSqueeze(closes.slice(0, i+1), bbPeriod, 30);
 
-                state.sort = { key: "prob", dir: "desc" };
-                renderHeader(state.isBacktest, state.sort);
-                drawTable();
-                setProgress(1, 1);
-            } catch (err) {
-                console.error(err);
-                alert("스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.");
-            } finally {
-                state.running = false;
-            }
-        }
+      // 24h 가격 변동
+      const price24hAgo = closes[Math.max(0, i-24)];
+      const chg24h = (price - price24hAgo) / price24hAgo * 100;
 
-        function stopScan() {
-            if (state.abortController) {
-                try { state.abortController.abort(); } catch {}
-            }
-            state.running = false;
-        }
+      // 롱/숏 점수 계산
+      const longR  = calcScore('LONG',  funding, recentFunds, oiChg, squeeze, chg24h);
+      const shortR = calcScore('SHORT', funding, recentFunds, oiChg, squeeze, chg24h);
 
-        // ==========================
-        // 초기화
-        // ==========================
-        (function init() {
-            const dateInput = document.getElementById("dateInput");
-            dateInput.value = toUTCDateString(new Date());
+      // 이후 가격 변동 계산
+      const future = closes.slice(i+1, i+1+trackHours);
+      const futureHighs = highs.slice(i+1, i+1+trackHours);
+      const futureLows  = lows.slice(i+1,  i+1+trackHours);
 
-            document.getElementById("scanBtn").addEventListener("click", runScan);
-            document.getElementById("stopBtn").addEventListener("click", stopScan);
-            document.getElementById("backtestChk").addEventListener("change", () => {
-                renderHeader(document.getElementById("backtestChk").checked, state.sort);
-                drawTable();
-            });
-            document.getElementById("searchSym").addEventListener("input", (e) => {
-                state.symbolFilter = e.target.value.trim();
-                drawTable();
-            });
+      const chg1h  = future[0]  ? (future[0]  - price) / price * 100 : null;
+      const chg4h  = future[3]  ? (future[3]  - price) / price * 100 : null;
+      const chg24hFuture = future[23] ? (future[23] - price) / price * 100 : null;
+      const maxUp  = futureHighs.length ? (Math.max(...futureHighs) - price) / price * 100 : null;
+      const maxDn  = futureLows.length  ? (Math.min(...futureLows)  - price) / price * 100 : null;
 
-            renderHeader(false, state.sort);
-        })();
-    </script>
+      const dateStr = new Date(ts).toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+      if (longR.score >= minScore) {
+        signals.push({
+          direction: 'LONG', ts, dateStr, price,
+          score: longR.score, reasons: longR.reasons,
+          chg1h, chg4h, chg24h: chg24hFuture,
+          maxMove: maxUp,  // 롱은 최대 상승
+          hit: maxUp !== null && maxUp >= 3
+        });
+      }
+      if (shortR.score >= minScore) {
+        signals.push({
+          direction: 'SHORT', ts, dateStr, price,
+          score: shortR.score, reasons: shortR.reasons,
+          chg1h, chg4h, chg24h: chg24hFuture,
+          maxMove: maxDn,  // 숏은 최대 하락
+          hit: maxDn !== null && maxDn <= -3
+        });
+      }
+    }
+
+    allSignals = signals;
+    log(`분석 완료 — 신호 ${signals.length}개 발견`);
+    setProgress(90, '결과 렌더링 중...');
+
+    renderResults(sym, klines, signals, trackHours, days);
+    setProgress(100, '완료');
+
+  } catch(e) {
+    showErr(e.message || '오류 발생');
+    log('오류: ' + e.message);
+  } finally {
+    document.getElementById('btnRun').disabled = false;
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+function renderResults(sym, klines, signals, trackHours, days) {
+  document.getElementById('resTitle').textContent = sym + ' · ' + days + '일 · ' + trackHours + 'h 추적';
+  document.getElementById('resultCard').classList.remove('hidden');
+
+  const longSigs  = signals.filter(s => s.direction === 'LONG');
+  const shortSigs = signals.filter(s => s.direction === 'SHORT');
+  const longHits  = longSigs.filter(s => s.hit);
+  const shortHits = shortSigs.filter(s => s.hit);
+
+  const longWR  = longSigs.length  ? (longHits.length  / longSigs.length  * 100).toFixed(1) : '—';
+  const shortWR = shortSigs.length ? (shortHits.length / shortSigs.length * 100).toFixed(1) : '—';
+
+  const allMaxMoves = signals.filter(s => s.maxMove != null).map(s => Math.abs(s.maxMove));
+  const avgMax = allMaxMoves.length ? (allMaxMoves.reduce((a,b) => a+b, 0) / allMaxMoves.length).toFixed(1) : '—';
+
+  document.getElementById('totalSignals').textContent  = signals.length;
+  document.getElementById('totalSub').textContent      = `롱 ${longSigs.length}개 / 숏 ${shortSigs.length}개`;
+  document.getElementById('longWinRate').textContent   = longSigs.length ? longWR + '%' : '—';
+  document.getElementById('longWinSub').textContent    = `${longHits.length}/${longSigs.length} (3% 이상 상승)`;
+  document.getElementById('shortWinRate').textContent  = shortSigs.length ? shortWR + '%' : '—';
+  document.getElementById('shortWinSub').textContent   = `${shortHits.length}/${shortSigs.length} (3% 이상 하락)`;
+  document.getElementById('avgMaxGain').textContent    = avgMax !== '—' ? avgMax + '%' : '—';
+
+  // 차트
+  const times  = klines.map(k => new Date(parseInt(k[0])).toLocaleDateString('ko-KR', {month:'2-digit',day:'2-digit'}));
+  const prices = klines.map(k => parseFloat(k[4]));
+
+  // 신호 점들
+  const longPoints  = new Array(klines.length).fill(null);
+  const shortPoints = new Array(klines.length).fill(null);
+  signals.forEach(s => {
+    const idx = klines.findIndex(k => parseInt(k[0]) === s.ts);
+    if (idx >= 0) {
+      if (s.direction === 'LONG')  longPoints[idx]  = s.price;
+      if (s.direction === 'SHORT') shortPoints[idx] = s.price;
+    }
+  });
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('priceChart'), {
+    type: 'line',
+    data: {
+      labels: times,
+      datasets: [
+        { label: '가격', data: prices, borderColor: '#378add', borderWidth: 1.5, pointRadius: 0, tension: 0.1, fill: false },
+        { label: '롱 신호', data: longPoints,  type: 'scatter', pointRadius: 6, pointBackgroundColor: '#00e87a', showLine: false },
+        { label: '숏 신호', data: shortPoints, type: 'scatter', pointRadius: 6, pointBackgroundColor: '#ff4560', showLine: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#c8d4e8', font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#4a5a7a', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: '#0d1525' } },
+        y: { ticks: { color: '#4a5a7a', font: { size: 10 } }, grid: { color: '#0d1525' } }
+      }
+    }
+  });
+
+  // 테이블 렌더
+  function rowAll(s) {
+    const dir = s.direction === 'LONG'
+      ? '<span class="badge b-long">롱</span>'
+      : '<span class="badge b-short">숏</span>';
+    const mv = s.maxMove != null ? `<span class="${pctColor(s.direction==='LONG'?s.maxMove:-s.maxMove)}">${pct(s.maxMove)}</span>` : '—';
+    return `<tr>
+      <td>${s.dateStr}</td><td>${dir}</td>
+      <td style="color:#00c6f5">${s.score}pt</td>
+      <td>$${fp(s.price)}</td>
+      <td class="${pctColor(s.chg1h)}">${pct(s.chg1h)}</td>
+      <td class="${pctColor(s.chg4h)}">${pct(s.chg4h)}</td>
+      <td class="${pctColor(s.chg24h)}">${pct(s.chg24h)}</td>
+      <td>${mv}</td>
+      <td style="color:#4a5a7a;font-size:10px">${s.reasons.slice(0,2).join(' · ')}</td>
+    </tr>`;
+  }
+
+  function rowDir(s) {
+    const mv = s.maxMove != null ? `<span class="${pctColor(s.direction==='LONG'?s.maxMove:-s.maxMove)}">${pct(s.maxMove)}</span>` : '—';
+    return `<tr>
+      <td>${s.dateStr}</td>
+      <td style="color:#00c6f5">${s.score}pt</td>
+      <td>$${fp(s.price)}</td>
+      <td class="${pctColor(s.chg1h)}">${pct(s.chg1h)}</td>
+      <td class="${pctColor(s.chg4h)}">${pct(s.chg4h)}</td>
+      <td class="${pctColor(s.chg24h)}">${pct(s.chg24h)}</td>
+      <td>${mv}</td>
+      <td style="color:#4a5a7a;font-size:10px">${s.reasons.slice(0,2).join(' · ')}</td>
+    </tr>`;
+  }
+
+  const sorted = [...signals].sort((a,b) => b.ts - a.ts);
+  document.getElementById('tableAll').innerHTML   = sorted.map(rowAll).join('') || '<tr><td colspan="9" style="text-align:center;color:#4a5a7a;padding:20px">신호 없음</td></tr>';
+  document.getElementById('tableLong').innerHTML  = [...longSigs].sort((a,b) => b.ts-a.ts).map(rowDir).join('') || '<tr><td colspan="8" style="text-align:center;color:#4a5a7a;padding:20px">신호 없음</td></tr>';
+  document.getElementById('tableShort').innerHTML = [...shortSigs].sort((a,b) => b.ts-a.ts).map(rowDir).join('') || '<tr><td colspan="8" style="text-align:center;color:#4a5a7a;padding:20px">신호 없음</td></tr>';
+
+  document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'start'});
+  log(`렌더링 완료 — 롱 적중률 ${longWR}% / 숏 적중률 ${shortWR}%`);
+}
+</script>
 </body>
 </html>
