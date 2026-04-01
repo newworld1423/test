@@ -476,20 +476,22 @@ function buildDayRankings(allPairs, dates) {
 
 // ════════════════════════════════════════
 // 변동성 돌파 순위 계산
-// prevDate: 변동폭 계산 기준일 (전일)
-// curDate:  돌파 체크 기준일 (당일 - 진입 후보 선정용)
-// 진입은 항상 curDate 다음날 시가
+// prevDate : 변동폭 계산 기준일 (전일)
+// curDate  : 돌파 체크 기준일 (당일) → 이날 고가가 기준가 이상이면 돌파 성립
+// 기준가   : curDate 시가 + prevDate 변동폭 × k
+// 진입가   : breakPrice (기준가)
+// 실제 진입: curDate 다음날 시가 (시뮬레이션에서 nextDay(curDate)에 진입)
 // ════════════════════════════════════════
 function getVbRanking(prevDate, curDate, k) {
   const arr = [];
   for (const sym of Object.keys(klinesDB)) {
-    const pd = klinesDB[sym]?.[prevDate]; // 전일 (변동폭 계산)
-    const cd = klinesDB[sym]?.[curDate];  // 당일 (돌파 확인)
+    const pd = klinesDB[sym]?.[prevDate]; // 전일 캔들 (변동폭)
+    const cd = klinesDB[sym]?.[curDate];  // 당일 캔들 (돌파 확인)
     if (!pd || !cd || !cd.open) continue;
     const range = pd.high - pd.low;
     if (range <= 0) continue;
-    const bp = r4(cd.open + range * k);  // 돌파 기준가 = 당일 시가 + 전일변동폭×k
-    if (cd.high >= bp) {
+    const bp = r4(cd.open + range * k);  // 기준가 = 당일 시가 + 전일변동폭×k
+    if (cd.high >= bp) {                 // 당일 고가가 기준가 이상 = 돌파
       arr.push({ symbol: sym, change: (cd.high - bp) / bp, breakPrice: bp });
     }
   }
@@ -519,12 +521,9 @@ function simulateN(n, cfg, initList, simDates, today) {
 
     let ep = ek.open;
     if (isVB) {
-      // 전일(START_DATE) 변동폭으로 ENTRY_DATE 돌파 기준가 계산
-      const pk = klinesDB[sym]?.[START_DATE]; // 전일 데이터
-      if (!pk) continue;
-      const bp = r4(ek.open + (pk.high - pk.low) * cfg.k);
-      if (ek.high >= bp) ep = bp;  // ENTRY_DATE 고가가 돌파가 이상이면 진입
-      else continue;               // 돌파 못 하면 진입 안 함
+      // initList에 이미 ENTRY_DATE 기준 breakPrice가 포함됨
+      // 진입가 = breakPrice (돌파 기준가)
+      ep = initList[i].breakPrice || ek.open;
     }
     tid++;
     active.push({ id:tid, symbol:sym, entryDate:ENTRY_DATE, entryPrice:ep,
@@ -593,7 +592,7 @@ function simulateN(n, cfg, initList, simDates, today) {
 
       // 당일 기준 순위
       let ranking;
-      if (isVB)       ranking = getVbRanking(date, nd, cfg.k); // 전일=date, 당일=nd
+      if (isVB)       ranking = getVbRanking(date, nd, cfg.k); // 전일=date, 당일=nd로 돌파 체크 → nd 당일 진입
       else if (isBot) ranking = [...(dayRankCache[date] || [])].reverse();
       else            ranking = dayRankCache[date] || [];
 
@@ -613,7 +612,7 @@ function simulateN(n, cfg, initList, simDates, today) {
             const ek = klinesDB[w.symbol]?.[nd];
             if (!ek) continue;
             if (isVB) {
-              // getVbRanking(date, nd, k) 에서 nd 기준 돌파가 = w.breakPrice
+              // 당일(nd) 돌파 확인 → 당일 breakPrice로 진입
               ep = w.breakPrice || ek.open;
             } else {
               ep = ek.open;
@@ -949,7 +948,8 @@ async function startAll() {
     let initList = [];
 
     if (cfg.mode === 'vb-long') {
-      // 전일=START_DATE 변동폭, 당일=ENTRY_DATE 돌파 체크
+      // prevDate=START_DATE 변동폭으로 ENTRY_DATE 돌파 체크
+      // 돌파 종목은 ENTRY_DATE 당일 시가로 진입 (당일 돌파 당일 진입)
       initList = getVbRanking(START_DATE, ENTRY_DATE, cfg.k);
       log(START_DATE, `⚡ 변동성 돌파 (K=${cfg.k}): ${initList.length}개 종목 돌파`, 'inf');
       initList.slice(0,3).forEach((t,i) => log(START_DATE, `  ${i+1}위 ${t.symbol} (강도 ${(t.change*100).toFixed(2)}%, 진입가 ${fmtN(t.breakPrice,4)})`, 'inf'));
