@@ -119,7 +119,7 @@ td{padding:10px 13px;white-space:nowrap}
   <div>
     <div class="logo">Binance Futures · Short Strategy Optimizer</div>
     <h1>최적 N개 탐색 백테스터</h1>
-    <div class="sub">// 종목별 전체기간 일봉 1회 수집 + 병렬처리 → 기존 대비 수십배 빠름</div>
+    <div class="sub" id="headerSub">// 종목별 전체기간 일봉 1회 수집 + 병렬처리 → 기존 대비 수십배 빠름</div>
   </div>
   <div class="run-badge" id="runBadge">READY</div>
 </header>
@@ -128,11 +128,18 @@ td{padding:10px 13px;white-space:nowrap}
   <div class="cfg-title">⚙ 전략 설정</div>
   <div class="cfg-grid">
     <div class="cfg-item">
+      <label>진입 전략</label>
+      <select id="cfgMode" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
+        <option value="top-short">상위 N개 · 1배 숏</option>
+        <option value="top-long">상위 N개 · 1배 롱</option>
+        <option value="bot-short">하위 N개 · 1배 숏</option>
+        <option value="bot-long">하위 N개 · 1배 롱</option>
+      </select>
+    </div>
+    <div class="cfg-item">
       <label>시작 자본 (USDT)</label>
       <input type="number" id="cfgCapital" value="1000" min="100" step="100">
     </div>
-    <div class="cfg-item">
-      <label>목표 수익률 (%)</label>
       <input type="number" id="cfgTarget" value="13" min="1" max="99">
     </div>
     <div class="cfg-item">
@@ -260,6 +267,7 @@ let dayRankCache = {};
 
 function getCfg(){
   return{
+    mode:     document.getElementById('cfgMode').value,        // top-short | top-long | bot-short | bot-long
     capital:  +document.getElementById('cfgCapital').value  ||1000,
     target:   (+document.getElementById('cfgTarget').value  ||13)/100,
     addMin:   +document.getElementById('cfgAddMin').value   ||200,
@@ -277,18 +285,20 @@ function updateSpeedInfo(){
   const cfg=getCfg();
   const today=todayStr();
   const days=dateRange(nextDay(ENTRY_DATE),today).length;
-  // 종목 약 350개, 병렬 처리
   const pairs=350;
   const batches=Math.ceil(pairs/cfg.parallel);
   const fetchSec=(batches*cfg.delay)/1000;
-  const simSec=0.5; // 시뮬 자체는 매우 빠름 (메모리 연산)
-  const totalSec=Math.round(fetchSec+simSec);
+  const totalSec=Math.round(fetchSec+0.5);
+  const modeLabel={'top-short':'상위 N개 1배 숏','top-long':'상위 N개 1배 롱','bot-short':'하위 N개 1배 숏','bot-long':'하위 N개 1배 롱'}[cfg.mode]||'';
   document.getElementById('speedInfo').textContent=
-    `⚡ 예상 소요시간: 약 ${totalSec < 60 ? totalSec+'초' : Math.ceil(totalSec/60)+'분'} `+
-    `(종목 ${pairs}개 × ${cfg.delay}ms ÷ 병렬 ${cfg.parallel}개) · 전체 N=1~${cfg.nMax} 공통 데이터 1회만 수집`;
+    `⚡ [${modeLabel}] 예상: 약 ${totalSec<60?totalSec+'초':Math.ceil(totalSec/60)+'분'} `+
+    `(종목 ${pairs}개 × ${cfg.delay}ms ÷ 병렬 ${cfg.parallel}개) · N별 시뮬은 메모리 연산으로 즉시 완료`;
+  document.getElementById('headerSub').textContent=
+    `// 전략: ${modeLabel} | 종목별 전체기간 일봉 1회 수집 + 병렬처리`;
 }
-['cfgParallel','cfgDelay','cfgNMax','cfgNMin'].forEach(id=>{
+['cfgMode','cfgParallel','cfgDelay','cfgNMax','cfgNMin'].forEach(id=>{
   document.getElementById(id).addEventListener('input',updateSpeedInfo);
+  document.getElementById(id).addEventListener('change',updateSpeedInfo);
 });
 
 // ════════════════════════════════════════════════
@@ -422,28 +432,41 @@ function buildDayRankings(allPairs, dates){
 
 // ════════════════════════════════════════════════
 // N 하나 시뮬레이션 (순수 메모리 연산 - 매우 빠름)
+// mode: 'top-short' | 'top-long' | 'bot-short' | 'bot-long'
 // ════════════════════════════════════════════════
-function simulateN(n, cfg, top50, simDates, today){
-  const perUnit=r2(cfg.capital/n);
-  const target=cfg.target;
-  const addMin=cfg.addMin;
+function simulateN(n, cfg, rankedList, simDates, today){
+  const perUnit = r2(cfg.capital / n);
+  const target  = cfg.target;
+  const addMin  = cfg.addMin;
+  const isLong  = cfg.mode.endsWith('long');
+  // 재진입/추가진입 시 당일 상승률 순위 방향도 모드에 맞게
+  // 숏: 당일 상승률 상위 종목에 숏 (역추세)
+  // 롱: 당일 상승률 상위 종목에 롱 (추세추종)
+  // → 재진입 기준은 항상 당일 상승률 1위부터 (기존과 동일, 방향만 다름)
 
-  let activePositions=[];
-  let tradesDone=[];
-  let freeCash=0;
-  let tradeId=0;
+  // 1배 기준 청산가
+  // 숏: 진입가 × 2 (100% 상승 시 청산)
+  // 롱: 진입가 × 0 → 실질적으로 진입가의 100% 하락 = 0이지만
+  //     바이낸스 1배 격리 마진 기준 -100% = 진입가 × (1 - 1) = 0
+  //     실제론 진입가 × (1 - 1/leverage) 이지만 1배이므로 liqPrice = 0 에 가까움
+  //     → 편의상 liqPrice = entryPrice × (1 - 0.99) ≈ 거의 0 으로 처리
+  //     정확히는: 마진 소진 = 진입가 - 마진(size) → 가격이 0 이하면 청산
+  //     1배 롱: low <= 0 은 불가 → 사실상 청산 없음으로 처리 (low가 0 이하는 현실에 없음)
+  //     단, 롱 청산가는 진입가에서 -100% 인 0으로 설정 (실질적으로 발생 안 함)
 
-  // 초기 진입 (ENTRY_DATE 시작가)
-  const topN=top50.slice(0,n);
-  for(let i=0;i<topN.length;i++){
-    const sym=topN[i].symbol;
+  let activePositions=[], tradesDone=[], freeCash=0, tradeId=0;
+
+  // 초기 진입
+  const initList = rankedList.slice(0, n);
+  for(let i=0;i<initList.length;i++){
+    const sym=initList[i].symbol;
     const k=klinesDB[sym]?.[ENTRY_DATE];
     if(!k) continue;
     tradeId++;
     activePositions.push({
-      id:tradeId,symbol:sym,entryDate:ENTRY_DATE,entryPrice:k.open,
-      size:perUnit,rank:i+1,rankDate:START_DATE,
-      status:'open',roundNum:1,posType:'initial',pnl:null
+      id:tradeId, symbol:sym, entryDate:ENTRY_DATE, entryPrice:k.open,
+      size:perUnit, rank:i+1, rankDate:START_DATE,
+      status:'open', roundNum:1, posType:'initial', pnl:null
     });
   }
 
@@ -455,27 +478,63 @@ function simulateN(n, cfg, top50, simDates, today){
     for(const pos of openNow){
       const k=klinesDB[pos.symbol]?.[date];
       if(!k) continue;
-      const targetPrice=r4(pos.entryPrice*(1-target));
-      const liqPrice   =r4(pos.entryPrice*2);
 
-      if(k.high>=liqPrice){
-        pos.status='liquidated';pos.closeDate=date;pos.closePrice=liqPrice;pos.pnl=-pos.size;
-        closedIds.push(pos.id);tradesDone.push({...pos});continue;
-      }
-      if(k.low<=targetPrice){
-        pos.status='profit';pos.closeDate=date;pos.closePrice=targetPrice;
-        pos.pnl=r4(pos.size*target);
-        const nextSize=r4(pos.size*(1+target));
-        pos.nextEntrySize=nextSize;
-        closedIds.push(pos.id);tradesDone.push({...pos});
-        freeCash=r4(freeCash+nextSize);
-        profitsToday.push({...pos,nextSize});
+      if(isLong){
+        // ── 롱 포지션 ──
+        // 목표가: 진입가 × (1 + target)  → 고가가 목표가 이상이면 수익
+        // 청산가: 진입가 × (1 - 1) = 0  → 1배 롱은 사실상 청산 없음 (저가 > 0)
+        const targetPrice = r4(pos.entryPrice * (1 + target));
+        const liqPrice    = 0; // 1배 롱 청산은 현실적으로 발생 안 함
+
+        // 청산 체크 (low <= 0 이면 - 현실적으로 발생 안 하지만 코드 완결성)
+        if(k.low <= liqPrice && liqPrice > 0){
+          pos.status='liquidated'; pos.closeDate=date;
+          pos.closePrice=liqPrice; pos.pnl=-pos.size;
+          closedIds.push(pos.id); tradesDone.push({...pos}); continue;
+        }
+        // 수익 체크 (고가가 목표가 이상)
+        if(k.high >= targetPrice){
+          pos.status='profit'; pos.closeDate=date; pos.closePrice=targetPrice;
+          pos.pnl=r4(pos.size*target);
+          const nextSize=r4(pos.size*(1+target));
+          pos.nextEntrySize=nextSize;
+          closedIds.push(pos.id); tradesDone.push({...pos});
+          freeCash=r4(freeCash+nextSize);
+          profitsToday.push({...pos,nextSize});
+        }
+      } else {
+        // ── 숏 포지션 ──
+        // 목표가: 진입가 × (1 - target)  → 저가가 목표가 이하이면 수익
+        // 청산가: 진입가 × 2             → 고가가 청산가 이상이면 청산
+        const targetPrice = r4(pos.entryPrice * (1 - target));
+        const liqPrice    = r4(pos.entryPrice * 2);
+
+        if(k.high >= liqPrice){
+          pos.status='liquidated'; pos.closeDate=date;
+          pos.closePrice=liqPrice; pos.pnl=-pos.size;
+          closedIds.push(pos.id); tradesDone.push({...pos}); continue;
+        }
+        if(k.low <= targetPrice){
+          pos.status='profit'; pos.closeDate=date; pos.closePrice=targetPrice;
+          pos.pnl=r4(pos.size*target);
+          const nextSize=r4(pos.size*(1+target));
+          pos.nextEntrySize=nextSize;
+          closedIds.push(pos.id); tradesDone.push({...pos});
+          freeCash=r4(freeCash+nextSize);
+          profitsToday.push({...pos,nextSize});
+        }
       }
     }
     activePositions=activePositions.filter(p=>!closedIds.includes(p.id));
 
     if(profitsToday.length>0){
-      const ranking=dayRankCache[date]||[];
+      // 재진입/추가진입 시 당일 순위 기준
+      // 숏: 상승률 상위 종목 순서대로 (역추세 숏)
+      // 롱: 상승률 상위 종목 순서대로 (추세추종 롱)
+      // bot 모드: 하위 종목이므로 순위 반전
+      const rawRanking = dayRankCache[date] || [];
+      const ranking = cfg.mode.startsWith('bot') ? [...rawRanking].reverse() : rawRanking;
+
       const nextDate=nextDay(date);
       const isFuture=dateToTs(nextDate)>dateToTs(today);
       let rankIdx=0;
@@ -492,13 +551,13 @@ function simulateN(n, cfg, top50, simDates, today){
           if(!isFuture&&!entryK) continue;
           tradeId++;
           activePositions.push({
-            id:tradeId,symbol:w.symbol,entryDate:nextDate,
+            id:tradeId, symbol:w.symbol, entryDate:nextDate,
             entryPrice:isFuture?null:(entryK?.open||null),
-            size:prof.nextSize,rank:rankIdx,rankDate:date,
-            status:isFuture?'pending':'open',roundNum:prof.roundNum+1,posType:'compound',pnl:null
+            size:prof.nextSize, rank:rankIdx, rankDate:date,
+            status:isFuture?'pending':'open', roundNum:prof.roundNum+1, posType:'compound', pnl:null
           });
           freeCash=r4(freeCash-prof.nextSize);
-          activeSym.add(w.symbol);entered=true;
+          activeSym.add(w.symbol); entered=true;
         }
       }
 
@@ -514,10 +573,10 @@ function simulateN(n, cfg, top50, simDates, today){
         if(!isFuture&&!entryK){rankIdx--;break;}
         tradeId++;
         activePositions.push({
-          id:tradeId,symbol:candidate.symbol,entryDate:nextDate,
+          id:tradeId, symbol:candidate.symbol, entryDate:nextDate,
           entryPrice:isFuture?null:(entryK?.open||null),
-          size:ADD_UNIT,rank:rankIdx,rankDate:date,
-          status:isFuture?'pending':'open',roundNum:1,posType:'add',pnl:null
+          size:ADD_UNIT, rank:rankIdx, rankDate:date,
+          status:isFuture?'pending':'open', roundNum:1, posType:'add', pnl:null
         });
         freeCash=r4(freeCash-ADD_UNIT);
         activeSym.add(candidate.symbol);
@@ -530,7 +589,10 @@ function simulateN(n, cfg, top50, simDates, today){
   for(const pos of activePositions.filter(p=>p.status==='open'&&p.entryPrice)){
     const k=klinesDB[pos.symbol]?.[today];
     if(!k) continue;
-    pos.pnlRate=(pos.entryPrice-k.close)/pos.entryPrice;
+    // 롱: (현재가 - 진입가) / 진입가, 숏: (진입가 - 현재가) / 진입가
+    pos.pnlRate = isLong
+      ? (k.close - pos.entryPrice) / pos.entryPrice
+      : (pos.entryPrice - k.close) / pos.entryPrice;
     pos.pnl=r4(pos.size*pos.pnlRate);
     pos.curPrice=k.close;
     unrealized+=pos.pnl;
@@ -539,10 +601,10 @@ function simulateN(n, cfg, top50, simDates, today){
   const realizedPnl=tradesDone.reduce((a,t)=>a+t.pnl,0);
   const totalAssets=r2(cfg.capital+realizedPnl+unrealized+freeCash);
   return{
-    status:'done',totalAssets,
+    status:'done', totalAssets,
     profitCount:tradesDone.filter(t=>t.status==='profit').length,
     liqCount:tradesDone.filter(t=>t.status==='liquidated').length,
-    freeCash,realizedPnl,unrealized,
+    freeCash, realizedPnl, unrealized,
     trades:[...tradesDone,...activePositions]
   };
 }
@@ -826,7 +888,7 @@ async function startAll(){
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 2: START_DATE 상승률 TOP50 계산 (메모리 연산)
+    // STEP 2: START_DATE 상승률 순위 계산 (메모리 연산)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     prog(61,'상승률 순위 계산 중... (메모리 연산, 즉시)');
     log(START_DATE,'📊 상승률 순위 계산 (메모리 연산)','inf');
@@ -837,10 +899,23 @@ async function startAll(){
       const ch=(k.close-k.open)/k.open;
       if(isFinite(ch))changes.push({symbol:sym,change:ch});
     }
-    changes.sort((a,b)=>b.change-a.change);
-    const top50=changes.slice(0,50);
-    log(START_DATE,`🏆 TOP${top50.length} 확보 (상위 5개):`,'inf');
-    top50.slice(0,5).forEach((t,i)=>log(START_DATE,`  ${i+1}위 ${t.symbol} (+${(t.change*100).toFixed(2)}%)`,'inf'));
+    changes.sort((a,b)=>b.change-a.change); // 내림차순: index 0 = 가장 많이 오른 종목
+
+    // 모드에 따라 초기 진입 리스트 방향 결정
+    // top-*: 상위(많이 오른) N개 → changes 앞에서 slice
+    // bot-*: 하위(많이 내린) N개 → changes 뒤에서 slice (reverse)
+    const isBot = cfg.mode.startsWith('bot');
+    const rankedList = isBot ? [...changes].reverse() : changes; // index 0 = 진입 1순위
+    const top50 = rankedList.slice(0, 50);
+
+    const modeLabel = {
+      'top-short':'상위 N개 1배 숏','top-long':'상위 N개 1배 롱',
+      'bot-short':'하위 N개 1배 숏','bot-long':'하위 N개 1배 롱'
+    }[cfg.mode];
+    log(START_DATE,`🎯 전략: ${modeLabel}`,'hd');
+    log(START_DATE,`진입 1순위: ${top50[0]?.symbol} (${(top50[0]?.change*100).toFixed(2)}%)`,'inf');
+    log(START_DATE,`진입 2순위: ${top50[1]?.symbol} (${(top50[1]?.change*100).toFixed(2)}%)`,'inf');
+    log(START_DATE,`진입 3순위: ${top50[2]?.symbol} (${(top50[2]?.change*100).toFixed(2)}%)`,'inf');
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 3: 날짜별 순위 캐시 빌드 (메모리 연산, 초 단위)
@@ -855,7 +930,7 @@ async function startAll(){
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     prog(65,`N=${cfg.nMin}~${cfg.nMax} 시뮬레이션 (메모리 연산)`);
     log('','','inf');
-    log('',`━━ N별 시뮬레이션 시작 ━━`,'hd');
+    log('',`━━ N별 시뮬레이션 시작 [${modeLabel}] ━━`,'hd');
 
     for(let ni=0;ni<ns.length;ni++){
       const n=ns[ni];
@@ -864,7 +939,6 @@ async function startAll(){
       document.getElementById(`np-${n}`).className='n-prog-item running';
       document.getElementById(`npv-${n}`).textContent='계산 중...';
 
-      // 메모리 연산이라 await 불필요하지만 UI 업데이트를 위해 microtask 양보
       await new Promise(r=>setTimeout(r,0));
       const result=simulateN(n,cfg,top50,simDates,today);
       nResults[n]=result;
@@ -882,7 +956,7 @@ async function startAll(){
       const best=sorted[0];
       const r=nResults[best];
       log('','','inf');
-      log('',`🏆 최적: N=${best}개 | ${fmtN(r.totalAssets)} USDT | +${r2((r.totalAssets-cfg.capital)/cfg.capital*100)}% | 개당 ${fmtN(r2(cfg.capital/best))} USDT`,'prof');
+      log('',`🏆 [${modeLabel}] 최적: N=${best}개 | ${fmtN(r.totalAssets)} USDT | +${r2((r.totalAssets-cfg.capital)/cfg.capital*100)}% | 개당 ${fmtN(r2(cfg.capital/best))} USDT`,'prof');
     }
     await updateDbBadge();
     document.getElementById('runBadge').textContent='DONE';
