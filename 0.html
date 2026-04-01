@@ -3,772 +3,918 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>바이낸스 숏 전략 스캐너</title>
+<title>바이낸스 숏 전략 N개 최적화 스캐너</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;700&display=swap');
-:root{--bg:#0a0c10;--bg2:#10141c;--bg3:#161b26;--border:#1e2736;--accent:#f7c948;--accent2:#e8833a;--red:#ff4d6d;--green:#39d98a;--blue:#4d9fff;--text:#c8d6e5;--text-dim:#5a6a7e;--text-bright:#eaf0fb}
+:root{
+  --bg:#08090d;--bg2:#0f1218;--bg3:#141920;--border:#1a2030;
+  --accent:#f7c948;--accent2:#e8833a;--red:#ff4d6d;
+  --green:#39d98a;--blue:#4d9fff;--purple:#9b6dff;
+  --text:#c8d6e5;--dim:#4a5a6e;--bright:#eaf0fb;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(247,201,72,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(247,201,72,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
-.container{max-width:1400px;margin:0 auto;padding:32px 24px;position:relative;z-index:1}
-header{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:24px;margin-bottom:32px}
-.logo{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.2em;text-transform:uppercase}
-h1{font-size:28px;font-weight:700;color:var(--text-bright);line-height:1;margin-top:6px}
-.subtitle{font-size:13px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace}
-.now-badge{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 10px;border-radius:4px}
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px;margin-bottom:32px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;position:relative;overflow:hidden}
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
-.card.gold::before{background:var(--accent)}.card.orange::before{background:var(--accent2)}.card.green::before{background:var(--green)}.card.red::before{background:var(--red)}.card.blue::before{background:var(--blue)}
-.card-label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.12em;font-family:'JetBrains Mono',monospace;margin-bottom:10px}
-.card-value{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--text-bright);line-height:1}
-.card-value.positive{color:var(--green)}.card-value.negative{color:var(--red)}
-.card-sub{font-size:11px;color:var(--text-dim);margin-top:6px;font-family:'JetBrains Mono',monospace}
-.ctrl-row{display:flex;gap:12px;align-items:center;padding:20px 0;flex-wrap:wrap}
-.btn{display:flex;align-items:center;gap:8px;border:none;border-radius:6px;padding:12px 22px;font-size:13px;cursor:pointer;transition:all .2s;font-family:'JetBrains Mono',monospace;letter-spacing:.05em;text-transform:uppercase;font-weight:700}
-.btn-run{background:var(--accent);color:#000}.btn-run:hover{background:#ffe07a;transform:translateY(-1px)}.btn-run:disabled{background:var(--border);color:var(--text-dim);cursor:not-allowed;transform:none}
-.btn-reset{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)}.btn-reset:hover{background:rgba(255,77,109,.25)}
-.cache-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);color:var(--text-dim)}
-.cache-badge.active{color:var(--green);border-color:rgba(57,217,138,.4);background:rgba(57,217,138,.08)}
-.progress-section{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:24px;display:none}
-.progress-section.visible{display:block}
-.progress-bar-wrap{background:var(--bg3);border-radius:4px;height:6px;margin:12px 0 8px;overflow:hidden}
-.progress-bar{height:100%;background:var(--accent);border-radius:4px;transition:width .3s;width:0%}
-.progress-text{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim)}
-.progress-detail{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);margin-top:4px;min-height:16px}
-.tabs{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;padding:6px 6px 0;border-bottom:none}
-.tab{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;padding:8px 18px;border-radius:5px 5px 0 0;cursor:pointer;color:var(--text-dim);border:1px solid transparent;border-bottom:none;transition:all .15s;text-transform:uppercase;letter-spacing:.08em}
-.tab.active{background:var(--bg3);color:var(--accent);border-color:var(--border);border-bottom-color:var(--bg3)}.tab:hover:not(.active){color:var(--text)}
-.tab-content{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;margin-bottom:24px;overflow:hidden}
-.tab-panel{display:none}.tab-panel.active{display:block}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px}
-thead th{background:var(--bg3);color:var(--text-dim);text-align:left;padding:12px 14px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
-tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
-tbody tr:hover{background:var(--bg3)}tbody tr:last-child{border-bottom:none}
-td{padding:10px 14px;white-space:nowrap}
-.sym{color:var(--text-bright);font-weight:600}.up{color:var(--green)}.dn{color:var(--red)}.neu{color:var(--text-dim)}
-.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.06em}
-.tag-profit{background:rgba(57,217,138,.15);color:var(--green);border:1px solid rgba(57,217,138,.3)}
-.tag-liq{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)}
-.tag-open{background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)}
-.tag-wait{background:rgba(90,106,126,.15);color:var(--text-dim);border:1px solid rgba(90,106,126,.3)}
-.tag-add{background:rgba(232,131,58,.15);color:var(--accent2);border:1px solid rgba(232,131,58,.3)}
-.log-area{padding:16px;max-height:500px;overflow-y:auto}
-.log-entry{font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(30,39,54,.5);display:flex;gap:12px}
-.log-date{color:var(--text-dim);min-width:90px}.log-msg{color:var(--text);flex:1}
-.log-msg.profit{color:var(--green)}.log-msg.liq{color:var(--red)}.log-msg.enter{color:var(--accent)}.log-msg.add{color:var(--accent2)}.log-msg.info{color:var(--text-dim)}
-.pos-item{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
-.pos-sym{color:var(--text-bright);font-weight:700;font-size:14px}
-.pos-info{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim)}
-.pos-pnl{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
-.open-positions{padding:16px}
-.section-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.12em;padding:16px 16px 8px;border-bottom:1px solid var(--border)}
-.empty{text-align:center;padding:60px 20px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:13px}
-.empty-icon{font-size:36px;margin-bottom:12px;opacity:.4}
-.warning-box{background:rgba(232,131,58,.1);border:1px solid rgba(232,131,58,.3);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--accent2);margin-bottom:20px;font-family:'JetBrains Mono',monospace}
-.error-box{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--red);margin-bottom:20px}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(247,201,72,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(247,201,72,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+.wrap{max-width:1500px;margin:0 auto;padding:28px 20px;position:relative;z-index:1}
+
+/* 헤더 */
+header{border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.logo{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.22em;text-transform:uppercase;font-weight:600}
+h1{font-size:24px;font-weight:700;color:var(--bright);margin-top:5px}
+.sub{font-size:11px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace}
+.run-badge{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 10px;border-radius:4px}
+
+/* 설정 패널 */
+.cfg{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px 20px;margin-bottom:16px}
+.cfg-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.cfg-item label{display:block;font-size:10px;color:var(--dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.cfg-item input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color .2s}
+.cfg-item input:focus{border-color:var(--accent)}
+.n-range{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)}
+.n-range input{width:70px}
+
+/* 컨트롤 */
+.ctrl{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.btn{display:flex;align-items:center;gap:7px;border:none;border-radius:6px;padding:11px 20px;font-size:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;text-transform:uppercase;font-weight:700;letter-spacing:.05em;transition:all .2s}
+.btn-run{background:var(--accent);color:#000}.btn-run:hover{background:#ffe07a;transform:translateY(-1px)}.btn-run:disabled{background:var(--border);color:var(--dim);cursor:not-allowed;transform:none}
+.btn-rst{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)}.btn-rst:hover{background:rgba(255,77,109,.25)}
+.db-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);color:var(--dim)}
+.db-badge.ok{color:var(--green);border-color:rgba(57,217,138,.4);background:rgba(57,217,138,.08)}
+.st-badge{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-family:'JetBrains Mono',monospace;font-size:11px}
 .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
-.dot-open{background:var(--green);animation:blink 1.2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.position-badge{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.dot-run{background:var(--green);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* 프로그레스 */
+.prog-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:16px;display:none}
+.prog-wrap.on{display:block}
+.prog-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.prog-lbl{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+.prog-pct{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);font-weight:700}
+.prog-bg{background:var(--bg3);border-radius:3px;height:5px;overflow:hidden;margin-bottom:6px}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;transition:width .4s;width:0%}
+.prog-det{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);min-height:14px}
+
+/* N별 진행 그리드 */
+.n-progress-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:14px}
+.n-prog-item{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;position:relative;overflow:hidden;transition:border-color .3s}
+.n-prog-item.running{border-color:var(--accent2)}
+.n-prog-item.done{border-color:var(--green)}
+.n-prog-item.error{border-color:var(--red)}
+.n-prog-fill{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent2);transform:scaleX(0);transform-origin:left;transition:transform .3s}
+.n-prog-item.done .n-prog-fill{background:var(--green);transform:scaleX(1)}
+.n-item-lbl{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:4px}
+.n-item-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--text)}
+.n-item-val.pos{color:var(--green)}.n-item-val.neg{color:var(--red)}.n-item-val.run{color:var(--accent2)}
+
+/* 결과 랭킹 테이블 */
+.result-section{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px}
+.result-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.result-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em}
+.result-note{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px}
+thead th{background:var(--bg3);color:var(--dim);text-align:left;padding:11px 14px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:rgba(247,201,72,.04)}
+tbody tr:last-child{border-bottom:none}
+tbody tr.rank-1{background:rgba(247,201,72,.08)!important}
+tbody tr.rank-2{background:rgba(57,217,138,.05)!important}
+tbody tr.rank-3{background:rgba(77,159,255,.04)!important}
+td{padding:11px 14px;white-space:nowrap}
+.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;font-size:11px;font-weight:700}
+.r1{background:rgba(247,201,72,.2);color:var(--accent)}.r2{background:rgba(57,217,138,.2);color:var(--green)}.r3{background:rgba(77,159,255,.2);color:var(--blue)}
+.rn{background:var(--bg3);color:var(--dim)}
+.n-label{font-size:18px;font-weight:700;color:var(--bright)}
+.up{color:var(--green)}.dn{color:var(--red)}.dim{color:var(--dim)}
+.bar-cell{min-width:120px}
+.mini-bar{height:6px;border-radius:3px;background:var(--accent);transition:width .5s}
+.tag-sm{display:inline-block;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.t-best{background:rgba(247,201,72,.2);color:var(--accent)}
+.t-run{background:rgba(232,131,58,.2);color:var(--accent2)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+
+/* 에러 */
+.err-box{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--red);margin-bottom:14px;display:none}
+.warn-box{background:rgba(232,131,58,.1);border:1px solid rgba(232,131,58,.3);border-radius:6px;padding:10px 14px;font-size:11px;color:var(--accent2);margin-bottom:14px;font-family:'JetBrains Mono',monospace}
+
+/* 탭 */
+.tabs{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;padding:5px 5px 0;border-bottom:none}
+.tab{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:7px 15px;border-radius:4px 4px 0 0;cursor:pointer;color:var(--dim);border:1px solid transparent;border-bottom:none;text-transform:uppercase;letter-spacing:.07em;transition:all .15s}
+.tab.on{background:var(--bg3);color:var(--accent);border-color:var(--border);border-bottom-color:var(--bg3)}.tab:hover:not(.on){color:var(--text)}
+.tab-body{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;margin-bottom:20px;overflow:hidden}
+.panel{display:none}.panel.on{display:block}
+
+/* 상세 거래 */
+.detail-sel{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.detail-sel label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+.detail-sel select{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none}
+.dtbl-wrap{overflow-x:auto;max-height:480px;overflow-y:auto}
+.dtbl-wrap table thead{position:sticky;top:0;z-index:2}
+
+/* 로그 */
+.log-area{padding:12px;max-height:420px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px}
+.le{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid rgba(26,32,48,.6)}
+.le-d{color:var(--dim);min-width:82px;flex-shrink:0}.le-m{flex:1}
+.le-m.prof{color:var(--green)}.le-m.liq{color:var(--red)}.le-m.ent{color:var(--accent)}.le-m.add{color:var(--accent2)}.le-m.inf{color:var(--dim)}.le-m.hd{color:var(--purple);font-weight:700}
+.empty{text-align:center;padding:40px 20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px}
+.empty-ico{font-size:28px;margin-bottom:8px;opacity:.4}
+
+@keyframes rowIn{from{background:rgba(247,201,72,.1)}to{background:transparent}}
+.row-new{animation:rowIn 1.5s ease}
 </style>
 </head>
 <body>
-<div class="container">
+<div class="wrap">
 
 <header>
   <div>
-    <div class="logo">Binance Futures · Short Strategy Scanner</div>
-    <h1>역추세 숏 백테스터</h1>
-    <div class="subtitle">// 고점 돌파 종목 → 1x Short → +13% 복리 | 여유자금 ≥200 → 추가진입</div>
+    <div class="logo">Binance Futures · Short Strategy Optimizer</div>
+    <h1>최적 N개 탐색 백테스터</h1>
+    <div class="sub">// 1000 USDT ÷ N → 상위 N개 1x Short → +13% 복리 | N=1~10 중 어떤 N이 최고인가?</div>
   </div>
-  <div class="now-badge" id="nowBadge">READY</div>
+  <div class="run-badge" id="runBadge">READY</div>
 </header>
 
-<div class="warning-box">
-  ⚠️ 바이낸스 공개 API 사용 (API 키 불필요) · 418 방지를 위해 요청 간 지연이 적용됩니다 · 첫 실행 수 분 소요 · 새로고침 후 이어서 실행 가능
-</div>
-
-<div class="summary-grid">
-  <div class="card gold">
-    <div class="card-label">현재 총 자산</div>
-    <div class="card-value" id="totalUsdt">—</div>
-    <div class="card-sub">USDT</div>
-  </div>
-  <div class="card green">
-    <div class="card-label">총 손익</div>
-    <div class="card-value" id="totalPnl">—</div>
-    <div class="card-sub">시작: 1,000 USDT (100×10)</div>
-  </div>
-  <div class="card orange">
-    <div class="card-label">여유자금</div>
-    <div class="card-value" id="freeCashCard">—</div>
-    <div class="card-sub">미투입 현금</div>
-  </div>
-  <div class="card green">
-    <div class="card-label">수익 실현</div>
-    <div class="card-value" id="profitCount">—</div>
-    <div class="card-sub">+13% 달성</div>
-  </div>
-  <div class="card red">
-    <div class="card-label">청산</div>
-    <div class="card-value" id="liqCount">—</div>
-    <div class="card-sub">-100% 손실</div>
-  </div>
-  <div class="card blue">
-    <div class="card-label">열린 포지션</div>
-    <div class="card-value" id="openCount">—</div>
-    <div class="card-sub">진행 중</div>
+<div class="cfg">
+  <div class="cfg-title">⚙ 전략 설정</div>
+  <div class="cfg-grid">
+    <div class="cfg-item">
+      <label>시작 자본 (USDT)</label>
+      <input type="number" id="cfgCapital" value="1000" min="100" step="100">
+    </div>
+    <div class="cfg-item">
+      <label>목표 수익률 (%)</label>
+      <input type="number" id="cfgTarget" value="13" min="1" max="99" step="1">
+    </div>
+    <div class="cfg-item">
+      <label>추가진입 최소 여유자금</label>
+      <input type="number" id="cfgAddMin" value="200" min="100" step="50">
+    </div>
+    <div class="cfg-item">
+      <label>테스트할 N 범위</label>
+      <div class="n-range">
+        <input type="number" id="cfgNMin" value="1" min="1" max="9" step="1">
+        <span>~</span>
+        <input type="number" id="cfgNMax" value="10" min="2" max="10" step="1">
+      </div>
+    </div>
+    <div class="cfg-item">
+      <label>API 딜레이 (ms)</label>
+      <input type="number" id="cfgDelay" value="380" min="200" max="2000" step="50">
+    </div>
   </div>
 </div>
 
-<div class="ctrl-row">
-  <button class="btn btn-run" id="runBtn" onclick="runBacktest()">▶ 백테스트 실행</button>
-  <button class="btn btn-reset" onclick="resetCache()">🗑 캐시 초기화</button>
-  <div class="cache-badge" id="cacheBadge">캐시 없음</div>
-  <div class="position-badge" id="statusBadge">
-    <span class="dot" style="background:var(--text-dim)"></span> 대기 중
+<div class="warn-box">
+  ⚠️ 바이낸스 공개 API · 각 날짜의 상승률 데이터는 N개 공통으로 1회만 조회 → N개를 동시 처리하므로 단일 N 대비 속도 차이 없음 · IndexedDB 자동 저장 (PC 재시작 후에도 유지)
+</div>
+
+<div class="ctrl">
+  <button class="btn btn-run" id="runBtn" onclick="startAll()">▶ 최적화 실행</button>
+  <button class="btn btn-rst" onclick="resetAll()">🗑 초기화</button>
+  <div class="db-badge" id="dbBadge">IndexedDB 확인 중...</div>
+  <div class="st-badge" id="stBadge"><span class="dot" style="background:var(--dim)"></span>&nbsp;대기 중</div>
+</div>
+
+<div class="prog-wrap" id="progWrap">
+  <div class="prog-hd">
+    <div class="prog-lbl" id="progTxt">초기화 중...</div>
+    <div class="prog-pct" id="progPct">0%</div>
+  </div>
+  <div class="prog-bg"><div class="prog-bar" id="progBar"></div></div>
+  <div class="prog-det" id="progDet"></div>
+  <div class="n-progress-grid" id="nGrid"></div>
+</div>
+
+<div class="err-box" id="errBox"></div>
+
+<!-- 결과 랭킹 -->
+<div class="result-section">
+  <div class="result-header">
+    <div class="result-title">📊 N별 백테스트 결과 랭킹 (실시간 업데이트)</div>
+    <div class="result-note">초기 1,000 USDT 기준</div>
+  </div>
+  <div class="tbl-wrap">
+    <table id="rankTable">
+      <thead><tr>
+        <th>순위</th><th>N개</th><th>개당 진입금</th>
+        <th>최종 자산</th><th>총 손익</th><th>수익률</th>
+        <th>수익 횟수</th><th>청산 횟수</th><th>여유자금</th>
+        <th>수익 바</th><th>상태</th>
+      </tr></thead>
+      <tbody id="rankBody">
+        <tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 실시간으로 결과가 표시됩니다.</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
-<div class="progress-section" id="progressSection">
-  <div class="progress-text" id="progressText">초기화 중...</div>
-  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
-  <div class="progress-detail" id="progressDetail"></div>
-</div>
-
-<div id="errorBox" class="error-box" style="display:none"></div>
-
+<!-- 상세 탭 -->
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('trades')">거래 내역</div>
-  <div class="tab" onclick="switchTab('positions')">현재 포지션</div>
-  <div class="tab" onclick="switchTab('log')">실행 로그</div>
+  <div class="tab on" onclick="showTab('detail')">거래 상세</div>
+  <div class="tab"    onclick="showTab('log')">실행 로그</div>
 </div>
-<div class="tab-content">
-  <div class="tab-panel active" id="tab-trades">
-    <div class="empty" id="tradesEmpty"><div class="empty-icon">📊</div>백테스트를 실행하면 거래 내역이 표시됩니다.</div>
-    <div class="table-wrap" id="tradesTable" style="display:none">
+<div class="tab-body">
+  <div class="panel on" id="panel-detail">
+    <div class="detail-sel">
+      <label>N 선택:</label>
+      <select id="nSelector" onchange="renderDetailTable()">
+        <option value="">— N을 선택하세요 —</option>
+      </select>
+      <span id="detailSummary" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)"></span>
+    </div>
+    <div class="dtbl-wrap">
       <table>
         <thead><tr>
           <th>#</th><th>진입일</th><th>종목</th><th>구분</th>
-          <th>진입금(USDT)</th><th>진입가</th><th>종료일</th><th>종료가</th>
+          <th>진입금</th><th>진입가</th><th>종료일</th><th>종료가</th>
           <th>결과</th><th>손익(USDT)</th><th>다음진입금</th><th>보유일</th>
         </tr></thead>
-        <tbody id="tradesTbody"></tbody>
+        <tbody id="detailBody">
+          <tr><td colspan="12" class="empty"><div class="empty-ico">📋</div>위에서 N을 선택하세요.</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
-  <div class="tab-panel" id="tab-positions">
-    <div class="section-title">현재 열린 포지션</div>
-    <div class="open-positions" id="openPositions">
-      <div class="empty"><div class="empty-icon">🔍</div>백테스트 실행 후 확인 가능합니다.</div>
-    </div>
-  </div>
-  <div class="tab-panel" id="tab-log">
+  <div class="panel" id="panel-log">
     <div class="log-area" id="logArea">
-      <div class="empty"><div class="empty-icon">📋</div>실행 로그가 여기에 표시됩니다.</div>
+      <div class="empty"><div class="empty-ico">📋</div>실행 로그가 여기에 표시됩니다.</div>
     </div>
   </div>
 </div>
 
 </div>
 <script>
-// ============================================================
-// 전략 상수
-// ============================================================
-const S = {
-  START_DATE:  '2025-12-31', // 초기 상승률 산정일
-  ENTRY_DATE:  '2026-01-01', // 최초 진입일
-  TOP_N:       10,           // 최대 동시 포지션 수 (초기 진입 수)
-  INIT_USDT:   100,          // 초기 1개 진입금
-  TARGET:      0.13,         // 목표 수익률 13%
-  REQ_DELAY:   400,          // API 요청 간 딜레이 ms (418 방지)
-  RETRY_DELAY: 2000,         // 재시도 대기 ms
-  MAX_RETRY:   5,            // 최대 재시도
-  ADD_UNIT:    100,          // 추가 진입 단위금액
-  ADD_MIN:     200,          // 추가 진입 가능 최소 여유자금
-};
-const CACHE_KEY = 'bt_state_v4';
-const BASE_URL  = 'https://fapi.binance.com';
+// ════════════════════════════════════════════════
+// 전역 상수 / 상태
+// ════════════════════════════════════════════════
+const START_DATE = '2025-12-31';
+const ENTRY_DATE = '2026-01-01';
+const API_BASE   = 'https://fapi.binance.com';
+const DB_NAME    = 'btOptimizer';
+const DB_VER     = 3;
+const ADD_UNIT   = 100; // 추가 진입 단위 (고정)
 
-let isRunning = false;
-let logs = [];
+let _db        = null;
+let isRunning  = false;
+// N별 결과 저장: { n: { totalAssets, pnl, pct, profitCount, liqCount, freeCash, trades, status } }
+let nResults   = {};
+// N별 활성 포지션 (시뮬 중): { n: { activePositions, freeCash, tradeId, tradesDone } }
+let nStates    = {};
+// 공유 데이터 (모든 N이 공통으로 사용)
+let sharedData = null; // { allPairs, top10base, dateKlineCache }
+// 날짜별 상승률 캐시: { date: [{symbol, change}] }
+let dayRankCache = {};
 
-// ============================================================
+// ════════════════════════════════════════════════
+// IndexedDB
+// ════════════════════════════════════════════════
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains('meta'))   db.createObjectStore('meta');
+      if(!db.objectStoreNames.contains('nstate')) db.createObjectStore('nstate');
+      if(!db.objectStoreNames.contains('trades')) db.createObjectStore('trades',{keyPath:'uid'});
+    };
+    req.onsuccess=e=>{_db=e.target.result;res()};
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+function dbPutMeta(key,val){return new Promise((res,rej)=>{const tx=_db.transaction('meta','readwrite');tx.objectStore('meta').put(val,key).onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);})}
+function dbGetMeta(key){return new Promise((res,rej)=>{const tx=_db.transaction('meta','readonly');const r=tx.objectStore('meta').get(key);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error);})}
+function dbPutNState(n,val){return new Promise((res,rej)=>{const tx=_db.transaction('nstate','readwrite');tx.objectStore('nstate').put(val,n).onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);})}
+function dbGetNState(n){return new Promise((res,rej)=>{const tx=_db.transaction('nstate','readonly');const r=tx.objectStore('nstate').get(n);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error);})}
+function dbPutTrade(trade){return new Promise((res,rej)=>{const tx=_db.transaction('trades','readwrite');tx.objectStore('trades').put(trade).onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);})}
+function dbGetAllTrades(n){
+  return new Promise((res,rej)=>{
+    const tx=_db.transaction('trades','readonly');
+    const req=tx.objectStore('trades').getAll();
+    req.onsuccess=e=>res(e.target.result.filter(t=>t.n===n));
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+function dbClearAll(){
+  return Promise.all(['meta','nstate','trades'].map(s=>new Promise((res,rej)=>{
+    const tx=_db.transaction(s,'readwrite');
+    tx.objectStore(s).clear().onsuccess=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  })));
+}
+
+// ════════════════════════════════════════════════
 // 유틸
-// ============================================================
-const sleep  = ms => new Promise(r => setTimeout(r, ms));
-const r4     = n  => +n.toFixed(4);
-const r2     = n  => +n.toFixed(2);
-
-function fmtDate(ts) {
-  const d = new Date(ts);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+// ════════════════════════════════════════════════
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const r4=n=>+n.toFixed(4);
+const r2=n=>+n.toFixed(2);
+function fmtDate(ts){const d=new Date(ts);return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`}
+function dateToTs(s){return new Date(s+'T00:00:00Z').getTime()}
+function nextDay(s){return fmtDate(dateToTs(s)+86400000)}
+function todayStr(){return fmtDate(Date.now())}
+function fmtN(n,d=2){if(n==null||isNaN(n))return'—';return n.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function dateRange(a,b){const arr=[];let c=dateToTs(a),e=dateToTs(b);while(c<=e){arr.push(fmtDate(c));c+=86400000;}return arr}
+function getConfig(){
+  return{
+    capital: +document.getElementById('cfgCapital').value||1000,
+    target:  (+document.getElementById('cfgTarget').value||13)/100,
+    addMin:  +document.getElementById('cfgAddMin').value||200,
+    nMin:    Math.max(1,+document.getElementById('cfgNMin').value||1),
+    nMax:    Math.min(10,+document.getElementById('cfgNMax').value||10),
+    delay:   +document.getElementById('cfgDelay').value||380,
+  };
 }
-function dateToTs(s) { return new Date(s + 'T00:00:00Z').getTime(); }
-function nextDay(s)  { return fmtDate(dateToTs(s) + 86400000); }
-function todayStr()  { return fmtDate(Date.now()); }
 
-function fmtNum(n, d=2) {
-  if(n == null || isNaN(n)) return '—';
-  return n.toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d});
+// ════════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════════
+async function apiGet(path,params={},delay=380){
+  const url=new URL(API_BASE+path);
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  for(let i=0;i<=5;i++){
+    try{
+      await sleep(delay);
+      const res=await fetch(url.toString(),{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(15000)});
+      if(res.status===418||res.status===429){
+        const w=2000*Math.pow(2,i);
+        log('',`⚠️ Rate limit ${res.status} → ${w/1000}s 대기`,'inf');
+        await sleep(w);continue;
+      }
+      if(!res.ok)throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }catch(e){if(i===5)throw e;await sleep(2000);}
+  }
 }
 
-function dateRange(a, b) {
-  const arr = [];
-  let c = dateToTs(a), e = dateToTs(b);
-  while(c <= e) { arr.push(fmtDate(c)); c += 86400000; }
+async function getUsdtPairs(delay){
+  const d=await apiGet('/fapi/v1/exchangeInfo',{},delay);
+  return d.symbols.filter(s=>s.quoteAsset==='USDT'&&s.contractType==='PERPETUAL'&&s.status==='TRADING').map(s=>s.symbol);
+}
+
+async function getKline(sym,dateStr,delay){
+  const ts=dateToTs(dateStr);
+  try{
+    const d=await apiGet('/fapi/v1/klines',{symbol:sym,interval:'1d',startTime:ts,endTime:ts+86399999,limit:1},delay);
+    if(!d||!d.length)return null;
+    return{open:+d[0][1],high:+d[0][2],low:+d[0][3],close:+d[0][4]};
+  }catch(e){return null;}
+}
+
+// 날짜별 전체 상승률 (캐시 활용)
+async function getDayRanking(date,allPairs,delay){
+  if(dayRankCache[date]) return dayRankCache[date];
+  const arr=[];
+  for(const sym of allPairs){
+    const k=await getKline(sym,date,delay);
+    if(!k||!k.open)continue;
+    const ch=(k.close-k.open)/k.open;
+    if(isFinite(ch))arr.push({symbol:sym,change:ch,kline:k});
+  }
+  arr.sort((a,b)=>b.change-a.change);
+  dayRankCache[date]=arr;
   return arr;
 }
 
-// ============================================================
-// localStorage 캐시
-// ============================================================
-function saveCache(state) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(state)); } catch(e) {}
+// ════════════════════════════════════════════════
+// UI 헬퍼
+// ════════════════════════════════════════════════
+function log(date,msg,type='inf'){
+  const area=document.getElementById('logArea');
+  const empty=area.querySelector('.empty');if(empty)empty.remove();
+  const el=document.createElement('div');el.className='le';
+  el.innerHTML=`<span class="le-d">${date||''}</span><span class="le-m ${type}">${msg}</span>`;
+  area.appendChild(el);area.scrollTop=area.scrollHeight;
 }
-function loadCache() {
-  try { const s = localStorage.getItem(CACHE_KEY); return s ? JSON.parse(s) : null; } catch(e) { return null; }
+function showErr(msg){const e=document.getElementById('errBox');e.style.display='block';e.textContent='❌ '+msg;}
+function hideErr(){document.getElementById('errBox').style.display='none';}
+function showTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['detail','log'][i]===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='panel-'+name));
 }
-function clearCache() {
-  try { localStorage.removeItem(CACHE_KEY); } catch(e) {}
-}
-function updateCacheBadge() {
-  const c = loadCache();
-  const el = document.getElementById('cacheBadge');
-  if(c && c.lastDate) {
-    el.textContent = `💾 캐시: ${c.lastDate}까지 저장됨`;
-    el.className = 'cache-badge active';
-  } else {
-    el.textContent = '캐시 없음';
-    el.className = 'cache-badge';
-  }
-}
-function resetCache() {
-  if(!confirm('저장된 백테스트 캐시를 초기화하고 처음부터 다시 실행하시겠습니까?')) return;
-  clearCache();
-  updateCacheBadge();
-  document.getElementById('logArea').innerHTML = '<div class="empty"><div class="empty-icon">📋</div>실행 로그가 여기에 표시됩니다.</div>';
-  document.getElementById('tradesEmpty').style.display = '';
-  document.getElementById('tradesTable').style.display = 'none';
-  document.getElementById('openPositions').innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>백테스트 실행 후 확인 가능합니다.</div>';
-  updateSummary(null);
-  logs = [];
+function prog(pct,txt,det=''){
+  document.getElementById('progBar').style.width=pct+'%';
+  document.getElementById('progTxt').textContent=txt;
+  document.getElementById('progPct').textContent=Math.round(pct)+'%';
+  document.getElementById('progDet').textContent=det;
 }
 
-// ============================================================
-// API
-// ============================================================
-async function apiGet(path, params={}) {
-  const url = new URL(BASE_URL + path);
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
-  for(let i=0; i<=S.MAX_RETRY; i++) {
-    try {
-      await sleep(S.REQ_DELAY);
-      const res = await fetch(url.toString(), {
-        headers: {'Accept':'application/json'},
-        signal: AbortSignal.timeout(15000)
-      });
-      if(res.status===418 || res.status===429) {
-        const w = S.RETRY_DELAY * Math.pow(2, i);
-        addLog('', `⚠️ Rate limit (${res.status}) → ${w/1000}s 대기`, 'info');
-        await sleep(w);
-        continue;
-      }
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch(e) {
-      if(i === S.MAX_RETRY) throw e;
-      await sleep(S.RETRY_DELAY);
+// N별 진행 카드 초기화
+function initNGrid(ns){
+  const grid=document.getElementById('nGrid');
+  grid.innerHTML='';
+  ns.forEach(n=>{
+    const div=document.createElement('div');
+    div.className='n-prog-item';
+    div.id=`np-${n}`;
+    div.innerHTML=`<div class="n-item-lbl">N = ${n}개</div><div class="n-item-val run" id="npv-${n}">대기 중...</div><div class="n-prog-fill" id="npf-${n}"></div>`;
+    grid.appendChild(div);
+  });
+}
+function setNStatus(n,status,val=''){
+  const item=document.getElementById(`np-${n}`);
+  const valEl=document.getElementById(`npv-${n}`);
+  const fill=document.getElementById(`npf-${n}`);
+  if(!item)return;
+  item.className='n-prog-item '+status;
+  if(status==='running'){valEl.className='n-item-val run';valEl.textContent=val||'계산 중...';}
+  else if(status==='done'){
+    const r=nResults[n];
+    if(r){
+      const pct=r2((r.totalAssets-1000)/10);
+      valEl.className='n-item-val '+(pct>=0?'pos':'neg');
+      valEl.textContent=(pct>=0?'+':'')+pct+'%';
     }
+    if(fill)fill.style.transform='scaleX(1)';
   }
+  else if(status==='error'){valEl.className='n-item-val neg';valEl.textContent='오류';}
 }
 
-async function getUsdtPairs() {
-  const d = await apiGet('/fapi/v1/exchangeInfo');
-  return d.symbols
-    .filter(s => s.quoteAsset==='USDT' && s.contractType==='PERPETUAL' && s.status==='TRADING')
-    .map(s => s.symbol);
-}
-
-async function getDayKline(symbol, dateStr) {
-  const ts = dateToTs(dateStr);
-  const d = await apiGet('/fapi/v1/klines', {
-    symbol, interval:'1d', startTime:ts, endTime:ts+86399999, limit:1
+// ════════════════════════════════════════════════
+// 랭킹 테이블 렌더링 (실시간)
+// ════════════════════════════════════════════════
+function renderRankTable(){
+  const ns=Object.keys(nResults).map(Number).sort((a,b)=>{
+    const ra=nResults[a], rb=nResults[b];
+    // 완료된 것 먼저, 그 안에서 수익률 순
+    if(ra.status==='done'&&rb.status!=='done')return-1;
+    if(ra.status!=='done'&&rb.status==='done')return 1;
+    return(rb.totalAssets||0)-(ra.totalAssets||0);
   });
-  if(!d || !d.length) return null;
-  return {open:+d[0][1], high:+d[0][2], low:+d[0][3], close:+d[0][4]};
-}
 
-async function getDayChange(symbol, dateStr) {
-  try {
-    const k = await getDayKline(symbol, dateStr);
-    if(!k || !k.open) return null;
-    const ch = (k.close - k.open) / k.open;
-    return isFinite(ch) ? ch : null;
-  } catch(e) { return null; }
-}
+  const maxAssets=Math.max(...ns.filter(n=>nResults[n].status==='done').map(n=>nResults[n].totalAssets||0),1000);
+  const tbody=document.getElementById('rankBody');
+  tbody.innerHTML='';
 
-// ============================================================
-// UI
-// ============================================================
-function addLog(date, msg, type='info') {
-  logs.push({date, msg, type});
-  const area = document.getElementById('logArea');
-  const empty = area.querySelector('.empty');
-  if(empty) empty.remove();
-  const el = document.createElement('div');
-  el.className = 'log-entry';
-  el.innerHTML = `<span class="log-date">${date||''}</span><span class="log-msg ${type}">${msg}</span>`;
-  area.appendChild(el);
-  area.scrollTop = area.scrollHeight;
-}
-
-function setProgress(pct, text, detail='') {
-  document.getElementById('progressBar').style.width = pct+'%';
-  document.getElementById('progressText').textContent = text;
-  document.getElementById('progressDetail').textContent = detail;
-}
-
-function showError(msg) {
-  const el = document.getElementById('errorBox');
-  el.style.display='block'; el.textContent='❌ '+msg;
-}
-function hideError() { document.getElementById('errorBox').style.display='none'; }
-
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t,i) => {
-    t.classList.toggle('active', ['trades','positions','log'][i]===name);
-  });
-  document.querySelectorAll('.tab-panel').forEach(p => {
-    p.classList.toggle('active', p.id==='tab-'+name);
-  });
-}
-
-function updateSummary(data) {
-  const ids = ['totalUsdt','totalPnl','freeCashCard','profitCount','liqCount','openCount'];
-  if(!data) {
-    ids.forEach(id => { document.getElementById(id).textContent='—'; document.getElementById(id).className='card-value'; });
+  if(!ns.length){
+    tbody.innerHTML='<tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 실시간으로 결과가 표시됩니다.</td></tr>';
     return;
   }
-  const {totalAssets, totalPnl, freeCash, profitCount, liqCount, openCnt} = data;
-  document.getElementById('totalUsdt').textContent = fmtNum(totalAssets);
-  document.getElementById('totalUsdt').className = 'card-value';
-  const pnlEl = document.getElementById('totalPnl');
-  pnlEl.textContent = (totalPnl>=0?'+':'')+fmtNum(totalPnl);
-  pnlEl.className = 'card-value '+(totalPnl>=0?'positive':'negative');
-  document.getElementById('freeCashCard').textContent = fmtNum(freeCash);
-  document.getElementById('freeCashCard').className = 'card-value '+(freeCash>0?'positive':'');
-  document.getElementById('profitCount').textContent = profitCount;
-  document.getElementById('liqCount').textContent = liqCount;
-  document.getElementById('openCount').textContent = openCnt;
+
+  let rank=1;
+  ns.forEach(n=>{
+    const r=nResults[n];
+    const isDone=r.status==='done';
+    const isRunning=r.status==='running';
+    const cfg=getConfig();
+    const perUnit=r2(cfg.capital/n);
+    const pnl=isDone?r2(r.totalAssets-cfg.capital):null;
+    const pct=isDone?r2((r.totalAssets-cfg.capital)/cfg.capital*100):null;
+    const barW=isDone?Math.max(0,Math.min(100,(r.totalAssets/maxAssets)*100)):0;
+
+    let rankBadge='';
+    if(isDone){
+      if(rank===1)rankBadge='<span class="rank-badge r1">🥇</span>';
+      else if(rank===2)rankBadge='<span class="rank-badge r2">🥈</span>';
+      else if(rank===3)rankBadge='<span class="rank-badge r3">🥉</span>';
+      else rankBadge=`<span class="rank-badge rn">${rank}</span>`;
+    }else{
+      rankBadge='<span class="rank-badge rn">—</span>';
+    }
+
+    let statusTxt='';
+    if(isRunning)statusTxt='<span class="tag-sm t-run">▶ 계산중</span>';
+    else if(isDone)statusTxt='<span class="dot status-dot" style="background:var(--green)"></span>완료';
+    else statusTxt='<span class="dot status-dot" style="background:var(--dim)"></span>대기';
+
+    const tr=document.createElement('tr');
+    if(isDone){
+      if(rank===1)tr.className='rank-1';
+      else if(rank===2)tr.className='rank-2';
+      else if(rank===3)tr.className='rank-3';
+    }
+    tr.innerHTML=`
+      <td>${rankBadge}</td>
+      <td><span class="n-label">${n}</span><span style="color:var(--dim);font-size:10px">개</span></td>
+      <td class="dim">${fmtN(perUnit)} USDT</td>
+      <td style="font-weight:700;color:${isDone?(r.totalAssets>=cfg.capital?'var(--green)':'var(--red)'):'var(--dim)'}">${isDone?fmtN(r.totalAssets):'계산 중...'}</td>
+      <td class="${pnl!=null?(pnl>=0?'up':'dn'):'dim'}">${pnl!=null?(pnl>=0?'+':'')+fmtN(pnl):'—'}</td>
+      <td class="${pct!=null?(pct>=0?'up':'dn'):'dim'}">${pct!=null?(pct>=0?'+':'')+pct+'%':'—'}</td>
+      <td class="dim">${isDone?r.profitCount:'—'}</td>
+      <td class="${isDone&&r.liqCount>0?'dn':'dim'}">${isDone?r.liqCount:'—'}</td>
+      <td class="dim">${isDone?fmtN(r.freeCash):'—'}</td>
+      <td class="bar-cell"><div class="mini-bar" style="width:${barW}%;background:${pnl!=null&&pnl<0?'var(--red)':'var(--accent)'}"></div></td>
+      <td style="font-size:11px">${statusTxt}</td>`;
+    tbody.appendChild(tr);
+    if(isDone)rank++;
+  });
+
+  // N 선택 드롭다운 업데이트
+  const sel=document.getElementById('nSelector');
+  const curVal=sel.value;
+  sel.innerHTML='<option value="">— N을 선택하세요 —</option>';
+  ns.filter(n=>nResults[n].status==='done').forEach(n=>{
+    const opt=document.createElement('option');
+    opt.value=n; opt.textContent=`N=${n}개 (${fmtN(nResults[n].totalAssets)} USDT)`;
+    sel.appendChild(opt);
+  });
+  if(curVal)sel.value=curVal;
 }
 
-function renderTrades(allTrades) {
-  if(!allTrades.length) return;
-  document.getElementById('tradesEmpty').style.display='none';
-  document.getElementById('tradesTable').style.display='block';
-  const tbody = document.getElementById('tradesTbody');
+// ════════════════════════════════════════════════
+// 상세 거래 내역 렌더링
+// ════════════════════════════════════════════════
+function renderDetailTable(){
+  const n=+document.getElementById('nSelector').value;
+  const tbody=document.getElementById('detailBody');
+  if(!n||!nResults[n]||!nResults[n].trades){
+    tbody.innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">📋</div>위에서 N을 선택하세요.</td></tr>';
+    document.getElementById('detailSummary').textContent='';
+    return;
+  }
+  const r=nResults[n];
+  const cfg=getConfig();
+  document.getElementById('detailSummary').textContent=
+    `총 ${r.trades.length}건 | 수익 ${r.profitCount}건 | 청산 ${r.liqCount}건 | 최종 ${fmtN(r.totalAssets)} USDT`;
+
   tbody.innerHTML='';
-  [...allTrades].sort((a,b)=>dateToTs(a.entryDate)-dateToTs(b.entryDate)).forEach((t,i)=>{
-    const pnlStr = t.pnl!=null?((t.pnl>=0?'+':'')+fmtNum(t.pnl)):'—';
-    const pnlCls = t.pnl>0?'up':t.pnl<0?'dn':'neu';
+  [...r.trades].sort((a,b)=>dateToTs(a.entryDate)-dateToTs(b.entryDate)).forEach((t,i)=>{
+    const pnlStr=t.pnl!=null?((t.pnl>=0?'+':'')+fmtN(t.pnl)):'—';
+    const pnlCls=t.pnl>0?'up':t.pnl<0?'dn':'dim';
     let tag='';
-    if(t.status==='profit')       tag='<span class="tag tag-profit">+13% 수익</span>';
-    else if(t.status==='liquidated') tag='<span class="tag tag-liq">청산</span>';
-    else if(t.status==='pending')    tag='<span class="tag tag-wait">진입예정</span>';
-    else                             tag='<span class="tag tag-open">진행중</span>';
+    if(t.status==='profit')      tag='<span class="tag-sm" style="background:rgba(57,217,138,.15);color:var(--green);border:1px solid rgba(57,217,138,.3)">+수익</span>';
+    else if(t.status==='liquidated') tag='<span class="tag-sm" style="background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)">청산</span>';
+    else if(t.status==='open')       tag='<span class="tag-sm" style="background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)">진행중</span>';
+    else                             tag='<span class="tag-sm" style="background:rgba(90,106,126,.15);color:var(--dim)">대기</span>';
 
-    let typeLabel='';
-    if(t.posType==='add')         typeLabel='<span class="tag tag-add">추가</span>';
-    else if(t.roundNum>1)         typeLabel=`<span style="color:var(--accent);font-size:10px">복리${t.roundNum-1}회</span>`;
-    else                          typeLabel='<span style="color:var(--text-dim);font-size:10px">초기</span>';
+    let typeL='';
+    if(t.posType==='add')        typeL='<span class="tag-sm" style="background:rgba(232,131,58,.15);color:var(--accent2)">추가</span>';
+    else if(t.roundNum>1)        typeL=`<span style="color:var(--accent);font-size:9px">복리${t.roundNum-1}</span>`;
+    else                         typeL='<span style="color:var(--dim);font-size:9px">초기</span>';
 
-    const days = t.closeDate
-      ? Math.round((dateToTs(t.closeDate)-dateToTs(t.entryDate))/86400000)
-      : (t.entryPrice ? Math.round((dateToTs(todayStr())-dateToTs(t.entryDate))/86400000)+'+' : '—');
-    const nextSz = t.nextEntrySize?`<span style="color:var(--accent2)">${fmtNum(t.nextEntrySize)}</span>`:'—';
+    const days=t.closeDate?Math.round((dateToTs(t.closeDate)-dateToTs(t.entryDate))/86400000)
+      :(t.entryPrice?Math.round((dateToTs(todayStr())-dateToTs(t.entryDate))/86400000)+'+':'—');
+    const nextSz=t.nextEntrySize?`<span style="color:var(--accent2)">${fmtN(t.nextEntrySize)}</span>`:'—';
 
-    tbody.innerHTML+=`<tr>
-      <td class="neu">${i+1}</td>
-      <td class="neu">${t.entryDate}</td>
-      <td class="sym">${t.symbol}</td>
-      <td>${typeLabel}</td>
-      <td class="neu">${fmtNum(t.size)}</td>
-      <td class="neu">${t.entryPrice?fmtNum(t.entryPrice,4):'—'}</td>
-      <td class="neu">${t.closeDate||'—'}</td>
-      <td class="neu">${t.closePrice!=null?fmtNum(t.closePrice,4):'—'}</td>
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="dim">${i+1}</td>
+      <td class="dim">${t.entryDate}</td>
+      <td style="color:var(--bright);font-weight:600">${t.symbol}</td>
+      <td>${typeL}</td>
+      <td class="dim">${fmtN(t.size)}</td>
+      <td class="dim">${t.entryPrice?fmtN(t.entryPrice,4):'—'}</td>
+      <td class="dim">${t.closeDate||'—'}</td>
+      <td class="dim">${t.closePrice!=null?fmtN(t.closePrice,4):'—'}</td>
       <td>${tag}</td>
       <td class="${pnlCls}">${pnlStr}</td>
-      <td class="neu">${nextSz}</td>
-      <td class="neu">${days}</td>
-    </tr>`;
+      <td class="dim">${nextSz}</td>
+      <td class="dim">${days}</td>`;
+    tbody.appendChild(tr);
   });
 }
 
-function renderOpenPositions(positions) {
-  const el = document.getElementById('openPositions');
-  const active = positions.filter(p=>p.status==='open'||p.status==='pending');
-  if(!active.length) {
-    el.innerHTML='<div class="empty"><div class="empty-icon">✅</div>열린 포지션이 없습니다.</div>';
-    return;
+// ════════════════════════════════════════════════
+// N 하나의 백테스트 시뮬레이션
+// ════════════════════════════════════════════════
+async function simulateN(n, cfg, top10ForN, allPairs, simDates, today){
+  const perUnit = r2(cfg.capital / n);   // 개당 진입금
+  const target  = cfg.target;
+  const addMin  = cfg.addMin;
+  const delay   = cfg.delay;
+
+  // 기존 저장 상태 확인
+  const saved = await dbGetNState(n);
+  let activePositions, tradesDone, freeCash, tradeId, startDateIdx;
+
+  if(saved && saved.lastDate && saved.lastDate < today){
+    activePositions = saved.activePositions;
+    freeCash        = saved.freeCash;
+    tradeId         = saved.tradeId;
+    tradesDone      = await dbGetAllTrades(n);
+    // 어디서부터 이어할지
+    const lastIdx = simDates.indexOf(saved.lastDate);
+    startDateIdx  = lastIdx+1;
+    log('',`  N=${n}: ${saved.lastDate}부터 이어서 (${tradesDone.length}건 복원)`,'inf');
+  } else {
+    // 초기 진입
+    activePositions=[]; tradesDone=[]; freeCash=0; tradeId=0;
+    startDateIdx=0;
+    // ENTRY_DATE 시작가로 진입
+    const topN = top10ForN.slice(0,n);
+    for(let i=0;i<topN.length;i++){
+      const sym=topN[i].symbol;
+      const k=await getKline(sym,ENTRY_DATE,delay);
+      if(!k)continue;
+      tradeId++;
+      const pos={n,id:tradeId,uid:`${n}-${tradeId}`,symbol:sym,entryDate:ENTRY_DATE,
+        entryPrice:k.open,size:perUnit,rank:i+1,rankDate:START_DATE,
+        status:'open',roundNum:1,posType:'initial'};
+      activePositions.push(pos);
+    }
   }
-  el.innerHTML='';
-  active.forEach(p=>{
-    const pnlRate = p.pnlRate!=null?(p.pnlRate*100).toFixed(2)+'%':'—';
-    const pnlUSD  = p.pnl!=null?((p.pnl>=0?'+':'')+fmtNum(p.pnl)+' USDT'):'—';
-    const pnlCls  = (p.pnl||0)>=0?'up':'dn';
-    const targetP = p.entryPrice ? fmtNum(p.entryPrice*(1-S.TARGET),4) : '—';
-    const liqP    = p.entryPrice ? fmtNum(p.entryPrice*2,4) : '—';
-    const typeTag = p.posType==='add'
-      ? ' <span class="tag tag-add">추가진입</span>'
-      : p.roundNum>1 ? ` <span style="color:var(--accent);font-size:10px">복리${p.roundNum-1}회</span>` : '';
-    el.innerHTML+=`<div class="pos-item">
-      <div>
-        <div class="pos-sym"><span class="dot dot-open"></span> ${p.symbol}${typeTag}</div>
-        <div class="pos-info">진입: ${p.entryDate} @${p.entryPrice?fmtNum(p.entryPrice,4):'—'} | 목표: ${targetP} | 청산가: ${liqP}</div>
-        <div class="pos-info">원금: ${fmtNum(p.size)} USDT | 현재가: ${p.curPrice?fmtNum(p.curPrice,4):'—'}</div>
-      </div>
-      <div style="text-align:right">
-        <div class="pos-pnl ${pnlCls}">${pnlUSD}</div>
-        <div class="pos-info">${pnlRate}</div>
-      </div>
-    </div>`;
-  });
-}
 
-// ============================================================
-// 메인 백테스트
-// ============================================================
-async function runBacktest() {
-  if(isRunning) return;
-  isRunning = true;
-  hideError();
-  document.getElementById('runBtn').disabled = true;
-  document.getElementById('progressSection').classList.add('visible');
-  document.getElementById('nowBadge').textContent = 'RUNNING';
-  document.getElementById('statusBadge').innerHTML = '<span class="dot dot-open"></span> 실행 중';
+  // 시뮬레이션 날짜 루프
+  for(let di=startDateIdx; di<simDates.length; di++){
+    const date=simDates[di];
+    const openNow=activePositions.filter(p=>p.status==='open');
 
-  try {
-    const today = todayStr();
+    // 포지션 체크
+    let profitsToday=[], closedIds=[];
+    for(const pos of openNow){
+      // 캐시된 상승률 데이터에서 해당 종목 kline 가져오기
+      const dayRank = dayRankCache[date];
+      const cached  = dayRank ? dayRank.find(d=>d.symbol===pos.symbol) : null;
+      let k = cached ? cached.kline : await getKline(pos.symbol,date,delay);
+      if(!k)continue;
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 캐시 로드 or 처음부터 초기화
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    const cache = loadCache();
-    let allPairs, top10, activePositions, tradesDone, freeCash, tradeId, simStartDate;
+      const targetPrice = r4(pos.entryPrice*(1-target));
+      const liqPrice    = r4(pos.entryPrice*2);
 
-    if(cache && cache.lastDate && cache.lastDate < today) {
-      // ── 이어서 실행 ──
-      document.getElementById('logArea').innerHTML = '';
-      addLog('', `💾 캐시 복원: ${cache.lastDate}까지의 데이터 로드`, 'info');
-      addLog('', `📅 ${nextDay(cache.lastDate)}부터 ${today}까지 이어서 계산`, 'info');
-      allPairs        = cache.allPairs;
-      top10           = cache.top10;
-      activePositions = cache.activePositions;
-      tradesDone      = cache.trades;
-      freeCash        = cache.freeCash;
-      tradeId         = cache.tradeId;
-      simStartDate    = nextDay(cache.lastDate);
-      addLog('', `✅ 거래 ${tradesDone.length}건, 활성 포지션 ${activePositions.length}개, 여유자금 ${fmtNum(freeCash)} USDT 복원`, 'info');
-    } else {
-      // ── 처음부터 ──
-      document.getElementById('logArea').innerHTML = '';
-      logs = [];
-      addLog('', `📅 백테스트 시작: ${S.START_DATE} ~ ${today}`, 'info');
-
-      // STEP 1: 페어 목록
-      setProgress(2, 'USDT 선물 페어 목록 수집 중...', 'exchangeInfo');
-      allPairs = await getUsdtPairs();
-      addLog('', `✅ ${allPairs.length}개 USDT 무기한 선물 페어 확인`, 'info');
-
-      // STEP 2: START_DATE 상승률 TOP10
-      setProgress(5, `${S.START_DATE} 일봉 상승률 수집 중...`);
-      addLog(S.START_DATE, `${allPairs.length}개 종목 상승률 수집 시작`, 'info');
-      let changes = [];
-      for(let i=0; i<allPairs.length; i++) {
-        const sym = allPairs[i];
-        setProgress(5+Math.round(i/allPairs.length*28), `상승률 수집 (${i+1}/${allPairs.length})`, sym);
-        const ch = await getDayChange(sym, S.START_DATE);
-        if(ch !== null) changes.push({symbol:sym, change:ch});
-      }
-      changes.sort((a,b) => b.change - a.change);
-      top10 = changes.slice(0, S.TOP_N);
-      addLog(S.START_DATE, `🏆 TOP${S.TOP_N} 선정 완료:`, 'info');
-      top10.forEach((t,i) => addLog(S.START_DATE, `  ${i+1}위 ${t.symbol} (+${(t.change*100).toFixed(2)}%)`, 'info'));
-
-      // STEP 3: ENTRY_DATE 초기 진입
-      setProgress(34, `${S.ENTRY_DATE} 초기 진입 처리 중...`);
-      addLog(S.ENTRY_DATE, '💰 초기 숏 포지션 진입', 'enter');
-      activePositions = []; tradesDone = []; freeCash = 0; tradeId = 0;
-
-      for(let i=0; i<top10.length; i++) {
-        const sym = top10[i].symbol;
-        const k = await getDayKline(sym, S.ENTRY_DATE);
-        if(!k) { addLog(S.ENTRY_DATE, `⚠️ ${sym} 캔들 없음, 건너뜀`, 'info'); continue; }
-        tradeId++;
-        activePositions.push({
-          id:tradeId, symbol:sym, entryDate:S.ENTRY_DATE, entryPrice:k.open,
-          size:S.INIT_USDT, rank:i+1, rankDate:S.START_DATE,
-          status:'open', roundNum:1, posType:'initial'
-        });
-        addLog(S.ENTRY_DATE, `🔴 ${i+1}위 ${sym} @${k.open} (${S.INIT_USDT} USDT 1x 숏)`, 'enter');
-      }
-      simStartDate = nextDay(S.ENTRY_DATE);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 4: 날짜별 시뮬레이션
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    const simDates  = dateRange(simStartDate, today);
-    const totalDays = simDates.length;
-
-    if(totalDays === 0) {
-      addLog('', '✅ 이미 오늘까지 최신 상태입니다.', 'info');
-    }
-
-    for(let di=0; di<simDates.length; di++) {
-      const date    = simDates[di];
-      const basePct = 36 + Math.round(di/Math.max(totalDays,1)*56);
-      const openNow = activePositions.filter(p=>p.status==='open');
-      setProgress(basePct, `시뮬레이션: ${date}`, `포지션: ${openNow.length}개 | 여유자금: ${fmtNum(freeCash)} USDT`);
-
-      if(!openNow.length) {
-        addLog(date, `⏸️ 활성 포지션 없음 (여유자금: ${fmtNum(freeCash)} USDT)`, 'info');
-        // 날짜 저장 후 진행
-        saveCache({lastDate:date, allPairs, top10, activePositions, trades:tradesDone, freeCash, tradeId});
+      // 청산
+      if(k.high>=liqPrice){
+        pos.status='liquidated';pos.closeDate=date;pos.closePrice=liqPrice;pos.pnl=-pos.size;
+        closedIds.push(pos.id);
+        const t={...pos};tradesDone.push(t);
+        await dbPutTrade(t);
         continue;
       }
-
-      // ── 포지션 결과 체크 ──
-      let profitsToday = [];
-      let closedIds    = [];
-
-      for(const pos of openNow) {
-        const k = await getDayKline(pos.symbol, date);
-        if(!k) continue;
-
-        const targetPrice = r4(pos.entryPrice * (1 - S.TARGET)); // 13% 하락 목표가
-        const liqPrice    = r4(pos.entryPrice * 2);              // 1배 숏 청산가 (100% 상승)
-
-        // 청산 먼저 체크 (고가 ≥ 청산가)
-        if(k.high >= liqPrice) {
-          pos.status='liquidated'; pos.closeDate=date;
-          pos.closePrice=liqPrice; pos.pnl=-pos.size;
-          closedIds.push(pos.id);
-          tradesDone.push({...pos});
-          addLog(date, `💀 ${pos.symbol} 청산! 고가 ${k.high} ≥ 청산가 ${liqPrice} | -${fmtNum(pos.size)} USDT`, 'liq');
-          continue;
-        }
-
-        // 13% 수익 체크 (저가 ≤ 목표가)
-        if(k.low <= targetPrice) {
-          pos.status='profit'; pos.closeDate=date;
-          pos.closePrice=targetPrice;
-          pos.pnl = r4(pos.size * S.TARGET);
-          // 복리: 다음 진입금 = size × 1.13
-          const nextSize = r4(pos.size * (1 + S.TARGET));
-          pos.nextEntrySize = nextSize;
-          closedIds.push(pos.id);
-          tradesDone.push({...pos});
-          // 회수금(원금+수익)을 여유자금에 추가
-          freeCash = r4(freeCash + nextSize);
-          profitsToday.push({...pos, nextSize});
-          addLog(date,
-            `✅ ${pos.symbol} +13%! ${fmtNum(pos.size)} → 회수 ${fmtNum(pos.size+pos.pnl)} USDT` +
-            ` | 다음진입금: ${fmtNum(nextSize)} USDT | 여유자금: ${fmtNum(freeCash)} USDT`, 'profit');
-        }
+      // 수익
+      if(k.low<=targetPrice){
+        pos.status='profit';pos.closeDate=date;pos.closePrice=targetPrice;
+        pos.pnl=r4(pos.size*target);
+        const nextSize=r4(pos.size*(1+target));
+        pos.nextEntrySize=nextSize;
+        closedIds.push(pos.id);
+        const t={...pos};tradesDone.push(t);
+        await dbPutTrade(t);
+        freeCash=r4(freeCash+nextSize);
+        profitsToday.push({...pos,nextSize});
       }
+    }
+    activePositions=activePositions.filter(p=>!closedIds.includes(p.id));
 
-      // 마감된 포지션 제거
-      activePositions = activePositions.filter(p => !closedIds.includes(p.id));
+    // 재진입 + 추가진입 (캐시된 순위 사용)
+    if(profitsToday.length>0){
+      const ranking = dayRankCache[date] || [];
+      const nextDate=nextDay(date);
+      const isFuture=dateToTs(nextDate)>dateToTs(today);
+      let rankIdx=0;
+      const activeSym=new Set(activePositions.filter(p=>p.status==='open'||p.status==='pending').map(p=>p.symbol));
 
-      // ── 수익 발생 시: 상승률 순위 조회 후 재진입/추가진입 ──
-      if(profitsToday.length > 0) {
-        addLog(date, `🔎 수익 ${profitsToday.length}건 발생 → 당일 상승률 순위 조회`, 'info');
-        setProgress(basePct, `${date} 상승률 순위 조회 중...`);
-
-        // 전체 종목 상승률 수집
-        let todayChanges = [];
-        for(const sym of allPairs) {
-          const ch = await getDayChange(sym, date);
-          if(ch !== null) todayChanges.push({symbol:sym, change:ch});
-        }
-        todayChanges.sort((a,b) => b.change - a.change);
-
-        const nextDate = nextDay(date);
-        const isFuture = dateToTs(nextDate) > dateToTs(today);
-        let rankIdx = 0;
-
-        // 현재 활성 종목 집합 (중복 진입 방지)
-        const activeSymbols = new Set(
-          activePositions.filter(p=>p.status==='open'||p.status==='pending').map(p=>p.symbol)
-        );
-
-        // ──────────────────────────────────────────
-        // 1) 복리 재진입
-        //    수익 난 각 포지션의 nextSize로 상승률 순위대로 진입
-        //    여유자금(freeCash)에서 nextSize만큼 차감
-        // ──────────────────────────────────────────
-        for(const prof of profitsToday) {
-          if(freeCash < prof.nextSize - 0.001) {
-            addLog(date, `⚠️ 여유자금 ${fmtNum(freeCash)} < 복리금 ${fmtNum(prof.nextSize)}, 복리 재진입 스킵`, 'info');
-            continue;
-          }
-
-          // 이미 진입 안 한 종목 중 상위부터 시도
-          let entered = false;
-          while(rankIdx < todayChanges.length && !entered) {
-            const winner = todayChanges[rankIdx++];
-            if(activeSymbols.has(winner.symbol)) continue;
-
-            addLog(date, `🏆 복리 재진입 → ${rankIdx}위 ${winner.symbol} (+${(winner.change*100).toFixed(2)}%) ${fmtNum(prof.nextSize)} USDT`, 'info');
-
-            if(isFuture) {
-              activePositions.push({
-                id:++tradeId, symbol:winner.symbol, entryDate:nextDate, entryPrice:null,
-                size:prof.nextSize, rank:rankIdx, rankDate:date,
-                status:'pending', roundNum:prof.roundNum+1, posType:'compound'
-              });
-              addLog(date, `📌 복리 재진입 예정: ${nextDate} ${winner.symbol} ${fmtNum(prof.nextSize)} USDT`, 'info');
-            } else {
-              const entryK = await getDayKline(winner.symbol, nextDate);
-              if(!entryK) continue; // 캔들 없으면 다음 종목
-              activePositions.push({
-                id:++tradeId, symbol:winner.symbol, entryDate:nextDate, entryPrice:entryK.open,
-                size:prof.nextSize, rank:rankIdx, rankDate:date,
-                status:'open', roundNum:prof.roundNum+1, posType:'compound'
-              });
-              addLog(nextDate, `🔴 복리 재진입: ${winner.symbol} @${entryK.open} (${fmtNum(prof.nextSize)} USDT)`, 'enter');
-            }
-            freeCash = r4(freeCash - prof.nextSize);
-            activeSymbols.add(winner.symbol);
-            entered = true;
-          }
-        }
-
-        // ──────────────────────────────────────────
-        // 2) 추가 진입
-        //    여유자금 ≥ ADD_MIN(200) 이고 포지션 < TOP_N(10) 인 동안
-        //    여유자금에서 ADD_UNIT(100) 차감하여 상승률 순위대로 진입
-        //    여유자금이 200 미만이 되면 중단
-        // ──────────────────────────────────────────
-        while(true) {
-          const curOpen = activePositions.filter(p=>p.status==='open'||p.status==='pending').length;
-          if(curOpen >= S.TOP_N) {
-            addLog(date, `ℹ️ 포지션 ${curOpen}개 = 최대(${S.TOP_N}개), 추가 진입 중단`, 'info');
-            break;
-          }
-          if(freeCash < S.ADD_MIN) break; // 여유자금 200 미만이면 중단
-
-          // 다음 종목 찾기
-          let candidate = null;
-          while(rankIdx < todayChanges.length) {
-            const c = todayChanges[rankIdx++];
-            if(!activeSymbols.has(c.symbol)) { candidate = c; break; }
-          }
-          if(!candidate) { addLog(date, '⚠️ 추가 진입할 종목 없음', 'info'); break; }
-
-          const slotLeft = S.TOP_N - curOpen;
-          addLog(date,
-            `💡 여유자금 ${fmtNum(freeCash)} USDT ≥ ${S.ADD_MIN} & 빈슬롯 ${slotLeft}개` +
-            ` → 추가 진입: ${rankIdx}위 ${candidate.symbol} ${S.ADD_UNIT} USDT`, 'info');
-
-          if(isFuture) {
-            activePositions.push({
-              id:++tradeId, symbol:candidate.symbol, entryDate:nextDate, entryPrice:null,
-              size:S.ADD_UNIT, rank:rankIdx, rankDate:date,
-              status:'pending', roundNum:1, posType:'add'
-            });
-            addLog(date, `📌 추가 진입 예정: ${nextDate} ${candidate.symbol} ${S.ADD_UNIT} USDT`, 'info');
+      // 복리 재진입
+      for(const prof of profitsToday){
+        if(freeCash<prof.nextSize-0.001)continue;
+        let entered=false;
+        while(rankIdx<ranking.length&&!entered){
+          const w=ranking[rankIdx++];
+          if(activeSym.has(w.symbol))continue;
+          if(!isFuture){
+            const ek=await getKline(w.symbol,nextDate,delay);
+            if(!ek)continue;
+            tradeId++;
+            const pos={n,id:tradeId,uid:`${n}-${tradeId}`,symbol:w.symbol,entryDate:nextDate,entryPrice:ek.open,
+              size:prof.nextSize,rank:rankIdx,rankDate:date,status:'open',roundNum:prof.roundNum+1,posType:'compound'};
+            activePositions.push(pos);
           } else {
-            const addK = await getDayKline(candidate.symbol, nextDate);
-            if(!addK) { rankIdx--; break; }
-            activePositions.push({
-              id:++tradeId, symbol:candidate.symbol, entryDate:nextDate, entryPrice:addK.open,
-              size:S.ADD_UNIT, rank:rankIdx, rankDate:date,
-              status:'open', roundNum:1, posType:'add'
-            });
-            addLog(nextDate,
-              `➕ 추가 진입: ${candidate.symbol} @${addK.open} (${S.ADD_UNIT} USDT` +
-              ` | 잔여 여유자금 ${fmtNum(freeCash-S.ADD_UNIT)} USDT)`, 'add');
+            tradeId++;
+            const pos={n,id:tradeId,uid:`${n}-${tradeId}`,symbol:w.symbol,entryDate:nextDate,entryPrice:null,
+              size:prof.nextSize,rank:rankIdx,rankDate:date,status:'pending',roundNum:prof.roundNum+1,posType:'compound'};
+            activePositions.push(pos);
           }
-          freeCash = r4(freeCash - S.ADD_UNIT);
-          activeSymbols.add(candidate.symbol);
+          freeCash=r4(freeCash-prof.nextSize);
+          activeSym.add(w.symbol);entered=true;
         }
       }
 
-      // ── 날짜별 캐시 저장 ──
-      saveCache({lastDate:date, allPairs, top10, activePositions, trades:tradesDone, freeCash, tradeId});
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 5: 열린 포지션 현재가 평가
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    setProgress(93, '현재 포지션 현재가 평가 중...');
-    const openPositions = [];
-    for(const pos of activePositions) {
-      if(pos.status==='pending' || !pos.entryPrice) {
-        openPositions.push({...pos, curPrice:null, pnlRate:null, pnl:null});
-        continue;
+      // 추가 진입
+      while(true){
+        const curOpen=activePositions.filter(p=>p.status==='open'||p.status==='pending').length;
+        if(curOpen>=n)break;
+        if(freeCash<addMin)break;
+        let candidate=null;
+        while(rankIdx<ranking.length){const c=ranking[rankIdx++];if(!activeSym.has(c.symbol)){candidate=c;break;}}
+        if(!candidate)break;
+        if(!isFuture){
+          const ak=await getKline(candidate.symbol,nextDate,delay);
+          if(!ak){rankIdx--;break;}
+          tradeId++;
+          const pos={n,id:tradeId,uid:`${n}-${tradeId}`,symbol:candidate.symbol,entryDate:nextDate,entryPrice:ak.open,
+            size:ADD_UNIT,rank:rankIdx,rankDate:date,status:'open',roundNum:1,posType:'add'};
+          activePositions.push(pos);
+        } else {
+          tradeId++;
+          const pos={n,id:tradeId,uid:`${n}-${tradeId}`,symbol:candidate.symbol,entryDate:nextDate,entryPrice:null,
+            size:ADD_UNIT,rank:rankIdx,rankDate:date,status:'pending',roundNum:1,posType:'add'};
+          activePositions.push(pos);
+        }
+        freeCash=r4(freeCash-ADD_UNIT);
+        activeSym.add(candidate.symbol);
       }
-      try {
-        const k = await getDayKline(pos.symbol, today);
-        const cur = k ? k.close : pos.entryPrice;
-        const pnlRate = (pos.entryPrice - cur) / pos.entryPrice;
-        openPositions.push({...pos, curPrice:cur, pnlRate, pnl:r4(pos.size*pnlRate)});
-      } catch(e) {
-        openPositions.push({...pos, curPrice:null, pnlRate:null, pnl:null});
-      }
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 6: 결과 계산
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    const initCapital = S.INIT_USDT * S.TOP_N; // 1,000 USDT
-    let realizedPnl=0, profitCount=0, liqCount=0;
-    for(const t of tradesDone) {
-      realizedPnl += t.pnl;
-      if(t.status==='profit')      profitCount++;
-      if(t.status==='liquidated')  liqCount++;
-    }
-    const unrealizedPnl = openPositions
-      .filter(p=>p.status==='open')
-      .reduce((acc,p)=>acc+(p.pnl||0), 0);
+    // 스냅샷 저장
+    await dbPutNState(n,{lastDate:date,activePositions,freeCash,tradeId});
 
-    // 총 자산 = 초기자본 + 실현PNL + 미실현PNL + 여유자금(미투입 현금)
-    const totalAssets = r2(initCapital + realizedPnl + unrealizedPnl + freeCash);
-    const totalPnl    = r2(realizedPnl + unrealizedPnl + freeCash); // 초기자본 대비 순이익
-
-    setProgress(100, '완료!');
-    updateSummary({
-      totalAssets, totalPnl, freeCash,
-      profitCount, liqCount,
-      openCnt: openPositions.filter(p=>p.status==='open'||p.status==='pending').length
-    });
-    renderTrades([...tradesDone, ...openPositions]);
-    renderOpenPositions(openPositions);
-    updateCacheBadge();
-
-    addLog('', '─'.repeat(60), 'info');
-    addLog('', `🎯 완료 | 총 자산: ${fmtNum(totalAssets)} USDT | 손익: ${totalPnl>=0?'+':''}${fmtNum(totalPnl)} USDT | 여유자금: ${fmtNum(freeCash)} USDT`, 'profit');
-    document.getElementById('nowBadge').textContent = 'DONE';
-    document.getElementById('statusBadge').innerHTML = '<span class="dot" style="background:var(--green)"></span> 완료';
-
-  } catch(e) {
-    showError(e.message);
-    addLog('', `❌ 오류: ${e.message}`, 'liq');
-    document.getElementById('nowBadge').textContent = 'ERROR';
-    document.getElementById('statusBadge').innerHTML = '<span class="dot" style="background:var(--red)"></span> 오류';
+    // 중간 결과 업데이트
+    const realizedPnl=tradesDone.reduce((a,t)=>a+t.pnl,0);
+    const unrealized=activePositions.filter(p=>p.status==='open').reduce((a,p)=>{
+      // 미실현은 현재가 모르므로 0으로 처리 (시뮬 중)
+      return a;
+    },0);
+    nResults[n]={
+      status:'running',
+      totalAssets:r2(cfg.capital+realizedPnl+freeCash),
+      profitCount:tradesDone.filter(t=>t.status==='profit').length,
+      liqCount:tradesDone.filter(t=>t.status==='liquidated').length,
+      freeCash,trades:[...tradesDone,...activePositions.filter(p=>p.status!=='liquidated'&&p.status!=='profit')]
+    };
+    setNStatus(n,'running',`${date} 처리 중`);
+    renderRankTable();
   }
 
-  document.getElementById('runBtn').disabled = false;
-  isRunning = false;
+  // 최종 결과
+  const realizedPnl=tradesDone.reduce((a,t)=>a+t.pnl,0);
+  // 열린 포지션 현재가 평가
+  let unrealized=0;
+  for(const pos of activePositions.filter(p=>p.status==='open'&&p.entryPrice)){
+    const k=await getKline(pos.symbol,today,delay);
+    if(!k)continue;
+    const pnlRate=(pos.entryPrice-k.close)/pos.entryPrice;
+    pos.pnl=r4(pos.size*pnlRate);
+    pos.curPrice=k.close;
+    unrealized+=pos.pnl;
+  }
+  const totalAssets=r2(cfg.capital+realizedPnl+unrealized+freeCash);
+  nResults[n]={
+    status:'done',
+    totalAssets,
+    profitCount:tradesDone.filter(t=>t.status==='profit').length,
+    liqCount:tradesDone.filter(t=>t.status==='liquidated').length,
+    freeCash,
+    realizedPnl,unrealized,
+    trades:[...tradesDone,...activePositions]
+  };
+  setNStatus(n,'done');
+  renderRankTable();
+  log('',`✅ N=${n} 완료 → 총 자산: ${fmtN(totalAssets)} USDT (${r2((totalAssets-cfg.capital)/cfg.capital*100)}%)`,
+    totalAssets>=cfg.capital?'prof':'liq');
+}
+
+// ════════════════════════════════════════════════
+// 전체 실행
+// ════════════════════════════════════════════════
+async function startAll(){
+  if(isRunning)return;
+  isRunning=true; hideErr();
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('progWrap').classList.add('on');
+  document.getElementById('runBadge').textContent='RUNNING';
+  document.getElementById('stBadge').innerHTML='<span class="dot dot-run"></span>&nbsp;실행 중';
+
+  try{
+    const cfg    = getConfig();
+    const today  = todayStr();
+    const ns     = [];
+    for(let n=cfg.nMin;n<=cfg.nMax;n++) ns.push(n);
+
+    initNGrid(ns);
+    ns.forEach(n=>{nResults[n]={status:'pending',totalAssets:cfg.capital,profitCount:0,liqCount:0,freeCash:0,trades:[]};});
+    renderRankTable();
+
+    // ── STEP 1: 공유 데이터 로드 (1회만) ──
+    prog(2,'공유 데이터 로드 중...');
+    let allPairs, top20base;
+
+    const metaShared = await dbGetMeta('shared');
+    if(metaShared && metaShared.allPairs && metaShared.top20base){
+      allPairs   = metaShared.allPairs;
+      top20base  = metaShared.top20base;
+      dayRankCache = metaShared.dayRankCache||{};
+      log('',`💾 공유 데이터 복원: ${allPairs.length}개 페어, TOP${top20base.length} 종목`,'inf');
+    } else {
+      // 페어 목록
+      log('','🔍 USDT 무기한 선물 페어 수집...','inf');
+      allPairs = await getUsdtPairs(cfg.delay);
+      log('',`✅ ${allPairs.length}개 페어`,'inf');
+
+      // START_DATE 상승률 (최대 N 이상 필요)
+      prog(5,`${START_DATE} 상승률 수집 중...`);
+      log(START_DATE,`${allPairs.length}개 종목 상승률 수집`,'inf');
+      let changes=[];
+      for(let i=0;i<allPairs.length;i++){
+        prog(5+Math.round(i/allPairs.length*25),`상승률 수집 (${i+1}/${allPairs.length})`,allPairs[i]);
+        const k=await getKline(allPairs[i],START_DATE,cfg.delay);
+        if(!k||!k.open)continue;
+        const ch=(k.close-k.open)/k.open;
+        if(isFinite(ch))changes.push({symbol:allPairs[i],change:ch,kline:k});
+      }
+      changes.sort((a,b)=>b.change-a.change);
+      top20base=changes.slice(0,Math.min(50,changes.length));
+      dayRankCache={};
+      log(START_DATE,`🏆 상위 ${top20base.length}위까지 확보`,'inf');
+      top20base.slice(0,5).forEach((t,i)=>log(START_DATE,`  ${i+1}위 ${t.symbol} (+${(t.change*100).toFixed(2)}%)`,'inf'));
+
+      await dbPutMeta('shared',{allPairs,top20base,dayRankCache});
+    }
+
+    // ── STEP 2: 날짜별 상승률 캐시 빌드 ──
+    // 시뮬 기간 날짜들에 대해 상승률을 미리 캐시 (모든 N이 공유)
+    const simDates = dateRange(nextDay(ENTRY_DATE), today);
+    const cachedDates = Object.keys(dayRankCache);
+    const missingDates = simDates.filter(d=>!cachedDates.includes(d));
+
+    if(missingDates.length>0){
+      log('',`📅 날짜별 상승률 캐시 빌드: ${missingDates.length}개 날짜`,'inf');
+      for(let di=0;di<missingDates.length;di++){
+        const date=missingDates[di];
+        prog(30+Math.round(di/missingDates.length*25),`날짜 상승률 캐시: ${date} (${di+1}/${missingDates.length})`,`전체 N 공통 처리`);
+        await getDayRanking(date,allPairs,cfg.delay);
+        // 주기적으로 캐시 저장
+        if(di%5===0) await dbPutMeta('shared',{allPairs,top20base,dayRankCache});
+      }
+      await dbPutMeta('shared',{allPairs,top20base,dayRankCache});
+      log('','✅ 날짜별 상승률 캐시 완료','inf');
+    } else {
+      log('',`✅ 상승률 캐시 이미 완료 (${cachedDates.length}개 날짜)`,'inf');
+    }
+
+    // ── STEP 3: N별 시뮬레이션 순차 실행 ──
+    prog(55,`N=${cfg.nMin}~${cfg.nMax} 시뮬레이션 시작...`);
+    log('','','inf');
+    log('',`━━ N별 시뮬레이션 시작 (N=${cfg.nMin}~${cfg.nMax}) ━━`,'hd');
+
+    for(let ni=0;ni<ns.length;ni++){
+      const n=ns[ni];
+      const overallPct=55+Math.round(ni/ns.length*40);
+      prog(overallPct,`N=${n}개 시뮬레이션 중... (${ni+1}/${ns.length})`,`복리+추가진입 전략`);
+      log('',`━━ N=${n}개 시작 (개당 ${fmtN(cfg.capital/n)} USDT) ━━`,'hd');
+      setNStatus(n,'running','시작...');
+
+      try{
+        await simulateN(n,cfg,top20base,allPairs,simDates,today);
+      }catch(e){
+        nResults[n]={status:'error',totalAssets:cfg.capital,profitCount:0,liqCount:0,freeCash:0,trades:[]};
+        setNStatus(n,'error');
+        log('',`❌ N=${n} 오류: ${e.message}`,'liq');
+      }
+    }
+
+    prog(100,'완료!');
+    // 최종 요약
+    const sorted=ns.filter(n=>nResults[n].status==='done').sort((a,b)=>nResults[b].totalAssets-nResults[a].totalAssets);
+    if(sorted.length>0){
+      const best=sorted[0];
+      const bestR=nResults[best];
+      const cfg2=getConfig();
+      log('','','inf');
+      log('',`🏆 최적 N = ${best}개 | 총 자산: ${fmtN(bestR.totalAssets)} USDT | 수익률: +${r2((bestR.totalAssets-cfg2.capital)/cfg2.capital*100)}%`,'prof');
+      log('',`   개당 진입금: ${fmtN(cfg2.capital/best)} USDT | 수익 횟수: ${bestR.profitCount} | 청산: ${bestR.liqCount} | 여유자금: ${fmtN(bestR.freeCash)} USDT`,'prof');
+    }
+    renderRankTable();
+    document.getElementById('runBadge').textContent='DONE';
+    document.getElementById('stBadge').innerHTML='<span class="dot" style="background:var(--green)"></span>&nbsp;완료';
+
+  }catch(e){
+    showErr(e.message);
+    log('',`❌ 오류: ${e.message}`,'liq');
+    document.getElementById('runBadge').textContent='ERROR';
+    document.getElementById('stBadge').innerHTML='<span class="dot" style="background:var(--red)"></span>&nbsp;오류';
+  }
+  document.getElementById('runBtn').disabled=false;
+  isRunning=false;
+}
+
+// ════════════════════════════════════════════════
+// 초기화
+// ════════════════════════════════════════════════
+async function resetAll(){
+  if(!confirm('IndexedDB에 저장된 모든 데이터를 초기화하고 처음부터 다시 실행하시겠습니까?'))return;
+  try{
+    await dbClearAll();
+    dayRankCache={};nResults={};nStates={};
+    document.getElementById('nGrid').innerHTML='';
+    document.getElementById('rankBody').innerHTML='<tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 실시간으로 결과가 표시됩니다.</td></tr>';
+    document.getElementById('detailBody').innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">📋</div>위에서 N을 선택하세요.</td></tr>';
+    document.getElementById('logArea').innerHTML='<div class="empty"><div class="empty-ico">📋</div>실행 로그가 여기에 표시됩니다.</div>';
+    document.getElementById('nSelector').innerHTML='<option value="">— N을 선택하세요 —</option>';
+    await updateDbBadge();
+    log('','🗑 초기화 완료','inf');
+  }catch(e){showErr('초기화 실패: '+e.message);}
+}
+
+async function updateDbBadge(){
+  try{
+    const meta=await dbGetMeta('shared');
+    const el=document.getElementById('dbBadge');
+    if(meta&&meta.allPairs){
+      const cachedDays=Object.keys(meta.dayRankCache||{}).length;
+      el.textContent=`💾 IndexedDB: 페어 ${meta.allPairs.length}개 · 날짜캐시 ${cachedDays}일`;
+      el.className='db-badge ok';
+    }else{
+      el.textContent='IndexedDB: 저장 없음';
+      el.className='db-badge';
+    }
+  }catch(e){}
 }
 
 // 초기화
-updateCacheBadge();
+(async()=>{
+  try{await openDB();await updateDbBadge();}
+  catch(e){document.getElementById('dbBadge').textContent='⚠️ IndexedDB 오류: '+e.message;}
+})();
 </script>
 </body>
 </html>
