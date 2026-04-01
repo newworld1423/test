@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>바이낸스 숏 전략 N개 최적화 스캐너</title>
+<title>바이낸스 선물 전략 최적화 스캐너</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;700&display=swap');
 :root{
@@ -23,22 +23,23 @@ h1{font-size:24px;font-weight:700;color:var(--bright);margin-top:5px}
 .sub{font-size:11px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace}
 .run-badge{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 10px;border-radius:4px}
 
-/* 설정 */
 .cfg{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:14px}
 .cfg-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px}
 .cfg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
 .cfg-item label{display:block;font-size:10px;color:var(--dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
-.cfg-item input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color .2s}
-.cfg-item input:focus{border-color:var(--accent)}
+.cfg-item input,.cfg-item select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color .2s}
+.cfg-item input:focus,.cfg-item select:focus{border-color:var(--accent)}
+.cfg-item select option{background:var(--bg3);color:var(--bright)}
 .n-range{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text)}
 .n-range input{width:65px}
-.speed-info{background:rgba(57,217,138,.08);border:1px solid rgba(57,217,138,.2);border-radius:5px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--green);margin-top:10px}
+.speed-info{background:rgba(57,217,138,.07);border:1px solid rgba(57,217,138,.2);border-radius:5px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--green);margin-top:10px}
 
-/* 컨트롤 */
 .ctrl{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .btn{display:flex;align-items:center;gap:7px;border:none;border-radius:6px;padding:11px 20px;font-size:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;text-transform:uppercase;font-weight:700;letter-spacing:.05em;transition:all .2s}
 .btn-run{background:var(--accent);color:#000}.btn-run:hover{background:#ffe07a;transform:translateY(-1px)}.btn-run:disabled{background:var(--border);color:var(--dim);cursor:not-allowed;transform:none}
 .btn-rst{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)}.btn-rst:hover{background:rgba(255,77,109,.25)}
+.btn-exp{background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)}
+.btn-imp{background:rgba(155,109,255,.15);color:var(--purple);border:1px solid rgba(155,109,255,.3);cursor:pointer}
 .db-badge{font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);color:var(--dim)}
 .db-badge.ok{color:var(--green);border-color:rgba(57,217,138,.4);background:rgba(57,217,138,.08)}
 .st-badge{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-family:'JetBrains Mono',monospace;font-size:11px}
@@ -46,7 +47,6 @@ h1{font-size:24px;font-weight:700;color:var(--bright);margin-top:5px}
 .dot-run{background:var(--green);animation:blink 1s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-/* 프로그레스 */
 .prog-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:14px;display:none}
 .prog-wrap.on{display:block}
 .prog-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -55,44 +55,36 @@ h1{font-size:24px;font-weight:700;color:var(--bright);margin-top:5px}
 .prog-bg{background:var(--bg3);border-radius:3px;height:5px;overflow:hidden;margin-bottom:5px}
 .prog-bar{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;transition:width .3s;width:0%}
 .prog-det{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);min-height:14px}
-/* 병렬 처리 시각화 */
-.parallel-grid{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
-.par-slot{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);min-width:110px;transition:all .2s}
+.par-grid{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.par-slot{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);min-width:100px;transition:all .2s}
 .par-slot.active{border-color:var(--accent2);color:var(--accent2);background:rgba(232,131,58,.08)}
 .par-slot.done{border-color:var(--green);color:var(--green);background:rgba(57,217,138,.06)}
+.n-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:7px;margin-top:10px}
+.n-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 11px;position:relative;overflow:hidden;transition:border-color .3s}
+.n-card.running{border-color:var(--accent2)}.n-card.done{border-color:var(--green)}.n-card.err{border-color:var(--red)}
+.n-fill{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent2);transform:scaleX(0);transform-origin:left;transition:transform .3s}
+.n-card.done .n-fill{background:var(--green);transform:scaleX(1)}
+.n-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:3px}
+.n-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.n-val.pos{color:var(--green)}.n-val.neg{color:var(--red)}.n-val.run{color:var(--accent2)}
 
-/* N별 그리드 */
-.n-progress-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:12px}
-.n-prog-item{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;position:relative;overflow:hidden;transition:border-color .3s}
-.n-prog-item.running{border-color:var(--accent2)}.n-prog-item.done{border-color:var(--green)}.n-prog-item.error{border-color:var(--red)}
-.n-prog-fill{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent2);transform:scaleX(0);transform-origin:left;transition:transform .3s}
-.n-prog-item.done .n-prog-fill{background:var(--green);transform:scaleX(1)}
-.n-item-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);margin-bottom:4px}
-.n-item-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
-.n-item-val.pos{color:var(--green)}.n-item-val.neg{color:var(--red)}.n-item-val.run{color:var(--accent2)}
-
-/* 결과 */
-.result-section{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
-.result-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.result-box{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.result-hd{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .result-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em}
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px}
 thead th{background:var(--bg3);color:var(--dim);text-align:left;padding:10px 13px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
 tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
 tbody tr:hover{background:rgba(247,201,72,.04)}tbody tr:last-child{border-bottom:none}
-tbody tr.rank-1{background:rgba(247,201,72,.08)!important}
-tbody tr.rank-2{background:rgba(57,217,138,.05)!important}
-tbody tr.rank-3{background:rgba(77,159,255,.04)!important}
+tbody tr.r1{background:rgba(247,201,72,.08)!important}tbody tr.r2{background:rgba(57,217,138,.05)!important}tbody tr.r3{background:rgba(77,159,255,.04)!important}
 td{padding:10px 13px;white-space:nowrap}
-.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;font-size:11px;font-weight:700}
-.r1{background:rgba(247,201,72,.2);color:var(--accent)}.r2{background:rgba(57,217,138,.2);color:var(--green)}.r3{background:rgba(77,159,255,.2);color:var(--blue)}.rn{background:var(--bg3);color:var(--dim)}
-.n-lbl{font-size:17px;font-weight:700;color:var(--bright)}
+.rb{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:4px;font-size:11px;font-weight:700}
+.rb1{background:rgba(247,201,72,.2);color:var(--accent)}.rb2{background:rgba(57,217,138,.2);color:var(--green)}.rb3{background:rgba(77,159,255,.2);color:var(--blue)}.rbn{background:var(--bg3);color:var(--dim)}
+.nlbl{font-size:17px;font-weight:700;color:var(--bright)}
 .up{color:var(--green)}.dn{color:var(--red)}.dim{color:var(--dim)}
-.bar-cell{min-width:100px}
-.mini-bar{height:5px;border-radius:3px;background:var(--accent)}
-.tag-sm{display:inline-block;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:700}
+.mini-bar{height:5px;border-radius:3px}
+.tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:700}
 
-/* 탭 */
 .tabs{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;padding:5px 5px 0;border-bottom:none}
 .tab{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:7px 15px;border-radius:4px 4px 0 0;cursor:pointer;color:var(--dim);border:1px solid transparent;border-bottom:none;text-transform:uppercase;letter-spacing:.07em;transition:all .15s}
 .tab.on{background:var(--bg3);color:var(--accent);border-color:var(--border);border-bottom-color:var(--bg3)}.tab:hover:not(.on){color:var(--text)}
@@ -101,11 +93,11 @@ td{padding:10px 13px;white-space:nowrap}
 .detail-sel{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .detail-sel label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
 .detail-sel select{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none}
-.dtbl-wrap{overflow-x:auto;max-height:460px;overflow-y:auto}
-.dtbl-wrap table thead{position:sticky;top:0;z-index:2}
+.dtbl{overflow-x:auto;max-height:460px;overflow-y:auto}
+.dtbl table thead{position:sticky;top:0;z-index:2}
 .log-area{padding:12px;max-height:400px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px}
 .le{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid rgba(26,32,48,.6)}
-.le-d{color:var(--dim);min-width:82px;flex-shrink:0}.le-m{flex:1}
+.le-d{color:var(--dim);min-width:80px;flex-shrink:0}.le-m{flex:1}
 .le-m.prof{color:var(--green)}.le-m.liq{color:var(--red)}.le-m.ent{color:var(--accent)}.le-m.add{color:var(--accent2)}.le-m.inf{color:var(--dim)}.le-m.hd{color:var(--purple);font-weight:700}
 .empty{text-align:center;padding:40px 20px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:12px}
 .empty-ico{font-size:28px;margin-bottom:8px;opacity:.4}
@@ -117,9 +109,9 @@ td{padding:10px 13px;white-space:nowrap}
 
 <header>
   <div>
-    <div class="logo">Binance Futures · Short Strategy Optimizer</div>
+    <div class="logo">Binance Futures · Strategy Optimizer</div>
     <h1>최적 N개 탐색 백테스터</h1>
-    <div class="sub" id="headerSub">// 종목별 전체기간 일봉 1회 수집 + 병렬처리 → 기존 대비 수십배 빠름</div>
+    <div class="sub" id="headerSub">// 전략 · 수익방식 · N개 조합 최적화</div>
   </div>
   <div class="run-badge" id="runBadge">READY</div>
 </header>
@@ -127,25 +119,41 @@ td{padding:10px 13px;white-space:nowrap}
 <div class="cfg">
   <div class="cfg-title">⚙ 전략 설정</div>
   <div class="cfg-grid">
+
     <div class="cfg-item">
       <label>진입 전략</label>
-      <select id="cfgMode" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--bright);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
+      <select id="cfgMode">
         <option value="top-short">상위 N개 · 1배 숏</option>
         <option value="top-long">상위 N개 · 1배 롱</option>
         <option value="bot-short">하위 N개 · 1배 숏</option>
         <option value="bot-long">하위 N개 · 1배 롱</option>
+        <option value="vb-long">⚡ 변동성 돌파 · 1배 롱</option>
       </select>
     </div>
+
+    <div class="cfg-item">
+      <label>수익 방식</label>
+      <select id="cfgCompound">
+        <option value="compound">복리 (수익금 재투자)</option>
+        <option value="simple">단리 (원금만 재투자)</option>
+      </select>
+    </div>
+
     <div class="cfg-item">
       <label>시작 자본 (USDT)</label>
       <input type="number" id="cfgCapital" value="1000" min="100" step="100">
     </div>
+
+    <div class="cfg-item">
+      <label>목표 수익률 (%)</label>
       <input type="number" id="cfgTarget" value="13" min="1" max="99">
     </div>
+
     <div class="cfg-item">
       <label>추가진입 최소 여유자금</label>
       <input type="number" id="cfgAddMin" value="200" min="100" step="50">
     </div>
+
     <div class="cfg-item">
       <label>테스트할 N 범위</label>
       <div class="n-range">
@@ -154,14 +162,22 @@ td{padding:10px 13px;white-space:nowrap}
         <input type="number" id="cfgNMax" value="10" min="2" max="10">
       </div>
     </div>
+
     <div class="cfg-item">
       <label>병렬 요청 수</label>
       <input type="number" id="cfgParallel" value="8" min="1" max="20">
     </div>
+
     <div class="cfg-item">
       <label>요청 딜레이 (ms)</label>
       <input type="number" id="cfgDelay" value="100" min="50" max="1000" step="50">
     </div>
+
+    <div class="cfg-item" id="cfgKWrap" style="display:none">
+      <label>변동성 돌파 계수 K</label>
+      <input type="number" id="cfgK" value="0.5" min="0.1" max="1.0" step="0.1">
+    </div>
+
   </div>
   <div class="speed-info" id="speedInfo">⚡ 예상 소요시간 계산 중...</div>
 </div>
@@ -169,9 +185,10 @@ td{padding:10px 13px;white-space:nowrap}
 <div class="ctrl">
   <button class="btn btn-run" id="runBtn" onclick="startAll()">▶ 최적화 실행</button>
   <button class="btn btn-rst" onclick="resetAll()">🗑 초기화</button>
-  <button class="btn" style="background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)" onclick="exportCache()">📤 캐시 내보내기</button>
-  <label class="btn" style="background:rgba(155,109,255,.15);color:var(--purple);border:1px solid rgba(155,109,255,.3);cursor:pointer">
-    📥 캐시 가져오기<input type="file" accept=".json" id="importFile" style="display:none" onchange="importCache(this)">
+  <button class="btn btn-exp" onclick="exportCache()">📤 캐시 내보내기</button>
+  <label class="btn btn-imp">
+    📥 캐시 가져오기
+    <input type="file" accept=".json" style="display:none" onchange="importCache(this)">
   </label>
   <div class="db-badge" id="dbBadge">IndexedDB 확인 중...</div>
   <div class="st-badge" id="stBadge"><span class="dot" style="background:var(--dim)"></span>&nbsp;대기 중</div>
@@ -184,27 +201,26 @@ td{padding:10px 13px;white-space:nowrap}
   </div>
   <div class="prog-bg"><div class="prog-bar" id="progBar"></div></div>
   <div class="prog-det" id="progDet"></div>
-  <div class="parallel-grid" id="parGrid"></div>
-  <div class="n-progress-grid" id="nGrid"></div>
+  <div class="par-grid" id="parGrid"></div>
+  <div class="n-grid" id="nGrid"></div>
 </div>
-
 <div class="err-box" id="errBox"></div>
 
-<div class="result-section">
-  <div class="result-header">
+<div class="result-box">
+  <div class="result-hd">
     <div class="result-title">📊 N별 백테스트 결과 랭킹</div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim)">초기 1,000 USDT 기준 · 실시간 업데이트</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim)">실시간 업데이트</div>
   </div>
   <div class="tbl-wrap">
     <table>
       <thead><tr>
-        <th>순위</th><th>N개</th><th>개당진입금</th>
+        <th>순위</th><th>N개</th><th>수익방식</th><th>개당진입금</th>
         <th>최종자산</th><th>총손익</th><th>수익률</th>
-        <th>수익횟수</th><th>청산횟수</th><th>여유자금</th>
-        <th>수익바</th><th>상태</th>
+        <th>수익횟수</th><th>청산/손절</th><th>여유자금</th>
+        <th>바</th><th>상태</th>
       </tr></thead>
       <tbody id="rankBody">
-        <tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>
+        <tr><td colspan="12" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>
       </tbody>
     </table>
   </div>
@@ -218,12 +234,12 @@ td{padding:10px 13px;white-space:nowrap}
   <div class="panel on" id="panel-detail">
     <div class="detail-sel">
       <label>N 선택:</label>
-      <select id="nSelector" onchange="renderDetailTable()">
+      <select id="nSel" onchange="renderDetail()">
         <option value="">— N을 선택하세요 —</option>
       </select>
-      <span id="detailSummary" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)"></span>
+      <span id="detailInfo" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)"></span>
     </div>
-    <div class="dtbl-wrap">
+    <div class="dtbl">
       <table>
         <thead><tr>
           <th>#</th><th>진입일</th><th>종목</th><th>구분</th>
@@ -243,754 +259,791 @@ td{padding:10px 13px;white-space:nowrap}
   </div>
 </div>
 
-</div>
+</div><!-- /wrap -->
 <script>
-// ════════════════════════════════════════════════
+'use strict';
+// ════════════════════════════════════════
 // 상수
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════
 const START_DATE = '2025-12-31';
 const ENTRY_DATE = '2026-01-01';
-const API_BASE   = 'https://fapi.binance.com';
-const DB_NAME    = 'btOpt2';
+const API        = 'https://fapi.binance.com';
+const DB_NAME    = 'btOpt3';
 const DB_VER     = 1;
 const ADD_UNIT   = 100;
 
-let _db        = null;
-let isRunning  = false;
-let nResults   = {};
-// 핵심: 종목별 전체 기간 일봉 데이터를 미리 로드
-// { symbol: { date: {open,high,low,close} } }
-let klinesDB   = {};
-// 날짜별 상승률 순위 (klinesDB에서 계산)
-// { date: [{symbol, change, open, high, low, close}] }
-let dayRankCache = {};
+const MODE_LABELS = {
+  'top-short' : '상위 N개 1배 숏',
+  'top-long'  : '상위 N개 1배 롱',
+  'bot-short' : '하위 N개 1배 숏',
+  'bot-long'  : '하위 N개 1배 롱',
+  'vb-long'   : '변동성 돌파 1배 롱',
+};
 
-function getCfg(){
-  return{
-    mode:     document.getElementById('cfgMode').value,        // top-short | top-long | bot-short | bot-long
-    capital:  +document.getElementById('cfgCapital').value  ||1000,
-    target:   (+document.getElementById('cfgTarget').value  ||13)/100,
-    addMin:   +document.getElementById('cfgAddMin').value   ||200,
-    nMin:     Math.max(1, Math.min(9,  +document.getElementById('cfgNMin').value  ||1)),
-    nMax:     Math.max(2, Math.min(10, +document.getElementById('cfgNMax').value  ||10)),
-    parallel: Math.max(1, Math.min(20, +document.getElementById('cfgParallel').value||8)),
-    delay:    Math.max(50,             +document.getElementById('cfgDelay').value  ||100),
+// ════════════════════════════════════════
+// 전역 상태
+// ════════════════════════════════════════
+let _db         = null;
+let isRunning   = false;
+let nResults    = {};   // { n: result }
+let klinesDB    = {};   // { symbol: { date: {open,high,low,close} } }
+let dayRankCache= {};   // { date: [{symbol,change}] }
+let _gPause     = 0;    // 글로벌 rate-limit 타임스탬프
+
+// ════════════════════════════════════════
+// 설정 읽기
+// ════════════════════════════════════════
+function getCfg() {
+  return {
+    mode     : document.getElementById('cfgMode').value,
+    compound : document.getElementById('cfgCompound').value === 'compound',
+    capital  : +document.getElementById('cfgCapital').value  || 1000,
+    target   : (+document.getElementById('cfgTarget').value  || 13) / 100,
+    addMin   : +document.getElementById('cfgAddMin').value   || 200,
+    nMin     : Math.max(1,  Math.min(9,  +document.getElementById('cfgNMin').value  || 1)),
+    nMax     : Math.max(2,  Math.min(10, +document.getElementById('cfgNMax').value  || 10)),
+    parallel : Math.max(1,  Math.min(20, +document.getElementById('cfgParallel').value || 8)),
+    delay    : Math.max(50,              +document.getElementById('cfgDelay').value  || 100),
+    k        : Math.max(0.1, Math.min(1, +document.getElementById('cfgK').value      || 0.5)),
   };
 }
 
-// ════════════════════════════════════════════════
-// 속도 예측 업데이트
-// ════════════════════════════════════════════════
-function updateSpeedInfo(){
-  const cfg=getCfg();
-  const today=todayStr();
-  const days=dateRange(nextDay(ENTRY_DATE),today).length;
-  const pairs=350;
-  const batches=Math.ceil(pairs/cfg.parallel);
-  const fetchSec=(batches*cfg.delay)/1000;
-  const totalSec=Math.round(fetchSec+0.5);
-  const modeLabel={'top-short':'상위 N개 1배 숏','top-long':'상위 N개 1배 롱','bot-short':'하위 N개 1배 숏','bot-long':'하위 N개 1배 롱'}[cfg.mode]||'';
-  document.getElementById('speedInfo').textContent=
-    `⚡ [${modeLabel}] 예상: 약 ${totalSec<60?totalSec+'초':Math.ceil(totalSec/60)+'분'} `+
-    `(종목 ${pairs}개 × ${cfg.delay}ms ÷ 병렬 ${cfg.parallel}개) · N별 시뮬은 메모리 연산으로 즉시 완료`;
-  document.getElementById('headerSub').textContent=
-    `// 전략: ${modeLabel} | 종목별 전체기간 일봉 1회 수집 + 병렬처리`;
+// ════════════════════════════════════════
+// UI 이벤트
+// ════════════════════════════════════════
+function onCfgChange() {
+  const cfg = getCfg();
+  document.getElementById('cfgKWrap').style.display = cfg.mode === 'vb-long' ? '' : 'none';
+  const pairs = 350;
+  const sec   = Math.round(Math.ceil(pairs / cfg.parallel) * cfg.delay / 1000);
+  const ml    = MODE_LABELS[cfg.mode] || cfg.mode;
+  const cl    = cfg.compound ? '복리' : '단리';
+  document.getElementById('speedInfo').textContent =
+    `⚡ [${ml} · ${cl}] 예상: 약 ${sec < 60 ? sec+'초' : Math.ceil(sec/60)+'분'} ` +
+    `(${pairs}종목 × ${cfg.delay}ms ÷ 병렬 ${cfg.parallel}) · N별 시뮬은 메모리 연산`;
+  document.getElementById('headerSub').textContent =
+    `// 전략: ${ml} · ${cl} | 종목별 전체기간 일봉 1회 수집 + 병렬처리`;
 }
-['cfgMode','cfgParallel','cfgDelay','cfgNMax','cfgNMin'].forEach(id=>{
-  document.getElementById(id).addEventListener('input',updateSpeedInfo);
-  document.getElementById(id).addEventListener('change',updateSpeedInfo);
+
+['cfgMode','cfgCompound','cfgParallel','cfgDelay','cfgNMin','cfgNMax','cfgK'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('change', onCfgChange);
+  el.addEventListener('input',  onCfgChange);
 });
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════
 // IndexedDB
-// ════════════════════════════════════════════════
-function openDB(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open(DB_NAME,DB_VER);
-    req.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains('meta'))   db.createObjectStore('meta');
-      if(!db.objectStoreNames.contains('nstate')) db.createObjectStore('nstate');
+// ════════════════════════════════════════
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
     };
-    req.onsuccess=e=>{_db=e.target.result;res()};
-    req.onerror=e=>rej(e.target.error);
+    req.onsuccess = e => { _db = e.target.result; res(); };
+    req.onerror   = e => rej(e.target.error);
   });
 }
-function idbGet(store,key){return new Promise((res,rej)=>{const r=_db.transaction(store,'readonly').objectStore(store).get(key);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error);})}
-function idbPut(store,key,val){return new Promise((res,rej)=>{const tx=_db.transaction(store,'readwrite');tx.objectStore(store).put(val,key).onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);})}
-function idbClear(store){return new Promise((res,rej)=>{const tx=_db.transaction(store,'readwrite');tx.objectStore(store).clear().onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);})}
+function idbGet(k)   { return new Promise((res,rej) => { const r=_db.transaction('meta','readonly').objectStore('meta').get(k); r.onsuccess=e=>res(e.target.result); r.onerror=e=>rej(e.target.error); }); }
+function idbPut(k,v) { return new Promise((res,rej) => { const tx=_db.transaction('meta','readwrite'); tx.objectStore('meta').put(v,k).onsuccess=()=>res(); tx.onerror=e=>rej(e.target.error); }); }
+function idbClear()  { return new Promise((res,rej) => { const tx=_db.transaction('meta','readwrite'); tx.objectStore('meta').clear().onsuccess=()=>res(); tx.onerror=e=>rej(e.target.error); }); }
 
-// ════════════════════════════════════════════════
+async function updateDbBadge() {
+  try {
+    const m = await idbGet('meta');
+    const el = document.getElementById('dbBadge');
+    if (m && m.pairCount) {
+      el.textContent = `💾 IndexedDB: ${m.pairCount}개 종목 · ${m.dateCount}일 캐시됨`;
+      el.className = 'db-badge ok';
+    } else {
+      el.textContent = 'IndexedDB: 저장 없음';
+      el.className = 'db-badge';
+    }
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════
 // 유틸
-// ════════════════════════════════════════════════
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const r4=n=>+n.toFixed(4);
-const r2=n=>+n.toFixed(2);
-function fmtDate(ts){const d=new Date(ts);return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`}
-function dateToTs(s){return new Date(s+'T00:00:00Z').getTime()}
-function nextDay(s){return fmtDate(dateToTs(s)+86400000)}
-function todayStr(){return fmtDate(Date.now())}
-function fmtN(n,d=2){if(n==null||isNaN(n))return'—';return n.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d})}
-function dateRange(a,b){const arr=[];let c=dateToTs(a),e=dateToTs(b);while(c<=e){arr.push(fmtDate(c));c+=86400000;}return arr}
+// ════════════════════════════════════════
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const r4 = n => +n.toFixed(4);
+const r2 = n => +n.toFixed(2);
 
-// ════════════════════════════════════════════════
-// API - 핵심: 종목별 전체 기간 일봉 한 번에
-// ════════════════════════════════════════════════
-
-// 글로벌 rate-limit 백오프: 418/429 발생 시 모든 병렬 워커가 대기
-let _globalPause = 0; // 이 시각(ms) 이후에만 요청 허용
-async function waitGlobalPause(){
-  const now=Date.now();
-  if(_globalPause>now) await sleep(_globalPause-now);
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
 }
-function triggerGlobalPause(retryAfterSec){
-  const waitMs=retryAfterSec*1000;
-  _globalPause=Math.max(_globalPause, Date.now()+waitMs);
-  log('',`🛑 Rate limit 감지 → 전체 워커 ${retryAfterSec}s 대기 후 재개`,'inf');
-  prog(null,`⏸ Rate limit → ${retryAfterSec}s 대기 중...`,'모든 요청 일시 중단');
+function dts(s)     { return new Date(s+'T00:00:00Z').getTime(); }
+function nextDay(s) { return fmtDate(dts(s)+86400000); }
+function prevDay(s) { return fmtDate(dts(s)-86400000); }
+function todayStr() { return fmtDate(Date.now()); }
+function fmtN(n,d=2){ if(n==null||isNaN(n)) return '—'; return n.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function dateRange(a,b) { const arr=[]; let c=dts(a),e=dts(b); while(c<=e){arr.push(fmtDate(c));c+=86400000;} return arr; }
+
+// ════════════════════════════════════════
+// API
+// ════════════════════════════════════════
+async function waitPause() {
+  const now = Date.now();
+  if (_gPause > now) await sleep(_gPause - now);
+}
+function triggerPause(sec) {
+  _gPause = Math.max(_gPause, Date.now() + sec * 1000);
+  log('', `🛑 Rate limit → 전체 ${sec}s 대기`, 'inf');
+  prog(null, `⏸ Rate limit → ${sec}s 대기 중...`, '');
 }
 
-async function fetchAllKlines(symbol, startDate, endDate, delay){
-  // 바이낸스 /klines는 한 번에 최대 1500개 반환 → 3년치도 1회 요청으로 OK
-  const url=new URL(API_BASE+'/fapi/v1/klines');
-  url.searchParams.set('symbol',symbol);
-  url.searchParams.set('interval','1d');
-  url.searchParams.set('startTime',dateToTs(startDate));
-  url.searchParams.set('endTime',dateToTs(endDate)+86399999);
-  url.searchParams.set('limit',1500);
+async function fetchKlines(symbol, startDate, endDate, delay) {
+  const url = new URL(API + '/fapi/v1/klines');
+  url.searchParams.set('symbol',    symbol);
+  url.searchParams.set('interval',  '1d');
+  url.searchParams.set('startTime', dts(startDate));
+  url.searchParams.set('endTime',   dts(endDate) + 86399999);
+  url.searchParams.set('limit',     1500);
 
-  for(let i=0;i<=8;i++){
-    try{
-      await waitGlobalPause();  // 글로벌 일시정지 대기
+  for (let i = 0; i <= 8; i++) {
+    try {
+      await waitPause();
       await sleep(delay);
-      const res=await fetch(url.toString(),{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(20000)});
-      if(res.status===418||res.status===429){
-        // Retry-After 헤더 확인, 없으면 지수 백오프
-        const retryAfter=parseInt(res.headers.get('Retry-After')||'0')||Math.min(4*Math.pow(2,i),120);
-        triggerGlobalPause(retryAfter);
-        await sleep(retryAfter*1000+500); // 추가 500ms 여유
-        i--; // 이 시도는 카운트 안 함
+      const res = await fetch(url.toString(), {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(20000)
+      });
+      if (res.status === 418 || res.status === 429) {
+        const ra = parseInt(res.headers.get('Retry-After') || '0') || Math.min(4 * Math.pow(2, i), 120);
+        triggerPause(ra);
+        await sleep(ra * 1000 + 500);
+        i--;
         continue;
       }
-      if(!res.ok) return null;
-      const data=await res.json();
-      const result={};
-      data.forEach(k=>{
-        const d=fmtDate(+k[0]);
-        result[d]={open:+k[1],high:+k[2],low:+k[3],close:+k[4]};
+      if (!res.ok) return null;
+      const data = await res.json();
+      const out  = {};
+      data.forEach(k => {
+        out[fmtDate(+k[0])] = { open:+k[1], high:+k[2], low:+k[3], close:+k[4] };
       });
-      return result;
-    }catch(e){
-      if(i===8) return null;
-      await sleep(1000*Math.pow(2,Math.min(i,4)));
+      return out;
+    } catch(e) {
+      if (i === 8) return null;
+      await sleep(1000 * Math.pow(2, Math.min(i, 4)));
     }
   }
   return null;
 }
 
-async function getUsdtPairs(delay){
+async function getUsdtPairs(delay) {
+  await waitPause();
   await sleep(delay);
-  const res=await fetch(API_BASE+'/fapi/v1/exchangeInfo',{headers:{'Accept':'application/json'},signal:AbortSignal.timeout(15000)});
-  const d=await res.json();
-  return d.symbols.filter(s=>s.quoteAsset==='USDT'&&s.contractType==='PERPETUAL'&&s.status==='TRADING').map(s=>s.symbol);
+  const res = await fetch(API + '/fapi/v1/exchangeInfo', {
+    headers: { 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(15000)
+  });
+  const d = await res.json();
+  return d.symbols
+    .filter(s => s.quoteAsset==='USDT' && s.contractType==='PERPETUAL' && s.status==='TRADING')
+    .map(s => s.symbol);
 }
 
-// ════════════════════════════════════════════════
-// 병렬 처리 풀
-// ════════════════════════════════════════════════
-async function runParallel(items, worker, concurrency, onProgress){
-  const results=new Array(items.length);
-  let idx=0;
-  async function run(){
-    while(idx<items.length){
-      const i=idx++;
-      results[i]=await worker(items[i],i);
-      if(onProgress) onProgress(i,items.length);
+async function runParallel(items, worker, concurrency) {
+  let idx = 0;
+  async function run() {
+    while (idx < items.length) {
+      const i = idx++;
+      await worker(items[i], i);
     }
   }
-  await Promise.all(Array.from({length:Math.min(concurrency,items.length)},run));
-  return results;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
 }
 
-// ════════════════════════════════════════════════
-// 날짜별 순위 계산 (메모리 연산, 매우 빠름)
-// ════════════════════════════════════════════════
-function buildDayRankings(allPairs, dates){
-  dayRankCache={};
-  for(const date of dates){
-    const arr=[];
-    for(const sym of allPairs){
-      const k=klinesDB[sym]?.[date];
-      if(!k||!k.open) continue;
-      const ch=(k.close-k.open)/k.open;
-      if(isFinite(ch)) arr.push({symbol:sym,change:ch,open:k.open,high:k.high,low:k.low,close:k.close});
+// ════════════════════════════════════════
+// 날짜별 순위 캐시 (메모리 연산)
+// ════════════════════════════════════════
+function buildDayRankings(allPairs, dates) {
+  dayRankCache = {};
+  for (const date of dates) {
+    const arr = [];
+    for (const sym of allPairs) {
+      const k = klinesDB[sym]?.[date];
+      if (!k || !k.open) continue;
+      const ch = (k.close - k.open) / k.open;
+      if (isFinite(ch)) arr.push({ symbol: sym, change: ch });
     }
-    arr.sort((a,b)=>b.change-a.change);
-    dayRankCache[date]=arr;
+    arr.sort((a, b) => b.change - a.change);
+    dayRankCache[date] = arr;
   }
 }
 
-// ════════════════════════════════════════════════
-// N 하나 시뮬레이션 (순수 메모리 연산 - 매우 빠름)
-// mode: 'top-short' | 'top-long' | 'bot-short' | 'bot-long'
-// ════════════════════════════════════════════════
-function simulateN(n, cfg, rankedList, simDates, today){
-  const perUnit = r2(cfg.capital / n);
-  const target  = cfg.target;
-  const addMin  = cfg.addMin;
-  const isLong  = cfg.mode.endsWith('long');
-  // 재진입/추가진입 시 당일 상승률 순위 방향도 모드에 맞게
-  // 숏: 당일 상승률 상위 종목에 숏 (역추세)
-  // 롱: 당일 상승률 상위 종목에 롱 (추세추종)
-  // → 재진입 기준은 항상 당일 상승률 1위부터 (기존과 동일, 방향만 다름)
+// ════════════════════════════════════════
+// 변동성 돌파 순위 계산 (날짜 기준)
+// symbol별 전일 range × k + 당일 시가 = 기준가
+// 돌파 강도 순 정렬
+// ════════════════════════════════════════
+function getVbRanking(date, k) {
+  const prev = prevDay(date);
+  const arr  = [];
+  for (const sym of Object.keys(klinesDB)) {
+    const pd = klinesDB[sym]?.[prev];
+    const cd = klinesDB[sym]?.[date];
+    if (!pd || !cd || !cd.open) continue;
+    const range = pd.high - pd.low;
+    if (range <= 0) continue;
+    const bp = r4(cd.open + range * k);
+    if (cd.high >= bp) {
+      arr.push({ symbol: sym, change: (cd.high - bp) / bp, breakPrice: bp });
+    }
+  }
+  arr.sort((a, b) => b.change - a.change);
+  return arr;
+}
 
-  // 1배 기준 청산가
-  // 숏: 진입가 × 2 (100% 상승 시 청산)
-  // 롱: 진입가 × 0 → 실질적으로 진입가의 100% 하락 = 0이지만
-  //     바이낸스 1배 격리 마진 기준 -100% = 진입가 × (1 - 1) = 0
-  //     실제론 진입가 × (1 - 1/leverage) 이지만 1배이므로 liqPrice = 0 에 가까움
-  //     → 편의상 liqPrice = entryPrice × (1 - 0.99) ≈ 거의 0 으로 처리
-  //     정확히는: 마진 소진 = 진입가 - 마진(size) → 가격이 0 이하면 청산
-  //     1배 롱: low <= 0 은 불가 → 사실상 청산 없음으로 처리 (low가 0 이하는 현실에 없음)
-  //     단, 롱 청산가는 진입가에서 -100% 인 0으로 설정 (실질적으로 발생 안 함)
+// ════════════════════════════════════════
+// 시뮬레이션 (단일 N)
+// ════════════════════════════════════════
+function simulateN(n, cfg, initList, simDates, today) {
+  const isLong     = cfg.mode.endsWith('long');
+  const isVB       = cfg.mode === 'vb-long';
+  const isBot      = cfg.mode.startsWith('bot');
+  const isCompound = cfg.compound;
+  const target     = cfg.target;
+  const addMin     = cfg.addMin;
+  const perUnit    = r2(cfg.capital / n);
 
-  let activePositions=[], tradesDone=[], freeCash=0, tradeId=0;
+  let active = [], done = [], freeCash = 0, tid = 0;
 
-  // 초기 진입
-  const initList = rankedList.slice(0, n);
-  for(let i=0;i<initList.length;i++){
-    const sym=initList[i].symbol;
-    const k=klinesDB[sym]?.[ENTRY_DATE];
-    if(!k) continue;
-    tradeId++;
-    activePositions.push({
-      id:tradeId, symbol:sym, entryDate:ENTRY_DATE, entryPrice:k.open,
+  // ─ 초기 진입 ─
+  for (let i = 0; i < Math.min(n, initList.length); i++) {
+    const sym = initList[i].symbol;
+    const ek  = klinesDB[sym]?.[ENTRY_DATE];
+    if (!ek) continue;
+
+    let ep = ek.open;
+    if (isVB) {
+      // ENTRY_DATE 시가 기준으로 START_DATE 변동폭 사용
+      const pk = klinesDB[sym]?.[START_DATE];
+      if (!pk) continue;
+      const bp = r4(ek.open + (pk.high - pk.low) * cfg.k);
+      if (ek.high >= bp) ep = bp;
+      else continue; // 돌파 안 하면 진입 안 함
+    }
+    tid++;
+    active.push({ id:tid, symbol:sym, entryDate:ENTRY_DATE, entryPrice:ep,
       size:perUnit, rank:i+1, rankDate:START_DATE,
-      status:'open', roundNum:1, posType:'initial', pnl:null
-    });
+      status:'open', roundNum:1, posType:'initial', pnl:null });
   }
 
-  // 날짜별 시뮬
-  for(const date of simDates){
-    const openNow=activePositions.filter(p=>p.status==='open');
-    let profitsToday=[], closedIds=[];
+  // ─ 날짜별 시뮬 ─
+  for (const date of simDates) {
+    const openNow  = active.filter(p => p.status === 'open');
+    const profits  = [];
+    const closeIds = new Set();
 
-    for(const pos of openNow){
-      const k=klinesDB[pos.symbol]?.[date];
-      if(!k) continue;
+    for (const pos of openNow) {
+      const k = klinesDB[pos.symbol]?.[date];
+      if (!k) continue;
 
-      if(isLong){
-        // ── 롱 포지션 ──
-        // 목표가: 진입가 × (1 + target)  → 고가가 목표가 이상이면 수익
-        // 청산가: 진입가 × (1 - 1) = 0  → 1배 롱은 사실상 청산 없음 (저가 > 0)
-        const targetPrice = r4(pos.entryPrice * (1 + target));
-        const liqPrice    = 0; // 1배 롱 청산은 현실적으로 발생 안 함
+      if (isLong || isVB) {
+        // 롱 / 변동성 돌파 롱
+        // 수익: 고가 ≥ 진입가 × (1 + target)
+        // 손절: 저가 ≤ 진입가 × (1 - target)  [동일 비율 손절]
+        const tp = r4(pos.entryPrice * (1 + target));
+        const sl = r4(pos.entryPrice * (1 - target));
 
-        // 청산 체크 (low <= 0 이면 - 현실적으로 발생 안 하지만 코드 완결성)
-        if(k.low <= liqPrice && liqPrice > 0){
-          pos.status='liquidated'; pos.closeDate=date;
-          pos.closePrice=liqPrice; pos.pnl=-pos.size;
-          closedIds.push(pos.id); tradesDone.push({...pos}); continue;
+        if (k.low <= sl) {
+          pos.status='liquidated'; pos.closeDate=date; pos.closePrice=sl; pos.pnl=-pos.size;
+          closeIds.add(pos.id); done.push({...pos}); continue;
         }
-        // 수익 체크 (고가가 목표가 이상)
-        if(k.high >= targetPrice){
-          pos.status='profit'; pos.closeDate=date; pos.closePrice=targetPrice;
-          pos.pnl=r4(pos.size*target);
-          const nextSize=r4(pos.size*(1+target));
-          pos.nextEntrySize=nextSize;
-          closedIds.push(pos.id); tradesDone.push({...pos});
-          freeCash=r4(freeCash+nextSize);
-          profitsToday.push({...pos,nextSize});
+        if (k.high >= tp) {
+          pos.status='profit'; pos.closeDate=date; pos.closePrice=tp;
+          pos.pnl = r4(pos.size * target);
+          // 복리: 다음진입금 = size × (1+target) / 단리: 다음진입금 = size (원금)
+          pos.nextEntrySize = isCompound ? r4(pos.size * (1 + target)) : pos.size;
+          closeIds.add(pos.id); done.push({...pos});
+          freeCash = r4(freeCash + pos.nextEntrySize);
+          profits.push({...pos});
         }
       } else {
-        // ── 숏 포지션 ──
-        // 목표가: 진입가 × (1 - target)  → 저가가 목표가 이하이면 수익
-        // 청산가: 진입가 × 2             → 고가가 청산가 이상이면 청산
-        const targetPrice = r4(pos.entryPrice * (1 - target));
-        const liqPrice    = r4(pos.entryPrice * 2);
+        // 숏
+        // 수익: 저가 ≤ 진입가 × (1 - target)
+        // 청산: 고가 ≥ 진입가 × 2
+        const tp  = r4(pos.entryPrice * (1 - target));
+        const liq = r4(pos.entryPrice * 2);
 
-        if(k.high >= liqPrice){
-          pos.status='liquidated'; pos.closeDate=date;
-          pos.closePrice=liqPrice; pos.pnl=-pos.size;
-          closedIds.push(pos.id); tradesDone.push({...pos}); continue;
+        if (k.high >= liq) {
+          pos.status='liquidated'; pos.closeDate=date; pos.closePrice=liq; pos.pnl=-pos.size;
+          closeIds.add(pos.id); done.push({...pos}); continue;
         }
-        if(k.low <= targetPrice){
-          pos.status='profit'; pos.closeDate=date; pos.closePrice=targetPrice;
-          pos.pnl=r4(pos.size*target);
-          const nextSize=r4(pos.size*(1+target));
-          pos.nextEntrySize=nextSize;
-          closedIds.push(pos.id); tradesDone.push({...pos});
-          freeCash=r4(freeCash+nextSize);
-          profitsToday.push({...pos,nextSize});
+        if (k.low <= tp) {
+          pos.status='profit'; pos.closeDate=date; pos.closePrice=tp;
+          pos.pnl = r4(pos.size * target);
+          pos.nextEntrySize = isCompound ? r4(pos.size * (1 + target)) : pos.size;
+          closeIds.add(pos.id); done.push({...pos});
+          freeCash = r4(freeCash + pos.nextEntrySize);
+          profits.push({...pos});
         }
       }
     }
-    activePositions=activePositions.filter(p=>!closedIds.includes(p.id));
 
-    if(profitsToday.length>0){
-      // 재진입/추가진입 시 당일 순위 기준
-      // 숏: 상승률 상위 종목 순서대로 (역추세 숏)
-      // 롱: 상승률 상위 종목 순서대로 (추세추종 롱)
-      // bot 모드: 하위 종목이므로 순위 반전
-      const rawRanking = dayRankCache[date] || [];
-      const ranking = cfg.mode.startsWith('bot') ? [...rawRanking].reverse() : rawRanking;
+    active = active.filter(p => !closeIds.has(p.id));
 
-      const nextDate=nextDay(date);
-      const isFuture=dateToTs(nextDate)>dateToTs(today);
-      let rankIdx=0;
-      const activeSym=new Set(activePositions.filter(p=>p.status==='open'||p.status==='pending').map(p=>p.symbol));
+    // ─ 재진입 + 추가 진입 ─
+    if (profits.length > 0) {
+      // 당일 기준 순위
+      let ranking;
+      if (isVB)      ranking = getVbRanking(date, cfg.k);
+      else if (isBot) ranking = [...(dayRankCache[date] || [])].reverse();
+      else            ranking = dayRankCache[date] || [];
 
-      // 복리 재진입
-      for(const prof of profitsToday){
-        if(freeCash<prof.nextSize-0.001) continue;
-        let entered=false;
-        while(rankIdx<ranking.length&&!entered){
-          const w=ranking[rankIdx++];
-          if(activeSym.has(w.symbol)) continue;
-          const entryK=klinesDB[w.symbol]?.[nextDate];
-          if(!isFuture&&!entryK) continue;
-          tradeId++;
-          activePositions.push({
-            id:tradeId, symbol:w.symbol, entryDate:nextDate,
-            entryPrice:isFuture?null:(entryK?.open||null),
-            size:prof.nextSize, rank:rankIdx, rankDate:date,
-            status:isFuture?'pending':'open', roundNum:prof.roundNum+1, posType:'compound', pnl:null
-          });
-          freeCash=r4(freeCash-prof.nextSize);
-          activeSym.add(w.symbol); entered=true;
+      const nd       = nextDay(date);
+      const isFuture = dts(nd) > dts(today);
+      let ri         = 0;
+      const activeSym = new Set(active.filter(p => p.status==='open'||p.status==='pending').map(p => p.symbol));
+
+      // 복리/단리 재진입 (각 수익 포지션 1개씩)
+      for (const prof of profits) {
+        const sz = prof.nextEntrySize;
+        if (freeCash < sz - 0.001) continue;
+        let ok = false;
+        while (ri < ranking.length && !ok) {
+          const w = ranking[ri++];
+          if (activeSym.has(w.symbol)) continue;
+          let ep = null;
+          if (!isFuture) {
+            const ek = klinesDB[w.symbol]?.[nd];
+            if (!ek) continue;
+            if (isVB) {
+              const cd = klinesDB[w.symbol]?.[date];
+              const range = cd ? (cd.high - cd.low) : 0;
+              const bp = range > 0 ? r4(ek.open + range * cfg.k) : ek.open;
+              ep = ek.high >= bp ? bp : ek.open;
+            } else {
+              ep = ek.open;
+            }
+          }
+          tid++;
+          active.push({ id:tid, symbol:w.symbol, entryDate:nd, entryPrice:ep,
+            size:sz, rank:ri, rankDate:date,
+            status: isFuture ? 'pending' : 'open',
+            roundNum: prof.roundNum + 1, posType:'compound', pnl:null });
+          freeCash = r4(freeCash - sz);
+          activeSym.add(w.symbol);
+          ok = true;
         }
       }
 
-      // 추가 진입
-      while(true){
-        const curOpen=activePositions.filter(p=>p.status==='open'||p.status==='pending').length;
-        if(curOpen>=n) break;
-        if(freeCash<addMin) break;
-        let candidate=null;
-        while(rankIdx<ranking.length){const c=ranking[rankIdx++];if(!activeSym.has(c.symbol)){candidate=c;break;}}
-        if(!candidate) break;
-        const entryK=klinesDB[candidate.symbol]?.[nextDate];
-        if(!isFuture&&!entryK){rankIdx--;break;}
-        tradeId++;
-        activePositions.push({
-          id:tradeId, symbol:candidate.symbol, entryDate:nextDate,
-          entryPrice:isFuture?null:(entryK?.open||null),
-          size:ADD_UNIT, rank:rankIdx, rankDate:date,
-          status:isFuture?'pending':'open', roundNum:1, posType:'add', pnl:null
-        });
-        freeCash=r4(freeCash-ADD_UNIT);
-        activeSym.add(candidate.symbol);
+      // 추가 진입 (여유자금 ≥ addMin & 슬롯 남음)
+      while (true) {
+        const cur = active.filter(p => p.status==='open'||p.status==='pending').length;
+        if (cur >= n) break;
+        if (freeCash < addMin) break;
+        let cand = null;
+        while (ri < ranking.length) { const c=ranking[ri++]; if (!activeSym.has(c.symbol)) { cand=c; break; } }
+        if (!cand) break;
+        let ep2 = null;
+        if (!isFuture) {
+          const ak = klinesDB[cand.symbol]?.[nd];
+          if (!ak) { ri--; break; }
+          if (isVB) {
+            const cd = klinesDB[cand.symbol]?.[date];
+            const range = cd ? (cd.high - cd.low) : 0;
+            const bp = range > 0 ? r4(ak.open + range * cfg.k) : ak.open;
+            ep2 = ak.high >= bp ? bp : ak.open;
+          } else {
+            ep2 = ak.open;
+          }
+        }
+        tid++;
+        active.push({ id:tid, symbol:cand.symbol, entryDate:nd, entryPrice:ep2,
+          size:ADD_UNIT, rank:ri, rankDate:date,
+          status: isFuture ? 'pending' : 'open',
+          roundNum:1, posType:'add', pnl:null });
+        freeCash = r4(freeCash - ADD_UNIT);
+        activeSym.add(cand.symbol);
       }
     }
   }
 
-  // 열린 포지션 현재가 평가
-  let unrealized=0;
-  for(const pos of activePositions.filter(p=>p.status==='open'&&p.entryPrice)){
-    const k=klinesDB[pos.symbol]?.[today];
-    if(!k) continue;
-    // 롱: (현재가 - 진입가) / 진입가, 숏: (진입가 - 현재가) / 진입가
-    pos.pnlRate = isLong
+  // ─ 열린 포지션 현재가 평가 ─
+  let unrealized = 0;
+  for (const pos of active.filter(p => p.status==='open' && p.entryPrice)) {
+    const k = klinesDB[pos.symbol]?.[today];
+    if (!k) continue;
+    pos.pnlRate = (isLong || isVB)
       ? (k.close - pos.entryPrice) / pos.entryPrice
       : (pos.entryPrice - k.close) / pos.entryPrice;
-    pos.pnl=r4(pos.size*pos.pnlRate);
-    pos.curPrice=k.close;
-    unrealized+=pos.pnl;
+    pos.pnl      = r4(pos.size * pos.pnlRate);
+    pos.curPrice = k.close;
+    unrealized  += pos.pnl;
   }
 
-  const realizedPnl=tradesDone.reduce((a,t)=>a+t.pnl,0);
-  const totalAssets=r2(cfg.capital+realizedPnl+unrealized+freeCash);
-  return{
+  const realizedPnl = done.reduce((a, t) => a + t.pnl, 0);
+  const totalAssets = r2(cfg.capital + realizedPnl + unrealized + freeCash);
+  return {
     status:'done', totalAssets,
-    profitCount:tradesDone.filter(t=>t.status==='profit').length,
-    liqCount:tradesDone.filter(t=>t.status==='liquidated').length,
+    profitCount : done.filter(t => t.status==='profit').length,
+    liqCount    : done.filter(t => t.status==='liquidated').length,
     freeCash, realizedPnl, unrealized,
-    trades:[...tradesDone,...activePositions]
+    trades: [...done, ...active],
   };
 }
 
-// ════════════════════════════════════════════════
-// UI
-// ════════════════════════════════════════════════
-function log(date,msg,type='inf'){
-  const area=document.getElementById('logArea');
-  const empty=area.querySelector('.empty');if(empty)empty.remove();
-  const el=document.createElement('div');el.className='le';
-  el.innerHTML=`<span class="le-d">${date||''}</span><span class="le-m ${type}">${msg}</span>`;
-  area.appendChild(el);area.scrollTop=area.scrollHeight;
+// ════════════════════════════════════════
+// UI 헬퍼
+// ════════════════════════════════════════
+function log(date, msg, type='inf') {
+  const area = document.getElementById('logArea');
+  const e = area.querySelector('.empty'); if (e) e.remove();
+  const el = document.createElement('div'); el.className='le';
+  el.innerHTML = `<span class="le-d">${date||''}</span><span class="le-m ${type}">${msg}</span>`;
+  area.appendChild(el); area.scrollTop = area.scrollHeight;
 }
-function showErr(msg){const e=document.getElementById('errBox');e.style.display='block';e.textContent='❌ '+msg;}
-function hideErr(){document.getElementById('errBox').style.display='none';}
-function showTab(name){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['detail','log'][i]===name));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='panel-'+name));
+function showErr(msg) { const e=document.getElementById('errBox'); e.style.display='block'; e.textContent='❌ '+msg; }
+function hideErr()    { document.getElementById('errBox').style.display='none'; }
+function showTab(n)   {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('on', ['detail','log'][i]===n));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id==='panel-'+n));
 }
-function prog(pct,txt,det=''){
-  if(pct!==null){
-    document.getElementById('progBar').style.width=pct+'%';
-    document.getElementById('progPct').textContent=Math.round(pct)+'%';
+function prog(pct, txt, det) {
+  if (pct !== null) {
+    document.getElementById('progBar').style.width = pct+'%';
+    document.getElementById('progPct').textContent = Math.round(pct)+'%';
   }
-  if(txt!==null) document.getElementById('progTxt').textContent=txt;
-  document.getElementById('progDet').textContent=det;
+  if (txt !== null) document.getElementById('progTxt').textContent = txt;
+  if (det !== undefined) document.getElementById('progDet').textContent = det;
 }
 
-// 병렬 슬롯 시각화
-function initParGrid(n){
-  const g=document.getElementById('parGrid');g.innerHTML='';
-  for(let i=0;i<n;i++){
-    const d=document.createElement('div');d.className='par-slot';d.id=`ps-${i}`;d.textContent='대기 중';g.appendChild(d);
+function initParGrid(n) {
+  const g = document.getElementById('parGrid'); g.innerHTML='';
+  for (let i=0; i<n; i++) {
+    const d=document.createElement('div'); d.className='par-slot'; d.id='ps-'+i; d.textContent='대기';
+    g.appendChild(d);
   }
 }
-function setParSlot(i,sym,done=false){
-  const el=document.getElementById(`ps-${i}`);if(!el)return;
-  if(done){el.className='par-slot done';el.textContent='✓ '+sym;}
-  else{el.className='par-slot active';el.textContent='⟳ '+sym;}
+function setParSlot(i, sym, done=false) {
+  const el=document.getElementById('ps-'+i); if(!el) return;
+  el.className='par-slot '+(done?'done':'active');
+  el.textContent=(done?'✓ ':'⟳ ')+sym;
 }
 
-function initNGrid(ns){
-  const g=document.getElementById('nGrid');g.innerHTML='';
-  ns.forEach(n=>{
-    const d=document.createElement('div');d.className='n-prog-item';d.id=`np-${n}`;
-    d.innerHTML=`<div class="n-item-lbl">N = ${n}개</div><div class="n-item-val run" id="npv-${n}">대기</div><div class="n-prog-fill" id="npf-${n}"></div>`;
+function initNGrid(ns) {
+  const g=document.getElementById('nGrid'); g.innerHTML='';
+  ns.forEach(n => {
+    const d=document.createElement('div'); d.className='n-card'; d.id='nc-'+n;
+    d.innerHTML=`<div class="n-lbl">N = ${n}개</div><div class="n-val run" id="nv-${n}">대기</div><div class="n-fill" id="nf-${n}"></div>`;
     g.appendChild(d);
   });
 }
-function setNDone(n){
-  const r=nResults[n];if(!r)return;
-  const item=document.getElementById(`np-${n}`);
-  const val=document.getElementById(`npv-${n}`);
-  if(!item||!val)return;
-  item.className='n-prog-item done';
+function setNDone(n) {
+  const r=nResults[n]; if(!r) return;
+  const card=document.getElementById('nc-'+n);
+  const val =document.getElementById('nv-'+n);
+  const fill=document.getElementById('nf-'+n);
+  if(!card||!val) return;
+  card.className='n-card done';
   const cfg=getCfg();
   const pct=r2((r.totalAssets-cfg.capital)/cfg.capital*100);
-  val.className='n-item-val '+(pct>=0?'pos':'neg');
+  val.className='n-val '+(pct>=0?'pos':'neg');
   val.textContent=(pct>=0?'+':'')+pct+'%';
-  const fill=document.getElementById(`npf-${n}`);if(fill)fill.style.transform='scaleX(1)';
+  if(fill) fill.style.transform='scaleX(1)';
 }
 
-function renderRankTable(){
-  const cfg=getCfg();
-  const ns=Object.keys(nResults).map(Number).sort((a,b)=>{
-    const ra=nResults[a],rb=nResults[b];
-    if(ra.status==='done'&&rb.status!=='done')return-1;
-    if(ra.status!=='done'&&rb.status==='done')return 1;
-    return(rb.totalAssets||0)-(ra.totalAssets||0);
-  });
-  const maxA=Math.max(...ns.filter(n=>nResults[n].status==='done').map(n=>nResults[n].totalAssets||0),cfg.capital);
-  const tbody=document.getElementById('rankBody');
-  tbody.innerHTML='';
-  if(!ns.length){tbody.innerHTML='<tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>';return;}
+function renderRank() {
+  const cfg  = getCfg();
+  const ns   = Object.keys(nResults).map(Number)
+    .sort((a,b) => {
+      const ra=nResults[a], rb=nResults[b];
+      if(ra.status==='done' && rb.status!=='done') return -1;
+      if(ra.status!=='done' && rb.status==='done') return 1;
+      return (rb.totalAssets||0)-(ra.totalAssets||0);
+    });
 
-  let rank=1;
-  ns.forEach(n=>{
-    const r=nResults[n];
-    const done=r.status==='done';
-    const perUnit=r2(cfg.capital/n);
-    const pnl=done?r2(r.totalAssets-cfg.capital):null;
-    const pct=done?r2((r.totalAssets-cfg.capital)/cfg.capital*100):null;
-    const barW=done?Math.max(0,Math.min(100,(r.totalAssets/maxA)*100)):0;
+  const maxA = Math.max(...ns.filter(n=>nResults[n].status==='done').map(n=>nResults[n].totalAssets||0), cfg.capital);
+  const tbody = document.getElementById('rankBody');
+  tbody.innerHTML = '';
 
-    let rb='';
-    if(done){if(rank===1)rb='<span class="rank-badge r1">🥇</span>';else if(rank===2)rb='<span class="rank-badge r2">🥈</span>';else if(rank===3)rb='<span class="rank-badge r3">🥉</span>';else rb=`<span class="rank-badge rn">${rank}</span>`;}
-    else rb='<span class="rank-badge rn">—</span>';
+  if (!ns.length) {
+    tbody.innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>';
+    return;
+  }
 
-    const tr=document.createElement('tr');
-    if(done){if(rank===1)tr.className='rank-1';else if(rank===2)tr.className='rank-2';else if(rank===3)tr.className='rank-3';}
-    tr.innerHTML=`
+  const cl = cfg.compound ? '복리' : '단리';
+  let rank = 1;
+  ns.forEach(n => {
+    const r    = nResults[n];
+    const done = r.status === 'done';
+    const pu   = r2(cfg.capital / n);
+    const pnl  = done ? r2(r.totalAssets - cfg.capital) : null;
+    const pct  = done ? r2((r.totalAssets - cfg.capital) / cfg.capital * 100) : null;
+    const bw   = done ? Math.max(0, Math.min(100, r.totalAssets / maxA * 100)) : 0;
+    const bcol = pnl!=null&&pnl<0 ? 'var(--red)' : 'var(--accent)';
+
+    let rb = '<span class="rb rbn">—</span>';
+    if (done) {
+      if      (rank===1) rb='<span class="rb rb1">🥇</span>';
+      else if (rank===2) rb='<span class="rb rb2">🥈</span>';
+      else if (rank===3) rb='<span class="rb rb3">🥉</span>';
+      else               rb=`<span class="rb rbn">${rank}</span>`;
+    }
+
+    const tr = document.createElement('tr');
+    if (done) { if(rank===1) tr.className='r1'; else if(rank===2) tr.className='r2'; else if(rank===3) tr.className='r3'; }
+    tr.innerHTML = `
       <td>${rb}</td>
-      <td><span class="n-lbl">${n}</span><span style="color:var(--dim);font-size:10px">개</span></td>
-      <td class="dim">${fmtN(perUnit)}</td>
+      <td><span class="nlbl">${n}</span><span style="color:var(--dim);font-size:10px">개</span></td>
+      <td><span style="font-size:10px;color:${cfg.compound?'var(--accent)':'var(--blue)'}">${cl}</span></td>
+      <td class="dim">${fmtN(pu)}</td>
       <td style="font-weight:700;color:${done?(r.totalAssets>=cfg.capital?'var(--green)':'var(--red)'):'var(--dim)'}">${done?fmtN(r.totalAssets):'계산중...'}</td>
       <td class="${pnl!=null?(pnl>=0?'up':'dn'):'dim'}">${pnl!=null?(pnl>=0?'+':'')+fmtN(pnl):'—'}</td>
       <td class="${pct!=null?(pct>=0?'up':'dn'):'dim'}">${pct!=null?(pct>=0?'+':'')+pct+'%':'—'}</td>
       <td class="dim">${done?r.profitCount:'—'}</td>
       <td class="${done&&r.liqCount>0?'dn':'dim'}">${done?r.liqCount:'—'}</td>
       <td class="dim">${done?fmtN(r.freeCash):'—'}</td>
-      <td class="bar-cell"><div class="mini-bar" style="width:${barW}%;background:${pnl!=null&&pnl<0?'var(--red)':'var(--accent)'}"></div></td>
+      <td style="min-width:80px"><div class="mini-bar" style="width:${bw}%;background:${bcol}"></div></td>
       <td style="font-size:11px">${done?'<span class="dot" style="background:var(--green);margin-right:4px"></span>완료':'<span class="dot dot-run" style="margin-right:4px"></span>계산중'}</td>`;
     tbody.appendChild(tr);
-    if(done)rank++;
+    if (done) rank++;
   });
 
   // 드롭다운 업데이트
-  const sel=document.getElementById('nSelector');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">— N을 선택하세요 —</option>';
-  ns.filter(n=>nResults[n].status==='done').forEach(n=>{
-    const opt=document.createElement('option');
-    opt.value=n;opt.textContent=`N=${n}개 → ${fmtN(nResults[n].totalAssets)} USDT`;
-    sel.appendChild(opt);
+  const sel = document.getElementById('nSel');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— N을 선택하세요 —</option>';
+  ns.filter(n => nResults[n].status==='done').forEach(n => {
+    const op=document.createElement('option'); op.value=n;
+    op.textContent=`N=${n}개 → ${fmtN(nResults[n].totalAssets)} USDT`;
+    sel.appendChild(op);
   });
-  if(cur)sel.value=cur;
+  if (cur) sel.value = cur;
 }
 
-function renderDetailTable(){
-  const n=+document.getElementById('nSelector').value;
-  const tbody=document.getElementById('detailBody');
-  if(!n||!nResults[n]?.trades){
+function renderDetail() {
+  const n    = +document.getElementById('nSel').value;
+  const tbody= document.getElementById('detailBody');
+  if (!n || !nResults[n]?.trades) {
     tbody.innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">📋</div>위에서 N을 선택하세요.</td></tr>';
-    document.getElementById('detailSummary').textContent='';return;
+    document.getElementById('detailInfo').textContent='';
+    return;
   }
-  const r=nResults[n];
-  document.getElementById('detailSummary').textContent=`총 ${r.trades.length}건 | 수익 ${r.profitCount}건 | 청산 ${r.liqCount}건 | 최종 ${fmtN(r.totalAssets)} USDT`;
+  const r = nResults[n];
+  document.getElementById('detailInfo').textContent =
+    `총 ${r.trades.length}건 | 수익 ${r.profitCount} | 청산/손절 ${r.liqCount} | 최종 ${fmtN(r.totalAssets)} USDT`;
   tbody.innerHTML='';
-  [...r.trades].sort((a,b)=>dateToTs(a.entryDate)-dateToTs(b.entryDate)).forEach((t,i)=>{
-    const pnlStr=t.pnl!=null?((t.pnl>=0?'+':'')+fmtN(t.pnl)):'—';
-    const pnlCls=t.pnl>0?'up':t.pnl<0?'dn':'dim';
-    let tag='';
-    if(t.status==='profit')tag='<span class="tag-sm" style="background:rgba(57,217,138,.15);color:var(--green);border:1px solid rgba(57,217,138,.3)">수익</span>';
-    else if(t.status==='liquidated')tag='<span class="tag-sm" style="background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)">청산</span>';
-    else if(t.status==='open')tag='<span class="tag-sm" style="background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)">진행중</span>';
-    else tag='<span class="tag-sm" style="background:rgba(90,106,126,.15);color:var(--dim)">대기</span>';
-    let typeL='';
-    if(t.posType==='add')typeL='<span class="tag-sm" style="background:rgba(232,131,58,.15);color:var(--accent2)">추가</span>';
-    else if(t.roundNum>1)typeL=`<span style="color:var(--accent);font-size:9px">복리${t.roundNum-1}</span>`;
-    else typeL='<span style="color:var(--dim);font-size:9px">초기</span>';
-    const days=t.closeDate?Math.round((dateToTs(t.closeDate)-dateToTs(t.entryDate))/86400000):(t.entryPrice?Math.round((dateToTs(todayStr())-dateToTs(t.entryDate))/86400000)+'+':'—');
-    const nextSz=t.nextEntrySize?`<span style="color:var(--accent2)">${fmtN(t.nextEntrySize)}</span>`:'—';
+  [...r.trades].sort((a,b)=>dts(a.entryDate)-dts(b.entryDate)).forEach((t,i)=>{
+    const pnlStr = t.pnl!=null ? ((t.pnl>=0?'+':'')+fmtN(t.pnl)) : '—';
+    const pnlCls = t.pnl>0?'up':t.pnl<0?'dn':'dim';
+    let stag='';
+    if     (t.status==='profit')     stag='<span class="tag" style="background:rgba(57,217,138,.15);color:var(--green);border:1px solid rgba(57,217,138,.3)">수익</span>';
+    else if(t.status==='liquidated') stag='<span class="tag" style="background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3)">청산</span>';
+    else if(t.status==='open')       stag='<span class="tag" style="background:rgba(77,159,255,.15);color:var(--blue);border:1px solid rgba(77,159,255,.3)">진행중</span>';
+    else                             stag='<span class="tag" style="background:rgba(90,106,126,.15);color:var(--dim)">대기</span>';
+    let ttag='';
+    if     (t.posType==='add')       ttag='<span class="tag" style="background:rgba(232,131,58,.15);color:var(--accent2)">추가</span>';
+    else if(t.roundNum>1)            ttag=`<span style="color:var(--accent);font-size:9px">${getCfg().compound?'복리':'단리'}${t.roundNum-1}</span>`;
+    else                             ttag='<span style="color:var(--dim);font-size:9px">초기</span>';
+    const days = t.closeDate
+      ? Math.round((dts(t.closeDate)-dts(t.entryDate))/86400000)
+      : (t.entryPrice ? Math.round((dts(todayStr())-dts(t.entryDate))/86400000)+'+' : '—');
+    const nxtSz = t.nextEntrySize ? `<span style="color:var(--accent2)">${fmtN(t.nextEntrySize)}</span>` : '—';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="dim">${i+1}</td><td class="dim">${t.entryDate}</td><td style="color:var(--bright);font-weight:600">${t.symbol}</td><td>${typeL}</td><td class="dim">${fmtN(t.size)}</td><td class="dim">${t.entryPrice?fmtN(t.entryPrice,4):'—'}</td><td class="dim">${t.closeDate||'—'}</td><td class="dim">${t.closePrice!=null?fmtN(t.closePrice,4):'—'}</td><td>${tag}</td><td class="${pnlCls}">${pnlStr}</td><td class="dim">${nextSz}</td><td class="dim">${days}</td>`;
+    tr.innerHTML=`<td class="dim">${i+1}</td><td class="dim">${t.entryDate}</td><td style="color:var(--bright);font-weight:600">${t.symbol}</td><td>${ttag}</td><td class="dim">${fmtN(t.size)}</td><td class="dim">${t.entryPrice?fmtN(t.entryPrice,4):'—'}</td><td class="dim">${t.closeDate||'—'}</td><td class="dim">${t.closePrice!=null?fmtN(t.closePrice,4):'—'}</td><td>${stag}</td><td class="${pnlCls}">${pnlStr}</td><td class="dim">${nxtSz}</td><td class="dim">${days}</td>`;
     tbody.appendChild(tr);
   });
 }
 
-// ════════════════════════════════════════════════
-// 캐시 내보내기 / 가져오기 (PC 간 이동)
-// ════════════════════════════════════════════════
-async function exportCache(){
-  try{
-    const klinesData = await idbGet('meta','klinesData');
-    const klinesMeta = await idbGet('meta','klinesMeta');
-    if(!klinesData||!klinesMeta){
-      alert('내보낼 캐시가 없습니다. 먼저 백테스트를 실행하세요.');return;
-    }
-    const payload={
-      version:1,
-      exportedAt:new Date().toISOString(),
-      klinesMeta,
-      klinesData,
-    };
-    const json=JSON.stringify(payload);
-    const blob=new Blob([json],{type:'application/json'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=`bt_cache_${klinesMeta.endDate||'unknown'}.json`;
-    a.click();
+// ════════════════════════════════════════
+// 캐시 내보내기 / 가져오기
+// ════════════════════════════════════════
+async function exportCache() {
+  try {
+    const d = await idbGet('klinesData');
+    const m = await idbGet('meta');
+    if (!d || !m) { alert('내보낼 캐시가 없습니다. 먼저 백테스트를 실행하세요.'); return; }
+    const payload = { version:2, exportedAt:new Date().toISOString(), meta:m, klinesData:d };
+    const json = JSON.stringify(payload);
+    const blob = new Blob([json], { type:'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href=url; a.download=`bt_cache_${m.endDate||'unknown'}.json`; a.click();
     URL.revokeObjectURL(url);
-    const sizeMB=(json.length/1024/1024).toFixed(1);
-    log('',`📤 캐시 내보내기 완료 (${sizeMB} MB) — 다른 PC에서 "캐시 가져오기"로 불러오세요`,'prof');
-  }catch(e){showErr('내보내기 실패: '+e.message);}
+    log('', `📤 내보내기 완료 (${(json.length/1024/1024).toFixed(1)} MB)`, 'prof');
+  } catch(e) { showErr('내보내기 실패: '+e.message); }
 }
 
-async function importCache(input){
-  const file=input.files[0]; if(!file)return;
-  // 파일 선택 초기화 (같은 파일 재선택 허용)
-  input.value='';
-  try{
-    log('',`📥 캐시 파일 읽는 중: ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`,'inf');
-    const text=await file.text();
-    const payload=JSON.parse(text);
-    if(!payload.klinesData||!payload.klinesMeta){
-      alert('유효하지 않은 캐시 파일입니다.');return;
-    }
-    if(!confirm(`캐시 파일을 가져오면 기존 캐시가 덮어씌워집니다.\n종목 수: ${payload.klinesMeta.pairCount}개 / 기준일: ${payload.klinesMeta.endDate}\n계속하시겠습니까?`)) return;
-
-    await idbPut('meta','klinesData',payload.klinesData);
-    await idbPut('meta','klinesMeta',payload.klinesMeta);
-    klinesDB=payload.klinesData;
+async function importCache(input) {
+  const file = input.files[0]; if (!file) return;
+  input.value = '';
+  try {
+    log('', `📥 캐시 파일 읽는 중: ${file.name}`, 'inf');
+    const text    = await file.text();
+    const payload = JSON.parse(text);
+    if (!payload.klinesData || !payload.meta) { alert('유효하지 않은 캐시 파일입니다.'); return; }
+    if (!confirm(`캐시 가져오기\n종목: ${payload.meta.pairCount}개 / 기준일: ${payload.meta.endDate}\n계속하시겠습니까?`)) return;
+    await idbPut('klinesData', payload.klinesData);
+    await idbPut('meta',       payload.meta);
+    klinesDB = payload.klinesData;
     await updateDbBadge();
-    log('',`✅ 캐시 가져오기 완료! ${payload.klinesMeta.pairCount}개 종목 데이터 로드됨`,'prof');
-    log('','▶ 이제 "최적화 실행" 버튼을 누르면 API 수집 없이 바로 시뮬레이션합니다','inf');
-  }catch(e){showErr('가져오기 실패: '+e.message);}
+    log('', `✅ 캐시 가져오기 완료! ${payload.meta.pairCount}개 종목 로드`, 'prof');
+    log('', '▶ "최적화 실행" 버튼을 누르면 API 수집 없이 바로 시뮬레이션합니다', 'inf');
+  } catch(e) { showErr('가져오기 실패: '+e.message); }
 }
 
-async function updateDbBadge(){
-  try{
-    const m=await idbGet('meta','klinesMeta');
-    const el=document.getElementById('dbBadge');
-    if(m&&m.pairCount){
-      el.textContent=`💾 IndexedDB: ${m.pairCount}개 종목 · ${m.dateCount}일치 일봉 캐시됨`;
-      el.className='db-badge ok';
-    }else{el.textContent='IndexedDB: 저장 없음';el.className='db-badge';}
-  }catch(e){}
-}
-
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════
 // 메인 실행
-// ════════════════════════════════════════════════
-async function startAll(){
-  if(isRunning)return;
-  isRunning=true;hideErr();
-  document.getElementById('runBtn').disabled=true;
+// ════════════════════════════════════════
+async function startAll() {
+  if (isRunning) return;
+  isRunning = true; hideErr();
+  document.getElementById('runBtn').disabled = true;
   document.getElementById('progWrap').classList.add('on');
-  document.getElementById('runBadge').textContent='RUNNING';
-  document.getElementById('stBadge').innerHTML='<span class="dot dot-run"></span>&nbsp;실행 중';
+  document.getElementById('runBadge').textContent = 'RUNNING';
+  document.getElementById('stBadge').innerHTML = '<span class="dot dot-run"></span>&nbsp;실행 중';
 
-  try{
-    const cfg=getCfg();
-    const today=todayStr();
-    const ns=[];for(let n=cfg.nMin;n<=cfg.nMax;n++)ns.push(n);
-    const simDates=dateRange(nextDay(ENTRY_DATE),today);
+  try {
+    const cfg   = getCfg();
+    const today = todayStr();
+    const ns    = []; for (let n=cfg.nMin; n<=cfg.nMax; n++) ns.push(n);
+    const simDates = dateRange(nextDay(ENTRY_DATE), today);
+    const ml    = MODE_LABELS[cfg.mode] || cfg.mode;
+    const cl    = cfg.compound ? '복리' : '단리';
 
-    nResults={};
-    ns.forEach(n=>{nResults[n]={status:'pending',totalAssets:cfg.capital,profitCount:0,liqCount:0,freeCash:0,trades:[]};});
+    nResults = {};
+    ns.forEach(n => { nResults[n] = { status:'pending', totalAssets:cfg.capital, profitCount:0, liqCount:0, freeCash:0, trades:[] }; });
     initNGrid(ns);
-    renderRankTable();
+    renderRank();
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 1: 일봉 데이터 수집 (핵심 최적화)
-    // 종목별로 전체 기간 일봉을 1번 요청
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    prog(2,'종목 목록 수집 중...');
-    log('','⚡ 최적화 모드: 종목별 전체기간 일봉 1회 수집 + 병렬처리','hd');
+    // ── STEP 1: 일봉 데이터 수집 ──
+    prog(2, '종목 목록 수집 중...');
+    log('', `⚡ 전략: ${ml} · ${cl}`, 'hd');
 
-    // 캐시 확인
-    const cachedKlines=await idbGet('meta','klinesData');
-    const cachedMeta  =await idbGet('meta','klinesMeta');
+    const cachedData = await idbGet('klinesData');
+    const cachedMeta = await idbGet('meta');
     let allPairs;
 
-    if(cachedKlines && cachedMeta && cachedMeta.endDate===today){
-      klinesDB=cachedKlines;
-      allPairs=cachedMeta.allPairs;
-      log('',`💾 캐시 복원: ${cachedMeta.pairCount}개 종목 × ${cachedMeta.dateCount}일치 일봉`,'inf');
+    if (cachedData && cachedMeta && cachedMeta.endDate === today) {
+      klinesDB = cachedData;
+      allPairs = cachedMeta.allPairs;
+      log('', `💾 캐시 복원: ${cachedMeta.pairCount}개 종목 × ${cachedMeta.dateCount}일`, 'inf');
     } else {
-      // 페어 목록
-      allPairs=await getUsdtPairs(cfg.delay);
-      log('',`✅ ${allPairs.length}개 USDT 무기한 선물 페어`,'inf');
-
-      // 병렬 일봉 수집
-      prog(5,`종목별 전체 기간 일봉 수집 중... (병렬 ${cfg.parallel}개)`);
-      log('',`📥 ${allPairs.length}개 종목 × 전체기간 일봉 수집 시작 (병렬 ${cfg.parallel}개, 딜레이 ${cfg.delay}ms)`,'inf');
+      allPairs = await getUsdtPairs(cfg.delay);
+      log('', `✅ ${allPairs.length}개 USDT 무기한 선물 페어`, 'inf');
+      prog(5, `일봉 수집 중... (병렬 ${cfg.parallel}개)`);
+      log('', `📥 ${allPairs.length}개 종목 일봉 수집 시작 (병렬 ${cfg.parallel}개, 딜레이 ${cfg.delay}ms)`, 'inf');
       initParGrid(cfg.parallel);
 
-      klinesDB={};
-      let completed=0;
-      const slotMap={}; // symbol → slot index
-      const freeSlots=Array.from({length:cfg.parallel},(_,i)=>i);
-
-      await runParallel(allPairs, async(sym,idx)=>{
-        const slot=freeSlots[idx%cfg.parallel];
-        setParSlot(slot,sym,false);
-        const data=await fetchAllKlines(sym,START_DATE,today,cfg.delay);
-        if(data) klinesDB[sym]=data;
+      klinesDB = {};
+      let completed = 0;
+      await runParallel(allPairs, async (sym, idx) => {
+        setParSlot(idx % cfg.parallel, sym, false);
+        const data = await fetchKlines(sym, START_DATE, today, cfg.delay);
+        if (data) klinesDB[sym] = data;
         completed++;
-        setParSlot(slot,sym,true);
-        const pct=5+Math.round(completed/allPairs.length*55);
-        prog(pct,`일봉 수집 중... ${completed}/${allPairs.length}`,`${sym} 완료 | 남은 종목: ${allPairs.length-completed}개`);
+        setParSlot(idx % cfg.parallel, sym, true);
+        prog(5 + Math.round(completed / allPairs.length * 55),
+          `일봉 수집 중... ${completed}/${allPairs.length}`,
+          `완료: ${sym} | 남은: ${allPairs.length - completed}개`);
       }, cfg.parallel);
 
-      // 캐시 저장
-      const dateCount=simDates.length+1; // +1 for ENTRY_DATE
-      await idbPut('meta','klinesData',klinesDB);
-      await idbPut('meta','klinesMeta',{allPairs,pairCount:allPairs.length,dateCount,endDate:today});
-      log('',`✅ 일봉 수집 완료: ${allPairs.length}개 종목`,'inf');
+      const dateCount = simDates.length + 1;
+      await idbPut('klinesData', klinesDB);
+      await idbPut('meta', { allPairs, pairCount:allPairs.length, dateCount, endDate:today });
+      log('', `✅ 일봉 수집 완료`, 'inf');
     }
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 2: START_DATE 상승률 순위 계산 (메모리 연산)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    prog(61,'상승률 순위 계산 중... (메모리 연산, 즉시)');
-    log(START_DATE,'📊 상승률 순위 계산 (메모리 연산)','inf');
-    let changes=[];
-    for(const sym of allPairs){
-      const k=klinesDB[sym]?.[START_DATE];
-      if(!k||!k.open)continue;
-      const ch=(k.close-k.open)/k.open;
-      if(isFinite(ch))changes.push({symbol:sym,change:ch});
+    // ── STEP 2: 초기 진입 후보 리스트 ──
+    prog(61, '초기 진입 후보 계산 중...');
+    let initList = [];
+
+    if (cfg.mode === 'vb-long') {
+      initList = getVbRanking(START_DATE, cfg.k);
+      log(START_DATE, `⚡ 변동성 돌파 (K=${cfg.k}): ${initList.length}개 종목`, 'inf');
+      initList.slice(0,3).forEach((t,i) => log(START_DATE, `  ${i+1}위 ${t.symbol} (강도 ${(t.change*100).toFixed(2)}%)`, 'inf'));
+    } else {
+      let changes = [];
+      for (const sym of allPairs) {
+        const k = klinesDB[sym]?.[START_DATE];
+        if (!k || !k.open) continue;
+        const ch = (k.close - k.open) / k.open;
+        if (isFinite(ch)) changes.push({ symbol:sym, change:ch });
+      }
+      changes.sort((a,b) => b.change - a.change);
+      initList = cfg.mode.startsWith('bot') ? [...changes].reverse() : changes;
+      log(START_DATE, `🎯 ${ml}: 상위 50개 확보`, 'inf');
+      initList.slice(0,3).forEach((t,i) => log(START_DATE, `  ${i+1}위 ${t.symbol} (${(t.change*100).toFixed(2)}%)`, 'inf'));
     }
-    changes.sort((a,b)=>b.change-a.change); // 내림차순: index 0 = 가장 많이 오른 종목
 
-    // 모드에 따라 초기 진입 리스트 방향 결정
-    // top-*: 상위(많이 오른) N개 → changes 앞에서 slice
-    // bot-*: 하위(많이 내린) N개 → changes 뒤에서 slice (reverse)
-    const isBot = cfg.mode.startsWith('bot');
-    const rankedList = isBot ? [...changes].reverse() : changes; // index 0 = 진입 1순위
-    const top50 = rankedList.slice(0, 50);
-
-    const modeLabel = {
-      'top-short':'상위 N개 1배 숏','top-long':'상위 N개 1배 롱',
-      'bot-short':'하위 N개 1배 숏','bot-long':'하위 N개 1배 롱'
-    }[cfg.mode];
-    log(START_DATE,`🎯 전략: ${modeLabel}`,'hd');
-    log(START_DATE,`진입 1순위: ${top50[0]?.symbol} (${(top50[0]?.change*100).toFixed(2)}%)`,'inf');
-    log(START_DATE,`진입 2순위: ${top50[1]?.symbol} (${(top50[1]?.change*100).toFixed(2)}%)`,'inf');
-    log(START_DATE,`진입 3순위: ${top50[2]?.symbol} (${(top50[2]?.change*100).toFixed(2)}%)`,'inf');
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 3: 날짜별 순위 캐시 빌드 (메모리 연산, 초 단위)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    prog(63,'날짜별 순위 캐시 빌드 중... (메모리 연산)');
-    log('',`📅 ${simDates.length}개 날짜 × ${allPairs.length}개 종목 순위 계산`,'inf');
+    // ── STEP 3: 날짜별 순위 캐시 ──
+    prog(63, '날짜별 순위 캐시 빌드 중...');
     buildDayRankings(allPairs, simDates);
-    log('',`✅ 순위 캐시 완료: ${simDates.length}개 날짜`,'inf');
+    log('', `✅ 순위 캐시 완료: ${simDates.length}개 날짜`, 'inf');
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 4: N별 시뮬레이션 (메모리 연산, 매우 빠름)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    prog(65,`N=${cfg.nMin}~${cfg.nMax} 시뮬레이션 (메모리 연산)`);
-    log('','','inf');
-    log('',`━━ N별 시뮬레이션 시작 [${modeLabel}] ━━`,'hd');
+    // ── STEP 4: N별 시뮬레이션 ──
+    prog(65, 'N별 시뮬레이션 시작...');
+    log('', '', 'inf');
+    log('', `━━ N별 시뮬레이션 [${ml} · ${cl}] ━━`, 'hd');
 
-    for(let ni=0;ni<ns.length;ni++){
-      const n=ns[ni];
-      const pct=65+Math.round(ni/ns.length*30);
-      prog(pct,`N=${n}개 시뮬레이션 중... (${ni+1}/${ns.length})`,'메모리 연산');
-      document.getElementById(`np-${n}`).className='n-prog-item running';
-      document.getElementById(`npv-${n}`).textContent='계산 중...';
+    for (let ni = 0; ni < ns.length; ni++) {
+      const n   = ns[ni];
+      const pct = 65 + Math.round(ni / ns.length * 30);
+      prog(pct, `N=${n}개 시뮬레이션 중... (${ni+1}/${ns.length})`, '메모리 연산');
+      const card = document.getElementById('nc-'+n);
+      const val  = document.getElementById('nv-'+n);
+      if (card) card.className = 'n-card running';
+      if (val)  val.textContent = '계산 중...';
 
-      await new Promise(r=>setTimeout(r,0));
-      const result=simulateN(n,cfg,top50,simDates,today);
-      nResults[n]=result;
+      await new Promise(r => setTimeout(r, 0)); // UI 업데이트 양보
+      const result = simulateN(n, cfg, initList, simDates, today);
+      nResults[n]  = result;
       setNDone(n);
-      renderRankTable();
+      renderRank();
 
-      const pct2=r2((result.totalAssets-cfg.capital)/cfg.capital*100);
-      log('',`✅ N=${n}개 → ${fmtN(result.totalAssets)} USDT (${pct2>=0?'+':''}${pct2}%) | 수익 ${result.profitCount}건 | 청산 ${result.liqCount}건`,result.totalAssets>=cfg.capital?'prof':'liq');
+      const p2 = r2((result.totalAssets - cfg.capital) / cfg.capital * 100);
+      log('', `✅ N=${n}개 → ${fmtN(result.totalAssets)} USDT (${p2>=0?'+':''}${p2}%) | 수익 ${result.profitCount} | 청산 ${result.liqCount}`,
+        result.totalAssets >= cfg.capital ? 'prof' : 'liq');
     }
 
-    // 최종 요약
-    prog(100,'완료!');
-    const sorted=ns.filter(n=>nResults[n].status==='done').sort((a,b)=>nResults[b].totalAssets-nResults[a].totalAssets);
-    if(sorted.length){
-      const best=sorted[0];
-      const r=nResults[best];
-      log('','','inf');
-      log('',`🏆 [${modeLabel}] 최적: N=${best}개 | ${fmtN(r.totalAssets)} USDT | +${r2((r.totalAssets-cfg.capital)/cfg.capital*100)}% | 개당 ${fmtN(r2(cfg.capital/best))} USDT`,'prof');
+    // ── 최종 요약 ──
+    prog(100, '완료!');
+    const sorted = ns.filter(n => nResults[n].status==='done').sort((a,b) => nResults[b].totalAssets - nResults[a].totalAssets);
+    if (sorted.length) {
+      const best = sorted[0];
+      const r    = nResults[best];
+      log('', '', 'inf');
+      log('', `🏆 [${ml} · ${cl}] 최적: N=${best}개 | ${fmtN(r.totalAssets)} USDT | +${r2((r.totalAssets-cfg.capital)/cfg.capital*100)}% | 개당 ${fmtN(r2(cfg.capital/best))} USDT`, 'prof');
     }
     await updateDbBadge();
-    document.getElementById('runBadge').textContent='DONE';
-    document.getElementById('stBadge').innerHTML='<span class="dot" style="background:var(--green)"></span>&nbsp;완료';
+    document.getElementById('runBadge').textContent = 'DONE';
+    document.getElementById('stBadge').innerHTML = '<span class="dot" style="background:var(--green)"></span>&nbsp;완료';
 
-  }catch(e){
+  } catch(e) {
     showErr(e.message);
-    log('',`❌ 오류: ${e.message}`,'liq');
-    document.getElementById('runBadge').textContent='ERROR';
-    document.getElementById('stBadge').innerHTML='<span class="dot" style="background:var(--red)"></span>&nbsp;오류';
+    log('', `❌ 오류: ${e.message}`, 'liq');
+    document.getElementById('runBadge').textContent = 'ERROR';
+    document.getElementById('stBadge').innerHTML = '<span class="dot" style="background:var(--red)"></span>&nbsp;오류';
   }
-  document.getElementById('runBtn').disabled=false;
-  isRunning=false;
+  document.getElementById('runBtn').disabled = false;
+  isRunning = false;
 }
 
-async function resetAll(){
-  if(!confirm('IndexedDB 캐시를 모두 초기화하고 처음부터 다시 실행하시겠습니까?'))return;
-  try{
-    await idbClear('meta');await idbClear('nstate');
-    klinesDB={};dayRankCache={};nResults={};
-    document.getElementById('nGrid').innerHTML='';
-    document.getElementById('parGrid').innerHTML='';
-    document.getElementById('rankBody').innerHTML='<tr><td colspan="11" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>';
+async function resetAll() {
+  if (!confirm('IndexedDB 캐시를 모두 초기화하고 처음부터 다시 실행하시겠습니까?')) return;
+  try {
+    await idbClear();
+    klinesDB = {}; dayRankCache = {}; nResults = {};
+    ['nGrid','parGrid'].forEach(id => document.getElementById(id).innerHTML='');
+    document.getElementById('rankBody').innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">🎯</div>백테스트를 실행하면 결과가 표시됩니다.</td></tr>';
     document.getElementById('detailBody').innerHTML='<tr><td colspan="12" class="empty"><div class="empty-ico">📋</div>위에서 N을 선택하세요.</td></tr>';
     document.getElementById('logArea').innerHTML='<div class="empty"><div class="empty-ico">📋</div>실행 로그가 여기에 표시됩니다.</div>';
-    document.getElementById('nSelector').innerHTML='<option value="">— N을 선택하세요 —</option>';
+    document.getElementById('nSel').innerHTML='<option value="">— N을 선택하세요 —</option>';
     await updateDbBadge();
-    log('','🗑 초기화 완료','inf');
-  }catch(e){showErr('초기화 실패: '+e.message);}
+    log('', '🗑 초기화 완료', 'inf');
+  } catch(e) { showErr('초기화 실패: '+e.message); }
 }
 
-(async()=>{
-  try{await openDB();await updateDbBadge();updateSpeedInfo();}
-  catch(e){document.getElementById('dbBadge').textContent='⚠️ IndexedDB 오류: '+e.message;}
+// ════════════════════════════════════════
+// 초기화
+// ════════════════════════════════════════
+(async () => {
+  try { await openDB(); await updateDbBadge(); onCfgChange(); }
+  catch(e) { document.getElementById('dbBadge').textContent = '⚠️ IndexedDB 오류: '+e.message; }
 })();
 </script>
 </body>
