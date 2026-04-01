@@ -519,12 +519,7 @@ function simulateN(n, cfg, initList, simDates, today) {
     const ek  = klinesDB[sym]?.[ENTRY_DATE];
     if (!ek) continue;
 
-    let ep = ek.open;
-    if (isVB) {
-      // initList에 이미 ENTRY_DATE 기준 breakPrice가 포함됨
-      // 진입가 = breakPrice (돌파 기준가)
-      ep = initList[i].breakPrice || ek.open;
-    }
+    let ep = ek.open; // 모든 전략 공통: 진입가 = 진입일 시가
     tid++;
     active.push({ id:tid, symbol:sym, entryDate:ENTRY_DATE, entryPrice:ep,
       size:perUnit, rank:i+1, rankDate:START_DATE,
@@ -592,9 +587,15 @@ function simulateN(n, cfg, initList, simDates, today) {
 
       // 당일 기준 순위
       let ranking;
-      if (isVB)       ranking = getVbRanking(date, nd, cfg.k); // 전일=date, 당일=nd로 돌파 체크 → nd 당일 진입
-      else if (isBot) ranking = [...(dayRankCache[date] || [])].reverse();
-      else            ranking = dayRankCache[date] || [];
+      if (isVB) {
+        // 전일(prevDay(date)) 변동폭으로 당일(date) 돌파 종목 선정
+        // → 돌파 확인된 종목을 다음날(nd) 시가로 진입
+        ranking = getVbRanking(prevDay(date), date, cfg.k);
+      } else if (isBot) {
+        ranking = [...(dayRankCache[date] || [])].reverse();
+      } else {
+        ranking = dayRankCache[date] || [];
+      }
 
       let ri         = 0;
       const activeSym = new Set(active.filter(p => p.status==='open'||p.status==='pending').map(p => p.symbol));
@@ -611,12 +612,8 @@ function simulateN(n, cfg, initList, simDates, today) {
           if (!isFuture) {
             const ek = klinesDB[w.symbol]?.[nd];
             if (!ek) continue;
-            if (isVB) {
-              // 당일(nd) 돌파 확인 → 당일 breakPrice로 진입
-              ep = w.breakPrice || ek.open;
-            } else {
-              ep = ek.open;
-            }
+            // vb-long: 당일(date) 돌파 확인 → 다음날(nd) 시가로 진입
+            ep = isVB ? ek.open : ek.open;
           }
           tid++;
           active.push({ id:tid, symbol:w.symbol, entryDate:nd, entryPrice:ep,
@@ -641,11 +638,7 @@ function simulateN(n, cfg, initList, simDates, today) {
         if (!isFuture) {
           const ak = klinesDB[cand.symbol]?.[nd];
           if (!ak) { ri--; break; }
-          if (isVB) {
-            ep2 = cand.breakPrice || ak.open;
-          } else {
-            ep2 = ak.open;
-          }
+          ep2 = ak.open;
         }
         tid++;
         active.push({ id:tid, symbol:cand.symbol, entryDate:nd, entryPrice:ep2,
