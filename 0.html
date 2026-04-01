@@ -475,20 +475,20 @@ function buildDayRankings(allPairs, dates) {
 }
 
 // ════════════════════════════════════════
-// 변동성 돌파 순위 계산 (날짜 기준)
-// symbol별 전일 range × k + 당일 시가 = 기준가
-// 돌파 강도 순 정렬
+// 변동성 돌파 순위 계산
+// prevDate: 변동폭 계산 기준일 (전일)
+// curDate:  돌파 체크 기준일 (당일 - 진입 후보 선정용)
+// 진입은 항상 curDate 다음날 시가
 // ════════════════════════════════════════
-function getVbRanking(date, k) {
-  const prev = prevDay(date);
-  const arr  = [];
+function getVbRanking(prevDate, curDate, k) {
+  const arr = [];
   for (const sym of Object.keys(klinesDB)) {
-    const pd = klinesDB[sym]?.[prev];
-    const cd = klinesDB[sym]?.[date];
+    const pd = klinesDB[sym]?.[prevDate]; // 전일 (변동폭 계산)
+    const cd = klinesDB[sym]?.[curDate];  // 당일 (돌파 확인)
     if (!pd || !cd || !cd.open) continue;
     const range = pd.high - pd.low;
     if (range <= 0) continue;
-    const bp = r4(cd.open + range * k);
+    const bp = r4(cd.open + range * k);  // 돌파 기준가 = 당일 시가 + 전일변동폭×k
     if (cd.high >= bp) {
       arr.push({ symbol: sym, change: (cd.high - bp) / bp, breakPrice: bp });
     }
@@ -519,12 +519,12 @@ function simulateN(n, cfg, initList, simDates, today) {
 
     let ep = ek.open;
     if (isVB) {
-      // ENTRY_DATE 시가 기준으로 START_DATE 변동폭 사용
-      const pk = klinesDB[sym]?.[START_DATE];
+      // 전일(START_DATE) 변동폭으로 ENTRY_DATE 돌파 기준가 계산
+      const pk = klinesDB[sym]?.[START_DATE]; // 전일 데이터
       if (!pk) continue;
       const bp = r4(ek.open + (pk.high - pk.low) * cfg.k);
-      if (ek.high >= bp) ep = bp;
-      else continue; // 돌파 안 하면 진입 안 함
+      if (ek.high >= bp) ep = bp;  // ENTRY_DATE 고가가 돌파가 이상이면 진입
+      else continue;               // 돌파 못 하면 진입 안 함
     }
     tid++;
     active.push({ id:tid, symbol:sym, entryDate:ENTRY_DATE, entryPrice:ep,
@@ -590,7 +590,7 @@ function simulateN(n, cfg, initList, simDates, today) {
     if (profits.length > 0) {
       // 당일 기준 순위
       let ranking;
-      if (isVB)      ranking = getVbRanking(date, cfg.k);
+      if (isVB)       ranking = getVbRanking(date, nd, cfg.k); // 전일=date, 당일=nd
       else if (isBot) ranking = [...(dayRankCache[date] || [])].reverse();
       else            ranking = dayRankCache[date] || [];
 
@@ -612,10 +612,8 @@ function simulateN(n, cfg, initList, simDates, today) {
             const ek = klinesDB[w.symbol]?.[nd];
             if (!ek) continue;
             if (isVB) {
-              const cd = klinesDB[w.symbol]?.[date];
-              const range = cd ? (cd.high - cd.low) : 0;
-              const bp = range > 0 ? r4(ek.open + range * cfg.k) : ek.open;
-              ep = ek.high >= bp ? bp : ek.open;
+              // getVbRanking(date, nd, k) 에서 nd 기준 돌파가 = w.breakPrice
+              ep = w.breakPrice || ek.open;
             } else {
               ep = ek.open;
             }
@@ -644,10 +642,7 @@ function simulateN(n, cfg, initList, simDates, today) {
           const ak = klinesDB[cand.symbol]?.[nd];
           if (!ak) { ri--; break; }
           if (isVB) {
-            const cd = klinesDB[cand.symbol]?.[date];
-            const range = cd ? (cd.high - cd.low) : 0;
-            const bp = range > 0 ? r4(ak.open + range * cfg.k) : ak.open;
-            ep2 = ak.high >= bp ? bp : ak.open;
+            ep2 = cand.breakPrice || ak.open;
           } else {
             ep2 = ak.open;
           }
@@ -953,9 +948,10 @@ async function startAll() {
     let initList = [];
 
     if (cfg.mode === 'vb-long') {
-      initList = getVbRanking(START_DATE, cfg.k);
-      log(START_DATE, `⚡ 변동성 돌파 (K=${cfg.k}): ${initList.length}개 종목`, 'inf');
-      initList.slice(0,3).forEach((t,i) => log(START_DATE, `  ${i+1}위 ${t.symbol} (강도 ${(t.change*100).toFixed(2)}%)`, 'inf'));
+      // 전일=START_DATE 변동폭, 당일=ENTRY_DATE 돌파 체크
+      initList = getVbRanking(START_DATE, ENTRY_DATE, cfg.k);
+      log(START_DATE, `⚡ 변동성 돌파 (K=${cfg.k}): ${initList.length}개 종목 돌파`, 'inf');
+      initList.slice(0,3).forEach((t,i) => log(START_DATE, `  ${i+1}위 ${t.symbol} (강도 ${(t.change*100).toFixed(2)}%, 진입가 ${fmtN(t.breakPrice,4)})`, 'inf'));
     } else {
       let changes = [];
       for (const sym of allPairs) {
