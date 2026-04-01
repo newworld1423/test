@@ -2,280 +2,1192 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>최대 레버리지 계산기</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PERP SCANNER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, 'Noto Sans KR', sans-serif; background: #050810; color: #c8d4e8; min-height: 100vh; padding: 24px 16px; }
-h1 { font-size: 17px; font-weight: 700; color: #e8f0ff; margin-bottom: 4px; }
-.sub { font-size: 11px; color: #4a5a7a; font-family: monospace; margin-bottom: 24px; }
-.card { background: #0a0f1e; border: 1px solid #1a2340; border-radius: 10px; padding: 20px; margin-bottom: 14px; }
-.card-title { font-size: 11px; font-weight: 700; color: #4a5a7a; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
-.row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-.field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 160px; }
-label { font-size: 11px; color: #4a5a7a; }
-input { background: #050810; border: 1px solid #1a2340; border-radius: 6px; color: #e8f0ff; font-size: 14px; padding: 9px 12px; outline: none; width: 100%; transition: border-color .15s; font-family: monospace; }
-input:focus { border-color: #378add; }
-input::placeholder { color: #2a3a5a; }
-.btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
-.btn-fetch { background: linear-gradient(90deg,#378add,#00c6f5); color: #fff; }
-.btn-fetch:hover { filter: brightness(1.1); }
-.btn-fetch:disabled { opacity: .5; cursor: not-allowed; }
-.btn-calc { background: linear-gradient(90deg,#00e87a,#00c6f5); color: #000; margin-top: 12px; }
-.btn-calc:hover { filter: brightness(1.08); }
-.loading { display: none; text-align: center; padding: 12px; font-size: 12px; color: #4a5a7a; font-family: monospace; }
-.loading.show { display: block; }
-.blink { animation: blink 1.2s infinite; }
-@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
-.err { color: #ff4560; font-size: 12px; margin-top: 8px; display: none; padding: 8px 12px; background: rgba(255,69,96,.08); border-radius: 6px; border: 1px solid rgba(255,69,96,.2); }
-.err.show { display: block; }
-.hidden { display: none; }
-.show-block { display: block; }
-.fetched-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
-.fi { background: #050810; border-radius: 6px; padding: 10px 12px; }
-.fi-label { font-size: 10px; color: #4a5a7a; margin-bottom: 4px; }
-.fi-value { font-size: 13px; font-weight: 700; font-family: monospace; }
-.dir-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
-.dir-btn { padding: 10px; border-radius: 8px; border: 1px solid #1a2340; background: transparent; color: #4a5a7a; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.dir-btn.long.active { background: rgba(0,232,122,.12); color: #00e87a; border-color: #00e87a; }
-.dir-btn.short.active { background: rgba(255,69,96,.12); color: #ff4560; border-color: #ff4560; }
-.result-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 12px; }
-.metric { background: #050810; border-radius: 8px; padding: 12px 14px; }
-.metric-label { font-size: 10px; color: #4a5a7a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .4px; }
-.metric-value { font-size: 22px; font-weight: 700; }
-.metric-sub { font-size: 10px; color: #4a5a7a; margin-top: 3px; font-family: monospace; }
-.formula-box { background: #050810; border-radius: 8px; padding: 12px 14px; font-family: monospace; font-size: 11px; color: #4a5a7a; line-height: 2.0; }
-.formula-box b { color: #c8d4e8; }
-.warn-box { background: rgba(255,69,96,.06); border: 1px solid rgba(255,69,96,.2); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #ff7a8a; margin-top: 10px; line-height: 1.7; }
-.hist-item { background: #050810; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
-.hist-sym { color: #e8f0ff; font-weight: 700; font-size: 13px; }
-.hist-detail { color: #4a5a7a; font-size: 10px; font-family: monospace; margin-top: 2px; }
+/* ── RESET & ROOT ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #080b0f;
+  --bg2:       #0d1117;
+  --bg3:       #111820;
+  --bg4:       #161e28;
+  --border:    #1e2d3d;
+  --border2:   #243447;
+  --text:      #cdd9e5;
+  --muted:     #4d6479;
+  --dim:       #2a3a4a;
+
+  --green:     #3ddc84;
+  --green-dim: #1a4a32;
+  --red:       #ff5c5c;
+  --red-dim:   #4a1a1a;
+  --yellow:    #f0b429;
+  --yellow-dim:#4a3500;
+  --blue:      #4db8ff;
+  --blue-dim:  #0d2a40;
+  --purple:    #c084fc;
+  --purple-dim:#2a1040;
+  --orange:    #fb923c;
+  --orange-dim:#3a1a00;
+
+  --r-trend:    #3ddc84;
+  --r-range:    #4db8ff;
+  --r-break:    #f0b429;
+  --r-reversal: #c084fc;
+
+  --font-mono: 'Space Mono', monospace;
+  --font-ui:   'Noto Sans KR', sans-serif;
+
+  --scan-interval: 60;
+}
+
+html { font-size: 13px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-weight: 400;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── SCANLINE TEXTURE ─────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.08) 2px,
+    rgba(0,0,0,.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────────────────── */
+.app { max-width: 1440px; margin: 0 auto; padding: 16px 20px; }
+
+/* ── HEADER ───────────────────────────────────────────────────────── */
+.header {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 18px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+.logo {
+  font-family: var(--font-mono);
+  font-size: 15px; font-weight: 700;
+  color: var(--text); letter-spacing: .12em;
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
+  50% { opacity: .4; box-shadow: none; }
+}
+.logo-dot.scanning { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); animation: spin-pulse 1s linear infinite; }
+@keyframes spin-pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+.header-right { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+
+/* ── BUTTONS ──────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  padding: 6px 14px; border-radius: 4px;
+  border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text);
+  cursor: pointer; letter-spacing: .06em;
+  transition: all .15s; white-space: nowrap;
+}
+.btn:hover { background: var(--bg4); border-color: var(--muted); }
+.btn-scan {
+  background: var(--green-dim); border-color: var(--green);
+  color: var(--green);
+}
+.btn-scan:hover { background: rgba(61,220,132,.2); }
+.btn-scan:disabled { opacity: .4; cursor: not-allowed; }
+.btn-notif { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
+.btn-notif.active { background: var(--yellow); color: #000; }
+
+/* ── REGIME PANEL ─────────────────────────────────────────────────── */
+.regime-panel {
+  display: grid; grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 10px; margin-bottom: 14px;
+}
+@media(max-width:900px){ .regime-panel { grid-template-columns: 1fr 1fr; } }
+@media(max-width:560px){ .regime-panel { grid-template-columns: 1fr; } }
+
+.regime-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 14px 16px;
+  transition: border-color .3s;
+  position: relative; overflow: hidden;
+}
+.regime-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--border);
+  transition: background .3s;
+}
+.regime-card.active { border-color: var(--rc); }
+.regime-card.active::before { background: var(--rc); }
+.rc-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+.rc-name {
+  font-size: 14px; font-weight: 700;
+  color: var(--text); margin-bottom: 4px;
+}
+.rc-name.active { color: var(--rc); }
+.rc-score-bar {
+  height: 3px; background: var(--dim);
+  border-radius: 2px; margin-bottom: 5px;
+  overflow: hidden;
+}
+.rc-score-fill { height: 100%; border-radius: 2px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+.rc-desc { font-size: 10px; color: var(--muted); line-height: 1.5; }
+.rc-conf { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--rc); }
+
+.strategy-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 14px 16px; grid-column: span 1;
+}
+@media(max-width:900px){ .strategy-card { grid-column: span 2; } }
+@media(max-width:560px){ .strategy-card { grid-column: span 1; } }
+.st-title {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.st-item {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: 11px; color: var(--muted);
+  padding: 2px 0; line-height: 1.5;
+}
+.st-bullet { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+
+/* ── BTC ROW ──────────────────────────────────────────────────────── */
+.btc-row {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.stat {
+  flex: 1; min-width: 110px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 12px;
+}
+.stat-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 4px;
+}
+.stat-val {
+  font-family: var(--font-mono); font-size: 17px;
+  font-weight: 700; color: var(--text);
+}
+.stat-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── CONTROLS ─────────────────────────────────────────────────────── */
+.controls {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.ctrl-group { display: flex; align-items: center; gap: 6px; }
+.ctrl-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+select, input[type=text] {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 5px 10px; border-radius: 4px;
+  border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text);
+  outline: none;
+}
+select:focus, input:focus { border-color: var(--muted); }
+
+/* ── AUTO SCAN TIMER ──────────────────────────────────────────────── */
+.timer-group {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 5px 12px;
+}
+.timer-ring-wrap { position: relative; width: 24px; height: 24px; flex-shrink: 0; }
+.timer-ring-bg { fill: none; stroke: var(--dim); stroke-width: 3; }
+.timer-ring-fill {
+  fill: none; stroke: var(--green); stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg); transform-origin: 50% 50%;
+  transition: stroke-dashoffset .9s linear;
+  stroke-dasharray: 62.83;
+  stroke-dashoffset: 0;
+}
+.timer-ring-fill.warning { stroke: var(--yellow); }
+.timer-ring-fill.urgent  { stroke: var(--red); }
+.timer-countdown {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text); min-width: 38px;
+}
+.timer-interval-select { font-size: 11px; padding: 2px 6px; }
+
+/* ── PROGRESS ─────────────────────────────────────────────────────── */
+.progress-wrap { margin-bottom: 10px; }
+.progress-bar {
+  height: 2px; background: var(--dim); border-radius: 1px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 1px;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  transition: width .4s;
+  width: 0%;
+}
+.progress-label {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--muted); margin-top: 4px;
+}
+
+/* ── TABLE ────────────────────────────────────────────────────────── */
+.table-wrap {
+  border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden;
+}
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 900px; }
+
+thead th {
+  padding: 9px 12px; text-align: left;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2); cursor: pointer;
+  user-select: none; transition: color .15s;
+}
+thead th:hover { color: var(--text); }
+thead th.sort-active { color: var(--green); }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg2); }
+tbody tr.flash-new { animation: rowflash .8s ease-out; }
+@keyframes rowflash {
+  0% { background: rgba(61,220,132,.12); }
+  100% { background: transparent; }
+}
+
+td {
+  padding: 7px 12px; white-space: nowrap;
+  font-size: 12px; color: var(--text);
+}
+.td-rank { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.td-sym  { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+.td-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--muted); }
+
+/* ── BADGES ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block; font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 3px;
+  letter-spacing: .04em; white-space: nowrap;
+}
+.b-tl { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(61,220,132,.3); }
+.b-ts { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(255,92,92,.3); }
+.b-rb { background: var(--blue-dim);   color: var(--blue);   border: 1px solid rgba(77,184,255,.3); }
+.b-rs { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(192,132,252,.3); }
+.b-bl { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(240,180,41,.3); }
+.b-bs { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(255,92,92,.3); }
+.b-vl { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(61,220,132,.3); }
+.b-vs { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(251,146,60,.3); }
+.b-w  { background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
+
+/* ── SCORE BAR ────────────────────────────────────────────────────── */
+.score-wrap { display: flex; align-items: center; gap: 6px; }
+.score-track {
+  width: 54px; height: 3px;
+  background: var(--dim); border-radius: 2px; position: relative;
+}
+.score-fill { height: 100%; border-radius: 2px; position: absolute; left: 0; top: 0; }
+.score-num { font-family: var(--font-mono); font-size: 11px; min-width: 22px; }
+
+/* ── ALERT TOAST ──────────────────────────────────────────────────── */
+.toast-wrap {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 10000; pointer-events: none;
+}
+.toast {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 6px; padding: 12px 16px;
+  font-size: 12px; color: var(--text);
+  max-width: 320px; pointer-events: all;
+  animation: slideIn .3s ease-out;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.toast.long  { border-left: 3px solid var(--green); }
+.toast.short { border-left: 3px solid var(--red); }
+.toast-sym { font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.toast-msg { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.toast-close { margin-left: auto; color: var(--muted); cursor: pointer; font-size: 14px; }
+@keyframes slideIn {
+  from { opacity:0; transform: translateX(20px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+
+/* ── FOOTER ───────────────────────────────────────────────────────── */
+.footer-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.footer-stat { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.footer-stat span { color: var(--text); }
+.notif-badge {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 2px 8px; border-radius: 10px;
+  background: var(--yellow-dim); color: var(--yellow);
+  border: 1px solid rgba(240,180,41,.3);
+}
+
+/* ── EMPTY STATE ──────────────────────────────────────────────────── */
+.empty-row td {
+  text-align: center; padding: 60px;
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+}
+.empty-label { font-size: 18px; margin-bottom: 6px; }
+
+/* ── SCROLLBAR ────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 </style>
 </head>
 <body>
 
-<h1>최대 레버리지 계산기</h1>
-<p class="sub">심볼 입력 → 바이낸스 API로 현재가 · 역대 최저가 · 역대 최고가 자동 조회 후 계산</p>
+<div class="app">
 
-<div class="card">
-  <div class="card-title">심볼 입력</div>
-  <div class="row">
-    <div class="field">
-      <label>심볼 (USDT 무기한 선물)</label>
-      <input type="text" id="sym" placeholder="예: BTC 또는 BTCUSDT" oninput="this.value=this.value.toUpperCase().replace(/USDT$/,'')" onkeydown="if(event.key==='Enter')fetchData()">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-dot" id="statusDot"></div>
+      PERP SCANNER
+      <span style="color:var(--muted);font-weight:400;font-size:11px;letter-spacing:.04em">/ USDT 무기한 선물</span>
     </div>
-    <div class="field">
-      <label>레버리지 버퍼 (%)</label>
-      <input type="number" id="buffer" value="20" min="0" max="50" step="1">
-    </div>
-  </div>
-  <button class="btn btn-fetch" id="btnFetch" onclick="fetchData()">데이터 조회</button>
-  <div class="loading" id="loading"><span class="blink">바이낸스에서 데이터 조회 중...</span></div>
-  <p class="err" id="errMsg"></p>
-</div>
-
-<div class="card hidden" id="fetchedCard">
-  <div class="card-title">조회 결과 — <span id="fetchedSym" style="color:#e8f0ff"></span></div>
-  <div class="fetched-row">
-    <div class="fi">
-      <div class="fi-label">현재가</div>
-      <div class="fi-value" id="fPrice" style="color:#e8f0ff">—</div>
-    </div>
-    <div class="fi">
-      <div class="fi-label">역대 최저가 (1M봉)</div>
-      <div class="fi-value" id="fLow" style="color:#00e87a">—</div>
-    </div>
-    <div class="fi">
-      <div class="fi-label">역대 최고가 (1M봉)</div>
-      <div class="fi-value" id="fHigh" style="color:#ff4560">—</div>
+    <div class="header-right">
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)" id="scanTs">-</span>
+      <button class="btn btn-notif" id="btnNotif" onclick="toggleNotif()">🔔 알림 OFF</button>
+      <button class="btn btn-scan" id="btnScan" onclick="startScan()">▶ 스캔 시작</button>
     </div>
   </div>
 
-  <div class="card-title">포지션 방향 선택</div>
-  <div class="dir-row">
-    <button class="dir-btn long active" id="btnLong" onclick="setDir('LONG')">🟢 롱 — 역대 최저가 기준</button>
-    <button class="dir-btn short" id="btnShort" onclick="setDir('SHORT')">🔴 숏 — 역대 최고가 기준</button>
-  </div>
-  <button class="btn btn-calc" onclick="calc()">최대 레버리지 계산</button>
-</div>
-
-<div class="card hidden" id="resultCard">
-  <div class="card-title">계산 결과 — <span id="resLabel"></span></div>
-  <div class="result-grid">
-    <div class="metric">
-      <div class="metric-label">권장 최대 레버리지</div>
-      <div class="metric-value" id="resLev">—</div>
-      <div class="metric-sub" id="resTheo">—</div>
+  <!-- REGIME CARDS -->
+  <div class="regime-panel" id="regimePanel">
+    <div class="regime-card" id="rc-trend" style="--rc:var(--r-trend)">
+      <div class="rc-label">시장국면 01</div>
+      <div class="rc-name" id="rc-trend-name">추세장</div>
+      <div class="rc-score-bar"><div class="rc-score-fill" id="rc-trend-bar" style="width:0%;background:var(--r-trend)"></div></div>
+      <div class="rc-desc">EMA 배열 · ADX 강도 기반 추세 추종</div>
     </div>
-    <div class="metric">
-      <div class="metric-label" id="resLiqLabel">청산가</div>
-      <div class="metric-value" id="resLiq" style="color:#ff4560">—</div>
-      <div class="metric-sub" id="resLiqSub">—</div>
+    <div class="regime-card" id="rc-range" style="--rc:var(--r-range)">
+      <div class="rc-label">시장국면 02</div>
+      <div class="rc-name" id="rc-range-name">횡보장</div>
+      <div class="rc-score-bar"><div class="rc-score-fill" id="rc-range-bar" style="width:0%;background:var(--r-range)"></div></div>
+      <div class="rc-desc">볼린저밴드 · RSI 역매매 전략</div>
     </div>
-    <div class="metric">
-      <div class="metric-label" id="resExtLabel">역대 극값</div>
-      <div class="metric-value" id="resExtreme">—</div>
-      <div class="metric-sub" id="resMovePct">—</div>
+    <div class="regime-card" id="rc-break" style="--rc:var(--r-break)">
+      <div class="rc-label">시장국면 03</div>
+      <div class="rc-name" id="rc-break-name">변동성 폭발</div>
+      <div class="rc-score-bar"><div class="rc-score-fill" id="rc-break-bar" style="width:0%;background:var(--r-break)"></div></div>
+      <div class="rc-desc">거래량 스파이크 · BB 수축 후 브레이크아웃</div>
     </div>
-    <div class="metric">
-      <div class="metric-label">진입가 (현재가)</div>
-      <div class="metric-value" id="resEntry" style="color:#e8f0ff">—</div>
-      <div class="metric-sub">유지마진율 0.5%</div>
+    <div class="strategy-card" id="strategyCard">
+      <div class="st-title" id="stTitle">현재 국면 전략</div>
+      <div id="stList"><div style="color:var(--muted);font-size:10px;font-family:var(--font-mono)">스캔 후 표시됩니다</div></div>
     </div>
   </div>
-  <div class="formula-box" id="formulaBox"></div>
-  <div class="warn-box" id="warnBox"></div>
+
+  <!-- BTC STATS -->
+  <div class="btc-row" id="btcRow">
+    <div class="stat"><div class="stat-label">BTC 가격</div><div class="stat-val" id="s-btcprice">—</div><div class="stat-sub" id="s-btcchg">—</div></div>
+    <div class="stat"><div class="stat-label">RSI 1h</div><div class="stat-val" id="s-rsi">—</div><div class="stat-sub" id="s-rsisub">—</div></div>
+    <div class="stat"><div class="stat-label">ATR %</div><div class="stat-val" id="s-atr">—</div><div class="stat-sub">변동성 수준</div></div>
+    <div class="stat"><div class="stat-label">BTC 펀딩비</div><div class="stat-val" id="s-fund">—</div><div class="stat-sub" id="s-fundsub">—</div></div>
+    <div class="stat"><div class="stat-label">현재 국면</div><div class="stat-val" id="s-regime" style="font-size:13px">—</div><div class="stat-sub" id="s-regimeconf">—</div></div>
+    <div class="stat"><div class="stat-label">분석 종목</div><div class="stat-val" id="s-count">—</div><div class="stat-sub">USDT 선물</div></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">신호</span>
+      <select id="sigFilter" onchange="applyFilters()">
+        <option value="all">전체</option>
+        <option value="long">롱 신호</option>
+        <option value="short">숏 신호</option>
+        <option value="strong">강한 신호 80+</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">정렬</span>
+      <select id="sortSel" onchange="applyFilters()">
+        <option value="score">신호강도</option>
+        <option value="vol">거래대금</option>
+        <option value="chg">변동률</option>
+        <option value="fund">펀딩비</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">검색</span>
+      <input type="text" id="searchIn" placeholder="BTC, ETH…" oninput="applyFilters()" style="width:100px">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">알림 최소강도</span>
+      <select id="notifThresh">
+        <option value="70">70+</option>
+        <option value="75">75+</option>
+        <option value="80" selected>80+</option>
+        <option value="85">85+</option>
+        <option value="90">90+</option>
+      </select>
+    </div>
+
+    <!-- AUTO SCAN TIMER -->
+    <div class="timer-group" style="margin-left:auto">
+      <span class="ctrl-label">자동 스캔</span>
+      <select class="timer-interval-select" id="intervalSel" onchange="changeInterval()">
+        <option value="60">1분</option>
+        <option value="180">3분</option>
+        <option value="300" selected>5분</option>
+        <option value="600">10분</option>
+        <option value="900">15분</option>
+        <option value="1800">30분</option>
+        <option value="3600">1시간</option>
+        <option value="0">수동</option>
+      </select>
+      <div class="timer-ring-wrap">
+        <svg width="24" height="24" viewBox="0 0 24 24">
+          <circle class="timer-ring-bg" cx="12" cy="12" r="10"/>
+          <circle class="timer-ring-fill" id="timerRing" cx="12" cy="12" r="10"/>
+        </svg>
+      </div>
+      <span class="timer-countdown" id="timerCountdown">—</span>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+    <div class="progress-label" id="progLabel">스캔 대기 중</div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th onclick="setSort('sym')">코인</th>
+            <th onclick="setSort('close')">가격</th>
+            <th onclick="setSort('chg1h')">1h 변동</th>
+            <th onclick="setSort('chg24')">24h 변동</th>
+            <th onclick="setSort('vol')">거래대금</th>
+            <th onclick="setSort('fund')">펀딩비</th>
+            <th id="th1">지표1</th>
+            <th id="th2">지표2</th>
+            <th id="th3">지표3</th>
+            <th>신호</th>
+            <th onclick="setSort('score')" class="sort-active">강도 ▼</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr class="empty-row">
+            <td colspan="12">
+              <div class="empty-label">▶ 스캔 시작을 눌러주세요</div>
+              <div>바이낸스 USDT 무기한 선물 전체를 분석합니다</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer-bar">
+    <span class="footer-stat">총 <span id="f-total">0</span>개</span>
+    <span class="footer-stat">롱 <span id="f-long" style="color:var(--green)">0</span></span>
+    <span class="footer-stat">숏 <span id="f-short" style="color:var(--red)">0</span></span>
+    <span class="footer-stat">강한신호 <span id="f-strong" style="color:var(--yellow)">0</span></span>
+    <span id="notifStatus" class="notif-badge" style="display:none">알림 대기 0건</span>
+  </div>
+
 </div>
 
-<div class="card hidden" id="histCard">
-  <div class="card-title">계산 히스토리</div>
-  <div id="histList"></div>
-</div>
+<!-- TOAST CONTAINER -->
+<div class="toast-wrap" id="toastWrap"></div>
 
 <script>
-const BASE = 'https://fapi.binance.com';
-let dir = 'LONG';
-let fetched = null;
-const hist = [];
+// ── 상수 ─────────────────────────────────────────────────────────────
+const API = 'https://fapi.binance.com';
+const SCAN_LIMIT   = 100;
+const KLINE_LIMIT  = 120;
+const MAX_PARALLEL = 8;
 
-function fp(v) {
-  if (v == null) return '—';
-  if (v >= 10000)  return v.toLocaleString('ko-KR', {maximumFractionDigits: 0});
-  if (v >= 100)    return v.toFixed(2);
-  if (v >= 1)      return v.toFixed(4);
-  if (v >= 0.0001) return v.toFixed(6);
-  return v.toFixed(8);
+// ── 상태 ─────────────────────────────────────────────────────────────
+let allCoins       = [];
+let currentRegime  = null;
+let isScanning     = false;
+let notifEnabled   = false;
+let autoTimer      = null;
+let autoInterval   = 300;   // 초
+let timerRemaining = 0;
+let timerRaf       = null;
+let timerLastTick  = 0;
+let sortCol        = 'score';
+let sortDir        = -1;
+let prevSignals    = {};     // sym → signal (알림 중복 방지)
+
+// ── 국면 설정 ─────────────────────────────────────────────────────────
+const REGIME = {
+  trend: {
+    color: '#3ddc84', varName: '--r-trend',
+    label: '추세장 (Trend)',
+    headers: ['EMA 배열', 'ADX', '스프레드%'],
+    strategy: [
+      ['long',  'EMA 9>21>55 상승배열 → 롱 추종'],
+      ['long',  '풀백 후 추세 방향 재진입'],
+      ['short', 'EMA 9<21<55 하락배열 → 숏 추종'],
+      ['wait',  '역방향 진입 회피'],
+    ],
+  },
+  range: {
+    color: '#4db8ff', varName: '--r-range',
+    label: '횡보장 (Range)',
+    headers: ['BB 위치%', 'RSI(14)', 'BB 폭%'],
+    strategy: [
+      ['long',  'BB 하단(≤15%) + RSI<32 → 롱'],
+      ['short', 'BB 상단(≥85%) + RSI>68 → 숏'],
+      ['wait',  '중간값 돌파 전 대기'],
+      ['short', '박스 이탈 시 즉시 손절'],
+    ],
+  },
+  break: {
+    color: '#f0b429', varName: '--r-break',
+    label: '변동성 폭발 (Breakout)',
+    headers: ['거래량 배율', 'BB 수축', '모멘텀%'],
+    strategy: [
+      ['long',  '거래량 2배↑ + 상방 돌파 → 롱'],
+      ['short', '거래량 2배↑ + 하방 돌파 → 숏'],
+      ['wait',  '수익 목표 짧게, 손절 타이트'],
+      ['short', '역방향 진입 절대 금지'],
+    ],
+  },
+  reversal: {
+    color: '#c084fc', varName: '--r-reversal',
+    label: '역추세 (Reversal)',
+    headers: ['RSI(14)', '펀딩비%', '다이버전스'],
+    strategy: [
+      ['short', 'RSI>78 + 펀딩비>+0.1% → 숏'],
+      ['long',  'RSI<22 + 펀딩비<-0.1% → 롱'],
+      ['long',  '분할 진입 (전량 한번에 X)'],
+      ['long',  '반전 확인 후 추가 진입'],
+    ],
+  },
+};
+
+const SIG_MAP = {
+  'trend-long':  ['b-tl', '▲ 추세 롱'],
+  'trend-short': ['b-ts', '▼ 추세 숏'],
+  'range-buy':   ['b-rb', '◆ 범위 매수'],
+  'range-sell':  ['b-rs', '◆ 범위 매도'],
+  'break-long':  ['b-bl', '⚡ 브레이크↑'],
+  'break-short': ['b-bs', '⚡ 브레이크↓'],
+  'rev-long':    ['b-vl', '↩ 역추세 롱'],
+  'rev-short':   ['b-vs', '↩ 역추세 숏'],
+  'wait':        ['b-w',  '— 대기'],
+};
+
+// ── API ────────────────────────────────────────────────────────────────
+async function apiFetch(path, params = {}) {
+  const url = new URL(API + path);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
-function showErr(m) { const e=document.getElementById('errMsg'); e.textContent=m; e.classList.add('show'); }
-function clearErr()  { document.getElementById('errMsg').classList.remove('show'); }
-function show(id)    { document.getElementById(id).classList.remove('hidden'); }
-function hide(id)    { document.getElementById(id).classList.add('hidden'); }
 
-function setDir(d) {
-  dir = d;
-  document.getElementById('btnLong').className  = 'dir-btn long'  + (d==='LONG'  ? ' active' : '');
-  document.getElementById('btnShort').className = 'dir-btn short' + (d==='SHORT' ? ' active' : '');
+async function getTopSymbols(n) {
+  const d = await apiFetch('/fapi/v1/ticker/24hr');
+  return d.filter(x => x.symbol.endsWith('USDT'))
+          .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+          .slice(0, n).map(x => x.symbol);
 }
 
-async function fetchData() {
-  clearErr();
-  const raw = document.getElementById('sym').value.trim();
-  if (!raw) return showErr('심볼을 입력해주세요.');
-  const sym = raw.toUpperCase().replace(/USDT$/, '') + 'USDT';
+async function getTicker24() {
+  return apiFetch('/fapi/v1/ticker/24hr');
+}
 
-  document.getElementById('btnFetch').disabled = true;
-  document.getElementById('loading').classList.add('show');
-  hide('fetchedCard'); hide('resultCard');
+async function getFunding() {
+  const d = await apiFetch('/fapi/v1/premiumIndex');
+  const m = {};
+  d.forEach(x => { m[x.symbol] = parseFloat(x.lastFundingRate || 0); });
+  return m;
+}
+
+async function getKlines(sym, interval = '1h', limit = KLINE_LIMIT) {
+  try { return await apiFetch('/fapi/v1/klines', { symbol: sym, interval, limit }); }
+  catch { return null; }
+}
+
+// ── 지표 계산 (순수 JS) ───────────────────────────────────────────────
+function calcRSI(closes, p = 14) {
+  if (closes.length < p + 1) return 50;
+  const sl = closes.slice(-(p + 1));
+  let g = 0, l = 0;
+  for (let i = 1; i < sl.length; i++) {
+    const d = sl[i] - sl[i-1];
+    if (d > 0) g += d; else l -= d;
+  }
+  const ag = g / p, al = l / p;
+  return al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+}
+
+function calcEMA(closes, p) {
+  if (closes.length < p) return closes[closes.length - 1];
+  const k = 2 / (p + 1);
+  let ema = closes.slice(0, p).reduce((a,b) => a+b, 0) / p;
+  for (let i = p; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
+  return ema;
+}
+
+function calcBB(closes, p = 20, mult = 2) {
+  if (closes.length < p) return { pct: 0.5, bw: 0.02 };
+  const sl = closes.slice(-p);
+  const mid = sl.reduce((a,b) => a+b, 0) / p;
+  const std = Math.sqrt(sl.map(v => (v - mid) ** 2).reduce((a,b) => a+b, 0) / p);
+  const upper = mid + mult * std, lower = mid - mult * std;
+  const last  = closes[closes.length - 1];
+  const rng   = upper - lower;
+  return {
+    pct: rng === 0 ? 0.5 : Math.max(0, Math.min(1, (last - lower) / rng)),
+    bw:  mid > 0 ? rng / mid : 0,
+    upper, lower, mid,
+  };
+}
+
+function calcATR(candles, p = 14) {
+  if (candles.length < p + 1) return 0;
+  const trs = [];
+  for (let i = 1; i < candles.length; i++) {
+    const h = +candles[i][2], l = +candles[i][3], pc = +candles[i-1][4];
+    trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+  }
+  return trs.slice(-p).reduce((a,b) => a+b, 0) / p;
+}
+
+function calcADX(closes, p = 14) {
+  if (closes.length < p * 2) return 20;
+  const diffs  = closes.map((v,i) => i === 0 ? 0 : v - closes[i-1]).slice(1);
+  const gains  = diffs.map(d => d > 0 ? d : 0);
+  const losses = diffs.map(d => d < 0 ? -d : 0);
+  const ag = gains.slice(-p).reduce((a,b) => a+b, 0) / p;
+  const al = losses.slice(-p).reduce((a,b) => a+b, 0) / p;
+  return ag + al === 0 ? 20 : 100 * Math.abs(ag - al) / (ag + al);
+}
+
+function calcVolSpike(vols, p = 20) {
+  if (vols.length < p + 1) return 1;
+  const avg = vols.slice(-(p+1), -1).reduce((a,b) => a+b, 0) / p;
+  return avg > 0 ? vols[vols.length - 1] / avg : 1;
+}
+
+function bbHistBW(closes, lag, p = 20) {
+  const sl = closes.slice(-(lag + p), -lag || undefined);
+  if (sl.length < p) return 0;
+  const m = sl.reduce((a,b) => a+b, 0) / p;
+  const s = Math.sqrt(sl.map(v => (v-m)**2).reduce((a,b)=>a+b, 0) / p);
+  return m > 0 ? (m + 2*s - (m - 2*s)) / m : 0;
+}
+
+// ── 국면 감지 ──────────────────────────────────────────────────────────
+function detectRegime(closes, candles) {
+  if (closes.length < 60) return { regime: 'range', conf: 40, reason: '데이터 부족', scores: {} };
+  const rsi  = calcRSI(closes);
+  const bb   = calcBB(closes);
+  const adx  = calcADX(closes);
+  const ema9 = calcEMA(closes, 9), ema21 = calcEMA(closes, 21), ema55 = calcEMA(closes, 55);
+  const atr  = calcATR(candles);
+  const close = closes[closes.length - 1];
+  const atrPct = atr / close * 100;
+  const vols = candles.map(c => +c[5]);
+  const volSpike = calcVolSpike(vols);
+  const bull = ema9 > ema21 && ema21 > ema55;
+  const bear = ema9 < ema21 && ema21 < ema55;
+  const spread = Math.abs(ema9 - ema55) / close * 100;
+
+  // BB 수축 감지
+  const bwNow = bbHistBW(closes, 1);
+  const bwOld = bbHistBW(closes, 6);
+  const bwShrinking = bwNow < bwOld && bwNow < 0.04;
+
+  const scores = { trend: 0, range: 0, break: 0, reversal: 0 };
+  if (rsi > 75 || rsi < 25)  scores.reversal += 40;
+  if (rsi > 78 || rsi < 22)  scores.reversal += 20;
+  if (bwShrinking && volSpike > 1.8 && atrPct > 1.5) scores.break += 50;
+  if (volSpike > 2.5)        scores.break    += 30;
+  if (bwShrinking)           scores.break    += 20;
+  if ((bull || bear) && spread > 0.5) scores.trend += 50;
+  if (adx > 25)              scores.trend    += 25;
+  if (adx > 35)              scores.trend    += 15;
+  if ((bull || bear) && spread > 0.3) scores.trend += 20;
+  if (!bull && !bear && rsi > 38 && rsi < 62) scores.range += 40;
+  if (bb.bw < 0.04)          scores.range    += 30;
+  if (adx < 20)              scores.range    += 20;
+  Object.keys(scores).forEach(k => scores[k] = Math.min(scores[k], 100));
+
+  const regime = Object.keys(scores).reduce((a,b) => scores[a] > scores[b] ? a : b);
+  const total  = Object.values(scores).reduce((a,b) => a+b, 0) || 1;
+  const conf   = Math.round(scores[regime] / total * 100);
+  const reasons = {
+    trend:    `EMA=${bull?'상승':bear?'하락':'혼조'} | ADX=${adx.toFixed(0)} | 스프레드=${spread.toFixed(2)}%`,
+    range:    `ADX=${adx.toFixed(0)} | BB폭=${(bb.bw*100).toFixed(2)}% | RSI=${rsi.toFixed(0)}`,
+    break:    `거래량=${volSpike.toFixed(1)}x | BB수축=${bwShrinking?'Y':'N'} | ATR=${atrPct.toFixed(2)}%`,
+    reversal: `RSI=${rsi.toFixed(0)} | ${rsi>75?'과매수':rsi<25?'과매도':'임박'}`,
+  };
+  return { regime, conf, reason: reasons[regime], scores, adx, atrPct, rsi, bb, volSpike, bull, bear };
+}
+
+// ── 신호 계산 ──────────────────────────────────────────────────────────
+function getSignal(regime, closes, candles, funding) {
+  const n = closes.length;
+  if (n < 30) return { signal: 'wait', score: 0, ind1: '-', ind2: '-', ind3: '-' };
+  const rsi = calcRSI(closes), bb = calcBB(closes);
+  const ema9 = calcEMA(closes, 9), ema21 = calcEMA(closes, 21), ema55 = calcEMA(closes, 55);
+  const vols = candles.map(c => +c[5]);
+  const volSpike = calcVolSpike(vols);
+  const close = closes[n-1];
+  const chg1h = n >= 2 && closes[n-2] > 0 ? (closes[n-1] - closes[n-2]) / closes[n-2] : 0;
+  let signal = 'wait', score = 0, ind1 = '-', ind2 = '-', ind3 = '-';
+
+  if (regime === 'trend') {
+    const bull = ema9 > ema21 && ema21 > ema55, bear = ema9 < ema21 && ema21 < ema55;
+    const spread = Math.abs(ema9 - ema55) / close * 100;
+    const adx = calcADX(closes);
+    ind1 = bull ? '상승배열' : bear ? '하락배열' : '혼조';
+    ind2 = adx.toFixed(0);
+    ind3 = (spread >= 0 ? '+' : '') + spread.toFixed(2) + '%';
+    if (bull && 45 < rsi && rsi < 72 && chg1h > 0)       { signal = 'trend-long';  score = 70 + Math.min(25, ((rsi-45)*0.6)|0); }
+    else if (bull && 40 < rsi && rsi < 65)                 { signal = 'trend-long';  score = 62; }
+    else if (bear && 28 < rsi && rsi < 55 && chg1h < 0)  { signal = 'trend-short'; score = 70 + Math.min(25, ((55-rsi)*0.6)|0); }
+    else if (bear && 35 < rsi && rsi < 60)                 { signal = 'trend-short'; score = 62; }
+    else score = 25;
+
+  } else if (regime === 'range') {
+    ind1 = (bb.pct * 100).toFixed(0) + '%';
+    ind2 = rsi.toFixed(1);
+    ind3 = (bb.bw * 100).toFixed(2) + '%';
+    if (bb.pct < 0.12 && rsi < 32)      { signal = 'range-buy';  score = 75 + ((32-rsi)*1.2)|0; }
+    else if (bb.pct < 0.22 && rsi < 40) { signal = 'range-buy';  score = 60 + ((40-rsi)*0.8)|0; }
+    else if (bb.pct > 0.88 && rsi > 68) { signal = 'range-sell'; score = 75 + ((rsi-68)*1.2)|0; }
+    else if (bb.pct > 0.78 && rsi > 60) { signal = 'range-sell'; score = 60 + ((rsi-60)*0.8)|0; }
+    else score = 25;
+
+  } else if (regime === 'break') {
+    const bwNow = bbHistBW(closes, 1), bwOld = bbHistBW(closes, 6);
+    const shrinkPct = bwOld > 0 ? ((bwNow - bwOld) / bwOld * 100).toFixed(0) + '%' : '-';
+    const mom = n >= 4 && closes[n-4] > 0 ? ((closes[n-1] - closes[n-4]) / closes[n-4] * 100) : 0;
+    ind1 = volSpike.toFixed(1) + 'x';
+    ind2 = shrinkPct;
+    ind3 = (mom >= 0 ? '+' : '') + mom.toFixed(2) + '%';
+    if (chg1h > 0.012 && volSpike > 2.0 && bb.pct > 0.72)   { signal = 'break-long';  score = 65 + Math.min(30, (volSpike*5)|0); }
+    else if (chg1h > 0.006 && volSpike > 1.6 && bb.pct > 0.65) { signal = 'break-long'; score = 55 + (volSpike*4)|0; }
+    else if (chg1h < -0.012 && volSpike > 2.0 && bb.pct < 0.28) { signal = 'break-short'; score = 65 + Math.min(30, (volSpike*5)|0); }
+    else if (chg1h < -0.006 && volSpike > 1.6 && bb.pct < 0.35) { signal = 'break-short'; score = 55 + (volSpike*4)|0; }
+    else if (volSpike > 1.5) score = 35;
+    else score = 20;
+
+  } else {
+    const divg = rsi > 70 && chg1h < 0 ? '약세다이버전스' : rsi < 30 && chg1h > 0 ? '강세다이버전스' : '-';
+    ind1 = rsi.toFixed(1);
+    ind2 = (funding >= 0 ? '+' : '') + (funding * 100).toFixed(4) + '%';
+    ind3 = divg;
+    if (rsi > 78 && funding > 0.0008)      { signal = 'rev-short'; score = 70 + Math.min(25, ((rsi-78)*2.5)|0); }
+    else if (rsi > 74 && funding > 0.0004) { signal = 'rev-short'; score = 58 + ((rsi-74)*2)|0; }
+    else if (rsi < 22 && funding < -0.0008) { signal = 'rev-long'; score = 70 + Math.min(25, ((22-rsi)*2.5)|0); }
+    else if (rsi < 26 && funding < -0.0004) { signal = 'rev-long'; score = 58 + ((26-rsi)*2)|0; }
+    else score = 25;
+  }
+
+  return { signal, score: Math.max(0, Math.min(99, score)), ind1, ind2, ind3 };
+}
+
+// ── 스캔 메인 ──────────────────────────────────────────────────────────
+async function startScan() {
+  if (isScanning) return;
+  isScanning = true;
+
+  const dot  = document.getElementById('statusDot');
+  const btn  = document.getElementById('btnScan');
+  dot.className  = 'logo-dot scanning';
+  btn.disabled   = true;
+  btn.textContent = '⏳ 스캔 중...';
+  setProgress(2, '심볼 로딩 중...');
 
   try {
-    // 현재가 조회
-    const priceRes = await fetch(`${BASE}/fapi/v1/ticker/price?symbol=${sym}`);
-    if (!priceRes.ok) {
-      const e = await priceRes.json().catch(() => ({}));
-      throw new Error(e.msg || `'${sym}' 심볼을 찾을 수 없습니다. 심볼명을 확인해주세요.`);
+    const [symbols, allTicker, fundingMap] = await Promise.all([
+      getTopSymbols(SCAN_LIMIT),
+      getTicker24(),
+      getFunding(),
+    ]);
+    const tickerMap = {};
+    allTicker.forEach(t => { tickerMap[t.symbol] = t; });
+
+    setProgress(10, 'BTC 국면 분석 중...');
+    const btcK   = await getKlines('BTCUSDT', '1h', KLINE_LIMIT);
+    const btcC   = btcK ? btcK.map(k => +k[4]) : [];
+    const regime = detectRegime(btcC, btcK || []);
+    currentRegime = regime;
+    updateRegimeUI(regime);
+    updateBtcStats(btcC, btcK || [], tickerMap['BTCUSDT'] || {}, fundingMap['BTCUSDT'] || 0);
+
+    // 병렬 스캔
+    const results = [];
+    let done = 0;
+    const batchSize = MAX_PARALLEL;
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      const batch = symbols.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(async sym => {
+        try {
+          const klines = await getKlines(sym, '1h', KLINE_LIMIT);
+          if (!klines || klines.length < 40) return null;
+          const closes  = klines.map(k => +k[4]);
+          const funding = fundingMap[sym] || 0;
+          const sig     = getSignal(regime.regime, closes, klines, funding);
+          const t       = tickerMap[sym] || {};
+          const close   = closes[closes.length - 1];
+          const n       = closes.length;
+          const chg1h   = n >= 2 && closes[n-2] > 0 ? (closes[n-1] - closes[n-2]) / closes[n-2] * 100 : 0;
+          return {
+            sym: sym.replace('USDT',''), close,
+            chg24: parseFloat(t.priceChangePercent || 0),
+            chg1h, vol: parseFloat(t.quoteVolume || 0),
+            fund: funding, ...sig,
+          };
+        } catch { return null; }
+      }));
+      batchResults.forEach(r => { if (r) results.push(r); });
+      done += batch.length;
+      setProgress(10 + (done / symbols.length * 88) | 0, `스캔 중... ${done}/${symbols.length}`);
     }
-    const priceData = await priceRes.json();
 
-    // 1M봉 조회 (전체 — limit 1500)
-    const klinesRes = await fetch(`${BASE}/fapi/v1/klines?symbol=${sym}&interval=1M&limit=1500`);
-    if (!klinesRes.ok) throw new Error('1M봉 데이터 조회 실패');
-    const klines = await klinesRes.json();
+    allCoins = results;
+    checkNotifications(results);
+    applyFilters();
+    document.getElementById('s-count').textContent = results.length;
+    document.getElementById('scanTs').textContent = '마지막 스캔: ' + new Date().toLocaleTimeString('ko');
+    setProgress(100, `완료 — ${results.length}개 분석`);
 
-    if (!klines || klines.length < 1) throw new Error('1M봉 데이터가 없습니다.');
+    // 타이머 재시작
+    resetAutoTimer();
 
-    const price     = parseFloat(priceData.price);
-    // 현재 진행 중인 캔들 포함 전체에서 최저/최고 추출
-    const allLow  = Math.min(...klines.map(k => parseFloat(k[3])));
-    const allHigh = Math.max(...klines.map(k => parseFloat(k[2])));
-    const months  = klines.length;
-
-    fetched = { sym, price, allLow, allHigh, months };
-
-    document.getElementById('fetchedSym').textContent = sym;
-    document.getElementById('fPrice').textContent = '$' + fp(price);
-    document.getElementById('fLow').textContent   = '$' + fp(allLow)  + ' (' + months + '개월)';
-    document.getElementById('fHigh').textContent  = '$' + fp(allHigh) + ' (' + months + '개월)';
-
-    show('fetchedCard');
-    document.getElementById('fetchedCard').scrollIntoView({behavior:'smooth',block:'nearest'});
-
-  } catch(e) {
-    showErr(e.message || '조회 중 오류 발생');
+  } catch (e) {
+    setProgress(0, '오류: ' + e.message);
+    showToast('error', 'ERR', e.message, '');
   } finally {
-    document.getElementById('btnFetch').disabled = false;
-    document.getElementById('loading').classList.remove('show');
+    isScanning = false;
+    dot.className = 'logo-dot';
+    btn.disabled  = false;
+    btn.textContent = '▶ 재스캔';
   }
 }
 
-function calc() {
-  if (!fetched) return;
-  clearErr();
+// ── 자동 타이머 ────────────────────────────────────────────────────────
+function changeInterval() {
+  autoInterval = parseInt(document.getElementById('intervalSel').value);
+  resetAutoTimer();
+}
 
-  const buffer  = parseFloat(document.getElementById('buffer').value) / 100;
-  const MMR     = 0.005;
-  const isLong  = dir === 'LONG';
-  const { sym, price, allLow, allHigh, months } = fetched;
-  const entry   = price;
-  const extreme = isLong ? allLow : allHigh;
+function resetAutoTimer() {
+  if (autoTimer) clearTimeout(autoTimer);
+  if (timerRaf)  cancelAnimationFrame(timerRaf);
+  if (autoInterval <= 0) {
+    document.getElementById('timerCountdown').textContent = '수동';
+    setRing(0);
+    return;
+  }
+  timerRemaining = autoInterval;
+  timerLastTick  = performance.now();
+  tickTimer();
+  autoTimer = setTimeout(() => { if (!isScanning) startScan(); }, autoInterval * 1000);
+}
 
-  if (isLong  && extreme >= entry) return showErr('역대 최저가가 현재가 이상입니다. 데이터를 확인해주세요.');
-  if (!isLong && extreme <= entry) return showErr('역대 최고가가 현재가 이하입니다. 데이터를 확인해주세요.');
+function tickTimer() {
+  const now     = performance.now();
+  const elapsed = (now - timerLastTick) / 1000;
+  timerLastTick = now;
+  timerRemaining = Math.max(0, timerRemaining - elapsed);
 
-  const movePct     = Math.abs(entry - extreme) / entry;
-  const theoretical = 1 / (movePct + MMR);
-  const recLev      = Math.max(1, Math.min(Math.floor(theoretical * (1 - buffer)), 125));
-  const liq         = isLong
-    ? entry * (1 - 1/recLev + MMR)
-    : entry * (1 + 1/recLev - MMR);
+  const pct = timerRemaining / autoInterval;
+  setRing(pct);
 
-  document.getElementById('resLabel').textContent    = sym + ' · ' + dir;
-  document.getElementById('resLabel').style.color    = isLong ? '#00e87a' : '#ff4560';
-  document.getElementById('resLev').textContent      = recLev + '배';
-  document.getElementById('resLev').style.color      = recLev >= 50 ? '#ff4560' : recLev >= 20 ? '#ff9020' : '#00c6f5';
-  document.getElementById('resTheo').textContent     = '이론최대 ' + theoretical.toFixed(1) + '배 × 버퍼 ' + (buffer*100).toFixed(0) + '%';
-  document.getElementById('resLiqLabel').textContent = isLong ? '청산가 (롱)' : '청산가 (숏)';
-  document.getElementById('resLiq').textContent      = '$' + fp(liq);
-  document.getElementById('resLiqSub').textContent   = isLong ? '이 가격 아래 → 청산' : '이 가격 위 → 청산';
-  document.getElementById('resExtLabel').textContent = isLong ? '역대 최저가' : '역대 최고가';
-  document.getElementById('resExtreme').textContent  = '$' + fp(extreme);
-  document.getElementById('resExtreme').style.color  = isLong ? '#00e87a' : '#ff4560';
-  document.getElementById('resMovePct').textContent  = '진입가 대비 ' + (movePct*100).toFixed(2) + '% ' + (isLong ? '하락' : '상승') + ' · ' + months + '개월';
-  document.getElementById('resEntry').textContent    = '$' + fp(entry);
+  const mins = (timerRemaining / 60) | 0;
+  const secs = (timerRemaining % 60) | 0;
+  document.getElementById('timerCountdown').textContent =
+    mins > 0 ? `${mins}m ${secs.toString().padStart(2,'0')}s` : `${secs}s`;
 
-  document.getElementById('formulaBox').innerHTML =
-    '<b>계산 과정</b><br>' +
-    '변동률 = |' + fp(entry) + ' - ' + fp(extreme) + '| / ' + fp(entry) + ' = <b>' + (movePct*100).toFixed(4) + '%</b><br>' +
-    '이론최대 = 1 / (' + (movePct*100).toFixed(4) + '% + MMR 0.5%) = <b>' + theoretical.toFixed(2) + '배</b><br>' +
-    '버퍼 적용 = ' + theoretical.toFixed(2) + ' × ' + ((1-buffer)*100).toFixed(0) + '% → 소수점 버림 = <b>' + recLev + '배</b><br>' +
-    '청산가 = ' + fp(entry) + ' × (1 ' + (isLong ? '-' : '+') + ' 1/' + recLev + ' + 0.5%) = <b>$' + fp(liq) + '</b>';
+  const ring = document.getElementById('timerRing');
+  ring.className = 'timer-ring-fill' + (pct < 0.15 ? ' urgent' : pct < 0.3 ? ' warning' : '');
 
-  document.getElementById('warnBox').textContent = '⚠ ' + (
-    recLev >= 50 ? recLev + '배는 매우 고위험입니다. 소액으로만 활용하고 손절라인을 반드시 설정하세요.' :
-    recLev >= 20 ? recLev + '배 레버리지는 변동성에 민감합니다. 리스크 관리를 철저히 하세요.' :
-    '이 레버리지는 역대 극값까지 버틸 수 있는 이론값입니다. 실제로는 추가 안전마진을 두세요.'
-  );
+  if (timerRemaining > 0) timerRaf = requestAnimationFrame(tickTimer);
+}
 
-  show('resultCard');
+function setRing(pct) {
+  const circumference = 2 * Math.PI * 10; // r=10
+  const offset = circumference * (1 - pct);
+  document.getElementById('timerRing').style.strokeDashoffset = offset;
+}
 
-  hist.unshift({ sym, dir, entry, extreme, recLev, liq, movePct, months, buf: (buffer*100).toFixed(0) });
-  if (hist.length > 10) hist.pop();
-  show('histCard');
-  document.getElementById('histList').innerHTML = hist.map(h => {
-    const il = h.dir === 'LONG';
-    return '<div class="hist-item">' +
-      '<div>' +
-        '<div class="hist-sym">' + h.sym + ' <span style="color:' + (il?'#00e87a':'#ff4560') + ';font-size:10px;font-weight:400">' + h.dir + '</span></div>' +
-        '<div class="hist-detail">진입 $' + fp(h.entry) + ' · ' + (il?'최저':'최고') + ' $' + fp(h.extreme) + ' · ' + (h.movePct*100).toFixed(1) + '% · ' + h.months + '개월 · 버퍼' + h.buf + '%</div>' +
-      '</div>' +
-      '<div style="text-align:right">' +
-        '<div style="font-size:16px;font-weight:700;font-family:monospace;color:' + (il?'#00e87a':'#ff4560') + '">' + h.recLev + '배</div>' +
-        '<div style="font-size:10px;color:#4a5a7a;font-family:monospace">청산 $' + fp(h.liq) + '</div>' +
-      '</div>' +
-    '</div>';
+// ── 알림 ───────────────────────────────────────────────────────────────
+function toggleNotif() {
+  if (!notifEnabled) {
+    if (!('Notification' in window)) { showToast('error','알림','이 브라우저는 알림을 지원하지 않습니다.',''); return; }
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') {
+        notifEnabled = true;
+        document.getElementById('btnNotif').textContent = '🔔 알림 ON';
+        document.getElementById('btnNotif').classList.add('active');
+        showToast('long','알림 활성화','강한 매매 신호 발생 시 브라우저 알림을 보냅니다.','');
+      } else {
+        showToast('error','알림 거부됨','브라우저 설정에서 알림을 허용해주세요.','');
+      }
+    });
+  } else {
+    notifEnabled = false;
+    document.getElementById('btnNotif').textContent = '🔔 알림 OFF';
+    document.getElementById('btnNotif').classList.remove('active');
+  }
+}
+
+function checkNotifications(results) {
+  const thresh = parseInt(document.getElementById('notifThresh').value);
+  const newSignals = results.filter(r => r.score >= thresh && r.signal !== 'wait');
+  let alertCount = 0;
+
+  newSignals.forEach(r => {
+    const prev = prevSignals[r.sym];
+    if (prev !== r.signal) {
+      prevSignals[r.sym] = r.signal;
+      const isLong  = r.signal.includes('long') || r.signal.includes('buy');
+      const isShort = r.signal.includes('short') || r.signal.includes('sell');
+      const [, label] = SIG_MAP[r.signal] || ['',''];
+      const msg = `${label} | 강도 ${r.score} | ${r.chg1h >= 0 ? '+' : ''}${r.chg1h.toFixed(2)}% (1h)`;
+
+      showToast(isLong ? 'long' : isShort ? 'short' : 'neutral', r.sym, msg, '');
+
+      if (notifEnabled && Notification.permission === 'granted') {
+        new Notification(`PERP SCANNER — ${r.sym}`, {
+          body: `${label}  강도: ${r.score}\n${r.chg1h >= 0 ? '+' : ''}${r.chg1h.toFixed(2)}% (1h) | 펀딩비 ${(r.fund*100).toFixed(4)}%`,
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="%230d1117"/><text x="16" y="22" text-anchor="middle" font-size="18" fill="%233ddc84">⚡</text></svg>',
+          tag: `scanner-${r.sym}`,
+          renotify: true,
+        });
+      }
+      alertCount++;
+    }
+  });
+
+  const badge = document.getElementById('notifStatus');
+  if (alertCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = `알림 ${alertCount}건 발생`;
+  }
+}
+
+function showToast(type, sym, msg) {
+  const wrap = document.getElementById('toastWrap');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <div>
+      <div class="toast-sym">${sym}</div>
+      <div class="toast-msg">${msg}</div>
+    </div>
+    <div class="toast-close" onclick="this.parentElement.remove()">✕</div>`;
+  wrap.prepend(el);
+  setTimeout(() => el.remove(), 7000);
+}
+
+// ── UI 업데이트 ────────────────────────────────────────────────────────
+function updateRegimeUI(r) {
+  const cfg = REGIME[r.regime] || REGIME.range;
+  const scoreLabels = { trend: 'rc-trend', range: 'rc-range', break: 'rc-break', reversal: null };
+
+  Object.entries(r.scores || {}).forEach(([rk, sc]) => {
+    const barId = `rc-${rk}-bar`;
+    const bar = document.getElementById(barId);
+    if (bar) bar.style.width = sc + '%';
+    const card = document.getElementById(`rc-${rk}`);
+    const name = document.getElementById(`rc-${rk}-name`);
+    if (card) card.classList.toggle('active', rk === r.regime);
+    if (name) name.classList.toggle('active', rk === r.regime);
+  });
+
+  // 역추세는 regime-panel에 별도 카드 없어서 strategy-card 색상만 바꿈
+  document.getElementById('stTitle').textContent = cfg.label + ' — 현재 전략';
+  document.getElementById('stList').innerHTML = cfg.strategy.map(([type, text]) => {
+    const c = type === 'long' ? 'var(--green)' : type === 'short' ? 'var(--red)' : 'var(--muted)';
+    return `<div class="st-item"><div class="st-bullet" style="background:${c}"></div><span>${text}</span></div>`;
   }).join('');
 
-  document.getElementById('resultCard').scrollIntoView({behavior:'smooth',block:'nearest'});
+  const [th1, th2, th3] = cfg.headers;
+  document.getElementById('th1').textContent = th1;
+  document.getElementById('th2').textContent = th2;
+  document.getElementById('th3').textContent = th3;
+
+  const rname = { trend:'추세장', range:'횡보장', break:'변동성 폭발', reversal:'역추세' };
+  document.getElementById('s-regime').textContent  = rname[r.regime] || r.regime;
+  document.getElementById('s-regime').style.color  = cfg.color;
+  document.getElementById('s-regimeconf').textContent = `확신도 ${r.conf}% | ${r.reason}`;
 }
+
+function updateBtcStats(closes, candles, ticker, fund) {
+  if (!closes.length) return;
+  const close  = closes[closes.length - 1];
+  const rsi    = calcRSI(closes);
+  const atr    = calcATR(candles);
+  const atrPct = atr / close * 100;
+  const chg24  = parseFloat(ticker.priceChangePercent || 0);
+
+  document.getElementById('s-btcprice').textContent = '$' + fmtPrice(close);
+  document.getElementById('s-btcchg').innerHTML     = pctColor(chg24) + ' (24h)';
+  document.getElementById('s-rsi').textContent      = rsi.toFixed(1);
+  document.getElementById('s-rsi').style.color      = rsi > 70 ? 'var(--red)' : rsi < 30 ? 'var(--green)' : 'var(--text)';
+  document.getElementById('s-rsisub').textContent   = rsi > 70 ? '과매수' : rsi < 30 ? '과매도' : '중립';
+  document.getElementById('s-atr').textContent      = atrPct.toFixed(2) + '%';
+  const fs = (fund >= 0 ? '+' : '') + (fund * 100).toFixed(4) + '%';
+  document.getElementById('s-fund').textContent     = fs;
+  document.getElementById('s-fund').style.color     = fund > 0.001 ? 'var(--red)' : fund < -0.001 ? 'var(--green)' : 'var(--text)';
+  document.getElementById('s-fundsub').textContent  = fund > 0.001 ? '롱 과열' : fund < -0.001 ? '숏 과열' : '정상';
+}
+
+// ── 필터 & 렌더 ────────────────────────────────────────────────────────
+function setSort(col) {
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = -1; }
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sort-active'));
+  applyFilters();
+}
+
+function applyFilters() {
+  const sig    = document.getElementById('sigFilter').value;
+  const sort   = document.getElementById('sortSel').value;
+  const search = document.getElementById('searchIn').value.toUpperCase().trim();
+
+  let rows = [...allCoins];
+  if (search) rows = rows.filter(r => r.sym.includes(search));
+  if (sig === 'long')   rows = rows.filter(r => r.signal.includes('long') || r.signal.includes('buy'));
+  if (sig === 'short')  rows = rows.filter(r => r.signal.includes('short') || r.signal.includes('sell'));
+  if (sig === 'strong') rows = rows.filter(r => r.score >= 80);
+
+  const key = sort === 'vol' ? 'vol' : sort === 'chg' ? 'chg24' : sort === 'fund' ? 'fund' : 'score';
+  rows.sort((a,b) => {
+    const av = key === 'chg24' || key === 'fund' ? Math.abs(a[key]) : a[key];
+    const bv = key === 'chg24' || key === 'fund' ? Math.abs(b[key]) : b[key];
+    return sortDir * (bv - av);
+  });
+
+  renderTable(rows);
+  document.getElementById('f-total').textContent  = rows.length;
+  document.getElementById('f-long').textContent   = rows.filter(r => r.signal.includes('long') || r.signal.includes('buy')).length;
+  document.getElementById('f-short').textContent  = rows.filter(r => r.signal.includes('short') || r.signal.includes('sell')).length;
+  document.getElementById('f-strong').textContent = rows.filter(r => r.score >= 80).length;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="12"><div class="empty-label">조건에 맞는 종목 없음</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const [bc, bl] = SIG_MAP[r.signal] || SIG_MAP['wait'];
+    const isL = r.signal.includes('long') || r.signal.includes('buy');
+    const isS = r.signal.includes('short') || r.signal.includes('sell');
+    const sc  = r.score;
+    const scColor = sc >= 80 ? 'var(--green)' : sc >= 60 ? 'var(--yellow)' : 'var(--muted)';
+    const symColor = isL ? 'var(--green)' : isS ? 'var(--red)' : 'var(--text)';
+    const fv  = (r.fund >= 0 ? '+' : '') + (r.fund * 100).toFixed(4) + '%';
+    const fc  = r.fund > 0.001 ? 'var(--red)' : r.fund < -0.001 ? 'var(--green)' : 'var(--muted)';
+    return `<tr>
+      <td class="td-rank">${i+1}</td>
+      <td class="td-sym" style="color:${symColor}">${r.sym}</td>
+      <td class="td-price">$${fmtPrice(r.close)}</td>
+      <td>${pctColor(r.chg1h)}</td>
+      <td>${pctColor(r.chg24)}</td>
+      <td style="color:var(--muted)">$${fmtVol(r.vol)}</td>
+      <td style="color:${fc};font-family:var(--font-mono)">${fv}</td>
+      <td style="color:var(--muted)">${r.ind1}</td>
+      <td style="color:var(--muted)">${r.ind2}</td>
+      <td style="color:var(--muted)">${r.ind3}</td>
+      <td><span class="badge ${bc}">${bl}</span></td>
+      <td>
+        <div class="score-wrap">
+          <div class="score-track"><div class="score-fill" style="width:${sc}%;background:${scColor}"></div></div>
+          <span class="score-num" style="color:${scColor}">${sc}</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 유틸 ───────────────────────────────────────────────────────────────
+function setProgress(pct, label) {
+  document.getElementById('progFill').style.width  = pct + '%';
+  document.getElementById('progLabel').textContent = label;
+}
+
+function pctColor(v) {
+  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const c = v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--muted)';
+  return `<span style="color:${c};font-family:var(--font-mono)">${s}</span>`;
+}
+
+function fmtPrice(p) {
+  if (p >= 10000) return p.toLocaleString('en', { maximumFractionDigits: 0 });
+  if (p >= 1000)  return p.toFixed(1);
+  if (p >= 10)    return p.toFixed(2);
+  if (p >= 0.1)   return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+function fmtVol(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return (v/1e6).toFixed(0) + 'M';
+  return (v/1e3).toFixed(0) + 'K';
+}
+
+// ── 초기화 ────────────────────────────────────────────────────────────
+document.getElementById('intervalSel').value = '300';
+setRing(1);
+document.getElementById('timerCountdown').textContent = '—';
 </script>
 </body>
 </html>
