@@ -135,6 +135,39 @@ input[type=number] { width: 75px; }
 .btn-scan:hover  { box-shadow: 0 0 24px rgba(255,58,58,0.45); }
 .btn-scan:disabled { opacity: .35; cursor: not-allowed; }
 
+.btn-auto {
+  background: transparent; color: var(--green);
+  border: 1px solid rgba(0,229,160,0.35);
+  font-family: var(--mono); font-size: 12px; letter-spacing: 2px;
+  padding: 7px 18px; border-radius: 4px; cursor: pointer;
+  transition: all .2s; text-transform: uppercase;
+}
+.btn-auto:hover { background: rgba(0,229,160,0.08); border-color: var(--green); }
+.btn-auto.on {
+  background: rgba(0,229,160,0.12); border-color: var(--green);
+  box-shadow: 0 0 14px rgba(0,229,160,0.2);
+}
+
+.auto-info {
+  display: none; align-items: center; gap: 10px;
+  font-size: 11px; color: var(--muted);
+}
+.auto-info.visible { display: flex; }
+.auto-countdown {
+  font-family: var(--display); font-size: 16px; color: var(--green);
+  min-width: 44px; text-align: center;
+  text-shadow: 0 0 10px rgba(0,229,160,0.4);
+}
+.auto-bar-track {
+  width: 100px; height: 3px;
+  background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.auto-bar-fill {
+  height: 100%; background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  border-radius: 2px; transition: width .5s linear;
+}
+
 .divider { width: 1px; height: 28px; background: var(--border); }
 
 /* ── PROGRESS BAR ── */
@@ -462,6 +495,14 @@ th[title] { cursor: help; }
   </div>
   <div class="divider"></div>
   <button class="btn-scan" id="btnScan" onclick="runScan()">SCAN</button>
+  <button class="btn-auto" id="btnAuto" onclick="toggleAuto()">⏱ AUTO 15M</button>
+  <div class="auto-info" id="autoInfo">
+    <span>다음 스캔:</span>
+    <span class="auto-countdown" id="autoCountdown">15:00</span>
+    <div class="auto-bar-track">
+      <div class="auto-bar-fill" id="autoBarFill" style="width:100%"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Progress -->
@@ -896,6 +937,84 @@ function updateStats() {
   document.getElementById('sNearest').textContent = nearest
     ? `${nearest.symbol} (${nearest.distPct.toFixed(1)}%)` : '—';
   document.getElementById('sAvgDist').textContent = avgDist.toFixed(1) + '%';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUTO SCAN (15분 간격)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const AUTO_MS     = 15 * 60 * 1000;
+let autoOn        = false;
+let autoTimer     = null;
+let autoTickTimer = null;
+let autoNextTs    = 0;
+
+function toggleAuto() {
+  const btn = document.getElementById('btnAuto');
+  if (autoOn) {
+    autoOn = false;
+    clearTimeout(autoTimer);
+    clearInterval(autoTickTimer);
+    autoTimer = null; autoTickTimer = null;
+    btn.classList.remove('on');
+    btn.textContent = '⏱ AUTO 15M';
+    document.getElementById('autoInfo').classList.remove('visible');
+  } else {
+    autoOn = true;
+    btn.classList.add('on');
+    btn.textContent = '⏱ AUTO ON';
+    document.getElementById('autoInfo').classList.add('visible');
+    runScan();      // 즉시 1회 실행
+    scheduleNext(); // 다음 정각(00/15/30/45분)에 예약
+  }
+}
+
+// 다음 00/15/30/45분 정각까지 남은 ms 계산
+function msUntilNextCandle() {
+  const now     = new Date();
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  const ms      = now.getMilliseconds();
+
+  // 다음 15분 배수 찾기
+  const nextMin = Math.ceil((minutes + seconds / 60 + ms / 60000) / 15) * 15;
+  const diffMin = nextMin - minutes;
+  const diffMs  = diffMin * 60000 - seconds * 1000 - ms;
+
+  return Math.max(1000, diffMs); // 최소 1초
+}
+
+function nextCandleTime() {
+  return Date.now() + msUntilNextCandle();
+}
+
+function scheduleNext() {
+  if (!autoOn) return;
+  const waitMs   = msUntilNextCandle();
+  autoNextTs     = Date.now() + waitMs;
+
+  clearTimeout(autoTimer);
+  clearInterval(autoTickTimer);
+
+  autoTickTimer = setInterval(updateAutoCountdown, 500);
+
+  autoTimer = setTimeout(() => {
+    if (!autoOn) return;
+    runScan();
+    scheduleNext(); // 스캔 후 그 다음 정각 예약
+  }, waitMs);
+}
+
+function updateAutoCountdown() {
+  if (!autoOn || !autoNextTs) return;
+  const rem      = Math.max(0, autoNextTs - Date.now());
+  const total    = msUntilNextCandle() + rem; // 전체 구간 = 현재 남은 ms (근사)
+  const mins     = Math.floor(rem / 60000);
+  const secs     = Math.floor((rem % 60000) / 1000);
+  document.getElementById('autoCountdown').textContent =
+    `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+  // 바: 남은 비율 (autoNextTs 설정 당시 waitMs 기준)
+  const barPct   = Math.min(100, (rem / AUTO_MS) * 100);
+  document.getElementById('autoBarFill').style.width = barPct + '%';
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
