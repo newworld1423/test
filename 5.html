@@ -1,711 +1,945 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H/1H 방향 + 15m 반대봉 스캐너</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LONG SQUEEZE MAP — Binance Futures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #050910;
+  --surf:    #090e1a;
+  --card:    #0f1520;
+  --border:  #1a2235;
+  --border2: #243050;
+  --red:     #ff3a3a;
+  --orange:  #ff8c00;
+  --yellow:  #ffd700;
+  --green:   #00e5a0;
+  --cyan:    #00bfff;
+  --purple:  #a855f7;
+  --text:    #e8ecff;
+  --muted:   #7a88aa;
+  --dim:     #3a4560;
+  --mono:    'JetBrains Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+}
 
-    <style>
-        :root {
-            --bg: #05060a;
-            --card: #12131a;
-            --muted: #9aa0a6;
-            --text: #e8eaed;
-            --accent: #3ea6ff;
-            --good: #00c853;
-            --bad: #ff5252;
-            --border: #2a2e36;
-            --row-alt: #181924;
-        }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
 
-        * {
-            box-sizing: border-box;
-        }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-        body {
-            margin: 0;
-            padding: 16px;
-            background: radial-gradient(circle at top, #181b25 0, #05060a 55%, #020308 100%);
-            color: var(--text);
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-                "Noto Sans KR", sans-serif;
-        }
+/* 배경 패턴 */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 50% 60% at 0% 0%, rgba(255,58,58,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 50% at 100% 100%, rgba(0,191,255,0.05) 0%, transparent 55%),
+    repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(255,255,255,0.012) 60px),
+    repeating-linear-gradient(0deg,  transparent, transparent 59px, rgba(255,255,255,0.012) 60px);
+}
 
-        .app {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+/* ── HEADER ── */
+.header {
+  position: relative; z-index: 10;
+  padding: 18px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,58,58,0.07) 0%, transparent 100%);
+}
 
-        h1 {
-            margin: 0 0 4px;
-            font-size: 20px;
-        }
+.brand { display: flex; align-items: center; gap: 16px; }
 
-        .subtitle {
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 16px;
-        }
+.brand-icon {
+  font-size: 32px;
+  filter: drop-shadow(0 0 12px rgba(255,58,58,0.6));
+  animation: iconFloat 3s ease-in-out infinite;
+}
+@keyframes iconFloat {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
 
-        .panel {
-            background: rgba(10, 12, 20, 0.85);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
-        }
+.brand-title {
+  font-family: var(--display);
+  font-size: 28px; letter-spacing: 3px; color: #fff;
+  text-shadow: 0 0 30px rgba(255,58,58,0.4);
+  line-height: 1;
+}
+.brand-sub {
+  font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-top: 3px;
+}
 
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px 12px;
-        }
+.header-meta {
+  display: flex; align-items: center; gap: 20px;
+}
 
-        button {
-            border: none;
-            border-radius: 999px;
-            padding: 8px 18px;
-            font-size: 13px;
-            cursor: pointer;
-            background: linear-gradient(135deg, #3ea6ff, #6b8bff);
-            color: #000;
-            font-weight: 600;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-            transition: transform 0.08s ease, box-shadow 0.08s ease,
-                filter 0.08s ease, opacity 0.15s ease;
-        }
+.meta-item {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+}
+.meta-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+.meta-val   { font-size: 16px; font-weight: 700; }
 
-        button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            filter: brightness(1.05);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-        }
+/* ── METHODOLOGY BOX ── */
+.method-box {
+  position: relative; z-index: 10;
+  margin: 0;
+  padding: 12px 28px;
+  background: rgba(0,191,255,0.04);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 32px; flex-wrap: wrap;
+}
+.method-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--muted);
+}
+.method-icon { font-size: 14px; }
+.method-item strong { color: var(--text); }
 
-        button:active:not(:disabled) {
-            transform: translateY(0);
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-        }
+/* ── CONTROLS ── */
+.controls {
+  position: relative; z-index: 10;
+  padding: 12px 28px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
 
-        button:disabled {
-            opacity: 0.5;
-            cursor: default;
-            box-shadow: none;
-        }
+.ctrl { display: flex; align-items: center; gap: 8px; }
+.ctrl-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 
-        .status-text {
-            font-size: 12px;
-            color: var(--muted);
-        }
+select, input[type=number] {
+  background: var(--card); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  padding: 6px 10px; border-radius: 4px; outline: none;
+  transition: border-color .2s;
+}
+select:focus, input[type=number]:focus { border-color: var(--red); }
+input[type=number] { width: 75px; }
 
-        .status-text strong {
-            color: var(--accent);
-        }
+.btn-scan {
+  background: var(--red); color: #fff; border: none;
+  font-family: var(--display); font-size: 18px; letter-spacing: 3px;
+  padding: 7px 28px; border-radius: 4px; cursor: pointer;
+  transition: all .2s;
+  box-shadow: 0 0 0 rgba(255,58,58,0);
+}
+.btn-scan:hover  { box-shadow: 0 0 24px rgba(255,58,58,0.45); }
+.btn-scan:disabled { opacity: .35; cursor: not-allowed; }
 
-        .meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px 16px;
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 8px;
-        }
+.divider { width: 1px; height: 28px; background: var(--border); }
 
-        .meta span.label {
-            color: var(--text);
-            font-weight: 500;
-        }
+/* ── PROGRESS BAR ── */
+.progress-wrap {
+  position: relative; z-index: 10;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surf);
+  display: none;
+}
+.progress-wrap.visible { display: block; }
+.progress-inner {
+  padding: 10px 0;
+  display: flex; align-items: center; gap: 16px;
+}
+.progress-label { font-size: 11px; color: var(--muted); min-width: 280px; }
+.progress-pct   { font-size: 14px; font-weight: 700; color: var(--red); min-width: 46px; text-align: right; }
+.progress-track {
+  flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--red), var(--orange));
+  box-shadow: 0 0 8px var(--red);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
 
-        .table-wrap {
-            margin-top: 10px;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background: rgba(5, 6, 10, 0.9);
-        }
+/* ── STATS ── */
+.stats {
+  position: relative; z-index: 10;
+  display: flex; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.stat {
+  flex: 1; min-width: 130px;
+  padding: 14px 22px;
+  border-right: 1px solid var(--border);
+}
+.stat:last-child { border-right: none; }
+.stat-label {
+  font-size: 11px; color: var(--muted); letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 5px;
+}
+.stat-val {
+  font-family: var(--display); font-size: 24px; letter-spacing: 1px; line-height: 1;
+}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
+/* ── FILTER TABS ── */
+.filter-row {
+  position: relative; z-index: 10;
+  padding: 10px 28px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.f-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-right: 4px; }
+.ftab {
+  font-size: 11px; padding: 4px 14px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--border); color: var(--muted); background: transparent;
+  font-family: var(--mono); transition: all .15s; user-select: none;
+}
+.ftab.on  { border-color: var(--red); color: var(--red); background: rgba(255,58,58,0.1); }
+.ftab:hover:not(.on) { border-color: var(--border2); color: var(--text); }
 
-        thead {
-            background: linear-gradient(90deg, rgba(62, 166, 255, 0.1), rgba(107, 139, 255, 0.05));
-        }
+/* ── TABLE ── */
+.table-wrap {
+  position: relative; z-index: 10;
+  overflow-x: auto; overflow-y: auto;
+  max-height: calc(100vh - 340px);
+  min-height: 300px;
+}
 
-        th, td {
-            padding: 6px 8px;
-            text-align: right;
-            white-space: nowrap;
-        }
+table { width: 100%; border-collapse: collapse; }
 
-        th:first-child,
-        td:first-child {
-            text-align: center;
-        }
+thead tr {
+  border-bottom: 2px solid var(--border);
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg);
+}
 
-        th:nth-child(2),
-        td:nth-child(2) {
-            text-align: left;
-        }
+th {
+  padding: 12px 14px 10px;
+  font-size: 11px; letter-spacing: 1px; color: var(--muted);
+  text-transform: uppercase; text-align: left;
+  cursor: pointer; white-space: nowrap; user-select: none;
+  transition: color .15s;
+}
+th:hover { color: var(--text); }
+th.sorted { color: var(--red); }
 
-        th {
-            border-bottom: 1px solid var(--border);
-            color: var(--muted);
-            font-weight: 500;
-        }
+tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background .1s;
+  animation: rowSlide .2s ease both;
+}
+@keyframes rowSlide {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+tbody tr:hover { background: rgba(255,58,58,0.04); }
 
-        tbody tr:nth-child(odd) {
-            background: rgba(12, 13, 22, 0.9);
-        }
+/* 거리 기반 row 강조 */
+tbody tr.zone-danger { border-left: 3px solid var(--red);    background: rgba(255,58,58,0.07); }
+tbody tr.zone-watch  { border-left: 3px solid var(--orange); background: rgba(255,140,0,0.05); }
+tbody tr.zone-safe   { border-left: 3px solid var(--green);  background: rgba(0,229,160,0.03); }
 
-        tbody tr:nth-child(even) {
-            background: var(--row-alt);
-        }
+td {
+  padding: 12px 14px;
+  font-size: 13px; white-space: nowrap;
+}
 
-        tbody tr:hover {
-            background: rgba(45, 55, 72, 0.7);
-        }
+/* 심볼 */
+.sym-wrap { display: flex; flex-direction: column; gap: 2px; }
+.sym-name { font-family: var(--display); font-size: 18px; color: #fff; letter-spacing: .5px; }
+.sym-price { font-size: 11px; color: var(--muted); }
 
-        .dir-bull {
-            color: var(--good);
-            font-weight: 600;
-        }
+/* 청산 집중가 */
+.liq-price-wrap { display: flex; flex-direction: column; gap: 3px; }
+.liq-price-val  { font-size: 15px; font-weight: 700; color: var(--red); }
+.liq-price-sub  { font-size: 10px; color: var(--muted); }
 
-        .dir-bear {
-            color: var(--bad);
-            font-weight: 600;
-        }
+/* 거리 표시 — 핵심 컬럼 */
+.dist-wrap {
+  display: flex; align-items: center; gap: 10px;
+}
+.dist-pct {
+  font-family: var(--display);
+  font-size: 22px; letter-spacing: 1px;
+  min-width: 80px;
+}
+.dist-below { color: var(--red); }    /* 현재가 아래 = 롱 스퀴즈 임박 */
+.dist-above { color: var(--green); }  /* 현재가 위 = 아직 여유 */
 
-        .chg-pos {
-            color: var(--good);
-        }
+/* 거리 게이지 바 */
+.dist-gauge {
+  width: 100px; height: 8px;
+  background: var(--border); border-radius: 4px; overflow: hidden;
+  position: relative;
+}
+.dist-gauge-fill {
+  height: 100%; border-radius: 4px;
+  transition: width .5s ease;
+}
+.dist-gauge-marker {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: rgba(255,255,255,0.4);
+}
 
-        .chg-neg {
-            color: var(--bad);
-        }
+/* 방향 화살표 */
+.dir-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 3px; font-size: 11px;
+  font-weight: 700; letter-spacing: 1px;
+}
+.dir-below {
+  background: rgba(255,58,58,0.18); color: var(--red);
+  border: 1px solid rgba(255,58,58,0.4);
+}
+.dir-above {
+  background: rgba(0,229,160,0.12); color: var(--green);
+  border: 1px solid rgba(0,229,160,0.3);
+}
 
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
+/* OI 집중도 바 */
+.oi-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.oi-bar-track {
+  width: 80px; height: 5px;
+  background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.oi-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--purple));
+}
+.oi-bar-val { font-size: 12px; color: var(--cyan); }
 
-            h1 {
-                font-size: 16px;
-            }
+/* 레버리지 가정 배지 */
+.lev-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 2px;
+  font-size: 11px; font-weight: 700;
+  background: rgba(168,85,247,0.15); color: var(--purple);
+  border: 1px solid rgba(168,85,247,0.3);
+}
 
-            .panel {
-                padding: 10px;
-            }
+/* 위험도 배지 */
+.risk-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 3px;
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+}
+.risk-extreme {
+  background: rgba(255,58,58,0.2); color: var(--red);
+  border: 1px solid rgba(255,58,58,0.5);
+  animation: riskPulse 1.8s ease-in-out infinite;
+}
+@keyframes riskPulse {
+  0%,100% { box-shadow: 0 0 6px rgba(255,58,58,0.2); }
+  50%      { box-shadow: 0 0 16px rgba(255,58,58,0.5); }
+}
+.risk-high {
+  background: rgba(255,140,0,0.15); color: var(--orange);
+  border: 1px solid rgba(255,140,0,0.4);
+}
+.risk-mid {
+  background: rgba(255,215,0,0.1); color: var(--yellow);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.risk-low {
+  background: rgba(0,229,160,0.08); color: var(--green);
+  border: 1px solid rgba(0,229,160,0.25);
+}
 
-            th, td {
-                padding: 5px 6px;
-                font-size: 11px;
-            }
-        }
-    </style>
+/* 24h 변동 */
+.chg-neg { color: var(--red);   font-weight: 700; }
+.chg-pos { color: var(--green); font-weight: 700; }
+
+/* 빈 상태 */
+.empty {
+  text-align: center; padding: 80px 20px;
+  font-size: 13px; color: var(--muted); letter-spacing: 1px;
+  display: none;
+}
+.empty-icon { font-size: 40px; margin-bottom: 16px; }
+
+/* 스크롤바 */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* 컬럼 툴팁 */
+th[title] { cursor: help; }
+
+/* 주의사항 footer */
+.disclaimer {
+  position: relative; z-index: 10;
+  padding: 8px 28px;
+  font-size: 10px; color: var(--dim);
+  border-top: 1px solid var(--border);
+  letter-spacing: .5px;
+}
+</style>
 </head>
 <body>
-<div class="app">
-    <h1>Binance Perp USDT — 4H/1H 방향 + 직전 15m 반대봉 스캐너</h1>
-    <div class="subtitle">
-        모든 USDT 선물 페어 중에서
-        <strong>현재 4H·1H 방향이 같고, 직전 15m 봉이 그 반대인 심볼</strong>만 추려서
-        <strong>4H 기반 24h 가격 증감률 순</strong>으로 정렬합니다.
-        (각 심볼당 15m 데이터 한 번만 요청)
-    </div>
 
-    <div class="panel">
-        <div class="controls">
-            <button id="scanBtn">스캔 시작</button>
-            <div class="status-text" id="statusText">대기 중</div>
-        </div>
-
-        <div class="meta">
-            <div><span class="label">USDT Perp 심볼 수:</span> <span id="symbolCount">-</span>개</div>
-            <div><span class="label">마지막 스캔:</span> <span id="lastScan">-</span></div>
-            <div><span class="label">다음 자동 스캔(00/15/30/45분):</span> <span id="nextScan">-</span></div>
-        </div>
+<!-- Header -->
+<header class="header">
+  <div class="brand">
+    <div class="brand-icon">🎯</div>
+    <div>
+      <div class="brand-title">LONG SQUEEZE MAP</div>
+      <div class="brand-sub">BINANCE USDT PERP · 롱 청산 집중 가격대 스캐너</div>
     </div>
-
-    <div class="table-wrap">
-        <table id="resultTable">
-            <thead>
-            <tr>
-                <th>#</th>
-                <th>심볼</th>
-                <th>4H</th>
-                <th>1H</th>
-                <th>직전 15m</th>
-                <th>4H 기반 24h 증감률</th>
-            </tr>
-            </thead>
-            <tbody>
-            <!-- 결과 행 -->
-            </tbody>
-        </table>
+  </div>
+  <div class="header-meta">
+    <div class="meta-item">
+      <span class="meta-label">스캔 시각</span>
+      <span class="meta-val" id="scanTime" style="color:var(--cyan)">—</span>
     </div>
+    <div class="meta-item">
+      <span class="meta-label">스캔 페어</span>
+      <span class="meta-val" id="scanTotal" style="color:var(--text)">—</span>
+    </div>
+  </div>
+</header>
+
+<!-- 방법론 안내 -->
+<div class="method-box">
+  <div class="method-item">
+    <span class="method-icon">📐</span>
+    <span><strong>OI 집중 가격</strong> = OI가 가장 많이 쌓인 시점의 캔들 가격</span>
+  </div>
+  <div class="method-item">
+    <span class="method-icon">⚡</span>
+    <span><strong>추정 청산가</strong> = OI 집중가 × (1 − 1/레버리지)</span>
+  </div>
+  <div class="method-item">
+    <span class="method-icon">📏</span>
+    <span><strong>거리</strong> = (현재가 − 청산가) / 현재가 × 100</span>
+  </div>
+  <div class="method-item">
+    <span class="method-icon">⚠️</span>
+    <span style="color:var(--yellow)"><strong>거리 가까울수록</strong> 롱 스퀴즈 임박</span>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="ctrl">
+    <span class="ctrl-label">가정 레버리지</span>
+    <select id="cfgLev">
+      <option value="5">5x</option>
+      <option value="10" selected>10x</option>
+      <option value="15">15x</option>
+      <option value="20">20x</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-label">OI 기준봉</span>
+    <select id="cfgTf">
+      <option value="15m">15분봉</option>
+      <option value="1h" selected>1시간봉</option>
+      <option value="4h">4시간봉</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-label">조회 봉 수</span>
+    <input type="number" id="cfgLimit" value="48" min="12" max="200">
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-label">최소 거래량</span>
+    <select id="cfgVol">
+      <option value="5000000">$5M</option>
+      <option value="10000000" selected>$10M</option>
+      <option value="30000000">$30M</option>
+      <option value="100000000">$100M</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-label">청산가 방향</span>
+    <select id="cfgDir">
+      <option value="below" selected>현재가 아래만 (위험)</option>
+      <option value="all">전체</option>
+    </select>
+  </div>
+  <div class="divider"></div>
+  <button class="btn-scan" id="btnScan" onclick="runScan()">SCAN</button>
+</div>
+
+<!-- Progress -->
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-inner">
+    <span class="progress-label" id="progressLabel">스캔 준비 중...</span>
+    <span class="progress-pct" id="progressPct">0%</span>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">전체 후보</div>
+    <div class="stat-val" id="sTotal" style="color:var(--cyan)">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">🔴 5% 이내 위험</div>
+    <div class="stat-val" id="sDanger" style="color:var(--red)">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">🟠 10% 이내 주의</div>
+    <div class="stat-val" id="sWatch" style="color:var(--orange)">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">최근접 페어</div>
+    <div class="stat-val" id="sNearest" style="color:var(--red)">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">평균 거리</div>
+    <div class="stat-val" id="sAvgDist" style="color:var(--text)">—</div>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="filter-row">
+  <span class="f-label">필터:</span>
+  <div class="ftab on"  data-f="all"     onclick="setTab(this,'all')">ALL</div>
+  <div class="ftab"     data-f="danger"  onclick="setTab(this,'danger')">🔴 5% 이내</div>
+  <div class="ftab"     data-f="watch"   onclick="setTab(this,'watch')">🟠 10% 이내</div>
+  <div class="ftab"     data-f="drop"    onclick="setTab(this,'drop')">📉 24H 하락 중</div>
+  <div class="ftab"     data-f="highoi"  onclick="setTab(this,'highoi')">📊 OI 집중도 높음</div>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:32px">#</th>
+        <th onclick="doSort('symbol')">심볼</th>
+        <th onclick="doSort('distPct')" class="sorted" title="청산 집중가까지 현재가 대비 거리">
+          📏 거리 ↑</th>
+        <th onclick="doSort('liqPrice')" title="OI 집중 구간 기준 추정 롱 청산가">
+          💥 추정 청산가</th>
+        <th onclick="doSort('oiPeakPrice')" title="OI가 가장 많이 쌓인 가격 (평균 진입가 추정)">
+          📌 OI 집중가</th>
+        <th onclick="doSort('oiConc')" title="OI 집중도: 최대 OI / 평균 OI">
+          📊 OI 집중도</th>
+        <th onclick="doSort('change24h')" title="24시간 가격 변동률">
+          24H 변동</th>
+        <th title="가정 레버리지">레버리지</th>
+        <th onclick="doSort('risk')">위험도</th>
+        <th>위치</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="emptyMsg">
+    <div class="empty-icon">🎯</div>
+    SCAN 버튼을 눌러 전체 USDT 페어를 분석합니다.<br>
+    <span style="font-size:11px;color:var(--dim);margin-top:8px;display:block">
+      Binance OI 히스토리 + 캔들 데이터 기반 추정
+    </span>
+  </div>
+</div>
+
+<div class="disclaimer">
+  ⚠️ 본 스캐너는 Binance OI 히스토리와 가격 데이터를 기반으로 청산가를 추정합니다.
+  실제 청산 집중 구간과 차이가 있을 수 있으며, 투자 결정의 단독 근거로 사용하지 마세요.
 </div>
 
 <script>
-    const BASE_URL = "https://fapi.binance.com";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let allRows  = [];
+let sortKey  = 'distPct';
+let sortAsc  = true;
+let activeTab = 'all';
 
-    // 요청 튜닝: 1분 안 + 레이트리밋(2400/min) 안 넘도록
-    const CONCURRENCY = 4;             // 동시에 처리할 심볼 수
-    const PER_REQUEST_DELAY_MS = 120;  // 심볼 하나 처리 후 딜레이(ms)
+const BASE = 'https://fapi.binance.com';
 
-    // 15m만 써서 4H/1H/직전15m/24h증감률 전부 계산
-    const HOUR = 60 * 60 * 1000;
-    const FOUR_HOUR = 4 * HOUR;
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function api(path) {
+  const r = await fetch(BASE + path);
+  if (!r.ok) throw new Error(`${r.status} ${path}`);
+  return r.json();
+}
 
-    let allSymbols = [];
-    let isScanning = false;
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CORE: 심볼별 OI 집중 가격 계산
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function analyzeSymbol(symbol, tf, limit, leverage) {
+  // OI 히스토리 (5분봉 단위 최대 500개)
+  // tf별 period 매핑
+  const periodMap = { '15m': '5m', '1h': '15m', '4h': '1h' };
+  const oiPeriod  = periodMap[tf] || '15m';
+  // OI limit을 봉 수에 맞게 조정
+  const oiLimit   = Math.min(500, limit * { '15m': 3, '1h': 4, '4h': 4 }[tf] || 4);
 
-    let autoScanActive = false;
-    let autoScanTimeoutId = null;
-    let autoScanScheduledOnce = false;
-    let autoScanPending = false; // 스캔 중에 자동스캔 타이밍 온 경우 1회 예약용
+  const [oiHist, klines] = await Promise.all([
+    api(`/futures/data/openInterestHist?symbol=${symbol}&period=${oiPeriod}&limit=${oiLimit}`),
+    api(`/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=${limit}`),
+  ]);
 
-    const els = {
-        scanBtn: document.getElementById("scanBtn"),
-        statusText: document.getElementById("statusText"),
-        symbolCount: document.getElementById("symbolCount"),
-        lastScan: document.getElementById("lastScan"),
-        nextScan: document.getElementById("nextScan"),
-        tableBody: document.querySelector("#resultTable tbody")
-    };
+  if (!oiHist?.length || !klines?.length) return null;
 
-    function setStatus(msg, isBusy = false) {
-        els.statusText.innerHTML = msg;
-        els.scanBtn.disabled = isBusy;
+  // ── OI 히스토리를 타임스탬프로 맵핑
+  const oiMap = {};
+  for (const o of oiHist) {
+    oiMap[o.timestamp] = parseFloat(o.sumOpenInterestValue);
+  }
+
+  // ── 캔들별로 해당 시간대 OI 매칭
+  const candleOI = klines.map(k => {
+    const openTs  = k[0];
+    const closeTs = k[6];
+    const open    = parseFloat(k[1]);
+    const high    = parseFloat(k[2]);
+    const low     = parseFloat(k[3]);
+    const close   = parseFloat(k[4]);
+    const mid     = (open + close) / 2;
+
+    // 해당 캔들 시간대의 OI 찾기 (가장 가까운 timestamp)
+    let bestOI = 0;
+    for (const [ts, val] of Object.entries(oiMap)) {
+      const t = parseInt(ts);
+      if (t >= openTs && t <= closeTs + 60000) {
+        bestOI = Math.max(bestOI, val);
+      }
     }
 
-    function formatNumber(value, decimals = 2) {
-        if (value === null || value === undefined || isNaN(value)) return "-";
-        const num = Number(value);
-        const fixed = num.toFixed(decimals);
-        const parts = fixed.split(".");
-        parts[0] = Number(parts[0]).toLocaleString("en-US");
-        return parts.join(".");
+    return { openTs, close, mid, high, low, oi: bestOI };
+  });
+
+  // OI 값이 있는 캔들만 필터
+  const validCandles = candleOI.filter(c => c.oi > 0);
+  if (validCandles.length < 3) return null;
+
+  // ── OI 최대 집중 캔들 찾기
+  const maxOI  = Math.max(...validCandles.map(c => c.oi));
+  const avgOI  = validCandles.reduce((s, c) => s + c.oi, 0) / validCandles.length;
+  const oiConc = maxOI / Math.max(avgOI, 1); // 집중도 배수
+
+  const peakCandle = validCandles.find(c => c.oi === maxOI);
+  if (!peakCandle) return null;
+
+  // ── 추정 평균 진입가 = OI 집중 캔들의 중간값
+  const oiPeakPrice = peakCandle.mid;
+
+  // ── 추정 롱 청산가 = 진입가 × (1 - 1/leverage)
+  // 예: 진입가 100, 10x → 청산가 = 100 × (1 - 0.1) = 90
+  const liqPrice = oiPeakPrice * (1 - 1 / leverage);
+
+  return { oiPeakPrice, liqPrice, oiConc, maxOI, avgOI };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN SCAN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function runScan() {
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true;
+  showProgress(true);
+  setProgress(0, '티커 수집 중...');
+
+  try {
+    const leverage = parseInt(document.getElementById('cfgLev').value);
+    const tf       = document.getElementById('cfgTf').value;
+    const limit    = parseInt(document.getElementById('cfgLimit').value);
+    const minVol   = parseFloat(document.getElementById('cfgVol').value);
+    const dirFilter = document.getElementById('cfgDir').value;
+
+    // 1. 전체 티커
+    const tickers = await api('/fapi/v1/ticker/24hr');
+    const usdt = tickers
+      .filter(t => t.symbol.endsWith('USDT'))
+      .filter(t => parseFloat(t.quoteVolume) >= minVol);
+
+    document.getElementById('scanTotal').textContent = usdt.length;
+    setProgress(5, `${usdt.length}개 USDT 페어 분석 시작...`);
+
+    const results = [];
+    const BATCH = 8; // 병렬 처리 수
+
+    for (let i = 0; i < usdt.length; i += BATCH) {
+      const batch = usdt.slice(i, i + BATCH);
+      const pct   = Math.round(5 + ((i / usdt.length) * 90));
+      setProgress(pct, `분석 중... ${i + 1}~${Math.min(i + BATCH, usdt.length)} / ${usdt.length} (${batch.map(b => b.symbol.replace('USDT','')).join(', ')})`);
+
+      const batchResults = await Promise.allSettled(
+        batch.map(async t => {
+          const price    = parseFloat(t.lastPrice);
+          const change24 = parseFloat(t.priceChangePercent);
+
+          const analysis = await analyzeSymbol(t.symbol, tf, limit, leverage);
+          if (!analysis) return null;
+
+          const { oiPeakPrice, liqPrice, oiConc } = analysis;
+
+          // 거리 계산: (현재가 - 청산가) / 현재가 × 100
+          // 양수 = 청산가가 현재가 아래 (롱 청산 위험)
+          // 음수 = 청산가가 현재가 위 (이미 지나쳤거나 이상한 케이스)
+          const distPct = ((price - liqPrice) / price) * 100;
+          const isBelow = liqPrice < price; // 청산가가 현재가 아래
+
+          // 방향 필터
+          if (dirFilter === 'below' && !isBelow) return null;
+
+          // 위험도 점수 (거리 가까울수록 높음)
+          let risk = 0;
+          if (distPct >= 0 && distPct <= 3)   risk = 4; // EXTREME
+          else if (distPct <= 5)               risk = 3; // HIGH
+          else if (distPct <= 10)              risk = 2; // MID
+          else                                 risk = 1; // LOW
+
+          return {
+            symbol:      t.symbol.replace('USDT', ''),
+            fullSym:     t.symbol,
+            price,
+            change24h:   change24,
+            oiPeakPrice,
+            liqPrice,
+            distPct:     isBelow ? distPct : -Math.abs(distPct),
+            isBelow,
+            oiConc,
+            leverage,
+            risk,
+            vol:         parseFloat(t.quoteVolume),
+          };
+        })
+      );
+
+      for (const r of batchResults) {
+        if (r.status === 'fulfilled' && r.value) results.push(r.value);
+      }
+
+      // Rate limit 방지
+      await sleep(120);
     }
 
-    function formatTime(date) {
-        return date.toLocaleString("ko-KR", {
-            hour12: false,
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit"
-        });
+    setProgress(98, '결과 정렬 중...');
+    allRows = results;
+    renderTable();
+    updateStats();
+
+    document.getElementById('scanTime').textContent =
+      new Date().toLocaleTimeString('ko-KR');
+
+    setProgress(100, `완료 — ${results.length}개 페어 분석`);
+    await sleep(600);
+
+  } catch (e) {
+    console.error(e);
+    setProgress(0, '오류: ' + e.message);
+    await sleep(2000);
+  } finally {
+    showProgress(false);
+    btn.disabled = false;
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENDER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderTable() {
+  let data = [...allRows];
+
+  // Tab filter
+  if (activeTab === 'danger') data = data.filter(r => r.isBelow && r.distPct <= 5);
+  if (activeTab === 'watch')  data = data.filter(r => r.isBelow && r.distPct <= 10);
+  if (activeTab === 'drop')   data = data.filter(r => r.change24h < 0);
+  if (activeTab === 'highoi') data = data.filter(r => r.oiConc >= 2);
+
+  // Sort
+  data.sort((a, b) => {
+    let av = a[sortKey] ?? 0, bv = b[sortKey] ?? 0;
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  const tbody = document.getElementById('tbody');
+  const empty  = document.getElementById('emptyMsg');
+
+  if (!data.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = data.map((r, i) => {
+    const delay = (i * 0.018).toFixed(3);
+
+    // Row 강조
+    let rowCls = '';
+    if (r.isBelow) {
+      if (r.distPct <= 5)       rowCls = 'zone-danger';
+      else if (r.distPct <= 10) rowCls = 'zone-watch';
+      else                      rowCls = 'zone-safe';
     }
 
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function fetchJson(url, context) {
-        const res = await fetch(url);
-        if (res.status === 418 || res.status === 429) {
-            const text = await res.text().catch(() => "");
-            throw new Error(
-                `Binance ${res.status} (레이트리밋/IP 밴 가능성) · ${context || ""} · ${text}`
-            );
-        }
-        if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            throw new Error(`HTTP ${res.status} · ${context || ""} · ${text}`);
-        }
-        return res.json();
-    }
-
-    async function loadExchangeInfo() {
-        if (allSymbols.length > 0) return allSymbols;
-
-        setStatus("심볼 정보 불러오는 중...", true);
-        const url = BASE_URL + "/fapi/v1/exchangeInfo";
-        const data = await fetchJson(url, "exchangeInfo");
-
-        allSymbols = data.symbols
-            .filter(s =>
-                s.contractType === "PERPETUAL" &&
-                s.quoteAsset === "USDT" &&
-                s.status === "TRADING"
-            )
-            .map(s => s.symbol);
-
-        els.symbolCount.textContent = allSymbols.length;
-        return allSymbols;
-    }
-
-    async function fetchKlines15m(symbol, limit) {
-        const url =
-            BASE_URL +
-            "/fapi/v1/klines?symbol=" +
-            symbol +
-            "&interval=15m&limit=" +
-            limit;
-        return await fetchJson(url, `klines 15m ${symbol}`);
-    }
-
-    function candleDir(open, close) {
-        if (close > open) return "bull"; // 양봉
-        if (close < open) return "bear"; // 음봉
-        return "doji";
-    }
-
-    function dirLabel(dir) {
-        if (dir === "bull") return "양봉 ▲";
-        if (dir === "bear") return "음봉 ▼";
-        return "중립";
-    }
-
-    function createRow(row, idx) {
-        const tr = document.createElement("tr");
-
-        const rankTd = document.createElement("td");
-        rankTd.textContent = idx + 1;
-        tr.appendChild(rankTd);
-
-        const symTd = document.createElement("td");
-        symTd.textContent = row.symbol;
-        tr.appendChild(symTd);
-
-        const h4Td = document.createElement("td");
-        h4Td.textContent = dirLabel(row.dir4h);
-        h4Td.className = row.dir4h === "bull" ? "dir-bull" : "dir-bear";
-        tr.appendChild(h4Td);
-
-        const h1Td = document.createElement("td");
-        h1Td.textContent = dirLabel(row.dir1h);
-        h1Td.className = row.dir1h === "bull" ? "dir-bull" : "dir-bear";
-        tr.appendChild(h1Td);
-
-        const m15Td = document.createElement("td");
-        m15Td.textContent = dirLabel(row.dir15mPrev);
-        m15Td.className =
-            row.dir15mPrev === "bull" ? "dir-bull" : "dir-bear";
-        tr.appendChild(m15Td);
-
-        const chgTd = document.createElement("td");
-        const chgCls = row.change24hPct >= 0 ? "chg-pos" : "chg-neg";
-        chgTd.className = chgCls;
-        chgTd.textContent = formatNumber(row.change24hPct, 2) + "%";
-        tr.appendChild(chgTd);
-
-        return tr;
-    }
-
-    function appendRow(row, idx) {
-        const tr = createRow(row, idx);
-        els.tableBody.appendChild(tr);
-    }
-
-    function renderTable(rows) {
-        const tbody = els.tableBody;
-        tbody.innerHTML = "";
-
-        if (!rows || rows.length === 0) {
-            const tr = document.createElement("tr");
-            const td = document.createElement("td");
-            td.colSpan = 6;
-            td.style.textAlign = "center";
-            td.style.padding = "14px 8px";
-            td.style.color = "var(--muted)";
-            td.textContent = "조건을 만족하는 심볼이 없습니다.";
-            tr.appendChild(td);
-            tbody.appendChild(tr);
-            return;
-        }
-
-        rows.forEach((row, idx) => {
-            tbody.appendChild(createRow(row, idx));
-        });
-    }
-
-    async function scanSymbol(symbol) {
-        // 한 번만 요청: 15m 120개 (약 30시간 분량)
-        const klines = await fetchKlines15m(symbol, 120);
-        const len = klines.length;
-        if (len < 10) return null;
-
-        // --- 직전 15m 방향 ---
-        const prev15 = klines[len - 2];
-        if (!prev15) return null;
-
-        const open15 = parseFloat(prev15[1]);
-        const close15 = parseFloat(prev15[4]);
-        const dir15 = candleDir(open15, close15);
-
-        // --- 1H / 4H 묶기 (15m에서 직접 집계) ---
-        let curHourId = null;
-        let hourOpen = null, hourClose = null;
-        let curFourId = null;
-        let curFour = null;
-        const fourGroups = [];
-
-        for (let i = 0; i < len; i++) {
-            const k = klines[i];
-            const t = Number(k[0]);
-            const o = parseFloat(k[1]);
-            const h = parseFloat(k[2]);
-            const l = parseFloat(k[3]);
-            const c = parseFloat(k[4]);
-
-            const hourId = Math.floor(t / HOUR);
-            const fourId = Math.floor(t / FOUR_HOUR);
-
-            // 1H 집계 (마지막 그룹만 필요)
-            if (curHourId === null || hourId !== curHourId) {
-                curHourId = hourId;
-                hourOpen = o;
-                hourClose = c;
-            } else {
-                hourClose = c;
-            }
-
-            // 4H 집계 (여러 그룹 → 배열에 저장)
-            if (curFourId === null || fourId !== curFourId) {
-                if (curFour !== null) {
-                    fourGroups.push(curFour);
-                }
-                curFourId = fourId;
-                curFour = {
-                    id: fourId,
-                    open: o,
-                    high: h,
-                    low: l,
-                    close: c
-                };
-            } else {
-                if (h > curFour.high) curFour.high = h;
-                if (l < curFour.low) curFour.low = l;
-                curFour.close = c;
-            }
-        }
-
-        if (curFour !== null) {
-            fourGroups.push(curFour);
-        }
-
-        const lastFour = fourGroups[fourGroups.length - 1] || null;
-        if (!lastFour || hourOpen === null || hourClose === null) {
-            return null;
-        }
-
-        const dir4 = candleDir(lastFour.open, lastFour.close);
-        const dir1 = candleDir(hourOpen, hourClose);
-
-        // 조건 1: 4H/1H 둘 다 양/음봉 & 같은 방향
-        if (dir4 === "doji" || dir1 === "doji") return null;
-        if (dir4 !== dir1) return null;
-
-        // 조건 2: 직전 15m 봉이 4H/1H와 반대 방향
-        if (dir15 === "doji") return null;
-        if (dir4 === "bull" && dir15 !== "bear") return null;
-        if (dir4 === "bear" && dir15 !== "bull") return null;
-
-        // --- 4H 기반 24h 증감률 계산 ---
-        let change24hPct = 0;
-        if (fourGroups.length > 1) {
-            // 24h 전 ≈ 6개의 4H 캔들 전 → 총 7개 필요
-            const idx24 = fourGroups.length - 7;
-            let open24 = fourGroups[0].open;
-            if (idx24 >= 0) {
-                open24 = fourGroups[idx24].open;
-            }
-            if (open24 > 0) {
-                change24hPct = (lastFour.close - open24) / open24 * 100;
-            }
-        }
-
-        return {
-            symbol,
-            dir4h: dir4,
-            dir1h: dir1,
-            dir15mPrev: dir15,
-            change24hPct
-        };
-    }
-
-    async function scanOnce() {
-        if (isScanning) {
-            console.log("스캔 중 중복 요청 방지");
-            return;
-        }
-
-        isScanning = true;
-        const startedAt = new Date();
-        setStatus("스캔 준비중...", true);
-
-        try {
-            await loadExchangeInfo();
-
-            const symbols = allSymbols.slice();
-            const results = [];
-            let index = 0;
-
-            // 새 스캔 시작할 때 테이블 초기화
-            els.tableBody.innerHTML = "";
-
-            async function worker() {
-                while (true) {
-                    const myIndex = index++;
-                    if (myIndex >= symbols.length) break;
-
-                    const symbol = symbols[myIndex];
-
-                    try {
-                        const row = await scanSymbol(symbol);
-                        if (row) {
-                            results.push(row);
-                            // 스캔되자마자 바로 테이블에 한 줄 추가
-                            appendRow(row, results.length - 1);
-                        }
-                    } catch (err) {
-                        console.error("심볼 스캔 실패:", symbol, err);
-                        if (
-                            String(err.message).includes("레이트리밋") ||
-                            String(err.message).includes("IP 밴") ||
-                            String(err.message).includes("418") ||
-                            String(err.message).includes("429")
-                        ) {
-                            throw err;
-                        }
-                    }
-
-                    if (PER_REQUEST_DELAY_MS > 0) {
-                        await sleep(PER_REQUEST_DELAY_MS);
-                    }
-                }
-            }
-
-            const workers = [];
-            for (let i = 0; i < CONCURRENCY; i++) {
-                workers.push(worker());
-            }
-
-            setStatus(
-                `심볼 스캔 중... (동시 ${CONCURRENCY}개, 심볼 ${symbols.length}개, 딜레이 ${PER_REQUEST_DELAY_MS}ms, 심볼당 요청 1회)`,
-                true
-            );
-            await Promise.all(workers);
-
-            // 전체 스캔 끝난 후: 24h 증감률 기준으로 다시 정렬해서 테이블 재렌더
-            results.sort((a, b) => b.change24hPct - a.change24hPct);
-            renderTable(results);
-
-            const finishedAt = new Date();
-            els.lastScan.textContent = formatTime(finishedAt);
-
-            const diffSec = Math.round(
-                (finishedAt.getTime() - startedAt.getTime()) / 1000
-            );
-
-            setStatus(
-                `<strong>완료</strong> · 결과 ${results.length}개 · 소요 ${diffSec}초`,
-                false
-            );
-        } catch (err) {
-            console.error(err);
-            setStatus("에러: " + err.message, false);
-
-            if (
-                String(err.message).includes("레이트리밋") ||
-                String(err.message).includes("IP 밴") ||
-                String(err.message).includes("418") ||
-                String(err.message).includes("429")
-            ) {
-                autoScanActive = false;
-                autoScanPending = false;
-                if (autoScanTimeoutId) {
-                    clearTimeout(autoScanTimeoutId);
-                    autoScanTimeoutId = null;
-                }
-                els.nextScan.textContent = "중지됨 (레이트리밋/IP 밴 감지)";
-            }
-        } finally {
-            isScanning = false;
-        }
-    }
-
-    // 자동스캔 타이머에서 직접 scanOnce() 부르지 않고,
-    // "스캔 중인지" 먼저 체크해서 끝난 뒤 딱 한 번만 돌리는 함수
-    async function checkAndRunAutoScan() {
-        if (!autoScanActive) return;
-
-        if (isScanning) {
-            // 이미 예약된 체크가 없을 때만 1회 예약
-            if (!autoScanPending) {
-                autoScanPending = true;
-                autoScanTimeoutId = setTimeout(checkAndRunAutoScan, 5000);
-            }
-            return;
-        }
-
-        // 스캔이 비어있다면 실제 실행
-        autoScanPending = false;
-        await scanOnce();
-        scheduleNextAutoScan();
-    }
-
-    function scheduleNextAutoScan() {
-        if (!autoScanActive) return;
-
-        if (autoScanTimeoutId) {
-            clearTimeout(autoScanTimeoutId);
-            autoScanTimeoutId = null;
-        }
-
-        const now = new Date();
-        const next = new Date(now);
-
-        // 초/밀리초는 0으로 맞추고 기준만 분 단위로 계산
-        next.setSeconds(0, 0);
-
-        const totalMinutes =
-            now.getMinutes() +
-            now.getSeconds() / 60 +
-            now.getMilliseconds() / 60000;
-
-        // 항상 "현재보다 이후"인 다음 15분 단위
-        // 예) 10:10.xx → 10:15, 10:15.00 → 10:30, 10:59.xx → 11:00
-        let nextQuarter = Math.floor(totalMinutes / 15) * 15 + 15;
-
-        if (nextQuarter >= 60) {
-            next.setHours(now.getHours() + 1);
-            next.setMinutes(nextQuarter - 60); // 보통 0
-        } else {
-            next.setMinutes(nextQuarter);
-        }
-
-        const delay = next.getTime() - now.getTime(); // 항상 > 0
-
-        els.nextScan.textContent = formatTime(next);
-
-        // 타이머 만료 시 checkAndRunAutoScan으로 위임
-        autoScanTimeoutId = setTimeout(checkAndRunAutoScan, delay);
-    }
-
-    function init() {
-        els.scanBtn.addEventListener("click", async () => {
-            if (!autoScanActive) {
-                autoScanActive = true;
-            }
-
-            await scanOnce();
-
-            if (!autoScanScheduledOnce && autoScanActive) {
-                autoScanScheduledOnce = true;
-                scheduleNextAutoScan();
-            }
-        });
-
-        setStatus("대기 중 (스캔 시작 버튼을 눌러주세요)", false);
-    }
-
-    document.addEventListener("DOMContentLoaded", init);
+    // 거리 색상 및 게이지
+    const absDist  = Math.abs(r.distPct);
+    const distCls  = r.isBelow ? 'dist-below' : 'dist-above';
+    const gaugeW   = Math.min(100, Math.round(absDist * 4)); // 25% → 100px
+    const gaugeCol = r.distPct <= 5  ? '#ff3a3a' :
+                     r.distPct <= 10 ? '#ff8c00' :
+                     r.distPct <= 20 ? '#ffd700' : '#00e5a0';
+
+    // 방향 배지
+    const dirBadge = r.isBelow
+      ? `<span class="dir-badge dir-below">▼ 아래</span>`
+      : `<span class="dir-badge dir-above">▲ 위</span>`;
+
+    // OI 집중도 바
+    const oiBarW = Math.min(100, Math.round((r.oiConc / 5) * 100));
+    const oiConcHtml = `
+      <div class="oi-bar-wrap">
+        <div class="oi-bar-track">
+          <div class="oi-bar-fill" style="width:${oiBarW}%"></div>
+        </div>
+        <span class="oi-bar-val">${r.oiConc.toFixed(1)}x</span>
+      </div>`;
+
+    // 위험도 배지
+    let riskCls, riskTxt;
+    if      (r.risk === 4) { riskCls = 'risk-extreme'; riskTxt = '🔴 EXTREME'; }
+    else if (r.risk === 3) { riskCls = 'risk-high';    riskTxt = '🟠 HIGH'; }
+    else if (r.risk === 2) { riskCls = 'risk-mid';     riskTxt = '🟡 MID'; }
+    else                   { riskCls = 'risk-low';     riskTxt = '🟢 LOW'; }
+
+    // 24H 변동
+    const chgCls = r.change24h < 0 ? 'chg-neg' : 'chg-pos';
+    const chgTxt = (r.change24h >= 0 ? '+' : '') + r.change24h.toFixed(2) + '%';
+
+    // 가격 포맷
+    const fmtP = p => p >= 1000 ? p.toFixed(2) :
+                      p >= 1    ? p.toFixed(4) :
+                                  p.toFixed(6);
+
+    // 거리 시각화: 미니 price ruler
+    const rulerHtml = buildRuler(r.price, r.liqPrice, r.oiPeakPrice);
+
+    return `<tr class="${rowCls}" style="animation-delay:${delay}s" onclick="openChart('${r.fullSym}')">
+      <td style="color:var(--muted);font-size:12px">${i + 1}</td>
+      <td>
+        <div class="sym-wrap">
+          <span class="sym-name">${r.symbol}</span>
+          <span class="sym-price">$${fmtP(r.price)}</span>
+        </div>
+      </td>
+      <td>
+        <div class="dist-wrap">
+          <span class="dist-pct ${distCls}">${absDist.toFixed(2)}%</span>
+          <div class="dist-gauge">
+            <div class="dist-gauge-fill" style="width:${gaugeW}%;background:${gaugeCol}"></div>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="liq-price-wrap">
+          <span class="liq-price-val">$${fmtP(r.liqPrice)}</span>
+          <span class="liq-price-sub">추정 롱 청산가</span>
+        </div>
+      </td>
+      <td style="color:var(--cyan);font-size:13px">$${fmtP(r.oiPeakPrice)}</td>
+      <td>${oiConcHtml}</td>
+      <td class="${chgCls}">${chgTxt}</td>
+      <td><span class="lev-badge">${r.leverage}x</span></td>
+      <td><span class="risk-badge ${riskCls}">${riskTxt}</span></td>
+      <td>${rulerHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 미니 price ruler: 청산가 / OI집중가 / 현재가 상대 위치
+function buildRuler(price, liqPrice, oiPeakPrice) {
+  const lo  = Math.min(price, liqPrice, oiPeakPrice) * 0.995;
+  const hi  = Math.max(price, liqPrice, oiPeakPrice) * 1.005;
+  const rng = hi - lo || 1;
+
+  const pPos   = Math.round(((price       - lo) / rng) * 100);
+  const lPos   = Math.round(((liqPrice    - lo) / rng) * 100);
+  const oiPos  = Math.round(((oiPeakPrice - lo) / rng) * 100);
+
+  return `
+  <div style="position:relative;width:110px;height:22px;background:var(--border);border-radius:3px;overflow:hidden">
+    <!-- OI 집중가 -->
+    <div style="position:absolute;top:0;bottom:0;left:${oiPos}%;width:2px;background:var(--cyan);opacity:.7"></div>
+    <!-- 청산가 -->
+    <div style="position:absolute;top:0;bottom:0;left:${lPos}%;width:2px;background:var(--red)"></div>
+    <!-- 현재가 -->
+    <div style="position:absolute;top:2px;bottom:2px;left:${pPos}%;width:3px;background:#fff;border-radius:1px;box-shadow:0 0 4px #fff"></div>
+    <!-- 라벨 -->
+    <div style="position:absolute;bottom:1px;left:2px;font-size:8px;color:var(--dim)">L</div>
+    <div style="position:absolute;bottom:1px;right:2px;font-size:8px;color:var(--dim)">H</div>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateStats() {
+  const n       = allRows.length;
+  const danger  = allRows.filter(r => r.isBelow && r.distPct <= 5).length;
+  const watch   = allRows.filter(r => r.isBelow && r.distPct > 5 && r.distPct <= 10).length;
+  const nearest = allRows.filter(r => r.isBelow)
+    .sort((a, b) => a.distPct - b.distPct)[0];
+  const avgDist = n ? (allRows.filter(r=>r.isBelow)
+    .reduce((s, r) => s + r.distPct, 0) / Math.max(1, allRows.filter(r=>r.isBelow).length)) : 0;
+
+  document.getElementById('sTotal').textContent   = n;
+  document.getElementById('sDanger').textContent  = danger;
+  document.getElementById('sWatch').textContent   = watch;
+  document.getElementById('sNearest').textContent = nearest
+    ? `${nearest.symbol} (${nearest.distPct.toFixed(1)}%)` : '—';
+  document.getElementById('sAvgDist').textContent = avgDist.toFixed(1) + '%';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SORT / TAB
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function doSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = true; }
+  document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
+  event.currentTarget.classList.add('sorted');
+  renderTable();
+}
+
+function setTab(el, f) {
+  activeTab = f;
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  renderTable();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showProgress(v) {
+  document.getElementById('progressWrap').classList.toggle('visible', v);
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progressFill').style.width  = pct + '%';
+  document.getElementById('progressPct').textContent   = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+function openChart(sym) {
+  window.open(`https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`, '_blank');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 빈 상태 표시
+document.getElementById('emptyMsg').style.display = 'block';
 </script>
 </body>
 </html>
