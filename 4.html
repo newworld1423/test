@@ -1,823 +1,1159 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8" />
-    <title>Binance Perp USDT — 1D 직전봉 단일캔들 스캐너</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-        :root {
-            --bg: #0b0c10;
-            --card: #121318;
-            --muted: #9aa0a6;
-            --text: #e8eaed;
-            --accent: #3ea6ff;
-            --good: #00c853;
-            --bad: #ff5252;
-            --warn: #ffd54f;
-            --border: #2a2e36;
-        }
-        body {
-            margin: 0;
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-                         Roboto, "Helvetica Neue", Arial, "Apple SD Gothic Neo",
-                         "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
-                         "Segoe UI Emoji";
-            background: var(--bg);
-            color: var(--text);
-        }
-        header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            background: linear-gradient(180deg, #0f1116, #0b0c10);
-        }
-        h1 {
-            margin: 0 0 6px 0;
-            font-size: 20px;
-            font-weight: 700;
-        }
-        .sub {
-            color: var(--muted);
-            font-size: 13px;
-        }
-        .wrap {
-            padding: 16px 20px 40px;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr auto auto auto;
-            gap: 12px;
-            align-items: end;
-            margin-bottom: 16px;
-        }
-        .field {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-        }
-        .field label {
-            display: block;
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-        .field input[type="date"],
-        .field input[type="text"],
-        .field input[type="number"] {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: #0c0d12;
-            color: var(--text);
-            font-size: 14px;
-        }
-        .field input[disabled] {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .actions {
-            display: flex;
-            gap: 8px;
-        }
-        button {
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: #1a1f2b;
-            color: var(--text);
-            font-weight: 600;
-            cursor: pointer;
-        }
-        button.primary { background: var(--accent); color: #001f33; border: none; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIQUIDATION HUNTER — Binance Futures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #04040a;
+  --surf:     #080812;
+  --card:     #0e0e1c;
+  --border:   #181830;
+  --border2:  #242444;
+  --red:      #ff2244;
+  --red2:     #ff6680;
+  --red-glow: rgba(255,34,68,0.15);
+  --orange:   #ff6d00;
+  --green:    #00e5a0;
+  --cyan:     #00cfff;
+  --yellow:   #ffe566;
+  --text:     #c8cce8;
+  --muted:    #3a3a60;
+  --mono:     'DM Mono', monospace;
+  --display:  'Orbitron', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
 
-        .progress {
-            margin: 12px 0 0;
-            height: 8px;
-            background: #0f1320;
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            overflow: hidden;
-        }
-        .bar { height: 100%; width: 0%; background: linear-gradient(90deg,#3ea6ff,#7cf3ff); }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+}
 
-        .summary {
-            margin: 16px 0;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .chip {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            padding: 8px 12px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-        .chip strong { color: var(--text); }
+/* ── Scanline effect ── */
+body::before {
+  content:'';
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,34,68,0.012) 2px,
+    rgba(255,34,68,0.012) 4px
+  );
+}
 
-        /* ---------- 테이블 영역 ---------- */
-        .table-wrap {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            background: var(--card);
-            overflow: visible;
-        }
-        .table-scroller {
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            border-radius: 14px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-            min-width: 1600px;
-        }
-        thead th {
-            position: sticky;
-            top: 0;
-            background: #111319;
-            z-index: 2;
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border);
-            text-align: right;
-            white-space: nowrap;
-        }
-        thead th:first-child,
-        tbody td:first-child { text-align: left; }
-        tbody td {
-            padding: 10px 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            text-align: right;
-            white-space: nowrap;
-        }
-        tbody tr:hover { background: rgba(62,166,255,0.06); }
-        .num.pos { color: var(--good); }
-        .num.neg { color: var(--bad); }
-        .muted { color: var(--muted); }
+/* ── Grid bg ── */
+body::after {
+  content:'';
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,34,68,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,34,68,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
 
-        .head-flex {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-        .sort-arrows {
-            display: inline-flex;
-            gap: 2px;
-        }
-        .sort-arrows button {
-            border: 1px solid var(--border);
-            background: #0f1320;
-            padding: 2px 6px;
-            line-height: 1;
-            border-radius: 6px;
-            color: var(--muted);
-            font-size: 11px;
-        }
-        .sort-arrows button.active { color: var(--accent); border-color: var(--accent); }
+/* ══════════════════════════════
+   HEADER
+══════════════════════════════ */
+.header {
+  position:relative;z-index:10;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background: linear-gradient(180deg, rgba(255,34,68,0.08) 0%, transparent 100%);
+}
 
-        .searchline {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin: 10px 0 16px;
-        }
-        .searchline input {
-            width: 240px;
-            padding: 9px 12px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: #0c0d12;
-            color: var(--text);
-        }
-        .note { font-size: 12px; color: var(--muted); }
-        .pill {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-weight: 700;
-        }
-        .pill.ok { background: rgba(0,200,83,.15); color: var(--good); }
-        .pill.no { background: rgba(255,82,82,.15); color: var(--bad); }
-    </style>
+.brand {
+  display:flex;align-items:center;gap:16px;
+}
+
+.brand-logo {
+  position:relative;
+  width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+}
+.brand-logo::before {
+  content:'';
+  position:absolute;inset:0;
+  border:2px solid var(--red);
+  border-radius:6px;
+  animation: logoSpin 8s linear infinite;
+  opacity:.5;
+}
+.brand-logo::after {
+  content:'';
+  position:absolute;inset:4px;
+  border:1px solid var(--red);
+  border-radius:3px;
+  animation: logoSpin 4s linear infinite reverse;
+  opacity:.3;
+}
+@keyframes logoSpin {
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+.brand-logo span {
+  position:relative;z-index:1;
+  font-size:20px;
+  filter: drop-shadow(0 0 8px var(--red));
+}
+
+.brand-info h1 {
+  font-family:var(--display);
+  font-size:15px;font-weight:900;
+  color:#fff;letter-spacing:3px;
+  text-shadow: 0 0 20px rgba(255,34,68,0.4);
+}
+.brand-info p {
+  font-size:9px;color:var(--muted);letter-spacing:3px;margin-top:2px;
+}
+
+.header-center {
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+
+/* Countdown to next candle */
+.countdown-wrap {
+  display:flex;align-items:center;gap:10px;
+}
+.countdown-label {
+  font-size:9px;color:var(--muted);letter-spacing:2px;
+}
+.countdown-val {
+  font-family:var(--display);
+  font-size:22px;font-weight:700;
+  color:var(--yellow);
+  text-shadow: 0 0 16px rgba(255,229,102,0.4);
+  min-width:60px;text-align:center;
+}
+.candle-bar-wrap {
+  width:160px;height:3px;
+  background:var(--border);border-radius:2px;overflow:hidden;
+}
+.candle-bar-fill {
+  height:100%;
+  background: linear-gradient(90deg, var(--yellow), var(--orange));
+  box-shadow: 0 0 8px var(--yellow);
+  border-radius:2px;
+  transition: width .5s linear;
+}
+
+.header-right {
+  display:flex;align-items:center;gap:16px;
+}
+
+.ws-status {
+  display:flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:20px;
+  font-size:9px;letter-spacing:2px;
+  border:1px solid;
+  transition:all .3s;
+}
+.ws-status.connected {
+  background:rgba(0,229,160,0.08);
+  border-color:rgba(0,229,160,0.3);
+  color:var(--green);
+}
+.ws-status.disconnected {
+  background:rgba(255,34,68,0.08);
+  border-color:rgba(255,34,68,0.3);
+  color:var(--red);
+}
+.ws-status.connecting {
+  background:rgba(255,229,102,0.08);
+  border-color:rgba(255,229,102,0.3);
+  color:var(--yellow);
+}
+.ws-dot {
+  width:6px;height:6px;border-radius:50%;
+  background:currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.ws-dot.pulse { animation:blink 1.2s ease-in-out infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ══════════════════════════════
+   STATS BAR
+══════════════════════════════ */
+.stats {
+  position:relative;z-index:10;
+  display:flex;flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+}
+.stat {
+  flex:1;min-width:110px;
+  padding:12px 18px;
+  border-right:1px solid var(--border);
+}
+.stat:last-child{border-right:none}
+.stat-l {
+  font-size:8px;color:var(--muted);letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:4px;
+}
+.stat-v {
+  font-family:var(--display);
+  font-size:19px;font-weight:700;line-height:1;
+}
+.c-red{color:var(--red)}
+.c-green{color:var(--green)}
+.c-cyan{color:var(--cyan)}
+.c-yellow{color:var(--yellow)}
+.c-orange{color:var(--orange)}
+
+/* ══════════════════════════════
+   CONTROLS
+══════════════════════════════ */
+.controls {
+  position:relative;z-index:10;
+  padding:10px 24px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+  background:rgba(255,34,68,0.02);
+}
+
+.ctrl {display:flex;align-items:center;gap:7px}
+.ctrl-l {
+  font-size:8px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;
+}
+
+select, input[type=number] {
+  background:var(--card);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:11px;
+  padding:5px 8px;border-radius:3px;outline:none;
+  transition:border-color .2s;
+}
+select:focus,input[type=number]:focus{border-color:var(--red)}
+input[type=number]{width:80px}
+
+.btn {
+  font-family:var(--mono);font-size:10px;letter-spacing:2px;
+  border-radius:3px;cursor:pointer;border:none;
+  transition:all .2s;text-transform:uppercase;padding:6px 16px;
+}
+.btn-red {
+  background:var(--red);color:#fff;
+  box-shadow:0 0 0 rgba(255,34,68,0);
+}
+.btn-red:hover{box-shadow:0 0 18px rgba(255,34,68,0.45)}
+.btn-outline-cyan {
+  background:transparent;color:var(--cyan);
+  border:1px solid rgba(0,207,255,0.3);
+}
+.btn-outline-cyan:hover,.btn-outline-cyan.on{
+  background:rgba(0,207,255,0.08);
+  border-color:var(--cyan);
+  box-shadow:0 0 12px rgba(0,207,255,0.2);
+}
+.btn-outline-yellow {
+  background:transparent;color:var(--yellow);
+  border:1px solid rgba(255,229,102,0.3);
+}
+.btn-outline-yellow:hover,.btn-outline-yellow.on{
+  background:rgba(255,229,102,0.08);
+  border-color:var(--yellow);
+}
+
+.divider{width:1px;height:26px;background:var(--border)}
+
+/* ══════════════════════════════
+   CANDLE HISTORY TABS
+══════════════════════════════ */
+.candle-tabs {
+  position:relative;z-index:10;
+  padding:8px 24px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+}
+.candle-tab-label{font-size:8px;color:var(--muted);letter-spacing:2px;margin-right:4px}
+.ctab {
+  font-size:9px;letter-spacing:1px;
+  padding:3px 11px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--border);color:var(--muted);
+  transition:all .15s;user-select:none;background:transparent;
+  font-family:var(--mono);
+}
+.ctab.active {
+  border-color:var(--red);color:var(--red);
+  background:var(--red-glow);
+}
+.ctab:hover:not(.active){border-color:var(--border2);color:var(--text)}
+
+/* ══════════════════════════════
+   LIVE FEED (right panel)
+══════════════════════════════ */
+.layout {
+  position:relative;z-index:10;
+  display:flex;height:calc(100vh - 260px);min-height:400px;
+}
+
+.main-panel {flex:1;overflow-y:auto;overflow-x:auto}
+.feed-panel {
+  width:280px;flex-shrink:0;
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+}
+
+.feed-header {
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.feed-title {
+  font-size:9px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;
+}
+.feed-count {
+  font-family:var(--display);font-size:11px;color:var(--red);
+}
+
+.feed-list {
+  flex:1;overflow-y:auto;
+  padding:4px 0;
+}
+
+.feed-item {
+  padding:6px 14px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid rgba(255,255,255,0.02);
+  animation: feedIn .2s ease both;
+}
+@keyframes feedIn {
+  from{opacity:0;transform:translateX(10px)}
+  to{opacity:1;transform:translateX(0)}
+}
+.feed-item:hover{background:rgba(255,34,68,0.04)}
+
+.feed-sym {
+  font-size:11px;font-weight:500;color:#fff;
+  width:70px;flex-shrink:0;
+}
+.feed-side {
+  font-size:8px;padding:2px 5px;border-radius:2px;
+  letter-spacing:1px;flex-shrink:0;
+}
+.feed-side.long {
+  background:rgba(255,34,68,0.2);color:var(--red);
+  border:1px solid rgba(255,34,68,0.35);
+}
+.feed-side.short {
+  background:rgba(0,229,160,0.15);color:var(--green);
+  border:1px solid rgba(0,229,160,0.3);
+}
+.feed-amt {
+  font-size:10px;color:var(--text);flex:1;text-align:right;
+}
+.feed-time {
+  font-size:8px;color:var(--muted);
+  flex-shrink:0;width:36px;text-align:right;
+}
+
+/* ══════════════════════════════
+   MAIN TABLE
+══════════════════════════════ */
+table {
+  width:100%;border-collapse:collapse;
+}
+thead tr {
+  border-bottom:2px solid var(--border);
+  position:sticky;top:0;z-index:5;
+  background:var(--bg);
+}
+th {
+  padding:10px 12px 8px;
+  font-size:8px;letter-spacing:2px;color:var(--muted);
+  text-transform:uppercase;text-align:left;
+  cursor:pointer;white-space:nowrap;user-select:none;
+  transition:color .15s;
+}
+th:hover{color:var(--text)}
+th.sorted{color:var(--red)}
+
+tbody tr {
+  border-bottom:1px solid rgba(255,255,255,0.025);
+  cursor:pointer;
+  transition:background .1s;
+  animation:rowIn .2s ease both;
+}
+@keyframes rowIn{
+  from{opacity:0;transform:translateX(-6px)}
+  to{opacity:1;transform:translateX(0)}
+}
+tbody tr:hover{background:rgba(255,34,68,0.04)}
+tbody tr.tier-1{
+  background:rgba(255,34,68,0.07);
+  border-left:3px solid var(--red);
+}
+tbody tr.tier-2{
+  background:rgba(255,109,0,0.04);
+  border-left:2px solid var(--orange);
+}
+
+td {
+  padding:10px 12px;
+  font-size:11px;white-space:nowrap;
+}
+
+.rank-cell{color:var(--muted);font-size:9px;width:28px}
+
+.sym-cell {
+  display:flex;flex-direction:column;gap:2px;
+}
+.sym-name {
+  font-family:var(--display);font-size:12px;font-weight:700;color:#fff;
+  letter-spacing:.5px;
+}
+.sym-sub{font-size:8px;color:var(--muted)}
+
+/* Liquidation bar */
+.liq-cell {
+  display:flex;align-items:center;gap:8px;
+}
+.liq-val {
+  font-family:var(--display);
+  font-size:13px;font-weight:700;
+  color:var(--red);
+  min-width:80px;
+  text-shadow: 0 0 10px rgba(255,34,68,0.35);
+}
+.liq-bar-wrap {
+  width:80px;height:4px;
+  background:var(--border);border-radius:2px;overflow:hidden;
+}
+.liq-bar-fill {
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--red),var(--orange));
+  box-shadow:0 0 8px var(--red);
+  transition:width .5s ease;
+}
+
+.count-cell{color:var(--cyan);font-family:var(--display);font-size:12px}
+.price-cell{color:var(--muted);font-size:10px}
+.change-cell{font-weight:600}
+.change-neg{color:var(--red)}
+.change-pos{color:var(--green)}
+.change-neu{color:var(--muted)}
+
+/* Candle visual */
+.candle-cell {
+  display:flex;align-items:center;gap:4px;
+  font-size:9px;
+}
+.candle-body {
+  display:inline-block;
+  height:14px;width:8px;border-radius:1px;
+  vertical-align:middle;
+}
+.candle-bear{background:var(--red);box-shadow:0 0 6px rgba(255,34,68,.4)}
+.candle-bull{background:var(--green);box-shadow:0 0 6px rgba(0,229,160,.3)}
+
+/* Intensity badge */
+.intensity {
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:2px;
+  font-size:8px;letter-spacing:1px;font-weight:600;
+  text-transform:uppercase;
+}
+.int-extreme{
+  background:rgba(255,34,68,0.2);color:var(--red);
+  border:1px solid rgba(255,34,68,0.45);
+  box-shadow:0 0 10px rgba(255,34,68,0.15);
+  animation:intPulse 1.5s ease-in-out infinite;
+}
+@keyframes intPulse{
+  0%,100%{box-shadow:0 0 10px rgba(255,34,68,0.15)}
+  50%{box-shadow:0 0 18px rgba(255,34,68,0.35)}
+}
+.int-high{
+  background:rgba(255,109,0,0.15);color:var(--orange);
+  border:1px solid rgba(255,109,0,.3);
+}
+.int-mid{
+  background:rgba(255,229,102,0.08);color:var(--yellow);
+  border:1px solid rgba(255,229,102,.25);
+}
+.int-low{
+  background:rgba(100,100,150,0.1);color:var(--muted);
+  border:1px solid var(--border2);
+}
+
+/* Prev candles sparkline */
+.spark {
+  display:flex;align-items:flex-end;gap:2px;height:20px;
+}
+.spark-bar {
+  width:6px;border-radius:1px 1px 0 0;
+  background:rgba(255,34,68,0.3);
+  min-height:2px;
+  transition:height .3s ease;
+}
+.spark-bar.current{background:var(--red);box-shadow:0 0 5px var(--red)}
+
+/* Empty */
+.empty{
+  text-align:center;padding:80px 20px;
+  font-size:11px;color:var(--muted);letter-spacing:2px;
+  display:none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Flash animation for new data */
+@keyframes flash {
+  0%{background:rgba(255,34,68,0.2)}
+  100%{background:transparent}
+}
+.flash{animation:flash .6s ease}
+
+/* ══ Notification toast ══ */
+.toast {
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  background:var(--card);border:1px solid var(--red);
+  border-radius:6px;padding:12px 18px;
+  font-size:11px;color:var(--text);
+  box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 20px rgba(255,34,68,.15);
+  display:none;
+  animation:toastIn .3s ease;
+  max-width:320px;
+}
+@keyframes toastIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.toast.show{display:block}
+.toast-title{
+  font-family:var(--display);font-size:10px;
+  color:var(--red);letter-spacing:2px;margin-bottom:4px;
+}
+
+@media(max-width:900px){
+  .feed-panel{display:none}
+  .layout{height:auto}
+  .main-panel{overflow-x:auto}
+}
+</style>
 </head>
 <body>
-    <header>
-        <h1>1일봉 단일캔들 스캐너 (Binance Perp USDT)</h1>
-        <div class="sub">
-            백테스트를 켜면 선택한 날짜(UTC)의 <strong>직전봉(D-1)</strong> 하나로 D일 결과를 검증하고,
-            끄면 <strong>현재 진행 중인 1D 캔들(오늘)</strong> 하나만으로 예측점수/예측확률을 계산합니다.
-            (성공/실패는 시가→종가 기준)
-        </div>
-    </header>
 
-    <div class="wrap">
-        <div class="controls">
-            <div class="field">
-                <label>스캔 기준 날짜 (UTC 00:00:00Z, 백테스트 ON에서만 사용)</label>
-                <input id="dateInput" type="date" />
-                <div class="note" style="margin-top:6px;">※ Binance 1D 캔들은 <strong>UTC</strong> 기준입니다.</div>
-            </div>
-            <div class="field">
-                <label>옵션</label>
-                <div>
-                    <label><input id="backtestChk" type="checkbox" /> 백테스트 (D일 실제 결과 포함)</label>
-                </div>
-                <div style="margin-top:6px;">
-                    <label><input id="minQuoteVolChk" type="checkbox" /> 기준 캔들 거래대금 하한(USDT)</label>
-                    <input id="minQuoteVol" type="number" placeholder="예: 5,000,000" style="margin-top:6px;" />
-                    <div class="note">※ 유동성 낮은 종목 제외용(선택, 백테스트/현재봉 공통)</div>
-                </div>
-            </div>
-            <div class="field">
-                <label>검색</label>
-                <div class="searchline">
-                    <input id="searchSym" type="text" placeholder="심볼 필터 (예: BTC, ETH...)" />
-                    <span class="note">표시된 목록 실시간 필터</span>
-                </div>
-            </div>
-            <div class="actions">
-                <button id="scanBtn" class="primary">스캔 시작</button>
-                <button id="stopBtn">중지</button>
-            </div>
-        </div>
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle">LIQUIDATION ALERT</div>
+  <div id="toastBody"></div>
+</div>
 
-        <div class="summary" id="summary"></div>
-
-        <div class="progress"><div class="bar" id="bar"></div></div>
-
-        <div class="table-wrap" style="margin-top:14px;">
-            <div class="table-scroller">
-                <table id="resultTable">
-                    <thead id="thead"></thead>
-                    <tbody id="tbody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <p class="note" style="margin-top:12px;">
-            * 점수 산식(단일 1D 캔들): <code>Score = 0.5·(방향×몸통비율) + 0.3·(2·CLV−1) + 0.2·(아랫꼬리−윗꼬리) + 0.1·tanh(범위%) + 0.1·(USDT 거래대금 z)</code><br>
-            * <strong>예측확률</strong>은 같은 날짜(또는 같은 기준일)의 전체 심볼 점수 분포를 z-score로 정규화 후 시그모이드로 변환한 상대적 확률값입니다.<br>
-            * 백테스트 ON: 선택한 날짜 D의 직전봉(D-1)을 기준으로 D일 시가→고가/시가→종가 수익률과 성공/실패를 확인합니다.<br>
-            * 백테스트 OFF: 오늘 진행 중인 1D 캔들(UTC 기준)을 기준으로 점수/확률만 계산합니다.
-        </p>
+<!-- Header -->
+<header class="header">
+  <div class="brand">
+    <div class="brand-logo"><span>⚡</span></div>
+    <div class="brand-info">
+      <h1>LIQUIDATION HUNTER</h1>
+      <p>BINANCE USDT PERPETUAL · REAL-TIME FORCE ORDER STREAM</p>
     </div>
-
-    <script>
-        "use strict";
-
-        // ==========================
-        // 유틸
-        // ==========================
-        function toUTCDateString(date = new Date()) {
-            const y = date.getUTCFullYear();
-            const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-            const d = String(date.getUTCDate()).padStart(2, "0");
-            return `${y}-${m}-${d}`;
-        }
-        function parseDateUTC(yyyy_mm_dd) {
-            return new Date(`${yyyy_mm_dd}T00:00:00.000Z`);
-        }
-        function tanh(x) {
-            const e2x = Math.exp(2 * x);
-            return (e2x - 1) / (e2x + 1);
-        }
-        function sigmoid(x) {
-            return 1 / (1 + Math.exp(-x));
-        }
-        function mean(arr) {
-            return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-        }
-        function stddev(arr) {
-            if (arr.length <= 1) return 1;
-            const m = mean(arr);
-            const v = mean(arr.map(x => (x - m) ** 2));
-            return Math.sqrt(v) || 1;
-        }
-        function fmtNum(x, d = 2) {
-            if (x === null || x === undefined || Number.isNaN(x)) return "-";
-            const v = Number(x);
-            const abs = Math.abs(v);
-            if (abs >= 1e10) return v.toExponential(2);
-            return v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
-        }
-        function fmtPct(x, d = 2) {
-            if (x === null || x === undefined || Number.isNaN(x)) return "-";
-            const v = Number(x);
-            const cls = v >= 0 ? "pos" : "neg";
-            return `<span class="num ${cls}">${fmtNum(v, d)}%</span>`;
-        }
-        function el(tag, attrs = {}, html = "") {
-            const e = document.createElement(tag);
-            Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
-            e.innerHTML = html;
-            return e;
-        }
-
-        // ==========================
-        // 컬럼 정의
-        // ==========================
-        function getBaseColumns(isBacktest) {
-            if (isBacktest) {
-                return [
-                    { key: "symbol",    label: "심볼" },
-                    { key: "prevOpen",  label: "O-1" },
-                    { key: "prevHigh",  label: "H-1" },
-                    { key: "prevLow",   label: "L-1" },
-                    { key: "prevClose", label: "C-1" },
-                    { key: "chgPct",    label: "등락률(%)" },
-                    { key: "rangePct",  label: "범위(%)" },
-                    { key: "bodyPct",   label: "몸통비율" },
-                    { key: "upperW",    label: "윗꼬리" },
-                    { key: "lowerW",    label: "아랫꼬리" },
-                    { key: "clv",       label: "CLV" },
-                    { key: "quoteVol",  label: "거래대금(USDT)" },
-                    { key: "score",     label: "예측점수(원시)" },
-                    { key: "prob",      label: "예측확률(%)" }
-                ];
-            }
-            // 백테스트 OFF: 기준 캔들은 "오늘 진행 중인 1D 캔들"
-            return [
-                { key: "symbol",    label: "심볼" },
-                { key: "prevOpen",  label: "O(기준)" },
-                { key: "prevHigh",  label: "H(기준)" },
-                { key: "prevLow",   label: "L(기준)" },
-                { key: "prevClose", label: "C(기준)" },
-                { key: "chgPct",    label: "등락률(%)" },
-                { key: "rangePct",  label: "범위(%)" },
-                { key: "bodyPct",   label: "몸통비율" },
-                { key: "upperW",    label: "윗꼬리" },
-                { key: "lowerW",    label: "아랫꼬리" },
-                { key: "clv",       label: "CLV" },
-                { key: "quoteVol",  label: "거래대금(USDT)" },
-                { key: "score",     label: "예측점수(원시)" },
-                { key: "prob",      label: "예측확률(%)" }
-            ];
-        }
-
-        const BACKTEST_COLUMNS = [
-            { key: "dayOpen",        label: "D 시가" },
-            { key: "dayLow",         label: "D 저가" },
-            { key: "dayHigh",        label: "D 고가" },
-            { key: "dayClose",       label: "D 종가" },
-            { key: "dayRetHighPct",  label: "D 수익률(시→고,%)" },
-            { key: "dayRetClosePct", label: "D 수익률(시→종,%)" },
-            { key: "result",         label: "결과" }
-        ];
-
-        // ==========================
-        // Binance API
-        // ==========================
-        const BASE = "https://fapi.binance.com";
-
-        async function fetchUSDTPerpSymbols(abortSignal) {
-            const url = `${BASE}/fapi/v1/exchangeInfo`;
-            const res = await fetch(url, { signal: abortSignal });
-            if (!res.ok) throw new Error("exchangeInfo error");
-            const data = await res.json();
-            const syms = data.symbols
-                .filter(s =>
-                    s.status === "TRADING" &&
-                    s.contractType === "PERPETUAL" &&
-                    s.quoteAsset === "USDT"
-                )
-                .map(s => s.symbol);
-            return syms;
-        }
-
-        async function fetchDailyCandle(symbol, openTimeMs, abortSignal) {
-            const start = openTimeMs;
-            const end = openTimeMs + 24 * 60 * 60 * 1000 - 1;
-            const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&startTime=${start}&endTime=${end}&limit=1`;
-            const res = await fetch(url, { signal: abortSignal });
-            if (!res.ok) throw new Error(`klines error ${symbol}`);
-            const arr = await res.json();
-            if (!Array.isArray(arr) || !arr.length) return null;
-            const k = arr[0];
-            return {
-                symbol,
-                openTime: Number(k[0]),
-                open: Number(k[1]),
-                high: Number(k[2]),
-                low: Number(k[3]),
-                close: Number(k[4]),
-                volume: Number(k[5]),
-                closeTime: Number(k[6]),
-                quoteVolume: Number(k[7]),
-                trades: Number(k[8]),
-                takerBuyBase: Number(k[9]),
-                takerBuyQuote: Number(k[10])
-            };
-        }
-
-        // ==========================
-        // 점수/확률 계산 (단일 캔들)
-        // ==========================
-        function featuresFromCandle(k) {
-            const O = k.open, H = k.high, L = k.low, C = k.close;
-            const QV = k.quoteVolume ?? 0;
-            const range = Math.max(1e-12, (H - L));
-            const body = Math.abs(C - O);
-            const dir = (C > O) ? 1 : (C < O) ? -1 : 0;
-
-            const bodyPct = body / range;
-            const upper = H - Math.max(C, O);
-            const lower = Math.min(C, O) - L;
-            const upperW = upper / range;
-            const lowerW = lower / range;
-            const clv = (C - L) / range;
-            const chgPct = (C - O) / (O || 1e-12) * 100;
-            const rangePct = (H - L) / (O || 1e-12) * 100;
-
-            return { dir, bodyPct, upperW, lowerW, clv, chgPct, rangePct, quoteVol: QV };
-        }
-
-        function buildScores(rows) {
-            const logs = rows.map(r => Math.log10(Math.max(1, r.features.quoteVol)));
-            const mu = mean(logs), sd = stddev(logs);
-            rows.forEach(r => {
-                const vZ = (Math.log10(Math.max(1, r.features.quoteVol)) - mu) / sd;
-                const f = r.features;
-                const score =
-                    0.5 * (f.dir * f.bodyPct) +
-                    0.3 * ((2 * f.clv) - 1) +
-                    0.2 * (f.lowerW - f.upperW) +
-                    0.1 * tanh(f.rangePct / 10) +
-                    0.1 * vZ;
-
-                r.score = score;
-                r._volZ = vZ;
-            });
-            const sArr = rows.map(r => r.score);
-            const sMu = mean(sArr), sSd = stddev(sArr);
-            const k = 1.2;
-            rows.forEach(r => {
-                const z = (r.score - sMu) / sSd;
-                r.prob = sigmoid(k * z);
-            });
-        }
-
-        // ==========================
-        // 렌더링
-        // ==========================
-        function updateTableMinWidth() {
-            const thCount = document.querySelectorAll('#thead th').length || 14;
-            const perCol = 120;
-            const min = Math.max(1400, thCount * perCol);
-            const table = document.getElementById('resultTable');
-            table.style.minWidth = `${min}px`;
-        }
-
-        function renderHeader(isBacktest, sortState) {
-            const thead = document.getElementById("thead");
-            thead.innerHTML = "";
-            const tr = document.createElement("tr");
-
-            const baseCols = getBaseColumns(isBacktest);
-            const cols = isBacktest ? [...baseCols, ...BACKTEST_COLUMNS] : baseCols;
-
-            cols.forEach(col => {
-                const th = document.createElement("th");
-                const wrap = el("div", { class: "head-flex" });
-                const label = el("span", {}, col.label);
-                const arrows = el("span", { class: "sort-arrows" });
-                const up = el("button", { "data-key": col.key, "data-dir": "asc", title: "오름차순" }, "▲");
-                const down = el("button", { "data-key": col.key, "data-dir": "desc", title: "내림차순" }, "▼");
-                if (sortState.key === col.key) {
-                    (sortState.dir === "asc" ? up : down).classList.add("active");
-                }
-                arrows.appendChild(up);
-                arrows.appendChild(down);
-                wrap.appendChild(label);
-                wrap.appendChild(arrows);
-                th.appendChild(wrap);
-                tr.appendChild(th);
-            });
-            thead.appendChild(tr);
-
-            thead.querySelectorAll(".sort-arrows button").forEach(btn => {
-                btn.addEventListener("click", () => {
-                    const key = btn.getAttribute("data-key");
-                    const dir = btn.getAttribute("data-dir");
-                    state.sort = { key, dir };
-                    renderHeader(state.isBacktest, state.sort);
-                    drawTable();
-                });
-            });
-
-            updateTableMinWidth();
-        }
-
-        function drawTable() {
-            const tbody = document.getElementById("tbody");
-            const { rows, isBacktest, sort, symbolFilter } = state;
-
-            const visible = rows.filter(r => {
-                if (!symbolFilter) return true;
-                return r.symbol.toLowerCase().includes(symbolFilter.toLowerCase());
-            });
-
-            visible.sort((a, b) => {
-                const k = sort.key;
-                const dir = sort.dir === "asc" ? 1 : -1;
-                const av = a[k];
-                const bv = b[k];
-                if (typeof av === "string" || typeof bv === "string") {
-                    return String(av).localeCompare(String(bv)) * dir;
-                }
-                return ((av ?? -Infinity) - (bv ?? -Infinity)) * dir;
-            });
-
-            const nf2 = (v) => fmtNum(v, 2);
-            const nf3 = (v) => fmtNum(v, 3);
-            const nf4 = (v) => fmtNum(v, 4);
-
-            const frag = document.createDocumentFragment();
-            visible.forEach(r => {
-                const tr = document.createElement("tr");
-                const cells = [];
-
-                // 기준 캔들 컬럼 (백테스트 ON일 때는 직전봉, OFF일 때는 현재봉)
-                cells.push(`<td>${r.symbol}</td>`);
-                cells.push(`<td>${nf4(r.prevOpen)}</td>`);
-                cells.push(`<td>${nf4(r.prevHigh)}</td>`);
-                cells.push(`<td>${nf4(r.prevLow)}</td>`);
-                cells.push(`<td>${nf4(r.prevClose)}</td>`);
-                cells.push(`<td>${fmtPct(r.chgPct)}</td>`);
-                cells.push(`<td>${fmtNum(r.rangePct, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.bodyPct * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.upperW * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.lowerW * 100, 2)}%</td>`);
-                cells.push(`<td>${fmtNum(r.clv, 3)}</td>`);
-                cells.push(`<td>${fmtNum(r.quoteVol, 0)}</td>`);
-                cells.push(`<td>${nf3(r.score)}</td>`);
-                cells.push(`<td>${fmtNum(r.prob * 100, 2)}%</td>`);
-
-                // 백테스트 컬럼
-                if (isBacktest) {
-                    const resPill = (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct >= 0)
-                        ? `<span class="pill ok">성공</span>`
-                        : (typeof r.dayRetClosePct === 'number' && r.dayRetClosePct < 0)
-                            ? `<span class="pill no">실패</span>` : `<span class="pill">-</span>`;
-
-                    cells.push(`<td>${r.dayOpen  != null ? nf4(r.dayOpen)  : '-'}</td>`);
-                    cells.push(`<td>${r.dayLow   != null ? nf4(r.dayLow)   : '-'}</td>`);
-                    cells.push(`<td>${r.dayHigh  != null ? nf4(r.dayHigh)  : '-'}</td>`);
-                    cells.push(`<td>${r.dayClose != null ? nf4(r.dayClose) : '-'}</td>`);
-                    cells.push(`<td>${typeof r.dayRetHighPct  === 'number' ? fmtPct(r.dayRetHighPct)  : '-'}</td>`);
-                    cells.push(`<td>${typeof r.dayRetClosePct === 'number' ? fmtPct(r.dayRetClosePct) : '-'}</td>`);
-                    cells.push(`<td>${resPill}</td>`);
-                }
-
-                tr.innerHTML = cells.join("");
-                frag.appendChild(tr);
-            });
-
-            tbody.innerHTML = "";
-            tbody.appendChild(frag);
-
-            // 요약 (성공률은 시→종 기준)
-            const sum = document.getElementById("summary");
-            sum.innerHTML = "";
-            const total = visible.length;
-            const top5 = visible.slice(0, 5).map(r => r.symbol).join(", ");
-            sum.appendChild(el("div", { class: "chip" }, `표시 종목: <strong>${total.toLocaleString()}</strong>개`));
-            sum.appendChild(el("div", { class: "chip" }, `정렬: <strong>${state.sort.key}</strong> (${state.sort.dir})`));
-            sum.appendChild(el("div", { class: "chip" }, `Top5: <strong>${top5 || "-"}</strong>`));
-
-            if (isBacktest) {
-                const tested = visible.filter(r => typeof r.dayRetClosePct === 'number');
-                const success = tested.filter(r => r.dayRetClosePct >= 0).length;
-                const rate = tested.length ? (success / tested.length) * 100 : 0;
-                sum.appendChild(el("div", { class: "chip" }, `백테스트 성공: <strong>${success}</strong> / ${tested.length} (${fmtNum(rate, 1)}%)`));
-            }
-        }
-
-        function setProgress(done, total) {
-            const bar = document.getElementById("bar");
-            const pct = total ? Math.floor(done / total * 100) : 0;
-            bar.style.width = `${pct}%`;
-        }
-
-        // ==========================
-        // 스캔 로직
-        // ==========================
-        const state = {
-            isBacktest: false,
-            rows: [],
-            sort: { key: "prob", dir: "desc" },
-            symbolFilter: "",
-            abortController: null,
-            running: false
-        };
-
-        function poolRun(list, limit, worker, onTick) {
-            return new Promise((resolve) => {
-                let i = 0, done = 0;
-                const total = list.length;
-                const results = new Array(total);
-                function next() {
-                    if (i >= total) return;
-                    const idx = i++;
-                    worker(list[idx], idx).then(res => {
-                        results[idx] = res;
-                    }).catch(() => {
-                        results[idx] = null;
-                    }).finally(() => {
-                        done++;
-                        onTick?.(done, total);
-                        if (done === total) resolve(results);
-                        else next();
-                    });
-                }
-                const c = Math.min(limit, total);
-                for (let k = 0; k < c; k++) next();
-            });
-        }
-
-        async function runScan() {
-            if (state.running) return;
-            state.running = true;
-            state.rows = [];
-            setProgress(0, 1);
-
-            const backtestChkEl = document.getElementById("backtestChk");
-            const isBacktest = backtestChkEl.checked;
-            const minQVOn = document.getElementById("minQuoteVolChk").checked;
-            const minQV = Number(document.getElementById("minQuoteVol").value || 0);
-            state.isBacktest = isBacktest;
-
-            // 기준 날짜 D (00:00:00Z)
-            // - 백테스트 ON  : 사용자가 고른 날짜(없으면 오늘 UTC)
-            // - 백테스트 OFF : 항상 오늘 UTC (현재 진행 중인 1D 캔들 기준)
-            const now = new Date();
-            const todayStr = toUTCDateString(now);
-            const dateInputEl = document.getElementById("dateInput");
-            const picked = (dateInputEl.value || "").trim();
-            const baseStr = isBacktest ? (picked || todayStr) : todayStr;
-            const D = parseDateUTC(baseStr).getTime();
-
-            // 헤더 렌더
-            renderHeader(isBacktest, state.sort);
-            drawTable();
-
-            // Abort
-            if (state.abortController) {
-                try { state.abortController.abort(); } catch (e) {}
-            }
-            const ac = new AbortController();
-            state.abortController = ac;
-
-            try {
-                const prevOpenTime = D - 24 * 60 * 60 * 1000;  // D-1 (직전봉)
-                const curOpenTime = D;                         // D   (현재/백테스트 대상 봉)
-
-                const symbols = await fetchUSDTPerpSymbols(ac.signal);
-                const CONCURRENCY = 10;
-
-                const results = await poolRun(
-                    symbols,
-                    CONCURRENCY,
-                    async (sym) => {
-                        if (ac.signal.aborted) return null;
-
-                        let srcCandle = null;
-                        let dayCandle = null; // 백테스트용 D일 캔들
-
-                        if (isBacktest) {
-                            // 직전봉(D-1)으로 피처/점수 계산
-                            const prev = await fetchDailyCandle(sym, prevOpenTime, ac.signal);
-                            if (!prev) return null;
-
-                            // 거래대금 하한 필터 (직전봉 기준)
-                            if (minQVOn && (prev.quoteVolume ?? 0) < minQV) return null;
-
-                            srcCandle = prev;
-
-                            // D일 실제 캔들 (백테스트용)
-                            dayCandle = await fetchDailyCandle(sym, curOpenTime, ac.signal);
-                        } else {
-                            // 현재 진행 중인 1D 캔들(D)으로 피처/점수 계산
-                            const cur = await fetchDailyCandle(sym, curOpenTime, ac.signal);
-                            if (!cur) return null;
-
-                            // 거래대금 하한 필터 (현재봉 기준)
-                            if (minQVOn && (cur.quoteVolume ?? 0) < minQV) return null;
-
-                            srcCandle = cur;
-                        }
-
-                        const f = featuresFromCandle(srcCandle);
-                        const row = {
-                            symbol: sym,
-                            prevOpen: srcCandle.open,
-                            prevHigh: srcCandle.high,
-                            prevLow: srcCandle.low,
-                            prevClose: srcCandle.close,
-                            chgPct: f.chgPct,
-                            rangePct: f.rangePct,
-                            bodyPct: f.bodyPct,
-                            upperW: f.upperW,
-                            lowerW: f.lowerW,
-                            clv: f.clv,
-                            quoteVol: f.quoteVol,
-                            features: f,
-                            score: null,
-                            prob: null
-                        };
-
-                        if (isBacktest) {
-                            if (dayCandle) {
-                                row.dayOpen  = dayCandle.open;
-                                row.dayLow   = dayCandle.low;
-                                row.dayHigh  = dayCandle.high;
-                                row.dayClose = dayCandle.close;
-                                row.dayRetHighPct  =
-                                    (dayCandle.high  - dayCandle.open) / (dayCandle.open || 1e-12) * 100; // 시→고
-                                row.dayRetClosePct =
-                                    (dayCandle.close - dayCandle.open) / (dayCandle.open || 1e-12) * 100; // 시→종
-                                row.result = row.dayRetClosePct >= 0 ? "성공" : "실패"; // 종가 기준 판정
-                            } else {
-                                row.dayOpen = row.dayLow = row.dayHigh = row.dayClose = null;
-                                row.dayRetHighPct = row.dayRetClosePct = null;
-                                row.result = "-";
-                            }
-                        }
-
-                        return row;
-                    },
-                    (done, total) => setProgress(done, total)
-                );
-
-                const rows = results.filter(Boolean);
-                buildScores(rows);
-
-                state.rows = rows;
-                state.sort = { key: "prob", dir: "desc" };
-
-                renderHeader(state.isBacktest, state.sort);
-                drawTable();
-                setProgress(1, 1);
-            } catch (err) {
-                console.error(err);
-                alert("스캔 중 오류가 발생했습니다. 콘솔을 확인하세요.");
-            } finally {
-                state.running = false;
-            }
-        }
-
-        function stopScan() {
-            if (state.abortController) {
-                try { state.abortController.abort(); } catch (e) {}
-            }
-            state.running = false;
-        }
-
-        // ==========================
-        // 초기화
-        // ==========================
-        (function init() {
-            const dateInput = document.getElementById("dateInput");
-            const backtestChk = document.getElementById("backtestChk");
-
-            // 기본값: 오늘(UTC)로 세팅해 두되, 처음엔 비활성화 (백테스트 OFF 상태)
-            const todayStr = toUTCDateString(new Date());
-            dateInput.value = todayStr;
-            dateInput.disabled = true;
-
-            document.getElementById("scanBtn").addEventListener("click", runScan);
-            document.getElementById("stopBtn").addEventListener("click", stopScan);
-
-            backtestChk.addEventListener("change", (e) => {
-                const on = e.target.checked;
-
-                // 백테스트 체크 시에만 날짜 선택 가능
-                dateInput.disabled = !on;
-
-                if (!on) {
-                    // 백테스트 끄면 날짜는 다시 "오늘 UTC" 기준으로 되돌려둠
-                    dateInput.value = toUTCDateString(new Date());
-                }
-
-                state.isBacktest = on;
-                renderHeader(on, state.sort);
-                drawTable();
-            });
-
-            document.getElementById("searchSym").addEventListener("input", (e) => {
-                state.symbolFilter = e.target.value.trim();
-                drawTable();
-            });
-
-            renderHeader(false, state.sort);
-        })();
-    </script>
+  </div>
+
+  <div class="header-center">
+    <div class="countdown-wrap">
+      <span class="countdown-label">NEXT 15M CANDLE</span>
+      <span class="countdown-val" id="countdown">—:——</span>
+    </div>
+    <div class="candle-bar-wrap">
+      <div class="candle-bar-fill" id="candleBarFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="ws-status connecting" id="wsStatus">
+      <div class="ws-dot pulse"></div>
+      <span id="wsLabel">CONNECTING</span>
+    </div>
+  </div>
+</header>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-l">현재봉 총 청산</div>
+    <div class="stat-v c-red" id="sTotalLiq">$0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-l">롱 청산</div>
+    <div class="stat-v c-red" id="sLongLiq">$0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-l">숏 청산</div>
+    <div class="stat-v c-green" id="sShortLiq">$0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-l">청산 페어 수</div>
+    <div class="stat-v c-cyan" id="sPairs">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-l">최대 단건</div>
+    <div class="stat-v c-yellow" id="sMaxSingle">$0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-l">누적 이벤트</div>
+    <div class="stat-v c-orange" id="sEventCount">0</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <div class="ctrl">
+    <span class="ctrl-l">최소 청산 단건</span>
+    <select id="cfgMinSingle">
+      <option value="1000">$1K</option>
+      <option value="5000" selected>$5K</option>
+      <option value="10000">$10K</option>
+      <option value="50000">$50K</option>
+    </select>
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-l">표시 개수</span>
+    <input type="number" id="cfgTopN" value="30" min="5" max="100">
+  </div>
+  <div class="ctrl">
+    <span class="ctrl-l">방향</span>
+    <select id="cfgSide">
+      <option value="long" selected>롱 청산만</option>
+      <option value="short">숏 청산만</option>
+      <option value="all">전체</option>
+    </select>
+  </div>
+  <div class="divider"></div>
+  <button class="btn btn-outline-yellow" id="btnAlert" onclick="toggleAlert()">🔔 ALERT</button>
+  <button class="btn btn-outline-cyan" onclick="clearHistory()">CLEAR</button>
+  <div style="margin-left:auto;font-size:9px;color:var(--muted);letter-spacing:1px">
+    Source: wss://fstream.binance.com/ws/!forceOrder@arr
+  </div>
+</div>
+
+<!-- Candle tabs -->
+<div class="candle-tabs">
+  <span class="candle-tab-label">조회 봉:</span>
+  <div class="ctab active" data-c="0" onclick="setCandleTab(this,0)">현재봉</div>
+  <div class="ctab" data-c="1" onclick="setCandleTab(this,1)">이전봉 (완료)</div>
+  <div class="ctab" data-c="2" onclick="setCandleTab(this,2)">2봉 전</div>
+  <div class="ctab" data-c="3" onclick="setCandleTab(this,3)">3봉 전</div>
+  <span style="margin-left:16px;font-size:8px;color:var(--muted);letter-spacing:1px">
+    ※ 이전봉 = 00/15/30/45분에 완료된 직전 15분봉
+  </span>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- Table -->
+  <div class="main-panel">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28px">#</th>
+          <th onclick="doSort('symbol')">심볼</th>
+          <th onclick="doSort('longLiq')" class="sorted">롱 청산액 ↓</th>
+          <th onclick="doSort('longCount')">청산 횟수</th>
+          <th onclick="doSort('maxSingle')">최대 단건</th>
+          <th onclick="doSort('shortLiq')">숏 청산액</th>
+          <th onclick="doSort('netLiq')">순 청산 (롱-숏)</th>
+          <th>15분봉</th>
+          <th onclick="doSort('intensity')">강도</th>
+          <th>히스토리</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="emptyMsg">
+      웹소켓 연결 후 청산 데이터를 수집 중입니다...<br>
+      <span style="font-size:9px;color:var(--muted);margin-top:6px;display:block">
+        Binance forceOrder 스트림에서 실시간 수집
+      </span>
+    </div>
+  </div>
+
+  <!-- Live feed -->
+  <div class="feed-panel">
+    <div class="feed-header">
+      <span class="feed-title">LIVE FEED</span>
+      <span class="feed-count" id="feedCount">0</span>
+    </div>
+    <div class="feed-list" id="feedList"></div>
+  </div>
+
+</div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CANDLE SYSTEM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CANDLE_MS = 15 * 60 * 1000; // 15분
+
+function getCandleStart(ts) {
+  return Math.floor(ts / CANDLE_MS) * CANDLE_MS;
+}
+
+function getCurrentCandleStart() {
+  return getCandleStart(Date.now());
+}
+
+// candle index 0 = 현재봉, 1 = 이전봉(완료), ...
+function getCandleStartForIndex(idx) {
+  return getCurrentCandleStart() - idx * CANDLE_MS;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// liqData[candleStart][symbol] = { longLiq, shortLiq, longCount, shortCount, maxSingle, events[] }
+const liqData = {};
+
+// Keep last 4 candles
+const MAX_CANDLES = 4;
+
+let activeCandleIdx = 0; // 0=current, 1=prev...
+let sortKey = 'longLiq';
+let sortAsc = true;
+let alertOn = false;
+let feedEventCount = 0;
+let totalEventCount = 0;
+let ws = null;
+let wsReconnectTimer = null;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WEBSOCKET
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function connectWS() {
+  setWsStatus('connecting');
+
+  ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+
+  ws.onopen = () => {
+    setWsStatus('connected');
+    clearTimeout(wsReconnectTimer);
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      // Binance wraps in { stream, data } or sends directly
+      const order = msg.o || (msg.data && msg.data.o) || msg;
+      if (!order || !order.s) return;
+      handleLiquidation(order);
+    } catch(err) {
+      console.warn('parse error', err);
+    }
+  };
+
+  ws.onerror = () => setWsStatus('disconnected');
+
+  ws.onclose = () => {
+    setWsStatus('disconnected');
+    wsReconnectTimer = setTimeout(connectWS, 3000);
+  };
+}
+
+function setWsStatus(s) {
+  const el = document.getElementById('wsStatus');
+  const lb = document.getElementById('wsLabel');
+  el.className = 'ws-status ' + s;
+  const dot = el.querySelector('.ws-dot');
+  if (s === 'connected')    { lb.textContent = 'CONNECTED';    dot.className = 'ws-dot pulse'; }
+  if (s === 'disconnected') { lb.textContent = 'DISCONNECTED'; dot.className = 'ws-dot'; }
+  if (s === 'connecting')   { lb.textContent = 'CONNECTING';   dot.className = 'ws-dot pulse'; }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LIQUIDATION HANDLER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function handleLiquidation(o) {
+  // o.s = symbol, o.S = side (BUY=롱청산, SELL=숏청산)
+  // o.q = qty, o.p = price, o.ap = avg price, o.T = trade time
+  const symbol  = o.s;
+  if (!symbol.endsWith('USDT')) return;
+
+  const side    = o.S; // 'BUY' = 롱 포지션 청산, 'SELL' = 숏 포지션 청산
+  const qty     = parseFloat(o.q || 0);
+  const price   = parseFloat(o.ap || o.p || 0);
+  const usdAmt  = qty * price;
+  const tradeTs = o.T || Date.now();
+
+  const cfgMinSingle = parseFloat(document.getElementById('cfgMinSingle').value);
+  if (usdAmt < cfgMinSingle) return;
+
+  totalEventCount++;
+  document.getElementById('sEventCount').textContent = totalEventCount;
+
+  // ── 현재 캔들에 기록
+  const candleStart = getCandleStart(tradeTs);
+  if (!liqData[candleStart]) liqData[candleStart] = {};
+  if (!liqData[candleStart][symbol]) {
+    liqData[candleStart][symbol] = {
+      longLiq: 0, shortLiq: 0,
+      longCount: 0, shortCount: 0,
+      maxSingle: 0, events: [],
+      firstTs: tradeTs, lastTs: tradeTs,
+    };
+  }
+
+  const rec = liqData[candleStart][symbol];
+  if (side === 'BUY') {
+    // BUY = 롱 포지션이 강제 청산됨 (거래소가 매도 집행)
+    rec.longLiq   += usdAmt;
+    rec.longCount += 1;
+  } else {
+    rec.shortLiq   += usdAmt;
+    rec.shortCount += 1;
+  }
+  rec.maxSingle = Math.max(rec.maxSingle, usdAmt);
+  rec.lastTs    = tradeTs;
+  rec.events.push({ side, usdAmt, price, ts: tradeTs });
+
+  // Keep events trimmed
+  if (rec.events.length > 50) rec.events = rec.events.slice(-50);
+
+  // ── Prune old candles
+  const cutoff = getCurrentCandleStart() - MAX_CANDLES * CANDLE_MS;
+  for (const k of Object.keys(liqData)) {
+    if (parseInt(k) < cutoff) delete liqData[k];
+  }
+
+  // ── Live feed
+  addFeedItem(symbol, side, usdAmt, tradeTs);
+
+  // ── Alert check
+  if (alertOn && side === 'BUY' && usdAmt >= 50000) {
+    fireAlert(symbol, usdAmt);
+  }
+
+  // ── Update global stats (current candle)
+  updateStats();
+
+  // ── Re-render if viewing current candle
+  if (activeCandleIdx === 0) {
+    renderTable();
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FEED
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function addFeedItem(symbol, side, usdAmt, ts) {
+  feedEventCount++;
+  document.getElementById('feedCount').textContent = feedEventCount;
+
+  const list = document.getElementById('feedList');
+  const isLong = side === 'BUY';
+  const time = new Date(ts).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  const div = document.createElement('div');
+  div.className = 'feed-item';
+  div.innerHTML = `
+    <span class="feed-sym">${symbol.replace('USDT','')}</span>
+    <span class="feed-side ${isLong ? 'long' : 'short'}">${isLong ? 'LONG' : 'SHORT'}</span>
+    <span class="feed-amt">${fmtUsd(usdAmt)}</span>
+    <span class="feed-time">${time.split(' ')[1] || time}</span>
+  `;
+
+  list.insertBefore(div, list.firstChild);
+
+  // Keep feed trimmed
+  while (list.children.length > 200) list.removeChild(list.lastChild);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATS UPDATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateStats() {
+  const candleStart = getCandleStartForIndex(0);
+  const candle = liqData[candleStart] || {};
+
+  let totalLong = 0, totalShort = 0, maxSingle = 0, pairs = 0;
+  for (const sym of Object.keys(candle)) {
+    const r = candle[sym];
+    totalLong  += r.longLiq;
+    totalShort += r.shortLiq;
+    maxSingle   = Math.max(maxSingle, r.maxSingle);
+    if (r.longLiq + r.shortLiq > 0) pairs++;
+  }
+
+  document.getElementById('sTotalLiq').textContent = fmtUsd(totalLong + totalShort);
+  document.getElementById('sLongLiq').textContent  = fmtUsd(totalLong);
+  document.getElementById('sShortLiq').textContent = fmtUsd(totalShort);
+  document.getElementById('sPairs').textContent    = pairs;
+  document.getElementById('sMaxSingle').textContent = fmtUsd(maxSingle);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENDER TABLE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderTable() {
+  const candleStart = getCandleStartForIndex(activeCandleIdx);
+  const candle = liqData[candleStart] || {};
+
+  const cfgSide = document.getElementById('cfgSide').value;
+  const cfgTopN = parseInt(document.getElementById('cfgTopN').value) || 30;
+
+  // Build rows
+  let rows = Object.entries(candle).map(([sym, r]) => {
+    const netLiq = r.longLiq - r.shortLiq;
+    const totalLiq = r.longLiq + r.shortLiq;
+    // intensity score
+    const intensity = r.longLiq / Math.max(1, (r.longLiq + r.shortLiq)) * 100
+                    + Math.min(50, r.longCount * 2)
+                    + (r.maxSingle > 100000 ? 20 : r.maxSingle > 50000 ? 10 : 0);
+
+    return {
+      symbol: sym.replace('USDT',''),
+      fullSym: sym,
+      longLiq: r.longLiq,
+      shortLiq: r.shortLiq,
+      longCount: r.longCount,
+      shortCount: r.shortCount,
+      maxSingle: r.maxSingle,
+      netLiq,
+      totalLiq,
+      intensity,
+      events: r.events,
+    };
+  });
+
+  // Filter by side
+  if (cfgSide === 'long')  rows = rows.filter(r => r.longLiq > 0);
+  if (cfgSide === 'short') rows = rows.filter(r => r.shortLiq > 0);
+
+  // Sort
+  rows.sort((a, b) => {
+    let av = a[sortKey] ?? 0, bv = b[sortKey] ?? 0;
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  rows = rows.slice(0, cfgTopN);
+
+  const tbody = document.getElementById('tbody');
+  const empty  = document.getElementById('emptyMsg');
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Max longLiq for bar scaling
+  const maxLong = Math.max(...rows.map(r => r.longLiq), 1);
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const delay = (i * 0.02).toFixed(3);
+    const rowCls = r.intensity > 70 ? 'tier-1' : r.intensity > 40 ? 'tier-2' : '';
+    const barW   = Math.round((r.longLiq / maxLong) * 80);
+
+    // Candle direction (estimate from net liq)
+    const bearish = r.longLiq > r.shortLiq;
+    const candleHtml = `
+      <div class="candle-cell">
+        <div class="candle-body ${bearish ? 'candle-bear' : 'candle-bull'}"
+             style="height:${8 + Math.min(12, Math.round(r.longLiq/maxLong*12))}px"></div>
+        <span style="color:${bearish?'var(--red)':'var(--green)'}">
+          ${bearish ? '▼ 하락' : '▲ 상승'}
+        </span>
+      </div>`;
+
+    // Intensity badge
+    let intCls, intTxt;
+    if (r.intensity > 70)      { intCls='int-extreme'; intTxt='⚡ EXTREME'; }
+    else if (r.intensity > 45) { intCls='int-high';    intTxt='🔥 HIGH'; }
+    else if (r.intensity > 20) { intCls='int-mid';     intTxt='◎ MID'; }
+    else                       { intCls='int-low';     intTxt='○ LOW'; }
+
+    // Sparkline from recent events (last 8 events, longLiq bucketed)
+    const spark = buildSparkline(r.events);
+
+    return `<tr class="${rowCls}" style="animation-delay:${delay}s" onclick="openChart('${r.fullSym}')">
+      <td class="rank-cell">${i+1}</td>
+      <td>
+        <div class="sym-cell">
+          <span class="sym-name">${r.symbol}</span>
+          <span class="sym-sub">/USDT PERP</span>
+        </div>
+      </td>
+      <td>
+        <div class="liq-cell">
+          <span class="liq-val">${fmtUsd(r.longLiq)}</span>
+          <div class="liq-bar-wrap">
+            <div class="liq-bar-fill" style="width:${barW}px"></div>
+          </div>
+        </div>
+      </td>
+      <td class="count-cell">${r.longCount}<span style="color:var(--muted);font-size:8px">회</span></td>
+      <td style="color:var(--yellow);font-family:var(--display);font-size:11px">${fmtUsd(r.maxSingle)}</td>
+      <td style="color:var(--green);font-size:11px">${fmtUsd(r.shortLiq)}</td>
+      <td style="color:${r.netLiq>0?'var(--red)':'var(--green)'};font-size:11px;font-weight:600">
+        ${r.netLiq > 0 ? '+' : ''}${fmtUsd(r.netLiq)}
+      </td>
+      <td>${candleHtml}</td>
+      <td><span class="intensity ${intCls}">${intTxt}</span></td>
+      <td>${spark}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildSparkline(events) {
+  if (!events || !events.length) return '<span style="color:var(--muted);font-size:9px">—</span>';
+  // bucket into 6 slots
+  const SLOTS = 6;
+  const longEvents = events.filter(e => e.side === 'BUY');
+  if (!longEvents.length) return '<span style="color:var(--muted);font-size:9px">—</span>';
+
+  const buckets = Array(SLOTS).fill(0);
+  const n = longEvents.length;
+  longEvents.forEach((e, i) => {
+    const slot = Math.floor((i / n) * SLOTS);
+    buckets[Math.min(slot, SLOTS-1)] += e.usdAmt;
+  });
+  const maxB = Math.max(...buckets, 1);
+
+  return `<div class="spark">${buckets.map((b, i) => {
+    const h = Math.max(2, Math.round((b / maxB) * 18));
+    const isCurrent = i === SLOTS - 1;
+    return `<div class="spark-bar ${isCurrent?'current':''}" style="height:${h}px"></div>`;
+  }).join('')}</div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COUNTDOWN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateCountdown() {
+  const now = Date.now();
+  const candleStart = getCandleStart(now);
+  const candleEnd   = candleStart + CANDLE_MS;
+  const remaining   = candleEnd - now;
+
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  document.getElementById('countdown').textContent =
+    `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+
+  const progress = ((CANDLE_MS - remaining) / CANDLE_MS) * 100;
+  document.getElementById('candleBarFill').style.width = progress + '%';
+
+  // When candle closes, re-render
+  if (remaining < 500) {
+    setTimeout(() => {
+      renderTable();
+      updateStats();
+    }, 600);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SORT / TAB / CONTROLS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function doSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  renderTable();
+}
+
+function setCandleTab(el, idx) {
+  activeCandleIdx = idx;
+  document.querySelectorAll('.ctab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+function clearHistory() {
+  for (const k of Object.keys(liqData)) delete liqData[k];
+  feedEventCount = 0;
+  totalEventCount = 0;
+  document.getElementById('feedList').innerHTML = '';
+  document.getElementById('feedCount').textContent = '0';
+  document.getElementById('sEventCount').textContent = '0';
+  updateStats();
+  renderTable();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ALERT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toggleAlert() {
+  const btn = document.getElementById('btnAlert');
+  if (!alertOn) {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') {
+        alertOn = true;
+        btn.classList.add('on');
+        btn.textContent = '🔔 ON ($50K+)';
+      } else {
+        showToast('알림 권한 필요', '브라우저 알림 권한을 허용해주세요.');
+      }
+    });
+  } else {
+    alertOn = false;
+    btn.classList.remove('on');
+    btn.textContent = '🔔 ALERT';
+  }
+}
+
+const notifiedSet = new Set();
+function fireAlert(symbol, usdAmt) {
+  const key = symbol + '_' + getCandleStart(Date.now());
+  if (notifiedSet.has(key)) return;
+  notifiedSet.add(key);
+
+  new Notification(`⚡ 대규모 롱 청산: ${symbol.replace('USDT','')}`, {
+    body: `청산액 ${fmtUsd(usdAmt)} | 15분봉 기준`,
+  });
+}
+
+function showToast(title, body) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastBody').textContent  = body;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function fmtUsd(v) {
+  if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+  if (v >= 1_000)     return '$' + (v / 1_000).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function openChart(sym) {
+  window.open(`https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`, '_blank');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUTO RENDER LOOP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+setInterval(updateCountdown, 500);
+setInterval(() => {
+  if (activeCandleIdx === 0) renderTable();
+}, 3000); // re-render every 3s for current candle
+
+// Filter changes → re-render
+document.getElementById('cfgSide').addEventListener('change', renderTable);
+document.getElementById('cfgTopN').addEventListener('change', renderTable);
+document.getElementById('cfgMinSingle').addEventListener('change', renderTable);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+updateCountdown();
+renderTable();
+connectWS();
+</script>
 </body>
 </html>
