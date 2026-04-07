@@ -805,11 +805,12 @@ function handleLiquidation(o) {
   }
 
   const rec = liqData[candleStart][symbol];
-  if (side === 'BUY') {
-    // BUY = 롱 포지션이 강제 청산됨 (거래소가 매도 집행)
+  if (side === 'SELL') {
+    // SELL = 거래소가 매도 집행 = 롱 포지션 보유자 강제청산
     rec.longLiq   += usdAmt;
     rec.longCount += 1;
   } else {
+    // BUY = 거래소가 매수 집행 = 숏 포지션 보유자 강제청산
     rec.shortLiq   += usdAmt;
     rec.shortCount += 1;
   }
@@ -830,7 +831,7 @@ function handleLiquidation(o) {
   addFeedItem(symbol, side, usdAmt, tradeTs);
 
   // ── Alert check
-  if (alertOn && side === 'BUY' && usdAmt >= 50000) {
+  if (alertOn && side === 'SELL' && usdAmt >= 50000) {
     fireAlert(symbol, usdAmt);
   }
 
@@ -851,7 +852,7 @@ function addFeedItem(symbol, side, usdAmt, ts) {
   document.getElementById('feedCount').textContent = feedEventCount;
 
   const list = document.getElementById('feedList');
-  const isLong = side === 'BUY';
+  const isLong = side === 'SELL'; // SELL = 롱 청산
   const time = new Date(ts).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 
   const div = document.createElement('div');
@@ -1011,7 +1012,7 @@ function buildSparkline(events) {
   if (!events || !events.length) return '<span style="color:var(--muted);font-size:12px">—</span>';
   // bucket into 6 slots
   const SLOTS = 6;
-  const longEvents = events.filter(e => e.side === 'BUY');
+  const longEvents = events.filter(e => e.side === 'SELL'); // SELL = 롱 청산
   if (!longEvents.length) return '<span style="color:var(--muted);font-size:12px">—</span>';
 
   const buckets = Array(SLOTS).fill(0);
