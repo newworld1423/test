@@ -381,7 +381,7 @@
       <div class="logo-icon">PS</div>
       <div>
         <h1>Pattern <span>Scanner</span></h1>
-        <div class="subtitle">Binance USDT Perpetual · 오늘 급등 후보 탐색</div>
+        <div class="subtitle">Binance USDT Perpetual · 다음날 급등 후보 예측</div>
       </div>
     </div>
     <div class="status-badge">
@@ -407,9 +407,10 @@
             <input type="date" id="targetDate" />
           </div>
           <div class="hint">
-            이 날짜에서 <b>1일 상승률 1위</b> 코인을 자동으로 찾아<br>
-            그 코인이 오르기 직전 패턴을 추출해요.<br><br>
-            💡 최근 50%+ 급등이 있었던 날짜를 쓰면 좋아요.
+            이 날짜의 <b>1일 상승률 1위</b> 코인을 찾아<br>
+            오르기 직전 패턴을 추출한 뒤,<br>
+            <b>다음 날(+1일)</b> 기준으로 유사 코인을 탐색해요.<br><br>
+            💡 예) 4월 6일 선택 → 4월 7일 급등 후보 출력
           </div>
           <div class="form-group">
             <label>급등 직전 며칠치 패턴을 볼까?</label>
@@ -482,7 +483,7 @@
       <!-- Run -->
       <div class="panel">
         <div class="panel-body">
-          <button class="btn btn-primary" id="runBtn" onclick="run()">🔍 오늘 급등 후보 스캔</button>
+          <button class="btn btn-primary" id="runBtn" onclick="run()">🔍 다음날 급등 후보 스캔</button>
           <button class="btn-stop" id="stopBtn" onclick="stop()">⏹ 중지</button>
           <div class="progress-wrap" id="pgWrap">
             <div class="divider"></div>
@@ -521,7 +522,7 @@
         <div class="rp-head">
           <div style="display:flex;align-items:center;gap:10px;">
             <div class="panel-num" style="background:var(--accent3);">3</div>
-            <div class="panel-title">오늘 급등 후보 순위</div>
+            <div class="panel-title">급등 후보 순위 <span id="predDateLabel" style="color:var(--accent);font-size:10px;"></span></div>
           </div>
           <div class="rp-meta" id="rpMeta">결과 없음</div>
         </div>
@@ -546,7 +547,8 @@
                 <th>#</th>
                 <th>코인</th>
                 <th class="sorted" id="th_sim" onclick="setSort('sim')">유사도 ↓</th>
-                <th id="th_chg" onclick="setSort('chg')">전일 등락</th>
+                <th id="th_actual" onclick="setSort('actual')" style="color:var(--yellow);">실제 등락 ★</th>
+                <th id="th_chg" onclick="setSort('chg')">기준일 등락</th>
                 <th id="th_vol" onclick="setSort('vol')">24H 거래량</th>
                 <th>가격 패턴</th>
                 <th>거래량 패턴</th>
@@ -800,8 +802,12 @@ function sigHTML(r) {
 // ── Sort / filter ──────────────────────────────────────────────────────────
 function setSort(k) {
   if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = -1; }
-  ['sim','chg','vol'].forEach(x => document.getElementById('fb_'+x).className='fbtn');
-  document.getElementById('fb_'+k).className='fbtn on';
+  ['sim','chg','vol','actual'].forEach(x => {
+    const b = document.getElementById('fb_'+x);
+    if (b) b.className='fbtn';
+  });
+  const b = document.getElementById('fb_'+k);
+  if (b) b.className='fbtn on';
   renderTable(allResults);
 }
 function filterRows() {
@@ -816,6 +822,10 @@ function renderTable(data) {
     if (sortKey==='sim') return (b.score - a.score) * (sortDir < 0 ? 1 : -1);
     if (sortKey==='chg') return (b.chg - a.chg) * (sortDir < 0 ? 1 : -1);
     if (sortKey==='vol') return (b.vol - a.vol) * (sortDir < 0 ? 1 : -1);
+    if (sortKey==='actual') {
+      const av = v => v.actualChg !== null ? v.actualChg : -9999;
+      return (av(b) - av(a)) * (sortDir < 0 ? 1 : -1);
+    }
     return 0;
   }).slice(0, topN);
 
@@ -833,6 +843,20 @@ function renderTable(data) {
     const fStr = fAvg !== null ? (fAvg*100).toFixed(4)+'%' : 'N/A';
     const fCol = fAvg !== null && fAvg < 0 ? 'var(--yellow)' : 'var(--text3)';
 
+    // 실제 등락 컬럼
+    let actualCell = '';
+    if (r.actualChg !== null) {
+      const ac = r.actualChg;
+      const acCls = ac >= 0 ? 'pos' : 'neg';
+      const acSign = ac >= 0 ? '+' : '';
+      const acBg = ac >= 50 ? 'background:rgba(0,255,136,0.15);border-radius:4px;padding:2px 6px;' :
+                   ac >= 10 ? 'background:rgba(0,255,136,0.07);border-radius:4px;padding:2px 6px;' :
+                   ac <= -10 ? 'background:rgba(255,71,87,0.07);border-radius:4px;padding:2px 6px;' : '';
+      actualCell = `<span class="chg ${acCls}" style="${acBg}">${acSign}${ac.toFixed(2)}%</span>`;
+    } else {
+      actualCell = `<span style="color:var(--text2);font-size:10px;font-family:'Space Mono';">미래</span>`;
+    }
+
     return `<tr class="fade">
       <td><span class="${rankCls}">${i+1}</span></td>
       <td><span class="coin-sym">${r.sym.replace('USDT','')}</span><span class="coin-qt">USDT</span></td>
@@ -842,6 +866,7 @@ function renderTable(data) {
           <span class="sim-score" style="color:${col};">${r.score}</span>
         </div>
       </td>
+      <td>${actualCell}</td>
       <td><span class="chg ${chgCls}">${chgSign}${r.chg.toFixed(2)}%</span></td>
       <td style="color:var(--text3);">${fv(r.vol)}</td>
       <td>${miniChart(r.feats.p)}</td>
@@ -948,11 +973,17 @@ async function run() {
     log(`패턴 벡터 완료 — 가격:${tFeats.p.length}일, 거래량:${tFeats.v.length}일, OI:${tFeats.o.length}일, FR:${tFeats.f.length}일`, 'ok');
     renderTarget(topSym, topK, tKlines, tOI, tFundByDay);
 
-    // 4. Scan all coins vs today's pattern
-    // "Today's pattern" = each coin's most recent [lookback] days EXCLUDING today's incomplete candle
-    const now = Date.now();
-    const scanEnd = now;
-    const scanStart = now - (lookback + 2) * 86400000;
+    // 4. Scan: 다음날(+1일) 직전 패턴 비교 + 다음날 실제 등락 확인
+    const nextDayMs = targetMs + 86400000;           // 예측 대상일 시작
+    const nextDayEnd = nextDayMs + 86400000;          // 예측 대상일 끝
+    const scanStart = nextDayMs - (lookback + 1) * 86400000; // 패턴 비교 시작점
+
+    const nextDateStr = dfmt(new Date(nextDayMs));
+    const isFuture = nextDayMs > Date.now();
+
+    log(`📅 예측 대상일: ${nextDateStr}${isFuture ? ' (미래 — 실제 등락 없음)' : ' (과거 — 실제 등락 표시)'}`, 'info');
+    document.getElementById('predDateLabel').textContent = `→ ${nextDateStr} 예측`;
+    document.getElementById('rpMeta').innerHTML = `예측 대상: <span>${nextDateStr}</span>`;
 
     log(`전체 ${symbols.length}개 코인 유사도 스캔 시작...`, 'info');
     setPg(33, '유사도 스캔 시작...');
@@ -966,10 +997,11 @@ async function run() {
       if (sym === topSym) { scanned++; continue; }
 
       try {
+        // 패턴 비교용: nextDay 직전 lookback일치 데이터
         const [ks, oi, fundRaw, t24] = await Promise.all([
-          getKlines(sym, scanStart, scanEnd, lookback + 2),
-          getOI(sym, scanStart, scanEnd, lookback + 2),
-          getFunding(sym, scanStart, scanEnd),
+          getKlines(sym, scanStart, nextDayMs, lookback + 2),
+          getOI(sym, scanStart, nextDayMs, lookback + 2),
+          getFunding(sym, scanStart, nextDayMs),
           get24h(sym),
         ]);
 
@@ -978,9 +1010,9 @@ async function run() {
         const vol24 = t24 ? +t24.quoteVolume : 0;
         if (minVol > 0 && vol24 < minVol) { scanned++; continue; }
 
-        // Exclude the most recent (potentially incomplete) candle for pattern matching
-        const preKs = ks.slice(0, -1);
-        const preOIs = oi.slice(0, -1);
+        // nextDay 직전까지의 패턴 (기준일 포함 마지막 candle 제외)
+        const preKs = ks.slice(-lookback);
+        const preOIs = oi.slice(-lookback);
         const fundByDay = featFunding(fundRaw, scanStart, lookback);
         const avgVol = preKs.reduce((s,k)=>s+(+k[7]),0)/Math.max(preKs.length,1);
 
@@ -993,12 +1025,24 @@ async function run() {
 
         const { score, bd } = weightedSim(tFeats, feats);
 
-        // Last completed candle change
-        const lastK = ks[ks.length - 1];
-        const lo = +lastK[1], lc = +lastK[4];
+        // 기준일(nextDay 전날) 등락
+        const lastPreK = ks[ks.length - 1];
+        const lo = +lastPreK[1], lc = +lastPreK[4];
         const chg = lo > 0 ? (lc-lo)/lo*100 : 0;
 
-        scanRes.push({ sym, score, bd, chg, vol: vol24, avgVol, feats });
+        // 실제 nextDay 등락 (과거면 데이터 있음, 미래면 null)
+        let actualChg = null;
+        if (!isFuture) {
+          try {
+            const actualKs = await getKlines(sym, nextDayMs, nextDayEnd, 1);
+            if (actualKs?.length) {
+              const ao = +actualKs[0][1], ac = +actualKs[0][4];
+              actualChg = ao > 0 ? (ac-ao)/ao*100 : null;
+            }
+          } catch { /* skip */ }
+        }
+
+        scanRes.push({ sym, score, bd, chg, vol: vol24, avgVol, feats, actualChg });
       } catch { /* skip */ }
 
       scanned++;
