@@ -1,635 +1,768 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8">
-    <title>Binance Perp USDT — 4H 현재봉 증감률 / 변화량 스캐너</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binance Monthly Top Gainer Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0d1117;
+    --surface2: #131920;
+    --surface3: #1a2430;
+    --accent: #00e5a0;
+    --accent2: #00b4d8;
+    --accent-dim: rgba(0,229,160,0.12);
+    --accent2-dim: rgba(0,180,216,0.12);
+    --danger: #ff4d6d;
+    --warning: #ffd60a;
+    --text: #e8edf2;
+    --text2: #7a8fa6;
+    --text3: #3d5068;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.12);
+    --mono: 'Space Mono', monospace;
+    --head: 'Syne', sans-serif;
+  }
 
-    <style>
-        :root {
-            --bg: #05060b;
-            --card: #12131a;
-            --muted: #9aa0a6;
-            --text: #e8eaed;
-            --accent: #3ea6ff;
-            --good: #00c853;
-            --bad: #ff5252;
-            --warn: #ffd54f;
-            --border: #2a2e36;
-        }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-        * {
-            box-sizing: border-box;
-        }
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background: radial-gradient(circle at top, #151821 0, #050609 55%, #020308 100%);
-            color: var(--text);
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-        }
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
 
-        .page {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px 16px 40px;
-        }
+  /* Header */
+  .header {
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease both;
+  }
 
-        h1 {
-            margin: 0 0 6px;
-            font-size: 22px;
-            font-weight: 600;
-        }
+  .header-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,229,160,0.2);
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
 
-        .subtitle {
-            font-size: 13px;
-            color: var(--muted);
-            margin-bottom: 16px;
-        }
+  h1 {
+    font-family: var(--head);
+    font-size: clamp(28px, 5vw, 46px);
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
 
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
+  h1 span { color: var(--accent); }
 
-        button {
-            border: none;
-            border-radius: 999px;
-            padding: 9px 18px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            background: var(--accent);
-            color: #000;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04),
-                        0 10px 25px rgba(0, 0, 0, 0.6);
-            transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.12s ease;
-        }
+  .header-desc {
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 13px;
+    max-width: 520px;
+  }
 
-        button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.7);
-        }
+  /* Panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 28px;
+    margin-bottom: 20px;
+    animation: fadeUp 0.5s ease both;
+  }
 
-        button:active:not(:disabled) {
-            transform: translateY(0);
-            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.7);
-        }
+  .panel-title {
+    font-family: var(--head);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
 
-        button:disabled {
-            opacity: 0.6;
-            cursor: default;
-        }
+  /* Controls */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
 
-        .status-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            row-gap: 4px;
-            align-items: center;
-            font-size: 12px;
-            color: var(--muted);
-        }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
 
-        .status-label {
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: rgba(62, 166, 255, 0.08);
-            border: 1px solid rgba(62, 166, 255, 0.4);
-            color: var(--accent);
-        }
+  .field select {
+    width: 100%;
+    height: 42px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 0 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a8fa6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
 
-        .status-text {
-            min-height: 18px;
-        }
+  .field select:focus { outline: none; border-color: var(--accent); }
+  .field select:hover { border-color: var(--border2); }
 
-        .card {
-            margin-top: 16px;
-            border-radius: 14px;
-            background: radial-gradient(circle at top left, #1a1c27 0, #0b0c12 55%, #05060a 100%);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.8);
-            overflow: hidden;
-        }
+  .btn-run {
+    width: 100%;
+    height: 52px;
+    background: var(--accent);
+    border: none;
+    border-radius: 3px;
+    color: #080c10;
+    font-family: var(--head);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+  }
 
-        .card-header {
-            padding: 10px 14px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            gap: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            background: linear-gradient(90deg, rgba(62, 166, 255, 0.18), transparent);
-        }
+  .btn-run::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background 0.2s;
+  }
 
-        .card-header-left {
-            font-size: 13px;
-        }
+  .btn-run:hover::after { background: rgba(255,255,255,0.1); }
+  .btn-run:active { transform: scale(0.99); }
+  .btn-run:disabled {
+    background: var(--surface3);
+    color: var(--text3);
+    cursor: not-allowed;
+  }
+  .btn-run:disabled::after { display: none; }
 
-        .card-header-right {
-            font-size: 11px;
-            color: var(--muted);
-            text-align: right;
-        }
+  /* Progress */
+  .progress-wrap {
+    margin-bottom: 16px;
+    display: none;
+  }
+  .progress-wrap.show { display: block; }
 
-        .hint {
-            font-size: 11px;
-            color: var(--muted);
-            margin-top: 3px;
-        }
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
 
-        .table-wrap {
-            overflow-x: auto;
-        }
+  .progress-track {
+    height: 2px;
+    background: var(--surface3);
+    border-radius: 1px;
+    overflow: hidden;
+  }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 1px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--accent);
+  }
 
-        thead {
-            background: rgba(255, 255, 255, 0.02);
-        }
+  /* Log */
+  .log-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.8;
+    min-height: 80px;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
 
-        th,
-        td {
-            padding: 6px 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            white-space: nowrap;
-            text-align: right;
-        }
+  .log-wrap::-webkit-scrollbar { width: 4px; }
+  .log-wrap::-webkit-scrollbar-track { background: transparent; }
+  .log-wrap::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
 
-        th:first-child,
-        td:first-child {
-            text-align: center;
-        }
+  .log-accent { color: var(--accent); }
+  .log-info { color: var(--accent2); }
+  .log-warn { color: var(--warning); }
+  .log-err { color: var(--danger); }
 
-        th:nth-child(2),
-        td:nth-child(2) {
-            text-align: left;
-        }
+  /* Result */
+  .result-section { display: none; animation: fadeUp 0.5s ease both; }
+  .result-section.show { display: block; }
 
-        th {
-            font-weight: 500;
-            color: var(--muted);
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
+  .result-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
 
-        tbody tr:nth-child(even) {
-            background: rgba(255, 255, 255, 0.01);
-        }
+  .result-symbol {
+    font-family: var(--head);
+    font-size: 42px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
 
-        tbody tr:hover {
-            background: rgba(62, 166, 255, 0.08);
-        }
+  .result-period {
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 0.08em;
+  }
 
-        .pos {
-            color: var(--good);
-        }
+  .result-gain {
+    font-family: var(--head);
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    text-align: right;
+  }
 
-        .neg {
-            color: var(--bad);
-        }
+  .result-gain.negative { color: var(--danger); }
 
-        .muted {
-            color: var(--muted);
-        }
+  .result-gain-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-align: right;
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
 
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            border-radius: 999px;
-            padding: 2px 8px;
-            font-size: 11px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.2);
-        }
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
 
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 999px;
-            background: var(--good);
-        }
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+  }
 
-        .badge-warn .badge-dot {
-            background: var(--warn);
-        }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+    transition: border-color 0.2s;
+  }
 
-        @media (max-width: 768px) {
-            .page {
-                padding: 16px 10px 26px;
-            }
+  .metric-card:hover { border-color: var(--border2); }
 
-            h1 {
-                font-size: 18px;
-            }
+  .metric-card.accent {
+    background: var(--accent-dim);
+    border-color: rgba(0,229,160,0.25);
+  }
 
-            button {
-                width: 100%;
-                justify-content: center;
-            }
+  .metric-label {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
 
-            .card-header {
-                padding: 8px 10px;
-            }
+  .metric-val {
+    font-family: var(--head);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+  }
 
-            th,
-            td {
-                padding: 5px 6px;
-                font-size: 11px;
-            }
-        }
-    </style>
+  .metric-card.accent .metric-val { color: var(--accent); }
+
+  .bars-feature {
+    background: var(--surface2);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .bars-label {
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 0.06em;
+  }
+
+  .bars-label strong {
+    display: block;
+    font-family: var(--head);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+
+  .bars-count {
+    font-family: var(--head);
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .bars-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: right;
+  }
+
+  .error-msg {
+    background: rgba(255,77,109,0.08);
+    border: 1px solid rgba(255,77,109,0.25);
+    border-radius: 3px;
+    padding: 12px 16px;
+    color: var(--danger);
+    font-size: 13px;
+    display: none;
+    margin-top: 12px;
+  }
+
+  .error-msg.show { display: block; }
+
+  /* Scanning animation */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .scanning-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.2s ease infinite;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .footer {
+    margin-top: 48px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.06em;
+  }
+</style>
 </head>
 <body>
-    <div class="page">
-        <h1>4H 현재봉 증감률 / 변화량 스캐너 (Perp USDT)</h1>
-        <div class="subtitle">
-            · 바이낸스 무기한 선물 USDT 페어 전체 스캔<br>
-            · <b>현재 진행중인 4H 봉</b> 기준 증감률 · <b>99MA 아래인 종목만</b> 표시<br>
-            · 첫 스캔: 증감률 높은 순 · 이후: 직전 스캔 대비 증감률 변화량(Δ%) 순 정렬<br>
-            · 첫 스캔 이후 매시 <b>00 / 15 / 30 / 45분</b> 자동 스캔
-        </div>
+<div class="container">
 
-        <div class="controls">
-            <button id="scanButton">
-                🔍 지금 스캔
-            </button>
-            <div class="status-bar">
-                <span class="status-label" id="autoInfo">자동스캔: OFF</span>
-                <span class="status-text" id="status">대기 중...</span>
-                <span class="status-text" id="lastScan"></span>
-            </div>
-        </div>
+  <div class="header">
+    <div class="header-tag">Binance USDT Futures</div>
+    <h1>Monthly <span>Top Gainer</span><br>Scanner</h1>
+    <p class="header-desc">선택한 월의 1M 봉 기준 가장 많이 상승한 USDT 무기한 선물 페어를 찾고, 해당 페어의 전체 월봉 개수를 집계합니다.</p>
+  </div>
 
-        <div class="card">
-            <div class="card-header">
-                <div class="card-header-left">
-                    <div class="badge">
-                        <span class="badge-dot"></span>
-                        4H 현재봉 · 99MA 아래만
-                    </div>
-                    <div class="hint">
-                        Δ% = 이번 스캔 증감률 − 직전 스캔 증감률<br>
-                        첫 스캔은 Δ%가 없고, 현재 4H 봉 증감률 순으로 정렬됩니다.
-                    </div>
-                </div>
-                <div class="card-header-right">
-                    레이트 리밋 완화를 위해 동시 요청 수를 제한합니다.<br>
-                    너무 자주 여러 스캐너를 동시에 돌리면 429가 날 수 있습니다.
-                </div>
-            </div>
-            <div class="table-wrap">
-                <table id="resultTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>심볼</th>
-                            <th>4H 시가</th>
-                            <th>현재 가격</th>
-                            <th>4H 증감률</th>
-                            <th>4H 99MA</th>
-                            <th>현재 vs 99MA</th>
-                            <th>Δ 증감률<br>(직전 스캔 대비)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- 데이터 행 -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+  <div class="panel">
+    <div class="panel-title">// 스캔 설정</div>
+    <div class="controls-grid">
+      <div class="field">
+        <label>연도</label>
+        <select id="selYear"></select>
+      </div>
+      <div class="field">
+        <label>월</label>
+        <select id="selMonth">
+          <option value="1">01월</option><option value="2">02월</option><option value="3">03월</option>
+          <option value="4">04월</option><option value="5">05월</option><option value="6">06월</option>
+          <option value="7">07월</option><option value="8">08월</option><option value="9">09월</option>
+          <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>스캔 범위</label>
+        <select id="selLimit">
+          <option value="50">상위 50개</option>
+          <option value="100" selected>상위 100개</option>
+          <option value="200">상위 200개</option>
+          <option value="9999">전체 (느림)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>딜레이</label>
+        <select id="selDelay">
+          <option value="20">20ms (빠름)</option>
+          <option value="50" selected>50ms (권장)</option>
+          <option value="100">100ms (안정)</option>
+        </select>
+      </div>
     </div>
 
-    <script>
-        (function () {
-            const API_BASE = "https://fapi.binance.com";
+    <button class="btn-run" id="btnRun" onclick="runScan()">
+      <span id="btnLabel">SCAN START</span>
+    </button>
+  </div>
 
-            let allSymbols = [];
-            let isScanning = false;
-            let isFirstScan = true;
-            let previousScan = {}; // symbol -> { pctChange }
-            let autoTimer = null;
-            let autoEnabled = false;
+  <div class="panel" style="animation-delay:0.1s">
+    <div class="panel-title">// 스캔 로그</div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-info">
+        <span id="progressText">준비 중...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="log-wrap" id="log">스캔 설정 후 SCAN START 버튼을 누르세요.</div>
+  </div>
 
-            const scanButton = document.getElementById("scanButton");
-            const statusEl = document.getElementById("status");
-            const lastScanEl = document.getElementById("lastScan");
-            const autoInfoEl = document.getElementById("autoInfo");
-            const tbody = document.querySelector("#resultTable tbody");
+  <div class="result-section panel" id="resultSection" style="animation-delay:0.15s">
+    <div class="panel-title">// 스캔 결과</div>
+    <div class="result-header">
+      <div>
+        <div class="result-symbol" id="resSymbol">—</div>
+        <div class="result-period" id="resPeriod"></div>
+      </div>
+      <div>
+        <div class="result-gain" id="resGain">—</div>
+        <div class="result-gain-label">월간 상승률</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="metrics-grid" id="metricsGrid"></div>
+    <div class="divider"></div>
+    <div class="bars-feature" id="barsFeature">
+      <div class="bars-label">
+        <strong id="barSymName">—</strong>
+        해당월 포함 이전 전체 1M 봉 개수
+      </div>
+      <div>
+        <div class="bars-count" id="barsCount">—</div>
+        <div class="bars-sub">1M Candles</div>
+      </div>
+    </div>
+  </div>
 
-            scanButton.addEventListener("click", function () {
-                startScan(false);
-            });
+  <div class="error-msg" id="errMsg"></div>
 
-            async function fetchSymbols() {
-                if (allSymbols.length > 0) {
-                    return allSymbols;
-                }
-                statusEl.textContent = "심볼 목록 불러오는 중...";
-                const res = await fetch(API_BASE + "/fapi/v1/exchangeInfo");
-                if (!res.ok) {
-                    throw new Error("exchangeInfo 실패: " + res.status);
-                }
-                const data = await res.json();
-                allSymbols = data.symbols
-                    .filter(function (s) {
-                        return s.contractType === "PERPETUAL" &&
-                            s.quoteAsset === "USDT" &&
-                            s.status === "TRADING";
-                    })
-                    .map(function (s) { return s.symbol; })
-                    .sort();
-                return allSymbols;
-            }
+  <div class="footer">Binance USDT Perpetual Futures · 1M Candle Data · fapi.binance.com</div>
+</div>
 
-            async function fetchSymbol4h(symbol) {
-                const url = API_BASE + "/fapi/v1/klines?symbol=" + symbol + "&interval=4h&limit=110";
-                const res = await fetch(url);
-                if (!res.ok) {
-                    throw new Error("klines 실패: " + symbol + " / " + res.status);
-                }
-                const klines = await res.json();
-                if (!Array.isArray(klines) || klines.length < 100) {
-                    return null;
-                }
+<script>
+const BASE = 'https://fapi.binance.com';
+let running = false;
 
-                const closed = klines.slice(0, -1); // 마지막 1개는 진행중 봉
-                if (closed.length < 99) {
-                    return null;
-                }
+(function init() {
+  const sel = document.getElementById('selYear');
+  const now = new Date();
+  for (let y = now.getFullYear(); y >= 2019; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y + '년';
+    sel.appendChild(o);
+  }
+  sel.value = now.getFullYear();
+  const m = document.getElementById('selMonth');
+  m.value = now.getMonth() + 1;
+})();
 
-                const last99 = closed.slice(-99);
-                let sumClose = 0;
-                for (let i = 0; i < last99.length; i += 1) {
-                    sumClose += parseFloat(last99[i][4]); // 종가
-                }
-                const ma99 = sumClose / last99.length;
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
 
-                const current = klines[klines.length - 1];
-                const open = parseFloat(current[1]);
-                const close = parseFloat(current[4]);
+function clearLog() { document.getElementById('log').innerHTML = ''; }
 
-                if (!isFinite(open) || !isFinite(close) || !isFinite(ma99) || open === 0) {
-                    return null;
-                }
+function setProgress(done, total) {
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressText').textContent = `${done} / ${total} 스캔 완료`;
+}
 
-                // 현재 진행중인 4H 봉 증감률
-                const pctChange = ((close - open) / open) * 100;
+async function getAllSymbols() {
+  const r = await fetch(BASE + '/fapi/v1/exchangeInfo');
+  const d = await r.json();
+  return d.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+    .map(s => s.symbol);
+}
 
-                // 현재 가격이 99MA 보다 낮은 것만
-                if (close >= ma99) {
-                    return null;
-                }
+async function getMonthlyKline(symbol, year, month) {
+  const startTs = Date.UTC(year, month - 1, 1);
+  const endTs = Date.UTC(year, month, 1) - 1;
+  const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1M&startTime=${startTs}&endTime=${endTs}&limit=1`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const d = await r.json();
+  return (d && d.length > 0) ? d[0] : null;
+}
 
-                return {
-                    symbol: symbol,
-                    open: open,
-                    close: close,
-                    pctChange: pctChange,
-                    ma99: ma99
-                };
-            }
+async function getTotalMonthlyKlines(symbol, year, month) {
+  const endTs = Date.UTC(year, month, 1) - 1;
+  let total = 0;
+  let fromTs = undefined;
+  while (true) {
+    let url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1M&endTime=${endTs}&limit=500`;
+    if (fromTs !== undefined) url += `&startTime=${fromTs}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d || d.length === 0) break;
+    total += d.length;
+    if (d.length < 500) break;
+    fromTs = d[d.length - 1][0] + 1;
+  }
+  return total;
+}
 
-            async function startScan(isAuto) {
-                if (isScanning) {
-                    console.log("이미 스캔 중이라 건너뜀");
-                    return;
-                }
-                isScanning = true;
-                scanButton.disabled = true;
-                scanButton.textContent = "스캔 중...";
-                statusEl.textContent = isAuto ? "자동 스캔 실행 중..." : "수동 스캔 실행 중...";
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
-                try {
-                    const symbols = await fetchSymbols();
-                    const results = [];
-                    const MAX_CONCURRENCY = 8;
-                    let index = 0;
-                    const total = symbols.length;
+function fmtPrice(v) {
+  if (v === undefined || v === null) return '—';
+  return v >= 1 ? v.toLocaleString('ko-KR', { maximumFractionDigits: 4 }) : v.toFixed(6);
+}
 
-                    tbody.innerHTML = "";
-                    statusEl.textContent = "4H 데이터 스캔 중... (0 / " + total + ")";
+async function runScan() {
+  if (running) return;
+  running = true;
 
-                    async function worker() {
-                        while (true) {
-                            let myIndex;
-                            if (index >= total) {
-                                break;
-                            }
-                            myIndex = index;
-                            index += 1;
+  const year  = parseInt(document.getElementById('selYear').value);
+  const month = parseInt(document.getElementById('selMonth').value);
+  const limit = parseInt(document.getElementById('selLimit').value);
+  const delay = parseInt(document.getElementById('selDelay').value);
+  const btn   = document.getElementById('btnRun');
+  const errEl = document.getElementById('errMsg');
 
-                            const symbol = symbols[myIndex];
-                            try {
-                                const data = await fetchSymbol4h(symbol);
-                                if (data) {
-                                    results.push(data);
-                                }
-                            } catch (err) {
-                                console.error("심볼 에러:", symbol, err);
-                            }
+  btn.disabled = true;
+  document.getElementById('btnLabel').innerHTML = '<span class="scanning-dot"></span>&nbsp; SCANNING...';
+  errEl.classList.remove('show');
+  document.getElementById('resultSection').classList.remove('show');
+  clearLog();
 
-                            if (myIndex % 10 === 0 || myIndex === total - 1) {
-                                statusEl.textContent =
-                                    "4H 데이터 스캔 중... (" + (myIndex + 1) + " / " + total + ")";
-                            }
-                        }
-                    }
+  const now = new Date();
+  if (new Date(Date.UTC(year, month - 1, 1)) > now) {
+    showErr('아직 도래하지 않은 월입니다.');
+    reset(btn); return;
+  }
 
-                    const workers = [];
-                    for (let i = 0; i < MAX_CONCURRENCY; i += 1) {
-                        workers.push(worker());
-                    }
-                    await Promise.all(workers);
+  const pw = document.getElementById('progressWrap');
+  pw.classList.add('show');
+  setProgress(0, 1);
 
-                    // 이전 스캔과 비교해서 Δ% 계산
-                    const enriched = results.map(function (item) {
-                        const prev = previousScan[item.symbol];
-                        const prevPct = prev ? prev.pctChange : null;
-                        const delta = prevPct != null ? item.pctChange - prevPct : null;
-                        return {
-                            symbol: item.symbol,
-                            open: item.open,
-                            close: item.close,
-                            pctChange: item.pctChange,
-                            ma99: item.ma99,
-                            prevPct: prevPct,
-                            delta: delta
-                        };
-                    });
+  log(`▶ ${year}년 ${month}월 스캔 시작`, 'log-accent');
 
-                    if (isFirstScan) {
-                        // 첫 스캔: 현재 4H 봉 증감률 높은 순
-                        enriched.sort(function (a, b) {
-                            return b.pctChange - a.pctChange;
-                        });
-                    } else {
-                        // 두 번째 스캔부터: 직전 스캔 대비 증감률 변화량(Δ%) 큰 순
-                        enriched.sort(function (a, b) {
-                            const da = a.delta;
-                            const db = b.delta;
-                            if (da == null && db == null) {
-                                return b.pctChange - a.pctChange;
-                            }
-                            if (da == null) {
-                                return 1;
-                            }
-                            if (db == null) {
-                                return -1;
-                            }
-                            return db - da;
-                        });
-                    }
+  let symbols;
+  try {
+    symbols = await getAllSymbols();
+    log(`  USDT 무기한 선물 페어 총 ${symbols.length}개 확인`, 'log-info');
+  } catch(e) {
+    showErr('바이낸스 API 연결 실패. 네트워크 또는 CORS 차단을 확인하세요.');
+    reset(btn); return;
+  }
 
-                    renderTable(enriched);
+  const toScan = symbols.slice(0, limit);
+  log(`  스캔 대상: ${toScan.length}개 페어`, 'log-info');
 
-                    // 이번 스캔 결과를 다음 Δ 계산용으로 저장
-                    previousScan = {};
-                    for (let i = 0; i < enriched.length; i += 1) {
-                        const row = enriched[i];
-                        previousScan[row.symbol] = {
-                            pctChange: row.pctChange
-                        };
-                    }
+  let best = null;
+  let bestGain = -Infinity;
+  let scanned = 0;
+  let valid = 0;
 
-                    const now = new Date();
-                    lastScanEl.textContent =
-                        "마지막 스캔: " + formatTime(now) +
-                        (isFirstScan ? " · 첫 스캔 (증감률 순)" : " · 증감률 변화량(Δ%) 순");
+  for (const sym of toScan) {
+    try {
+      const kl = await getMonthlyKline(sym, year, month);
+      if (kl) {
+        const open  = parseFloat(kl[1]);
+        const close = parseFloat(kl[4]);
+        if (open > 0) {
+          const gain = (close - open) / open * 100;
+          valid++;
+          if (gain > bestGain) {
+            bestGain = gain;
+            best = {
+              symbol: sym,
+              open, close,
+              high: parseFloat(kl[2]),
+              low:  parseFloat(kl[3]),
+              vol:  parseFloat(kl[5]),
+              gain
+            };
+          }
+        }
+      }
+    } catch(e) {}
 
-                    statusEl.textContent =
-                        "스캔 완료 · " + enriched.length +
-                        "개 심볼 (4H 현재봉이 99MA 아래인 것만 표시)";
+    scanned++;
+    setProgress(scanned, toScan.length);
 
-                    // 첫 수동 스캔 이후 자동 스캔 ON
-                    if (!isAuto && !autoEnabled) {
-                        autoEnabled = true;
-                        scheduleNextAutoScan();
-                    }
+    if (scanned % 25 === 0) {
+      const cur = best ? `현재 1위: ${best.symbol} (+${best.gain.toFixed(2)}%)` : '';
+      log(`  [${scanned}/${toScan.length}] 유효 ${valid}개  ${cur}`, 'log-info');
+    }
+    await sleep(delay);
+  }
 
-                    isFirstScan = false;
-                } catch (e) {
-                    console.error(e);
-                    statusEl.textContent = "에러: " + e.message;
-                } finally {
-                    isScanning = false;
-                    scanButton.disabled = false;
-                    scanButton.textContent = "지금 스캔";
-                }
-            }
+  if (!best) {
+    showErr('해당 월에 데이터가 있는 페어를 찾지 못했습니다. 다른 월을 선택하세요.');
+    reset(btn); return;
+  }
 
-            function renderTable(rows) {
-                tbody.innerHTML = "";
+  log(``, '');
+  log(`★ 최고 상승 페어: ${best.symbol}  (+${best.gain.toFixed(2)}%)`, 'log-accent');
+  log(`  시가: ${fmtPrice(best.open)}  종가: ${fmtPrice(best.close)}`, 'log-info');
+  log(`  전체 1M 봉 수 집계 중...`, 'log-info');
 
-                rows.forEach(function (row, idx) {
-                    const tr = document.createElement("tr");
+  let totalBars = 0;
+  try {
+    totalBars = await getTotalMonthlyKlines(best.symbol, year, month);
+    log(`  ${best.symbol} 해당월 포함 이전 전체 1M 봉: ${totalBars}개`, 'log-accent');
+  } catch(e) {
+    log('  봉 개수 집계 실패', 'log-err');
+  }
 
-                    const rankTd = document.createElement("td");
-                    rankTd.textContent = idx + 1;
+  showResult(best, year, month, totalBars);
+  reset(btn);
+}
 
-                    const symTd = document.createElement("td");
-                    symTd.textContent = row.symbol;
+function showResult(best, year, month, totalBars) {
+  const monthStr = String(month).padStart(2,'0');
+  document.getElementById('resSymbol').textContent = best.symbol;
+  document.getElementById('resPeriod').textContent = `${year}년 ${monthStr}월 1M 봉 기준`;
 
-                    const openTd = document.createElement("td");
-                    openTd.textContent = row.open.toFixed(4);
+  const gainEl = document.getElementById('resGain');
+  gainEl.textContent = (best.gain >= 0 ? '+' : '') + best.gain.toFixed(2) + '%';
+  gainEl.className = 'result-gain' + (best.gain < 0 ? ' negative' : '');
 
-                    const closeTd = document.createElement("td");
-                    closeTd.textContent = row.close.toFixed(4);
+  document.getElementById('metricsGrid').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">시가 (Open)</div>
+      <div class="metric-val">${fmtPrice(best.open)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">종가 (Close)</div>
+      <div class="metric-val">${fmtPrice(best.close)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">고가 (High)</div>
+      <div class="metric-val">${fmtPrice(best.high)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">저가 (Low)</div>
+      <div class="metric-val">${fmtPrice(best.low)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">거래량 (Vol)</div>
+      <div class="metric-val">${Math.round(best.vol).toLocaleString('ko-KR')}</div>
+    </div>
+  `;
 
-                    const pctTd = document.createElement("td");
-                    pctTd.textContent = row.pctChange.toFixed(2) + " %";
-                    pctTd.className = row.pctChange >= 0 ? "pos" : "neg";
+  document.getElementById('barSymName').textContent = best.symbol;
+  document.getElementById('barsCount').textContent = totalBars;
+  document.getElementById('resultSection').classList.add('show');
+}
 
-                    const maTd = document.createElement("td");
-                    maTd.textContent = row.ma99.toFixed(4);
+function showErr(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+  log('✗ ' + msg, 'log-err');
+}
 
-                    const belowTd = document.createElement("td");
-                    const gapPct = ((row.close - row.ma99) / row.ma99) * 100;
-                    belowTd.textContent = gapPct.toFixed(2) + " %";
-
-                    const deltaTd = document.createElement("td");
-                    if (row.delta == null) {
-                        deltaTd.textContent = "-";
-                        deltaTd.className = "muted";
-                    } else {
-                        deltaTd.textContent = row.delta.toFixed(2) + " %";
-                        deltaTd.className = row.delta >= 0 ? "pos" : "neg";
-                    }
-
-                    tr.appendChild(rankTd);
-                    tr.appendChild(symTd);
-                    tr.appendChild(openTd);
-                    tr.appendChild(closeTd);
-                    tr.appendChild(pctTd);
-                    tr.appendChild(maTd);
-                    tr.appendChild(belowTd);
-                    tr.appendChild(deltaTd);
-
-                    tbody.appendChild(tr);
-                });
-            }
-
-            function scheduleNextAutoScan() {
-                if (autoTimer) {
-                    clearTimeout(autoTimer);
-                }
-
-                const now = new Date();
-                const minutes = now.getMinutes();
-                const quarters = [0, 15, 30, 45];
-                let targetMinute = null;
-
-                for (let i = 0; i < quarters.length; i += 1) {
-                    if (minutes < quarters[i]) {
-                        targetMinute = quarters[i];
-                        break;
-                    }
-                }
-
-                const next = new Date(now.getTime());
-                if (targetMinute === null) {
-                    next.setHours(now.getHours() + 1, 0, 0, 0); // 다음 시 정각
-                } else {
-                    next.setMinutes(targetMinute, 0, 0);
-                }
-
-                const delay = next.getTime() - now.getTime();
-                autoInfoEl.textContent =
-                    "자동스캔: ON · 다음 자동 스캔 예정: " + formatTime(next);
-
-                autoTimer = setTimeout(async function () {
-                    if (!isScanning) {
-                        await startScan(true);
-                    } else {
-                        console.log("이전 스캔이 끝나지 않아 자동 스캔 한 번 건너뜀");
-                    }
-                    scheduleNextAutoScan();
-                }, delay);
-            }
-
-            function formatTime(d) {
-                const yy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
-                const hh = String(d.getHours()).padStart(2, "0");
-                const mi = String(d.getMinutes()).padStart(2, "0");
-                const ss = String(d.getSeconds()).padStart(2, "0");
-                return yy + "-" + mm + "-" + dd + " " + hh + ":" + mi + ":" + ss;
-            }
-        })();
-    </script>
+function reset(btn) {
+  btn.disabled = false;
+  document.getElementById('btnLabel').textContent = 'SCAN START';
+  document.getElementById('progressWrap').classList.remove('show');
+  running = false;
+}
+</script>
 </body>
 </html>
