@@ -445,7 +445,7 @@
   <div class="header">
     <div class="header-tag">Binance USDT Futures</div>
     <h1>Monthly <span>Top Gainer</span><br>Scanner</h1>
-    <p class="header-desc">선택한 월의 1M 봉 기준 가장 많이 상승한 USDT 무기한 선물 페어를 찾고, 해당 페어의 전체 월봉 개수를 집계합니다.</p>
+    <p class="header-desc">선택한 월의 1M 봉 기준 시가 대비 고가 상승률이 가장 높은 USDT 무기한 선물 페어를 찾고, 해당 페어의 전체 월봉 개수를 집계합니다.</p>
   </div>
 
   <div class="panel">
@@ -511,7 +511,7 @@
       </div>
       <div>
         <div class="result-gain" id="resGain">—</div>
-        <div class="result-gain-label">월간 상승률</div>
+        <div class="result-gain-label">시가 대비 고가 상승률</div>
       </div>
     </div>
     <div class="divider"></div>
@@ -653,7 +653,7 @@ async function runScan() {
   log(`  스캔 대상: ${toScan.length}개 페어`, 'log-info');
 
   let best = null;
-  let bestGain = -Infinity;
+  let bestRatio = -Infinity;
   let scanned = 0;
   let valid = 0;
 
@@ -661,20 +661,21 @@ async function runScan() {
     try {
       const kl = await getMonthlyKline(sym, year, month);
       if (kl) {
-        const open  = parseFloat(kl[1]);
-        const close = parseFloat(kl[4]);
+        const open = parseFloat(kl[1]);
+        const high = parseFloat(kl[2]);
         if (open > 0) {
-          const gain = (close - open) / open * 100;
+          const highRatio = (high - open) / open * 100;
           valid++;
-          if (gain > bestGain) {
-            bestGain = gain;
+          if (highRatio > bestRatio) {
+            bestRatio = highRatio;
             best = {
               symbol: sym,
-              open, close,
-              high: parseFloat(kl[2]),
+              open,
+              close: parseFloat(kl[4]),
+              high,
               low:  parseFloat(kl[3]),
               vol:  parseFloat(kl[5]),
-              gain
+              highRatio
             };
           }
         }
@@ -685,7 +686,7 @@ async function runScan() {
     setProgress(scanned, toScan.length);
 
     if (scanned % 25 === 0) {
-      const cur = best ? `현재 1위: ${best.symbol} (+${best.gain.toFixed(2)}%)` : '';
+      const cur = best ? `현재 1위: ${best.symbol} (시가대비고가 +${best.highRatio.toFixed(2)}%)` : '';
       log(`  [${scanned}/${toScan.length}] 유효 ${valid}개  ${cur}`, 'log-info');
     }
     await sleep(delay);
@@ -697,8 +698,8 @@ async function runScan() {
   }
 
   log(``, '');
-  log(`★ 최고 상승 페어: ${best.symbol}  (+${best.gain.toFixed(2)}%)`, 'log-accent');
-  log(`  시가: ${fmtPrice(best.open)}  종가: ${fmtPrice(best.close)}`, 'log-info');
+  log(`★ 시가대비 고가 최대 페어: ${best.symbol}  (시가대비고가 +${best.highRatio.toFixed(2)}%)`, 'log-accent');
+  log(`  시가: ${fmtPrice(best.open)}  고가: ${fmtPrice(best.high)}`, 'log-info');
   log(`  전체 1M 봉 수 집계 중...`, 'log-info');
 
   let totalBars = 0;
@@ -716,24 +717,24 @@ async function runScan() {
 function showResult(best, year, month, totalBars) {
   const monthStr = String(month).padStart(2,'0');
   document.getElementById('resSymbol').textContent = best.symbol;
-  document.getElementById('resPeriod').textContent = `${year}년 ${monthStr}월 1M 봉 기준`;
+  document.getElementById('resPeriod').textContent = `${year}년 ${monthStr}월 1M 봉 기준 · 시가대비 고가`;
 
   const gainEl = document.getElementById('resGain');
-  gainEl.textContent = (best.gain >= 0 ? '+' : '') + best.gain.toFixed(2) + '%';
-  gainEl.className = 'result-gain' + (best.gain < 0 ? ' negative' : '');
+  gainEl.textContent = '+' + best.highRatio.toFixed(2) + '%';
+  gainEl.className = 'result-gain';
 
   document.getElementById('metricsGrid').innerHTML = `
     <div class="metric-card">
       <div class="metric-label">시가 (Open)</div>
       <div class="metric-val">${fmtPrice(best.open)}</div>
     </div>
+    <div class="metric-card accent">
+      <div class="metric-label">고가 (High)</div>
+      <div class="metric-val">${fmtPrice(best.high)}</div>
+    </div>
     <div class="metric-card">
       <div class="metric-label">종가 (Close)</div>
       <div class="metric-val">${fmtPrice(best.close)}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">고가 (High)</div>
-      <div class="metric-val">${fmtPrice(best.high)}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">저가 (Low)</div>
