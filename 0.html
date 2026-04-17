@@ -1106,9 +1106,19 @@ async function triggerScan() {
 function scheduleNext(interval) {
   clearTimeout(scanTimer);
   clearInterval(countdownTimer);
-  nextScanAt = Date.now() + interval * 1000;
 
-  scanTimer = setTimeout(triggerScan, interval * 1000);
+  // 다음 정각 5분 계산 (00, 05, 10, 15 ...)
+  const now = new Date();
+  const ms = now.getTime();
+  const intervalMs = interval * 1000; // 기본 300000ms (5분)
+  const nextMs = Math.ceil(ms / intervalMs) * intervalMs; // 다음 배수 시각
+  const delay = nextMs - ms;
+
+  nextScanAt = nextMs;
+  scanTimer = setTimeout(() => {
+    triggerScan();
+    // 이후엔 재귀적으로 계속 정각 맞춤
+  }, delay);
 
   countdownTimer = setInterval(() => {
     const left = Math.max(0, Math.round((nextScanAt - Date.now()) / 1000));
