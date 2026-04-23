@@ -252,7 +252,7 @@
     <div class="stat-val" id="s-filtered">—</div>
   </div>
   <div class="stat">
-    <div class="stat-label">고위험 (≥70)</div>
+    <div class="stat-label">숏 진입 후보 (≥65)</div>
     <div class="stat-val" id="s-high">—</div>
   </div>
   <div class="stat">
@@ -559,10 +559,16 @@ function renderTable(results) {
       `<span class="signal-badge ${s === '급등' || s === '펀딩↑↑' ? 'w' : ''}">${s}</span>`
     ).join(' ');
 
+    const entryTag = sc >= 80
+      ? '<span style="font-size:9px;color:#e05a5a;margin-left:4px">★최적숏</span>'
+      : sc >= 65
+        ? '<span style="font-size:9px;color:#d4883a;margin-left:4px">숏▼</span>'
+        : '';
+
     const row = document.createElement('tr');
     row.innerHTML = `
       <td class="rank">${i + 1}</td>
-      <td class="symbol">${r.symbol.replace('USDT', '')}<span style="color:var(--muted);font-size:9px">/USDT</span></td>
+      <td class="symbol">${r.symbol.replace('USDT', '')}<span style="color:var(--muted);font-size:9px">/USDT</span>${entryTag}</td>
       <td>
         <div class="score-bar-wrap">
           <div class="score-bar"><div class="score-fill" style="width:${fillW}%"></div></div>
@@ -620,7 +626,7 @@ async function runScan() {
     results.sort((a, b) => b.score - a.score);
     const top = results.slice(0, 50);
 
-    const highRisk = top.filter(r => r.score >= 70);
+    const highRisk = top.filter(r => r.score >= 65);
     document.getElementById('s-high').textContent = highRisk.length;
 
     const now = new Date();
@@ -635,21 +641,25 @@ async function runScan() {
     renderTable(top);
     setStatus('active', `${top.length}개 결과`);
 
-    if (top.length && notifEnabled) {
-      const best = top[0];
-      if (best.score >= 65 && best.symbol !== lastTopSymbol) {
-        lastTopSymbol = best.symbol;
-        sendNotif(
-          `📉 BEAR SCAN — ${best.symbol}`,
-          `하락 점수 ${best.score} | RSI ${best.rsi?.toFixed(1)} | 펀딩비 ${(best.fundingRate*100).toFixed(4)}%`
-        );
-      }
+    if (notifEnabled) {
+      top.filter(r => r.score >= 65).slice(0, 5).forEach(r => {
+        const key = r.symbol + '_' + Math.floor(Date.now() / 900000);
+        if (!window._notifSent) window._notifSent = {};
+        if (!window._notifSent[key]) {
+          window._notifSent[key] = true;
+          const tag = r.score >= 80 ? '★최적 숏진입' : '숏진입 고려';
+          sendNotif(
+            `📉 BEAR SCAN — ${r.symbol.replace('USDT','')} [${tag}]`,
+            `점수 ${r.score} | 펀딩비 ${(r.fundingRate*100).toFixed(4)}% | OBV: ${r.signals.includes('OBV이탈') ? '이탈' : '정상'}`
+          );
+        }
+      });
     }
 
     if (highRisk.length >= 3) {
       const ab = document.getElementById('alert-banner');
       ab.style.display = 'block';
-      ab.textContent = `⚠ 고위험 종목 ${highRisk.length}개 발견 — ${highRisk.slice(0,3).map(r=>r.symbol.replace('USDT','')).join(', ')} 외`;
+      ab.textContent = `⚠ 숏 진입 후보 ${highRisk.length}개 — ${highRisk.slice(0,3).map(r=>r.symbol.replace('USDT','')).join(', ')} 외`;
     } else {
       document.getElementById('alert-banner').style.display = 'none';
     }
