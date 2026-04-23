@@ -466,30 +466,33 @@ async function analyzeSymbol(symbol, fundingRate, ticker) {
     let score = 0;
     const signals = [];
 
-    if (rsi !== null) {
-      if (rsi >= 75) { score += 30; signals.push('RSI과매수'); }
-      else if (rsi >= 65) { score += 18; }
-      else if (rsi >= 55) { score += 8; }
-    }
+    // 1위: 펀딩비 (35점) — 롱 과열의 직접 증거, 청산 압력의 원인
+    if (fundingRate >= 0.001) { score += 35; signals.push('펀딩↑↑'); }
+    else if (fundingRate >= 0.0005) { score += 22; signals.push('펀딩↑'); }
+    else if (fundingRate > 0) { score += 10; }
 
+    // 2위: OBV 다이버전스 (25점) — 가격 오르는데 매수세 빠짐 = 반전 근거
+    if (obvDiv) { score += 25; signals.push('OBV이탈'); }
+
+    // 3위: 볼린저밴드 상단 (20점) — 통계적 과매수 위치
     if (bb !== null) {
-      if (bb.pos >= 0.9) { score += 25; signals.push('BB상단'); }
-      else if (bb.pos >= 0.75) { score += 15; }
-      else if (bb.pos >= 0.6) { score += 7; }
+      if (bb.pos >= 0.9) { score += 20; signals.push('BB상단'); }
+      else if (bb.pos >= 0.75) { score += 12; }
+      else if (bb.pos >= 0.6) { score += 5; }
     }
 
-    if (fundingRate >= 0.001) { score += 20; signals.push('펀딩↑↑'); }
-    else if (fundingRate >= 0.0005) { score += 12; }
-    else if (fundingRate > 0) { score += 5; }
+    // 4위: 거래량 급증 + 급등 조합 (15점) — 과열의 확인 신호
+    if (priceChange1h >= 3 && volRatio >= 2.0) { score += 15; signals.push('급등+물량'); }
+    else if (priceChange1h >= 3) { score += 9; signals.push('급등'); }
+    else if (priceChange1h >= 1.5 && volRatio >= 1.5) { score += 6; }
+    else if (priceChange1h >= 1.5) { score += 4; }
+    else if (volRatio >= 2.5) { score += 4; }
 
-    if (priceChange1h >= 3) { score += 15; signals.push('급등'); }
-    else if (priceChange1h >= 1.5) { score += 8; }
-    else if (priceChange1h >= 0.5) { score += 4; }
-
-    if (obvDiv) { score += 10; signals.push('OBV이탈'); }
-
-    if (volRatio >= 2.5) { score += 8; }
-    else if (volRatio >= 1.5) { score += 4; }
+    // 5위: RSI (5점) — 후행 지표, 보조 역할만
+    if (rsi !== null) {
+      if (rsi >= 75) { score += 5; signals.push('RSI과매수'); }
+      else if (rsi >= 65) { score += 3; }
+    }
 
     const tp = atr ? price - atr * 0.5 : null;
     const sl = atr ? price + atr * 1.0 : null;
