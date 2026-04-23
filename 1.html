@@ -170,7 +170,7 @@
   <div class="stat"><div class="stat-label">전체 종목</div><div class="stat-val" id="s-total">—</div></div>
   <div class="stat"><div class="stat-label">거래량 급증</div><div class="stat-val" id="s-vol">—</div></div>
   <div class="stat"><div class="stat-label">급등 후보</div><div class="stat-val" id="s-cand">—</div></div>
-  <div class="stat"><div class="stat-label">90점 이상</div><div class="stat-val" id="s-hot">—</div></div>
+  <div class="stat"><div class="stat-label">진입 후보 (≥70)</div><div class="stat-val" id="s-hot">—</div></div>
   <div class="stat"><div class="stat-label">마지막 스캔</div><div class="stat-val" id="s-time">—</div></div>
 </div>
 
@@ -402,6 +402,11 @@ function renderTable(results) {
   results.forEach((r, i) => {
     const sc = r.score;
     const rowCls = sc >= 90 ? 'heat-row-90' : sc >= 70 ? 'heat-row-70' : '';
+    const entryTag = sc >= 90
+      ? '<span style="font-size:9px;color:#f0a030;margin-left:4px">★최적</span>'
+      : sc >= 70
+        ? '<span style="font-size:9px;color:#c0c030;margin-left:4px">진입▲</span>'
+        : '';
     const obvStr = r.obvTrend === 1
       ? '<span class="val-green">↑ 상승</span>'
       : r.obvTrend === -1
@@ -417,7 +422,7 @@ function renderTable(results) {
     row.className = rowCls;
     row.innerHTML = `
       <td class="rank">${i+1}</td>
-      <td><span class="symbol">${r.symbol.replace('USDT','')}</span><span class="symbol-sub">/USDT</span></td>
+      <td><span class="symbol">${r.symbol.replace('USDT','')}</span><span class="symbol-sub">/USDT</span>${entryTag}</td>
       <td>
         <div class="score-wrap">
           <div class="score-bar"><div class="score-fill" style="width:${sc}%"></div></div>
@@ -473,7 +478,7 @@ async function runScan() {
 
     document.getElementById('s-vol').textContent = results.length;
     document.getElementById('s-cand').textContent = top.length;
-    document.getElementById('s-hot').textContent = top.filter(r => r.score >= 90).length;
+    document.getElementById('s-hot').textContent = top.filter(r => r.score >= 70).length;
 
     const now = new Date();
     document.getElementById('s-time').textContent =
@@ -486,8 +491,8 @@ async function runScan() {
     renderTable(top);
     setStatus('active', `${top.length}개 결과`);
 
-    top.slice(0, 3).forEach(r => {
-      if (r.score >= 85) sendNotif(r.symbol, r.score, r.change4h, r.volRatio);
+    top.slice(0, 5).forEach(r => {
+      if (r.score >= 70) sendNotif(r.symbol, r.score, r.change4h, r.volRatio);
     });
 
   } catch(e) {
@@ -506,8 +511,17 @@ function setStatus(state, text) {
 function scheduleNext() {
   const now = new Date();
   const next = new Date(now);
-  next.setMinutes(0, 30, 0);
-  if (next <= now) next.setHours(next.getHours() + 1);
+  const m = now.getMinutes();
+  const nextM = Math.ceil((m + 1) / 15) * 15;
+  if (nextM >= 60) {
+    next.setHours(next.getHours() + 1);
+    next.setMinutes(0, 30, 0);
+  } else {
+    next.setMinutes(nextM, 30, 0);
+  }
+  if (next <= now) {
+    next.setMinutes(next.getMinutes() + 15);
+  }
   const diff = next - now;
 
   if (countdownId) clearTimeout(countdownId);
