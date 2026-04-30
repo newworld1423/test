@@ -366,6 +366,139 @@
   .price-change.up { color: var(--long); }
   .price-change.dn { color: var(--short); }
 
+  /* TOP PICK CARD */
+  .top-pick-wrap {
+    display: none;
+    margin-bottom: 20px;
+  }
+  .top-pick-wrap.show { display: block; }
+  .top-pick-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .top-pick-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .top-pick-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
+    align-items: center;
+  }
+  .top-pick-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    pointer-events: none;
+  }
+  .top-pick-card.long-card { border-left: 4px solid var(--long); }
+  .top-pick-card.long-card::before { background: var(--long); }
+  .top-pick-card.short-card { border-left: 4px solid var(--short); }
+  .top-pick-card.short-card::before { background: var(--short); }
+
+  .top-pick-symbol {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .top-pick-symbol .usdt { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .top-pick-dir {
+    margin-top: 6px;
+  }
+
+  .top-pick-prices {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .top-pick-price-item {}
+  .top-pick-price-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .top-pick-price-val {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .top-pick-price-val.entry { color: var(--accent); }
+  .top-pick-price-val.tp { color: var(--long); }
+  .top-pick-price-val.sl { color: var(--short); }
+
+  .top-pick-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .top-pick-score-ring {
+    position: relative;
+    width: 64px;
+    height: 64px;
+  }
+  .top-pick-score-ring svg { transform: rotate(-90deg); }
+  .top-pick-score-ring .ring-track { fill: none; stroke: var(--border); stroke-width: 4; }
+  .top-pick-score-ring .ring-fill { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+  .top-pick-score-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .top-pick-score-num {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .top-pick-score-label {
+    font-size: 8px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .top-pick-rr {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+  }
+  .top-pick-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .top-pick-vol { font-size: 10px; color: var(--muted); }
+
+  @media (max-width: 700px) {
+    .top-pick-card { grid-template-columns: 1fr; gap: 16px; }
+    .top-pick-meta { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+    .top-pick-prices { grid-template-columns: repeat(3, 1fr); }
+  }
+
   /* scroll */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -453,6 +586,14 @@
     <div class="auto-bar-sep">|</div>
     <div class="next-scan-info" style="font-size:10px;color:var(--muted)">
       매시 :00 정각 자동 실행<br>탭을 열어두세요
+    </div>
+  </div>
+
+  <!-- TOP PICK CARD -->
+  <div class="top-pick-wrap" id="topPickWrap">
+    <div class="top-pick-label">⭐ 최우선 진입 추천 — 최고점수 · 동점시 거래량 우선</div>
+    <div class="top-pick-card" id="topPickCard">
+      <!-- JS로 렌더 -->
     </div>
   </div>
 
@@ -887,6 +1028,83 @@ function fmtVol(v) {
   return v.toFixed(0);
 }
 
+function renderTopPick(rows) {
+  const wrap = document.getElementById('topPickWrap');
+  const card = document.getElementById('topPickCard');
+
+  if (!rows.length) { wrap.classList.remove('show'); return; }
+
+  // 최고점수 → 동점이면 거래량 높은 것
+  const top = [...rows].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.vol24h - a.vol24h;
+  })[0];
+
+  wrap.classList.add('show');
+
+  const isLong = top.direction === 'LONG';
+  card.className = `top-pick-card ${isLong ? 'long-card' : 'short-card'}`;
+
+  const CIRC64 = 2 * Math.PI * 28; // r=28
+  const offset = CIRC64 * (1 - top.score / 100);
+  const scoreColor = top.score >= 80 ? '#00e5ff' : top.score >= 65 ? '#ffb300' : '#4a6375';
+  const dirColor = isLong ? 'var(--long)' : 'var(--short)';
+
+  const tagsHtml = top.signals.map(s => {
+    const cls = s.on ? 'on' : s.warn ? 'warn' : '';
+    return `<span class="tag ${cls}">${s.label}</span>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div>
+      <div class="top-pick-symbol" style="color:${dirColor}">
+        ${top.symbol.replace('USDT', '')}<span class="usdt">USDT</span>
+      </div>
+      <div class="top-pick-dir">
+        <span class="dir-badge ${top.direction.toLowerCase()}">${isLong ? '▲ LONG' : '▼ SHORT'}</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="top-pick-prices">
+        <div class="top-pick-price-item">
+          <div class="top-pick-price-label">진입가</div>
+          <div class="top-pick-price-val entry">${fmt(top.entry)}</div>
+        </div>
+        <div class="top-pick-price-item">
+          <div class="top-pick-price-label">익절 TP</div>
+          <div class="top-pick-price-val tp">▲ ${fmt(top.tp)}</div>
+        </div>
+        <div class="top-pick-price-item">
+          <div class="top-pick-price-label">손절 SL</div>
+          <div class="top-pick-price-val sl">▼ ${fmt(top.sl)}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="top-pick-tags">${tagsHtml}</div>
+      </div>
+    </div>
+
+    <div class="top-pick-meta">
+      <div class="top-pick-score-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-track" cx="32" cy="32" r="28"/>
+          <circle class="ring-fill" cx="32" cy="32" r="28"
+            stroke="${scoreColor}"
+            stroke-dasharray="${CIRC64.toFixed(2)}"
+            stroke-dashoffset="${offset.toFixed(2)}"/>
+        </svg>
+        <div class="top-pick-score-center">
+          <div class="top-pick-score-num" style="color:${scoreColor}">${top.score}</div>
+          <div class="top-pick-score-label">점수</div>
+        </div>
+      </div>
+      <div class="top-pick-rr">RR ${top.rr.toFixed(1)}:1</div>
+      <div class="top-pick-vol">24h ${fmtVol(top.vol24h)}</div>
+    </div>
+  `;
+}
+
 function renderTable() {
   const dirF = document.getElementById('dirFilter').value;
   const scoreF = parseInt(document.getElementById('scoreFilter').value);
@@ -907,8 +1125,11 @@ function renderTable() {
 
   if (!rows.length) {
     document.getElementById('tableBody').innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="big">0</div>조건에 맞는 신호가 없습니다</div></td></tr>`;
+    renderTopPick([]);
     return;
   }
+
+  renderTopPick(rows);
 
   document.getElementById('tableBody').innerHTML = rows.map((r, i) => {
     const scoreClass = r.score >= 80 ? 'hi' : r.score >= 65 ? 'md' : 'lo';
