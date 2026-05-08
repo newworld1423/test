@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>15M Long Scanner — Binance USDT Perps</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0b0e;
+    --bg2: #111318;
+    --bg3: #181b22;
+    --bg4: #1e2229;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text2: #8a8f9e;
+    --text3: #555b6a;
+    --green: #00d47e;
+    --green-dim: rgba(0,212,126,0.12);
+    --green-border: rgba(0,212,126,0.3);
+    --red: #ff4d6d;
+    --red-dim: rgba(255,77,109,0.12);
+    --red-border: rgba(255,77,109,0.3);
+    --yellow: #f4c542;
+    --yellow-dim: rgba(244,197,66,0.12);
+    --yellow-border: rgba(244,197,66,0.3);
+    --blue: #4d9fff;
+    --blue-dim: rgba(77,159,255,0.1);
+    --accent: #00d47e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID SCANLINE BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #app {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .header-left {}
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; box-shadow: 0 0 8px var(--accent); }
+    50% { opacity:0.5; box-shadow: 0 0 16px var(--accent); }
+  }
+
+  .logo-dot.off {
+    background: var(--text3);
+    box-shadow: none;
+    animation: none;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+
+  .live-badge.idle {
+    color: var(--text3);
+    border-color: var(--border);
+    background: transparent;
+  }
+
+  .live-badge.scanning {
+    color: var(--yellow);
+    border-color: var(--yellow-border);
+    background: var(--yellow-dim);
+  }
+
+  .live-badge.done {
+    color: var(--green);
+    border-color: var(--green-border);
+    background: var(--green-dim);
+  }
+
+  .live-badge .dot-blink {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 1s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .next-time {
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* META CARDS */
+  .meta-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .meta-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .meta-card .lbl {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+
+  .meta-card .val {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .meta-card .val.sm { font-size: 14px; margin-top: 2px; }
+
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+
+  .btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn.primary:hover { background: #00f090; border-color: #00f090; }
+  .btn.primary:disabled { background: var(--bg3); color: var(--text3); border-color: var(--border); }
+
+  .btn.active {
+    background: var(--blue-dim);
+    color: var(--blue);
+    border-color: rgba(77,159,255,0.4);
+  }
+
+  .btn.active-green {
+    background: var(--green-dim);
+    color: var(--green);
+    border-color: var(--green-border);
+  }
+
+  .search-input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text);
+    width: 160px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-input:focus { border-color: var(--border2); }
+  .search-input::placeholder { color: var(--text3); }
+
+  .spacer { flex: 1; }
+
+  /* FILTER ROW */
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .filter-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 2px;
+  }
+
+  /* PROGRESS */
+  .progress-wrap {
+    margin-bottom: 8px;
+    height: 2px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.4s ease;
+    width: 0%;
+    border-radius: 2px;
+  }
+
+  .status-line {
+    font-size: 10px;
+    color: var(--text3);
+    margin-bottom: 14px;
+    min-height: 14px;
+    letter-spacing: 0.03em;
+  }
+
+  /* TABLE */
+  .table-outer {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    background: var(--bg3);
+    transition: color 0.1s;
+  }
+
+  thead th:hover { color: var(--text2); }
+  thead th.sorted { color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+
+  tbody td {
+    padding: 9px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  /* RANK */
+  .rank {
+    font-size: 10px;
+    color: var(--text3);
+    width: 32px;
+    font-weight: 400;
+  }
+
+  .rank.top3 {
+    color: var(--yellow);
+    font-weight: 600;
+  }
+
+  /* SYMBOL */
+  .sym {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .sym-q {
+    font-size: 10px;
+    color: var(--text3);
+    font-weight: 400;
+  }
+
+  /* SCORE */
+  .score-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 130px;
+  }
+
+  .score-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg4);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .score-fill-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  .score-num {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 26px;
+    text-align: right;
+  }
+
+  /* CHANGE */
+  .chg { font-size: 12px; font-weight: 500; }
+  .chg.up { color: var(--green); }
+  .chg.dn { color: var(--red); }
+
+  /* FUNDING */
+  .fnd { font-size: 12px; font-weight: 500; }
+  .fnd.neg { color: var(--green); }
+  .fnd.pos { color: var(--red); }
+  .fnd.neu { color: var(--text3); }
+
+  /* VOL */
+  .vol { font-size: 12px; color: var(--text2); }
+  .vol.hot { color: var(--yellow); font-weight: 500; }
+
+  /* CHIP SIGNALS */
+  .chips { display: flex; gap: 3px; flex-wrap: wrap; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+
+  .chip-g { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+  .chip-r { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+  .chip-y { background: var(--yellow-dim); color: var(--yellow); border-color: var(--yellow-border); }
+  .chip-b { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,159,255,0.3); }
+  .chip-n { background: var(--bg4); color: var(--text3); border-color: var(--border); }
+
+  /* PRICE */
+  .price { font-size: 12px; color: var(--text2); font-weight: 400; }
+
+  /* EMPTY */
+  .empty-row td {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  /* SCORE COLOR */
+  .sc-high { color: var(--green); }
+  .sc-mid  { color: var(--yellow); }
+  .sc-low  { color: var(--red); }
+  .sc-none { color: var(--text3); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+  /* TOOLTIP SCORING */
+  .scoring-legend {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .scoring-legend.open { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 24px; }
+
+  .sl-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    gap: 8px;
+  }
+
+  .sl-name { color: var(--text2); }
+  .sl-pts { color: var(--accent); font-weight: 600; min-width: 30px; text-align: right; }
+
+  .legend-toggle {
+    font-size: 10px;
+    color: var(--text3);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    margin-left: 4px;
+    user-select: none;
+  }
+
+  .legend-toggle:hover { color: var(--text2); }
+
+  @media (max-width: 700px) {
+    h1 { font-size: 18px; }
+    .meta-card .val { font-size: 18px; }
+    .search-input { width: 120px; }
+    thead th:nth-child(7),
+    tbody td:nth-child(7) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-row">
+        <div class="logo-dot off" id="logo-dot"></div>
+        <h1>15M Long Scanner</h1>
+      </div>
+      <div class="subtitle">Binance USDT Perpetuals &mdash; 15분봉 상승 확률 스코어링</div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge idle" id="live-badge">
+        <div class="dot-blink" id="badge-dot" style="display:none"></div>
+        <span id="badge-text">IDLE</span>
+      </div>
+      <div class="next-time" id="next-label"></div>
+    </div>
+  </div>
+
+  <!-- META -->
+  <div class="meta-row">
+    <div class="meta-card">
+      <div class="lbl">전체 페어</div>
+      <div class="val" id="total-pairs">—</div>
+    </div>
+    <div class="meta-card">
+      <div class="lbl">스캔 완료</div>
+      <div class="val" id="scanned-count">—</div>
+    </div>
+    <div class="meta-card">
+      <div class="lbl">점수 70+</div>
+      <div class="val" id="high-score-count">—</div>
+    </div>
+    <div class="meta-card">
+      <div class="lbl">마지막 스캔</div>
+      <div class="val sm" id="last-scan">—</div>
+    </div>
+    <div class="meta-card">
+      <div class="lbl">다음 자동 스캔</div>
+      <div class="val sm" id="next-scan">—</div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <button class="btn primary" id="scan-btn">▶ 즉시 스캔</button>
+    <button class="btn" id="auto-btn">⏱ 자동 (00/15/30/45)</button>
+    <div class="spacer"></div>
+    <input class="search-input" id="search-input" type="text" placeholder="심볼 검색...">
+  </div>
+
+  <!-- FILTER -->
+  <div class="filter-row">
+    <span class="filter-lbl">표시</span>
+    <button class="btn active" id="f-all"     onclick="setFilter('all',this)">전체</button>
+    <button class="btn"        id="f-top20"   onclick="setFilter('top20',this)">상위 20</button>
+    <button class="btn"        id="f-top50"   onclick="setFilter('top50',this)">상위 50</button>
+    <button class="btn"        id="f-score70" onclick="setFilter('score70',this)">점수 70+</button>
+    <button class="btn"        id="f-score50" onclick="setFilter('score50',this)">점수 50+</button>
+    <span class="legend-toggle" onclick="toggleLegend()">스코어 기준 보기 ↓</span>
+  </div>
+
+  <!-- SCORING LEGEND -->
+  <div class="scoring-legend" id="scoring-legend">
+    <div class="sl-row"><span class="sl-name">거래량 급증 (최근 5봉 vs 평균)</span><span class="sl-pts">25pt</span></div>
+    <div class="sl-row"><span class="sl-name">EMA 상승배열 (7&gt;25&gt;99)</span><span class="sl-pts">20pt</span></div>
+    <div class="sl-row"><span class="sl-name">볼린저 하단 근접 (BB%B &lt;0.2)</span><span class="sl-pts">20pt</span></div>
+    <div class="sl-row"><span class="sl-name">펀딩비 음수 (숏 부담 → 롱 유리)</span><span class="sl-pts">15pt</span></div>
+    <div class="sl-row"><span class="sl-name">가격 모멘텀 (최근 3봉 방향)</span><span class="sl-pts">12pt</span></div>
+    <div class="sl-row"><span class="sl-name">OBV 상승 (거래량 선행)</span><span class="sl-pts">8pt</span></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap">
+    <div class="progress-fill" id="progress"></div>
+  </div>
+  <div class="status-line" id="status-line"></div>
+
+  <!-- TABLE -->
+  <div class="table-outer">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th onclick="sortBy('symbol')">심볼 <span id="s-symbol"></span></th>
+          <th onclick="sortBy('score')" class="sorted">점수 ↓</th>
+          <th onclick="sortBy('change15m')">15m 변동</th>
+          <th onclick="sortBy('funding')">펀딩비</th>
+          <th onclick="sortBy('volRatio')">거래량 배수</th>
+          <th>신호</th>
+          <th onclick="sortBy('price')">현재가</th>
+        </tr>
+      </thead>
+      <tbody id="result-body">
+        <tr class="empty-row">
+          <td colspan="8">▶ 즉시 스캔 버튼을 눌러 시작하세요<br><span style="font-size:10px;margin-top:6px;display:block;opacity:0.5">전체 USDT 무기한 선물 페어를 스캔합니다</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const BATCH = 5;
+const KLINE_LIMIT = 30;
+let allResults = [];
+let currentFilter = 'all';
+let currentSort = { col: 'score', dir: -1 };
+let searchQuery = '';
+let scanning = false;
+let autoEnabled = false;
+let autoTimer = null;
+let countdownTimer = null;
+
+/* ─── FETCH HELPERS ─── */
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function getSymbols() {
+  const d = await fetchJSON('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  return d.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+    .map(s => s.symbol);
+}
+
+async function getFundingMap() {
+  const map = {};
+  try {
+    const all = await fetchJSON('https://fapi.binance.com/fapi/v1/premiumIndex');
+    all.forEach(x => { if (x.symbol) map[x.symbol] = parseFloat(x.lastFundingRate || 0); });
+  } catch (e) {}
+  return map;
+}
+
+async function get24hMap() {
+  const d = await fetchJSON('https://fapi.binance.com/fapi/v1/ticker/24hr');
+  const map = {};
+  d.forEach(x => { map[x.symbol] = x; });
+  return map;
+}
+
+/* ─── INDICATORS ─── */
+function calcEMA(arr, period) {
+  const k = 2 / (period + 1);
+  let ema = arr[0];
+  for (let i = 1; i < arr.length; i++) ema = arr[i] * k + ema * (1 - k);
+  return ema;
+}
+
+function calcBB(closes, period = 20, mult = 2) {
+  const slice = closes.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  const variance = slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period;
+  const std = Math.sqrt(variance);
+  return { upper: mean + mult * std, lower: mean - mult * std, mid: mean };
+}
+
+function calcOBV(closes, volumes) {
+  let obv = 0;
+  const arr = [0];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i] > closes[i - 1]) obv += volumes[i];
+    else if (closes[i] < closes[i - 1]) obv -= volumes[i];
+    arr.push(obv);
+  }
+  return arr;
+}
+
+/* ─── ANALYZE ONE SYMBOL ─── */
+async function analyzeSymbol(symbol, fundingMap) {
+  const klines = await fetchJSON(
+    `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${KLINE_LIMIT}`
+  );
+  if (!klines || klines.length < 22) return null;
+
+  const closes  = klines.map(k => parseFloat(k[4]));
+  const volumes = klines.map(k => parseFloat(k[5]));
+
+  const price     = closes[closes.length - 1];
+  const prevClose = closes[closes.length - 2];
+  const change15m = (price - prevClose) / prevClose * 100;
+
+  const ema7  = calcEMA(closes.slice(-7), 7);
+  const ema25 = calcEMA(closes.slice(-25), 25);
+  const ema99 = calcEMA(closes, 99);
+
+  const bb    = calcBB(closes);
+  const range = bb.upper - bb.lower;
+  const bbPct = range > 0 ? (price - bb.lower) / range : 0.5;
+
+  const recentVols = volumes.slice(-5);
+  const pastVols   = volumes.slice(-20, -5);
+  const avgVol     = pastVols.reduce((a, b) => a + b, 0) / pastVols.length;
+  const volRatio   = avgVol > 0 ? (recentVols.reduce((a, b) => a + b, 0) / 5) / avgVol : 1;
+
+  const obvArr   = calcOBV(closes, volumes);
+  const obvSlice = obvArr.slice(-5);
+  const obvDir   = (obvSlice[4] - obvSlice[0]) > 0 ? 1 : -1;
+
+  const last3 = closes.slice(-4);
+  let momentumScore = 0;
+  for (let i = 1; i < last3.length; i++) momentumScore += last3[i] > last3[i - 1] ? 1 : -1;
+
+  const funding = fundingMap[symbol] || 0;
+
+  let score = 0;
+  const signals = [];
+
+  /* VOL 25pt */
+  const volPts = Math.min(25, Math.round(Math.max(0, (volRatio - 1) * 10)));
+  score += volPts;
+  if (volPts >= 15) signals.push({ t: 'VOL↑', cls: 'chip-g' });
+  else if (volPts >= 5) signals.push({ t: 'VOL', cls: 'chip-y' });
+
+  /* EMA 20pt */
+  let emaPts = 0;
+  if (ema7  > ema25) emaPts += 10;
+  if (ema25 > ema99) emaPts += 10;
+  score += emaPts;
+  if (emaPts >= 20) signals.push({ t: 'EMA↑', cls: 'chip-g' });
+  else if (emaPts >= 10) signals.push({ t: 'EMA', cls: 'chip-b' });
+
+  /* BB 20pt */
+  let bbPts = 0;
+  if (bbPct < 0.2)      { bbPts = 20; signals.push({ t: 'BB↓', cls: 'chip-g' }); }
+  else if (bbPct < 0.4) { bbPts = 12; signals.push({ t: 'BB', cls: 'chip-y' }); }
+  else if (bbPct > 0.8) { bbPts = -5; signals.push({ t: 'BB↑', cls: 'chip-r' }); }
+  score += bbPts;
+
+  /* FUNDING 15pt */
+  let fundPts = 0;
+  if (funding < -0.0005)     { fundPts = 15; signals.push({ t: 'FND−', cls: 'chip-g' }); }
+  else if (funding < 0)      { fundPts = 8; }
+  else if (funding > 0.001)  { fundPts = -5; signals.push({ t: 'FND+', cls: 'chip-r' }); }
+  score += fundPts;
+
+  /* MOMENTUM 12pt */
+  const momPts = Math.max(0, momentumScore * 4);
+  score += momPts;
+  if (momentumScore >= 2) signals.push({ t: 'MOM', cls: 'chip-g' });
+
+  /* OBV 8pt */
+  const obvPts = obvDir > 0 ? 8 : 0;
+  score += obvPts;
+  if (obvDir > 0) signals.push({ t: 'OBV', cls: 'chip-b' });
+
+  score = Math.max(0, Math.min(100, score));
+
+  return { symbol, price, change15m, score, funding, volRatio, signals, ema7, ema25, ema99, bbPct };
+}
+
+/* ─── SCORING COLOR ─── */
+function scoreColor(s) {
+  if (s >= 70) return '#00d47e';
+  if (s >= 50) return '#f4c542';
+  if (s >= 30) return '#ff4d6d';
+  return '#555b6a';
+}
+function scoreCls(s) {
+  if (s >= 70) return 'sc-high';
+  if (s >= 50) return 'sc-mid';
+  if (s >= 30) return 'sc-low';
+  return 'sc-none';
+}
+
+/* ─── RENDER ─── */
+function renderRow(item, rank) {
+  const rankCls  = rank <= 3 ? 'top3' : '';
+  const sigHtml  = item.signals.map(s => `<span class="chip ${s.cls}">${s.t}</span>`).join('');
+  const chgCls   = item.change15m >= 0 ? 'up' : 'dn';
+  const chgStr   = (item.change15m >= 0 ? '+' : '') + item.change15m.toFixed(2) + '%';
+  const fndCls   = item.funding < 0 ? 'neg' : item.funding > 0 ? 'pos' : 'neu';
+  const fndStr   = (item.funding * 100).toFixed(4) + '%';
+  const volCls   = item.volRatio >= 2 ? 'hot' : '';
+  const volStr   = item.volRatio.toFixed(2) + 'x';
+  const priceStr = item.price < 0.001 ? item.price.toFixed(6) : item.price < 1 ? item.price.toFixed(4) : item.price < 100 ? item.price.toFixed(3) : item.price.toFixed(2);
+  const sc       = Math.round(item.score);
+  const col      = scoreColor(sc);
+  const cls      = scoreCls(sc);
+
+  return `<tr>
+    <td class="rank ${rankCls}">${rank}</td>
+    <td><span class="sym">${item.symbol.replace('USDT','')}<span class="sym-q">/USDT</span></span></td>
+    <td>
+      <div class="score-wrap">
+        <div class="score-bar"><div class="score-fill-bar" style="width:${sc}%;background:${col}"></div></div>
+        <span class="score-num ${cls}">${sc}</span>
+      </div>
+    </td>
+    <td><span class="chg ${chgCls}">${chgStr}</span></td>
+    <td><span class="fnd ${fndCls}">${fndStr}</span></td>
+    <td><span class="vol ${volCls}">${volStr}</span></td>
+    <td><div class="chips">${sigHtml || '<span class="chip chip-n">—</span>'}</div></td>
+    <td class="price">${priceStr}</td>
+  </tr>`;
+}
+
+function applyFilterAndSort() {
+  let data = [...allResults];
+
+  if (searchQuery) {
+    const q = searchQuery.toUpperCase().replace('/USDT', '');
+    data = data.filter(d => d.symbol.replace('USDT','').includes(q));
+  }
+
+  // sort first (on all results), then filter count
+  const { col, dir } = currentSort;
+  data.sort((a, b) => {
+    const av = a[col], bv = b[col];
+    if (typeof av === 'string') return dir * av.localeCompare(bv);
+    return dir * (av - bv);
+  });
+
+  if (currentFilter === 'top20')   data = data.slice(0, 20);
+  else if (currentFilter === 'top50')   data = data.slice(0, 50);
+  else if (currentFilter === 'score70') data = data.filter(d => d.score >= 70);
+  else if (currentFilter === 'score50') data = data.filter(d => d.score >= 50);
+
+  const body = document.getElementById('result-body');
+  if (!data.length) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="8">결과가 없습니다</td></tr>';
+    return;
+  }
+  body.innerHTML = data.map((item, i) => renderRow(item, i + 1)).join('');
+}
+
+/* ─── MAIN SCAN ─── */
+async function runScan() {
+  if (scanning) return;
+  scanning = true;
+
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 스캔 중...';
+
+  setBadge('scanning');
+  document.getElementById('logo-dot').classList.remove('off');
+
+  try {
+    setStatus('심볼 목록 가져오는 중...');
+    const symbols = await getSymbols();
+    document.getElementById('total-pairs').textContent = symbols.length;
+
+    setStatus('펀딩비 & 시세 데이터 로딩...');
+    const fundingMap = await getFundingMap();
+
+    allResults = [];
+    let done = 0;
+    const total = symbols.length;
+    document.getElementById('scanned-count').textContent = '0 / ' + total;
+
+    for (let i = 0; i < total; i += BATCH) {
+      const batch = symbols.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        batch.map(s => analyzeSymbol(s, fundingMap))
+      );
+      results.forEach(r => { if (r.status === 'fulfilled' && r.value) allResults.push(r.value); });
+
+      done = Math.min(i + BATCH, total);
+      const pct = Math.round(done / total * 100);
+      document.getElementById('progress').style.width = pct + '%';
+      document.getElementById('scanned-count').textContent = done + ' / ' + total;
+      setStatus(`분석 중... ${done}/${total} (${pct}%)`);
+
+      // live sort & render
+      allResults.sort((a, b) => b.score - a.score);
+      const high = allResults.filter(d => d.score >= 70).length;
+      document.getElementById('high-score-count').textContent = high;
+      applyFilterAndSort();
+
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    const now = new Date();
+    document.getElementById('last-scan').textContent = now.toLocaleTimeString('ko-KR');
+    setStatus(`스캔 완료 — ${allResults.length}개 페어 분석 완료`);
+    document.getElementById('progress').style.width = '100%';
+    setTimeout(() => { document.getElementById('progress').style.width = '0%'; }, 2000);
+
+    setBadge('done');
+
+  } catch (e) {
+    setStatus('오류: ' + e.message);
+    setBadge('idle');
+  }
+
+  document.getElementById('logo-dot').classList.add('off');
+  btn.disabled = false;
+  btn.textContent = '▶ 즉시 스캔';
+  scanning = false;
+}
+
+/* ─── UI HELPERS ─── */
+function setStatus(txt) {
+  document.getElementById('status-line').textContent = txt;
+}
+
+function setBadge(state) {
+  const badge = document.getElementById('live-badge');
+  const dot   = document.getElementById('badge-dot');
+  const text  = document.getElementById('badge-text');
+  badge.className = 'live-badge ' + state;
+  if (state === 'scanning') { dot.style.display='block'; text.textContent='SCANNING'; }
+  else if (state === 'done') { dot.style.display='none'; text.textContent='DONE'; }
+  else { dot.style.display='none'; text.textContent='IDLE'; }
+}
+
+window.setFilter = function(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-row .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilterAndSort();
+};
+
+window.sortBy = function(col) {
+  document.querySelectorAll('thead th').forEach(t => t.classList.remove('sorted'));
+  if (currentSort.col === col) currentSort.dir *= -1;
+  else { currentSort.col = col; currentSort.dir = -1; }
+  const idx = ['#','symbol','score','change15m','funding','volRatio','signals','price'].indexOf(col);
+  if (idx >= 0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
+  applyFilterAndSort();
+};
+
+window.toggleLegend = function() {
+  const el = document.getElementById('scoring-legend');
+  el.classList.toggle('open');
+};
+
+document.getElementById('search-input').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  applyFilterAndSort();
+});
+
+/* ─── AUTO SCAN ─── */
+function getNextScanTime() {
+  const now  = new Date();
+  const mins = [0, 15, 30, 45];
+  const cm   = now.getMinutes();
+  let nm     = mins.find(m => m > cm);
+  const next = new Date(now);
+  if (nm === undefined) { next.setHours(next.getHours() + 1); nm = 0; }
+  next.setMinutes(nm);
+  next.setSeconds(0);
+  next.setMilliseconds(0);
+  return next;
+}
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  function tick() {
+    const next = getNextScanTime();
+    const diff = Math.max(0, Math.floor((next - new Date()) / 1000));
+    const m = Math.floor(diff / 60), s = diff % 60;
+    document.getElementById('next-scan').textContent =
+      String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    document.getElementById('next-label').textContent =
+      `다음 자동 스캔: ${next.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function scheduleAuto() {
+  if (!autoEnabled) return;
+  const delay = getNextScanTime() - new Date();
+  autoTimer = setTimeout(async () => {
+    await runScan();
+    scheduleAuto();
+  }, delay);
+}
+
+document.getElementById('auto-btn').addEventListener('click', function() {
+  autoEnabled = !autoEnabled;
+  this.classList.toggle('active-green', autoEnabled);
+  this.textContent = autoEnabled ? '⏱ 자동 ON (00/15/30/45)' : '⏱ 자동 (00/15/30/45)';
+  if (autoEnabled) {
+    startCountdown();
+    scheduleAuto();
+  } else {
+    if (autoTimer)    clearTimeout(autoTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    document.getElementById('next-scan').textContent = '—';
+    document.getElementById('next-label').textContent = '';
+  }
+});
+
+document.getElementById('scan-btn').addEventListener('click', runScan);
+</script>
+</body>
+</html>
