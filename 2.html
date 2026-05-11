@@ -712,15 +712,46 @@ let scatterChart = null;
   document.getElementById('cfg-end').value   = fmt(end);
 })();
 
-/* ─── FETCH ─── */
-async function fetchJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+/* ─── FETCH with mirror fallback ─── */
+// 418 = 한국 IP 차단. fapi → fapi1 → fapi2 → fapi3 순서로 자동 폴백.
+const MIRRORS = [
+  'https://fapi.binance.com',
+  'https://fapi1.binance.com',
+  'https://fapi2.binance.com',
+  'https://fapi3.binance.com',
+];
+let activeMirrorIdx = 0;  // 성공한 미러를 기억해서 이후 요청은 바로 사용
+
+async function fetchWithMirror(path, retries = 3) {
+  // 현재 미러부터 시작해서 순환 시도
+  for (let attempt = 0; attempt < MIRRORS.length; attempt++) {
+    const idx = (activeMirrorIdx + attempt) % MIRRORS.length;
+    const url = MIRRORS[idx] + path;
+    try {
+      const r = await fetch(url);
+      if (r.status === 418 || r.status === 451) {
+        // 이 미러도 차단됨 → 다음 미러 시도
+        continue;
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      // 성공한 미러를 기억
+      if (activeMirrorIdx !== idx) {
+        activeMirrorIdx = idx;
+        setStatus(`미러 전환: ${MIRRORS[idx]} 사용 중`);
+      }
+      return data;
+    } catch (e) {
+      if (attempt === MIRRORS.length - 1) throw e;
+      // 네트워크 오류는 잠깐 대기 후 다음 미러
+      await sleep(300);
+    }
+  }
+  throw new Error('모든 미러가 차단되었습니다 (VPN 사용 필요)');
 }
 
 async function getSymbols() {
-  const d = await fetchJSON('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  const d = await fetchWithMirror('/fapi/v1/exchangeInfo');
   return d.symbols
     .filter(s => s.quoteAsset==='USDT' && s.status==='TRADING' && s.contractType==='PERPETUAL')
     .map(s => s.symbol);
@@ -729,23 +760,21 @@ async function getSymbols() {
 /* Klines for a symbol covering [startTs - lookback ... endTs + holdCandles]
    Returns array of OHLCV objects */
 async function getKlines(symbol, startTs, endTs) {
-  // We need 30 candles BEFORE startTs for indicator warmup, plus hold candles AFTER endTs
   const holdCandles = parseInt(document.getElementById('cfg-hold-candles').value) || 96;
   const fetchStart  = startTs - 30 * 15 * 60 * 1000;
   const fetchEnd    = endTs   + holdCandles * 15 * 60 * 1000 + 15 * 60 * 1000;
 
-  // Binance max 1500 candles per request
   const allKlines = [];
   let cursor = fetchStart;
   while (cursor < fetchEnd) {
     if (abortFlag) return null;
-    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&startTime=${cursor}&endTime=${fetchEnd}&limit=1500`;
-    const chunk = await fetchJSON(url);
+    const path = `/fapi/v1/klines?symbol=${symbol}&interval=15m&startTime=${cursor}&endTime=${fetchEnd}&limit=1500`;
+    const chunk = await fetchWithMirror(path);
     if (!chunk || chunk.length === 0) break;
     allKlines.push(...chunk);
     cursor = chunk[chunk.length-1][0] + 15*60*1000;
     if (chunk.length < 1500) break;
-    await sleep(60);
+    await sleep(80);
   }
   return allKlines;
 }
@@ -851,7 +880,11 @@ async function analyzeSymbol(symbol, slotTimestamps) {
 
   let klines;
   try { klines = await getKlines(symbol, startTs, endTs); }
-  catch(e) { return []; }
+  catch(e) {
+    // 모든 미러 차단 등 치명적 에러는 위로 전파
+    if (e.message.includes('모든 미러')) throw e;
+    return [];
+  }
   if (!klines || klines.length < 25) return [];
 
   const rows = [];
