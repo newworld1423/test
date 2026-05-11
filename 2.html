@@ -437,6 +437,14 @@ tbody td.r { text-align:right; }
 .chip-p { background:var(--pdim); color:var(--purple); border-color:var(--pborder); }
 .chip-n { background:var(--bg4);  color:var(--text3);  border-color:var(--border);  }
 
+.chg-up  { font-size:12px; font-weight:500; color:var(--green); }
+.chg-dn  { font-size:12px; font-weight:500; color:var(--red); }
+.fnd-neg { font-size:12px; font-weight:500; color:var(--green); }
+.fnd-pos { font-size:12px; font-weight:500; color:var(--red); }
+.fnd-neu { font-size:12px; font-weight:500; color:var(--text3); }
+.vol-hot  { font-size:12px; font-weight:500; color:var(--yellow); }
+.vol-norm { font-size:12px; color:var(--text2); }
+
 .empty-row td {
   padding:48px;
   text-align:center;
@@ -634,15 +642,18 @@ tbody td.r { text-align:right; }
             <th onclick="sortBy('symbol')">심볼</th>
             <th onclick="sortBy('slotTime')">스캔 시각</th>
             <th onclick="sortBy('score')" class="sorted r">스코어 ↓</th>
+            <th onclick="sortBy('change15m')" class="r">15m 변동</th>
+            <th onclick="sortBy('funding')" class="r">펀딩비</th>
+            <th onclick="sortBy('volRatio')" class="r">거래량 배수</th>
             <th class="r">진입가</th>
             <th onclick="sortBy('maxGain')" class="r">최고 상승률</th>
-            <th onclick="sortBy('gainAt')" class="r">최고점 도달 시간</th>
+            <th onclick="sortBy('gainAt')" class="r">최고점 도달</th>
             <th>신호</th>
           </tr>
         </thead>
         <tbody id="result-body">
           <tr class="empty-row">
-            <td colspan="8">
+            <td colspan="11">
               기간과 옵션을 설정하고 백테스트를 실행하세요<br>
               <span style="font-size:10px;opacity:0.5">모든 USDT 무기한 선물 페어를 과거 데이터로 분석합니다</span>
             </td>
@@ -826,7 +837,9 @@ function scoreAtIndex(klines, idx) {
   score += obvDir > 0 ? 8 : 0;
   if (obvDir > 0) signals.push({t:'OBV',cls:'chip-b'});
 
-  return { score: Math.max(0,Math.min(100,score)), signals, price, volRatio, ema7, ema25, bbPct };
+  const change15m = prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0;
+
+  return { score: Math.max(0,Math.min(100,score)), signals, price, change15m, volRatio, funding, ema7, ema25, bbPct };
 }
 
 /* ─── ANALYSIS PIPELINE ─── */
@@ -876,6 +889,8 @@ async function analyzeSymbol(symbol, slotTimestamps) {
       symbol, slotTs, slotTime: slotLabel,
       score: result.score, signals: result.signals,
       entryPrice, maxGain, gainAt, gainCandles,
+      change15m: result.change15m,
+      funding: result.funding,
       volRatio: result.volRatio
     });
   }
@@ -1060,6 +1075,14 @@ function renderRow(item, rank) {
                : item.entryPrice < 1     ? item.entryPrice.toFixed(4)
                : item.entryPrice < 100   ? item.entryPrice.toFixed(3)
                : item.entryPrice.toFixed(2);
+  const chg    = item.change15m ?? 0;
+  const chgCls = chg >= 0 ? 'chg-up' : 'chg-dn';
+  const chgStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+  const fnd    = item.funding ?? 0;
+  const fndCls = fnd < 0 ? 'fnd-neg' : fnd > 0 ? 'fnd-pos' : 'fnd-neu';
+  const fndStr = (fnd * 100).toFixed(4) + '%';
+  const volCls = (item.volRatio ?? 1) >= 2 ? 'vol-hot' : 'vol-norm';
+  const volStr = (item.volRatio ?? 1).toFixed(2) + 'x';
 
   return `<tr>
     <td class="rank ${rank<=3?'gold':''}">${rank}</td>
@@ -1071,6 +1094,9 @@ function renderRow(item, rank) {
         <span class="score-num ${sCls}">${Math.round(item.score)}</span>
       </div>
     </td>
+    <td class="r"><span class="${chgCls}">${chgStr}</span></td>
+    <td class="r"><span class="${fndCls}">${fndStr}</span></td>
+    <td class="r"><span class="${volCls}">${volStr}</span></td>
     <td class="r entry-price">${prStr}</td>
     <td class="r"><span class="max-gain ${gCls}">+${item.maxGain.toFixed(2)}%</span></td>
     <td class="r gain-time">${item.gainAt}</td>
@@ -1102,7 +1128,7 @@ function applyFltSort() {
   filteredRows = data;
   const body = document.getElementById('result-body');
   if (!data.length) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="8">결과 없음</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="11">결과 없음</td></tr>';
     return;
   }
   body.innerHTML = data.map((r,i)=>renderRow(r,i+1)).join('');
@@ -1119,7 +1145,7 @@ window.sortBy = function(col) {
   if (currentSort.col===col) currentSort.dir*=-1;
   else { currentSort.col=col; currentSort.dir=-1; }
   document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sorted'));
-  const cols=['#','symbol','slotTime','score','entryPrice','maxGain','gainAt','signals'];
+  const cols=['#','symbol','slotTime','score','change15m','funding','volRatio','entryPrice','maxGain','gainAt','signals'];
   const idx = cols.indexOf(col);
   if (idx>=0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
   applyFltSort();
