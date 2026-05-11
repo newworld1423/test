@@ -555,7 +555,7 @@ tbody td.r { text-align:right; }
 
       <div class="cfg-group">
         <div class="cfg-label">병렬 심볼 처리 수</div>
-        <input class="cfg-input" type="number" id="cfg-batch" value="4" min="1" max="10">
+        <input class="cfg-input" type="number" id="cfg-batch" value="1" min="1" max="5">
         <div class="cfg-hint">높을수록 빠르지만 API Rate Limit 위험. 4 권장</div>
       </div>
 
@@ -712,45 +712,16 @@ let scatterChart = null;
   document.getElementById('cfg-end').value   = fmt(end);
 })();
 
-/* ─── FETCH with CORS proxy fallback ─── */
-// fapi.binance.com : 한국 IP → 418 차단
-// fapi1/2/3        : CORS 헤더 없음 → 브라우저 차단
-// 해결: 공개 CORS 프록시를 통해 fapi.binance.com 우회
-const BASE = 'https://fapi.binance.com';
-const PROXIES = [
-  u => u,
-  u => 'https://corsproxy.io/?' + encodeURIComponent(u),
-  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-  u => 'https://thingproxy.freeboard.io/fetch/' + u,
-];
-let activeProxyIdx = 0;
-
-async function fetchWithMirror(path) {
-  const targetUrl = BASE + path;
-  for (let attempt = 0; attempt < PROXIES.length; attempt++) {
-    const idx = (activeProxyIdx + attempt) % PROXIES.length;
-    const url = PROXIES[idx](targetUrl);
-    try {
-      const r = await fetch(url);
-      if (r.status === 418 || r.status === 451) { await sleep(200); continue; }
-      if (!r.ok) { await sleep(200); continue; }
-      const data = await r.json();
-      if (activeProxyIdx !== idx) {
-        activeProxyIdx = idx;
-        const names = ['직접', 'corsproxy.io', 'allorigins', 'thingproxy'];
-        setStatus('연결 방식 전환: ' + names[idx] + ' 사용 중');
-      }
-      return data;
-    } catch (e) {
-      if (attempt === PROXIES.length - 1) throw new Error('모든 연결 방법 실패 — VPN 사용을 권장합니다');
-      await sleep(300);
-    }
-  }
-  throw new Error('모든 연결 방법 실패 — VPN 사용을 권장합니다');
+/* ─── FETCH ─── */
+async function apiFetch(path) {
+  const url = 'https://fapi.binance.com' + path;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
 }
 
 async function getSymbols() {
-  const d = await fetchWithMirror('/fapi/v1/exchangeInfo');
+  const d = await apiFetch('/fapi/v1/exchangeInfo');
   return d.symbols
     .filter(s => s.quoteAsset==='USDT' && s.status==='TRADING' && s.contractType==='PERPETUAL')
     .map(s => s.symbol);
@@ -768,12 +739,12 @@ async function getKlines(symbol, startTs, endTs) {
   while (cursor < fetchEnd) {
     if (abortFlag) return null;
     const path = `/fapi/v1/klines?symbol=${symbol}&interval=15m&startTime=${cursor}&endTime=${fetchEnd}&limit=1500`;
-    const chunk = await fetchWithMirror(path);
+    const chunk = await apiFetch(path);
     if (!chunk || chunk.length === 0) break;
     allKlines.push(...chunk);
     cursor = chunk[chunk.length-1][0] + 15*60*1000;
     if (chunk.length < 1500) break;
-    await sleep(80);
+    await sleep(1200);
   }
   return allKlines;
 }
@@ -1007,7 +978,7 @@ async function runBacktest() {
       applyFltSort();
       updateSummary();
 
-      await sleep(80);
+      await sleep(1000);
     }
 
     setProgress(100, `완료! ${allRows.length}개 신호 수집 — ${symbols.length}개 심볼 × ${slotTimestamps.length}개 시간대`);
