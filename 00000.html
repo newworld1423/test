@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>15M Scanner Backtester — Binance USDT Perps</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg:      #09090c;
+  --bg2:     #0f1015;
+  --bg3:     #14151c;
+  --bg4:     #1a1b24;
+  --bg5:     #21222e;
+  --border:  rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.11);
+  --border3: rgba(255,255,255,0.18);
+  --text:    #dde0ec;
+  --text2:   #7c8099;
+  --text3:   #454760;
+  --green:   #00c97a;
+  --green2:  #00f090;
+  --gdim:    rgba(0,201,122,0.1);
+  --gborder: rgba(0,201,122,0.25);
+  --red:     #ff4466;
+  --rdim:    rgba(255,68,102,0.1);
+  --rborder: rgba(255,68,102,0.25);
+  --yellow:  #ffb830;
+  --ydim:    rgba(255,184,48,0.1);
+  --yborder: rgba(255,184,48,0.25);
+  --blue:    #5b9fff;
+  --bdim:    rgba(91,159,255,0.1);
+  --bborder: rgba(91,159,255,0.25);
+  --purple:  #a78bfa;
+  --pdim:    rgba(167,139,250,0.1);
+  --pborder: rgba(167,139,250,0.25);
+  --accent:  #00c97a;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+}
+
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+}
+
+#app {
+  position:relative;
+  z-index:1;
+  max-width:1500px;
+  margin:0 auto;
+  padding:28px 20px 80px;
+}
+
+/* ── HEADER ── */
+.header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin-bottom:28px;
+  gap:16px;
+  flex-wrap:wrap;
+}
+
+.logo-area { display:flex; align-items:center; gap:10px; }
+
+.logo-icon {
+  width:36px; height:36px;
+  border-radius:8px;
+  background:var(--gdim);
+  border:1px solid var(--gborder);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+}
+
+.header-titles h1 {
+  font-family:'Syne',sans-serif;
+  font-size:20px; font-weight:800;
+  letter-spacing:-0.03em;
+  color:var(--text);
+}
+
+.header-titles p {
+  font-size:10px;
+  color:var(--text3);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-top:3px;
+}
+
+.status-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:10px; font-weight:600; letter-spacing:0.1em;
+  padding:5px 12px; border-radius:5px; border:1px solid;
+  text-transform:uppercase; white-space:nowrap;
+}
+.sb-idle    { color:var(--text3); border-color:var(--border); background:transparent; }
+.sb-running { color:var(--yellow); border-color:var(--yborder); background:var(--ydim); }
+.sb-done    { color:var(--green);  border-color:var(--gborder); background:var(--gdim); }
+.sb-err     { color:var(--red);    border-color:var(--rborder); background:var(--rdim); }
+
+.blink { animation: blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ── CONFIG PANEL ── */
+.config-panel {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:20px 22px;
+  margin-bottom:20px;
+}
+
+.config-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:16px 20px;
+}
+
+.cfg-group { display:flex; flex-direction:column; gap:6px; }
+
+.cfg-label {
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.09em;
+  color:var(--text3);
+}
+
+.cfg-input {
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  padding:8px 10px;
+  border-radius:6px;
+  border:1px solid var(--border2);
+  background:var(--bg3);
+  color:var(--text);
+  outline:none;
+  transition:border-color 0.15s;
+  width:100%;
+}
+.cfg-input:focus { border-color:var(--border3); }
+.cfg-input::placeholder { color:var(--text3); }
+
+.cfg-hint {
+  font-size:10px;
+  color:var(--text3);
+  line-height:1.4;
+}
+
+.cfg-actions {
+  margin-top:18px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.btn {
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px; font-weight:600;
+  padding:8px 16px;
+  border-radius:7px;
+  border:1px solid var(--border2);
+  background:var(--bg3);
+  color:var(--text2);
+  cursor:pointer;
+  transition:all 0.15s;
+  letter-spacing:0.03em;
+  white-space:nowrap;
+}
+.btn:hover { background:var(--bg4); color:var(--text); border-color:var(--border3); }
+.btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+.btn-primary {
+  background:var(--green);
+  color:#000;
+  border-color:var(--green);
+}
+.btn-primary:hover { background:var(--green2); border-color:var(--green2); }
+.btn-primary:disabled { background:var(--bg4); color:var(--text3); border-color:var(--border); }
+
+.btn-danger {
+  background:var(--rdim);
+  color:var(--red);
+  border-color:var(--rborder);
+}
+.btn-danger:hover { background:rgba(255,68,102,0.18); }
+
+/* ── PROGRESS ── */
+.progress-section { margin-bottom:16px; }
+
+.progress-top {
+  display:flex; justify-content:space-between;
+  font-size:10px; color:var(--text3);
+  margin-bottom:5px;
+}
+
+.progress-track {
+  height:3px;
+  background:var(--bg4);
+  border-radius:3px;
+  overflow:hidden;
+  margin-bottom:6px;
+}
+
+.progress-fill {
+  height:100%;
+  background:var(--accent);
+  border-radius:3px;
+  transition:width 0.35s ease;
+  width:0%;
+}
+
+.status-msg {
+  font-size:10px;
+  color:var(--text3);
+  min-height:14px;
+  letter-spacing:0.02em;
+}
+
+/* ── SUMMARY CARDS ── */
+.summary-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px;
+  margin-bottom:18px;
+}
+
+.sum-card {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:12px 14px;
+}
+
+.sum-card .lbl {
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-bottom:7px;
+}
+
+.sum-card .val {
+  font-size:20px; font-weight:600;
+  color:var(--text); line-height:1;
+}
+
+.sum-card .sub {
+  font-size:10px;
+  color:var(--text3);
+  margin-top:4px;
+}
+
+.sum-card.accent-green { border-color:var(--gborder); background:var(--gdim); }
+.sum-card.accent-green .val { color:var(--green); }
+.sum-card.accent-red   { border-color:var(--rborder); background:var(--rdim); }
+.sum-card.accent-red   .val { color:var(--red); }
+.sum-card.accent-blue  { border-color:var(--bborder); background:var(--bdim); }
+.sum-card.accent-blue  .val { color:var(--blue); }
+.sum-card.accent-yellow{ border-color:var(--yborder); background:var(--ydim); }
+.sum-card.accent-yellow .val { color:var(--yellow); }
+
+/* ── TABS ── */
+.tab-row {
+  display:flex; gap:2px;
+  margin-bottom:14px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:4px;
+  width:fit-content;
+}
+
+.tab {
+  font-size:11px; font-weight:500;
+  padding:6px 14px;
+  border-radius:6px;
+  cursor:pointer;
+  color:var(--text2);
+  transition:all 0.15s;
+  border:1px solid transparent;
+  white-space:nowrap;
+}
+.tab:hover { color:var(--text); }
+.tab.active {
+  background:var(--bg4);
+  color:var(--text);
+  border-color:var(--border2);
+}
+
+/* ── FILTER ROW ── */
+.filter-bar {
+  display:flex; gap:8px; flex-wrap:wrap;
+  align-items:center; margin-bottom:14px;
+}
+
+.filter-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.08em; }
+
+.flt {
+  font-size:10px; font-weight:500;
+  padding:4px 10px;
+  border-radius:5px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text2);
+  cursor:pointer; transition:all 0.12s;
+  white-space:nowrap;
+}
+.flt:hover { background:var(--bg3); color:var(--text); }
+.flt.active { background:var(--bg4); color:var(--text); border-color:var(--border2); }
+
+.search-input {
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  padding:5px 11px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  color:var(--text);
+  width:160px; outline:none;
+  transition:border-color 0.15s;
+}
+.search-input:focus { border-color:var(--border2); }
+.search-input::placeholder { color:var(--text3); }
+
+.ml-auto { margin-left:auto; }
+
+/* ── TABLE ── */
+.table-outer {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:11px;
+  overflow:auto;
+  max-height:65vh;
+}
+
+table { width:100%; border-collapse:collapse; }
+
+thead { position:sticky; top:0; z-index:10; }
+
+thead th {
+  padding:9px 12px;
+  text-align:left;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  font-weight:500;
+  border-bottom:1px solid var(--border);
+  background:var(--bg3);
+  white-space:nowrap;
+  cursor:pointer;
+  user-select:none;
+  transition:color 0.12s;
+}
+thead th:hover { color:var(--text2); }
+thead th.sorted { color:var(--accent); }
+thead th.r { text-align:right; }
+
+tbody tr {
+  border-bottom:1px solid var(--border);
+  transition:background 0.1s;
+}
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:var(--bg3); }
+
+tbody td {
+  padding:8px 12px;
+  white-space:nowrap;
+  vertical-align:middle;
+}
+tbody td.r { text-align:right; }
+
+/* CELLS */
+.rank { font-size:10px; color:var(--text3); min-width:28px; }
+.rank.gold { color:var(--yellow); font-weight:600; }
+
+.sym { font-weight:600; font-size:12px; color:var(--text); }
+.sym-q { font-size:9px; color:var(--text3); font-weight:400; }
+
+.time-cell { font-size:11px; color:var(--text2); }
+
+.score-wrap { display:flex; align-items:center; gap:7px; min-width:110px; }
+.score-bar { flex:1; height:3px; background:var(--bg5); border-radius:2px; overflow:hidden; }
+.score-bar-fill { height:100%; border-radius:2px; }
+.score-num { font-size:12px; font-weight:600; min-width:24px; text-align:right; }
+.sc-hi  { color:var(--green); }
+.sc-mid { color:var(--yellow); }
+.sc-lo  { color:var(--red); }
+.sc-no  { color:var(--text3); }
+
+.entry-price { font-size:11px; color:var(--text2); }
+
+.max-gain {
+  font-size:13px; font-weight:600;
+  min-width:64px;
+  display:inline-block;
+  text-align:right;
+}
+.gain-hi   { color:var(--green); }
+.gain-mid  { color:var(--yellow); }
+.gain-lo   { color:var(--text2); }
+.gain-none { color:var(--text3); }
+
+.gain-time { font-size:10px; color:var(--text3); }
+
+.chips { display:flex; gap:3px; flex-wrap:wrap; }
+.chip {
+  display:inline-flex; align-items:center;
+  font-size:9px; font-weight:600;
+  letter-spacing:0.05em;
+  padding:2px 5px; border-radius:3px; border:1px solid;
+}
+.chip-g { background:var(--gdim); color:var(--green);  border-color:var(--gborder); }
+.chip-r { background:var(--rdim); color:var(--red);    border-color:var(--rborder); }
+.chip-y { background:var(--ydim); color:var(--yellow); border-color:var(--yborder); }
+.chip-b { background:var(--bdim); color:var(--blue);   border-color:var(--bborder); }
+.chip-p { background:var(--pdim); color:var(--purple); border-color:var(--pborder); }
+.chip-n { background:var(--bg4);  color:var(--text3);  border-color:var(--border);  }
+
+.empty-row td {
+  padding:48px;
+  text-align:center;
+  color:var(--text3);
+  font-size:12px;
+  line-height:2;
+}
+
+/* ── HEATMAP VIEW ── */
+#heatmap-view {
+  display:none;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:11px;
+  padding:18px;
+}
+
+.heatmap-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(90px, 1fr));
+  gap:4px;
+}
+
+.hm-cell {
+  border-radius:6px;
+  padding:8px 6px;
+  text-align:center;
+  cursor:default;
+  border:1px solid transparent;
+  transition:transform 0.1s;
+}
+.hm-cell:hover { transform:scale(1.05); z-index:2; position:relative; }
+.hm-sym { font-size:10px; font-weight:600; line-height:1; margin-bottom:3px; }
+.hm-gain { font-size:12px; font-weight:700; line-height:1; }
+.hm-score { font-size:9px; margin-top:2px; opacity:0.7; }
+
+/* ── SCORE-GAIN CHART ── */
+#chart-view {
+  display:none;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:11px;
+  padding:18px;
+}
+
+#scatter-canvas-wrap {
+  position:relative;
+  width:100%;
+  height:380px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--bg5); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border2); }
+
+@media(max-width:700px){
+  h1 { font-size:16px; }
+  .config-grid { grid-template-columns:1fr 1fr; }
+  thead th:nth-child(8),
+  tbody td:nth-child(8) { display:none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-icon">⏱</div>
+      <div class="header-titles">
+        <h1>15M Scanner Backtester</h1>
+        <p>Binance USDT Perpetuals — 스코어 vs 실제 상승률 검증</p>
+      </div>
+    </div>
+    <div id="status-badge" class="status-badge sb-idle">IDLE</div>
+  </div>
+
+  <!-- CONFIG PANEL -->
+  <div class="config-panel">
+    <div class="config-grid">
+
+      <div class="cfg-group">
+        <div class="cfg-label">시작 날짜 / 시간</div>
+        <input class="cfg-input" type="datetime-local" id="cfg-start" value="">
+        <div class="cfg-hint">스캔을 시작할 시점 (00/15/30/45분 단위 권장)</div>
+      </div>
+
+      <div class="cfg-group">
+        <div class="cfg-label">종료 날짜 / 시간</div>
+        <input class="cfg-input" type="datetime-local" id="cfg-end" value="">
+        <div class="cfg-hint">마지막 스캔 시점 (시작~종료 사이 15분마다 스캔)</div>
+      </div>
+
+      <div class="cfg-group">
+        <div class="cfg-label">최대 스캔 횟수</div>
+        <input class="cfg-input" type="number" id="cfg-max-slots" value="8" min="1" max="96">
+        <div class="cfg-hint">15분마다 1회. 예: 8 = 2시간, 96 = 24시간</div>
+      </div>
+
+      <div class="cfg-group">
+        <div class="cfg-label">최고가 측정 기간</div>
+        <input class="cfg-input" type="number" id="cfg-hold-candles" value="96" min="1" max="200">
+        <div class="cfg-hint">진입 이후 몇 캔들(15분봉)까지 최고가 측정. 96 = 24시간</div>
+      </div>
+
+      <div class="cfg-group">
+        <div class="cfg-label">병렬 심볼 처리 수</div>
+        <input class="cfg-input" type="number" id="cfg-batch" value="4" min="1" max="10">
+        <div class="cfg-hint">높을수록 빠르지만 API Rate Limit 위험. 4 권장</div>
+      </div>
+
+    </div>
+
+    <div class="cfg-actions">
+      <button class="btn btn-primary" id="run-btn">▶ 백테스트 실행</button>
+      <button class="btn btn-danger" id="stop-btn" disabled>■ 중지</button>
+      <span id="eta-label" style="font-size:10px;color:var(--text3);margin-left:4px"></span>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-section">
+    <div class="progress-top">
+      <span id="prog-label">대기 중</span>
+      <span id="prog-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="status-msg" id="status-msg"></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-grid" id="summary-grid" style="display:none">
+    <div class="sum-card">
+      <div class="lbl">총 신호 수</div>
+      <div class="val" id="s-total">—</div>
+      <div class="sub" id="s-total-sub"></div>
+    </div>
+    <div class="sum-card accent-green">
+      <div class="lbl">평균 최고 상승률</div>
+      <div class="val" id="s-avg-gain">—</div>
+      <div class="sub">전체 신호 평균</div>
+    </div>
+    <div class="sum-card accent-blue">
+      <div class="lbl">점수 70+ 평균 상승률</div>
+      <div class="val" id="s-high-gain">—</div>
+      <div class="sub">고점수 신호만</div>
+    </div>
+    <div class="sum-card accent-yellow">
+      <div class="lbl">최고 단일 수익</div>
+      <div class="val" id="s-best">—</div>
+      <div class="sub" id="s-best-sym">—</div>
+    </div>
+    <div class="sum-card accent-red">
+      <div class="lbl">5% 이상 상승 비율</div>
+      <div class="val" id="s-win-rate">—</div>
+      <div class="sub">전체 신호 대비</div>
+    </div>
+    <div class="sum-card">
+      <div class="lbl">스캔 시간대 수</div>
+      <div class="val" id="s-slots">—</div>
+      <div class="sub">15분 간격</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-row" id="tab-row" style="display:none">
+    <div class="tab active" onclick="switchTab('table',this)">📋 상세 결과</div>
+    <div class="tab" onclick="switchTab('heatmap',this)">🔥 히트맵</div>
+    <div class="tab" onclick="switchTab('chart',this)">📈 점수↔상승 산점도</div>
+  </div>
+
+  <!-- TABLE VIEW -->
+  <div id="table-view">
+    <div class="filter-bar">
+      <span class="filter-lbl">필터</span>
+      <button class="flt active" onclick="setFlt('all',this)">전체</button>
+      <button class="flt" onclick="setFlt('sc70',this)">점수 70+</button>
+      <button class="flt" onclick="setFlt('sc50',this)">점수 50+</button>
+      <button class="flt" onclick="setFlt('g10',this)">상승 10%+</button>
+      <button class="flt" onclick="setFlt('g5',this)">상승 5%+</button>
+      <button class="flt" onclick="setFlt('g2',this)">상승 2%+</button>
+      <input class="search-input ml-auto" id="search-input" type="text" placeholder="심볼 검색...">
+    </div>
+
+    <div class="table-outer">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th onclick="sortBy('symbol')">심볼</th>
+            <th onclick="sortBy('slotTime')">스캔 시각</th>
+            <th onclick="sortBy('score')" class="sorted r">스코어 ↓</th>
+            <th class="r">진입가</th>
+            <th onclick="sortBy('maxGain')" class="r">최고 상승률</th>
+            <th onclick="sortBy('gainAt')" class="r">최고점 도달 시간</th>
+            <th>신호</th>
+          </tr>
+        </thead>
+        <tbody id="result-body">
+          <tr class="empty-row">
+            <td colspan="8">
+              기간과 옵션을 설정하고 백테스트를 실행하세요<br>
+              <span style="font-size:10px;opacity:0.5">모든 USDT 무기한 선물 페어를 과거 데이터로 분석합니다</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- HEATMAP VIEW -->
+  <div id="heatmap-view">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">
+      심볼별 평균 최고 상승률 — 크기 = 출현 횟수, 색상 = 수익률
+    </div>
+    <div class="heatmap-grid" id="heatmap-grid"></div>
+  </div>
+
+  <!-- CHART VIEW -->
+  <div id="chart-view">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:14px;text-transform:uppercase;letter-spacing:0.08em">
+      스코어 vs 최고 상승률 산점도 — 상관관계 확인
+    </div>
+    <div id="scatter-canvas-wrap">
+      <canvas id="scatter-canvas" role="img" aria-label="스코어와 최고 상승률의 산점도"></canvas>
+    </div>
+    <div id="chart-stats" style="margin-top:12px;font-size:11px;color:var(--text3);display:flex;gap:20px;flex-wrap:wrap"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ─── STATE ─── */
+let allRows    = [];   // { symbol, slotTime, slotTs, score, signals, entryPrice, maxGain, gainAt, gainCandles }
+let filteredRows = [];
+let currentFlt  = 'all';
+let currentSort = { col:'score', dir:-1 };
+let searchQuery = '';
+let currentTab  = 'table';
+let running     = false;
+let abortFlag   = false;
+let scatterChart = null;
+
+/* ─── DEFAULT DATES ─── */
+(function setDefaults() {
+  const now  = new Date();
+  const end  = new Date(now);
+  end.setMinutes(Math.floor(end.getMinutes()/15)*15, 0, 0);
+  const start = new Date(end);
+  start.setHours(start.getHours() - 2);
+  const fmt = d => {
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  document.getElementById('cfg-start').value = fmt(start);
+  document.getElementById('cfg-end').value   = fmt(end);
+})();
+
+/* ─── FETCH ─── */
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function getSymbols() {
+  const d = await fetchJSON('https://fapi.binance.com/fapi/v1/exchangeInfo');
+  return d.symbols
+    .filter(s => s.quoteAsset==='USDT' && s.status==='TRADING' && s.contractType==='PERPETUAL')
+    .map(s => s.symbol);
+}
+
+/* Klines for a symbol covering [startTs - lookback ... endTs + holdCandles]
+   Returns array of OHLCV objects */
+async function getKlines(symbol, startTs, endTs) {
+  // We need 30 candles BEFORE startTs for indicator warmup, plus hold candles AFTER endTs
+  const holdCandles = parseInt(document.getElementById('cfg-hold-candles').value) || 96;
+  const fetchStart  = startTs - 30 * 15 * 60 * 1000;
+  const fetchEnd    = endTs   + holdCandles * 15 * 60 * 1000 + 15 * 60 * 1000;
+
+  // Binance max 1500 candles per request
+  const allKlines = [];
+  let cursor = fetchStart;
+  while (cursor < fetchEnd) {
+    if (abortFlag) return null;
+    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&startTime=${cursor}&endTime=${fetchEnd}&limit=1500`;
+    const chunk = await fetchJSON(url);
+    if (!chunk || chunk.length === 0) break;
+    allKlines.push(...chunk);
+    cursor = chunk[chunk.length-1][0] + 15*60*1000;
+    if (chunk.length < 1500) break;
+    await sleep(60);
+  }
+  return allKlines;
+}
+
+/* ─── INDICATORS ─── */
+function calcEMA(closes, period) {
+  const k = 2/(period+1);
+  let ema = closes[0];
+  for (let i=1; i<closes.length; i++) ema = closes[i]*k + ema*(1-k);
+  return ema;
+}
+
+function calcBB(closes, period=20, mult=2) {
+  const slice = closes.slice(-period);
+  const mean  = slice.reduce((a,b)=>a+b,0)/period;
+  const std   = Math.sqrt(slice.reduce((a,b)=>a+(b-mean)**2,0)/period);
+  return { upper:mean+mult*std, lower:mean-mult*std };
+}
+
+function calcOBV(closes, volumes) {
+  let obv = 0;
+  const arr = [0];
+  for (let i=1; i<closes.length; i++) {
+    obv += closes[i] > closes[i-1] ? volumes[i] : closes[i] < closes[i-1] ? -volumes[i] : 0;
+    arr.push(obv);
+  }
+  return arr;
+}
+
+/* Score at a specific candle index in the klines array */
+function scoreAtIndex(klines, idx) {
+  if (idx < 22) return null;
+  const window = klines.slice(0, idx+1);   // up to and including this candle
+  const closes  = window.map(k=>parseFloat(k[4]));
+  const volumes = window.map(k=>parseFloat(k[5]));
+
+  const price     = closes[closes.length-1];
+  const prevClose = closes[closes.length-2];
+
+  const ema7  = calcEMA(closes.slice(-7), 7);
+  const ema25 = calcEMA(closes.slice(-25), 25);
+  const ema99 = calcEMA(closes.slice(-Math.min(closes.length,99)), 99);
+
+  const bb    = calcBB(closes);
+  const range = bb.upper - bb.lower;
+  const bbPct = range > 0 ? (price - bb.lower) / range : 0.5;
+
+  const recentVols = volumes.slice(-5);
+  const pastVols   = volumes.slice(-20, -5);
+  const avgVol     = pastVols.length ? pastVols.reduce((a,b)=>a+b,0)/pastVols.length : 0;
+  const volRatio   = avgVol > 0 ? (recentVols.reduce((a,b)=>a+b,0)/5)/avgVol : 1;
+
+  const obvArr = calcOBV(closes, volumes);
+  const obvDir = (obvArr[obvArr.length-1] - obvArr[obvArr.length-5]) > 0 ? 1 : -1;
+
+  const last3 = closes.slice(-4);
+  let mom = 0;
+  for (let i=1; i<last3.length; i++) mom += last3[i] > last3[i-1] ? 1 : -1;
+
+  // funding: not available historically per-candle, default 0
+  const funding = 0;
+
+  let score = 0;
+  const signals = [];
+
+  const volPts = Math.min(25, Math.round(Math.max(0,(volRatio-1)*10)));
+  score += volPts;
+  if (volPts >= 15) signals.push({t:'VOL↑',cls:'chip-g'});
+  else if (volPts >= 5) signals.push({t:'VOL',cls:'chip-y'});
+
+  let emaPts = 0;
+  if (ema7  > ema25) emaPts += 10;
+  if (ema25 > ema99) emaPts += 10;
+  score += emaPts;
+  if (emaPts >= 20) signals.push({t:'EMA↑',cls:'chip-g'});
+  else if (emaPts >= 10) signals.push({t:'EMA',cls:'chip-b'});
+
+  let bbPts = 0;
+  if (bbPct < 0.2)      { bbPts=20; signals.push({t:'BB↓',cls:'chip-g'}); }
+  else if (bbPct < 0.4) { bbPts=12; signals.push({t:'BB',cls:'chip-y'}); }
+  else if (bbPct > 0.8) { bbPts=-5; signals.push({t:'BB↑',cls:'chip-r'}); }
+  score += bbPts;
+
+  // funding always 0 historically → skip chips
+  let momPts = Math.max(0, mom*4);
+  score += momPts;
+  if (mom >= 2) signals.push({t:'MOM',cls:'chip-g'});
+
+  score += obvDir > 0 ? 8 : 0;
+  if (obvDir > 0) signals.push({t:'OBV',cls:'chip-b'});
+
+  return { score: Math.max(0,Math.min(100,score)), signals, price, volRatio, ema7, ema25, bbPct };
+}
+
+/* ─── ANALYSIS PIPELINE ─── */
+async function analyzeSymbol(symbol, slotTimestamps) {
+  const holdCandles = parseInt(document.getElementById('cfg-hold-candles').value) || 96;
+
+  const startTs = slotTimestamps[0];
+  const endTs   = slotTimestamps[slotTimestamps.length-1];
+
+  let klines;
+  try { klines = await getKlines(symbol, startTs, endTs); }
+  catch(e) { return []; }
+  if (!klines || klines.length < 25) return [];
+
+  const rows = [];
+
+  for (const slotTs of slotTimestamps) {
+    if (abortFlag) return rows;
+
+    // Find the kline index whose open time == slotTs (close of that candle = entry price)
+    const idx = klines.findIndex(k => k[0] === slotTs);
+    if (idx < 22) continue;
+
+    const result = scoreAtIndex(klines, idx);
+    if (!result) continue;
+
+    const entryPrice = result.price;
+
+    // Max gain in subsequent holdCandles candles
+    let maxGain = 0, gainCandles = 0;
+    const futureKlines = klines.slice(idx+1, idx+1+holdCandles);
+    for (let f=0; f<futureKlines.length; f++) {
+      const high = parseFloat(futureKlines[f][2]);
+      const gain = (high - entryPrice) / entryPrice * 100;
+      if (gain > maxGain) { maxGain = gain; gainCandles = f+1; }
+    }
+
+    const slotDate  = new Date(slotTs);
+    const slotLabel = slotDate.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const gainAt    = gainCandles > 0
+      ? gainCandles < 4 ? `${gainCandles*15}분 후`
+      : gainCandles < 8 ? `${(gainCandles/4).toFixed(1)}시간 후`
+      : `${(gainCandles/4).toFixed(0)}시간 후`
+      : '—';
+
+    rows.push({
+      symbol, slotTs, slotTime: slotLabel,
+      score: result.score, signals: result.signals,
+      entryPrice, maxGain, gainAt, gainCandles,
+      volRatio: result.volRatio
+    });
+  }
+  return rows;
+}
+
+/* ─── MAIN RUN ─── */
+async function runBacktest() {
+  if (running) return;
+  running = true;
+  abortFlag = false;
+  allRows = [];
+  filteredRows = [];
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('stop-btn').disabled = false;
+  document.getElementById('summary-grid').style.display = 'none';
+  document.getElementById('tab-row').style.display = 'none';
+  document.getElementById('table-view').style.display = 'block';
+  document.getElementById('heatmap-view').style.display = 'none';
+  document.getElementById('chart-view').style.display = 'none';
+  setBadge('running','⏳ 실행 중');
+
+  try {
+    // Build slot timestamps
+    const startVal = document.getElementById('cfg-start').value;
+    const endVal   = document.getElementById('cfg-end').value;
+    const maxSlots = parseInt(document.getElementById('cfg-max-slots').value) || 8;
+    const batchSz  = parseInt(document.getElementById('cfg-batch').value) || 4;
+
+    if (!startVal || !endVal) throw new Error('시작/종료 시간을 설정하세요');
+
+    let startTs = new Date(startVal).getTime();
+    let endTs   = new Date(endVal).getTime();
+    if (startTs >= endTs) throw new Error('종료 시간이 시작 시간보다 늦어야 합니다');
+
+    // Snap to 15m boundary
+    startTs = Math.floor(startTs / (15*60*1000)) * (15*60*1000);
+    endTs   = Math.floor(endTs   / (15*60*1000)) * (15*60*1000);
+
+    const slotTimestamps = [];
+    for (let ts = startTs; ts <= endTs && slotTimestamps.length < maxSlots; ts += 15*60*1000) {
+      slotTimestamps.push(ts);
+    }
+
+    setStatus(`심볼 목록 로딩 중...`);
+    const symbols = await getSymbols();
+    const total   = symbols.length;
+
+    setStatus(`${total}개 심볼 × ${slotTimestamps.length}개 시간대 분석 시작...`);
+
+    const startTime = Date.now();
+    let done = 0;
+
+    for (let i=0; i<total; i+=batchSz) {
+      if (abortFlag) break;
+      const batch = symbols.slice(i, i+batchSz);
+
+      const results = await Promise.allSettled(
+        batch.map(s => analyzeSymbol(s, slotTimestamps))
+      );
+
+      results.forEach(r => {
+        if (r.status==='fulfilled') allRows.push(...r.value);
+      });
+
+      done = Math.min(i+batchSz, total);
+      const pct = Math.round(done/total*100);
+
+      // ETA
+      const elapsed = (Date.now()-startTime)/1000;
+      const remaining = elapsed/done*(total-done);
+      const etaStr = remaining > 60
+        ? `약 ${Math.ceil(remaining/60)}분 남음`
+        : `약 ${Math.ceil(remaining)}초 남음`;
+      document.getElementById('eta-label').textContent = etaStr;
+
+      setProgress(pct, `분석 중... ${done}/${total} 심볼 (신호 ${allRows.length}개 수집됨)`);
+
+      // live render
+      allRows.sort((a,b)=>b.score-a.score);
+      applyFltSort();
+      updateSummary();
+
+      await sleep(80);
+    }
+
+    setProgress(100, `완료! ${allRows.length}개 신호 수집 — ${symbols.length}개 심볼 × ${slotTimestamps.length}개 시간대`);
+    document.getElementById('eta-label').textContent = '';
+    setBadge('done','✓ 완료');
+
+    document.getElementById('summary-grid').style.display = 'grid';
+    document.getElementById('tab-row').style.display = 'flex';
+    updateSummary();
+    applyFltSort();
+
+  } catch(e) {
+    setStatus('오류: ' + e.message);
+    setBadge('err','✗ 오류');
+  }
+
+  running = false;
+  document.getElementById('run-btn').disabled = false;
+  document.getElementById('stop-btn').disabled = true;
+}
+
+function stopBacktest() {
+  abortFlag = true;
+  setBadge('idle','■ 중지됨');
+  setStatus('사용자가 중지했습니다');
+  document.getElementById('run-btn').disabled = false;
+  document.getElementById('stop-btn').disabled = true;
+}
+
+/* ─── UI HELPERS ─── */
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+function setProgress(pct, msg) {
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('prog-pct').textContent = pct+'%';
+  document.getElementById('prog-label').textContent = msg ? '' : '대기 중';
+  if (msg) setStatus(msg);
+}
+
+function setStatus(msg) {
+  document.getElementById('status-msg').textContent = msg;
+}
+
+function setBadge(type, text) {
+  const el = document.getElementById('status-badge');
+  el.className = 'status-badge sb-'+type;
+  el.innerHTML = (type==='running' ? '<span class="blink">●</span> ' : '') + (text||type.toUpperCase());
+}
+
+/* ─── SUMMARY ─── */
+function updateSummary() {
+  if (!allRows.length) return;
+  const gains = allRows.map(r=>r.maxGain);
+  const avg   = gains.reduce((a,b)=>a+b,0)/gains.length;
+  const high  = allRows.filter(r=>r.score>=70);
+  const highAvg = high.length ? high.map(r=>r.maxGain).reduce((a,b)=>a+b,0)/high.length : 0;
+  const best  = allRows.reduce((a,b)=>b.maxGain>a.maxGain?b:a, allRows[0]);
+  const win   = allRows.filter(r=>r.maxGain>=5).length;
+  const slots = new Set(allRows.map(r=>r.slotTs)).size;
+
+  document.getElementById('s-total').textContent     = allRows.length;
+  document.getElementById('s-total-sub').textContent = `${slots}개 시간대`;
+  document.getElementById('s-avg-gain').textContent  = '+'+avg.toFixed(2)+'%';
+  document.getElementById('s-high-gain').textContent = high.length ? '+'+highAvg.toFixed(2)+'%' : '—';
+  document.getElementById('s-best').textContent      = '+'+best.maxGain.toFixed(2)+'%';
+  document.getElementById('s-best-sym').textContent  = best.symbol.replace('USDT','') + ' @ ' + best.slotTime;
+  document.getElementById('s-win-rate').textContent  = (win/allRows.length*100).toFixed(1)+'%';
+  document.getElementById('s-slots').textContent     = slots;
+}
+
+/* ─── RENDER TABLE ─── */
+function scoreColor(s) {
+  if (s>=70) return '#00c97a';
+  if (s>=50) return '#ffb830';
+  if (s>=30) return '#ff4466';
+  return '#454760';
+}
+function scoreCls(s) {
+  if (s>=70) return 'sc-hi';
+  if (s>=50) return 'sc-mid';
+  if (s>=30) return 'sc-lo';
+  return 'sc-no';
+}
+function gainCls(g) {
+  if (g>=10) return 'gain-hi';
+  if (g>=3)  return 'gain-mid';
+  if (g>=0)  return 'gain-lo';
+  return 'gain-none';
+}
+
+function renderRow(item, rank) {
+  const col    = scoreColor(item.score);
+  const sCls   = scoreCls(item.score);
+  const gCls   = gainCls(item.maxGain);
+  const sigH   = item.signals.map(s=>`<span class="chip ${s.cls}">${s.t}</span>`).join('');
+  const prStr  = item.entryPrice < 0.001 ? item.entryPrice.toFixed(6)
+               : item.entryPrice < 1     ? item.entryPrice.toFixed(4)
+               : item.entryPrice < 100   ? item.entryPrice.toFixed(3)
+               : item.entryPrice.toFixed(2);
+
+  return `<tr>
+    <td class="rank ${rank<=3?'gold':''}">${rank}</td>
+    <td><span class="sym">${item.symbol.replace('USDT','')}<span class="sym-q">/USDT</span></span></td>
+    <td class="time-cell">${item.slotTime}</td>
+    <td class="r">
+      <div class="score-wrap" style="justify-content:flex-end">
+        <div class="score-bar"><div class="score-bar-fill" style="width:${item.score}%;background:${col}"></div></div>
+        <span class="score-num ${sCls}">${Math.round(item.score)}</span>
+      </div>
+    </td>
+    <td class="r entry-price">${prStr}</td>
+    <td class="r"><span class="max-gain ${gCls}">+${item.maxGain.toFixed(2)}%</span></td>
+    <td class="r gain-time">${item.gainAt}</td>
+    <td><div class="chips">${sigH||'<span class="chip chip-n">—</span>'}</div></td>
+  </tr>`;
+}
+
+function applyFltSort() {
+  let data = [...allRows];
+
+  if (searchQuery) {
+    const q = searchQuery.toUpperCase().replace('/USDT','');
+    data = data.filter(d=>d.symbol.replace('USDT','').includes(q));
+  }
+
+  const { col, dir } = currentSort;
+  data.sort((a,b) => {
+    const av=a[col], bv=b[col];
+    if (typeof av==='string') return dir*av.localeCompare(bv);
+    return dir*(av-bv);
+  });
+
+  if      (currentFlt==='sc70') data = data.filter(d=>d.score>=70);
+  else if (currentFlt==='sc50') data = data.filter(d=>d.score>=50);
+  else if (currentFlt==='g10')  data = data.filter(d=>d.maxGain>=10);
+  else if (currentFlt==='g5')   data = data.filter(d=>d.maxGain>=5);
+  else if (currentFlt==='g2')   data = data.filter(d=>d.maxGain>=2);
+
+  filteredRows = data;
+  const body = document.getElementById('result-body');
+  if (!data.length) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="8">결과 없음</td></tr>';
+    return;
+  }
+  body.innerHTML = data.map((r,i)=>renderRow(r,i+1)).join('');
+}
+
+window.setFlt = function(f, btn) {
+  currentFlt = f;
+  document.querySelectorAll('.filter-bar .flt').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFltSort();
+};
+
+window.sortBy = function(col) {
+  if (currentSort.col===col) currentSort.dir*=-1;
+  else { currentSort.col=col; currentSort.dir=-1; }
+  document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sorted'));
+  const cols=['#','symbol','slotTime','score','entryPrice','maxGain','gainAt','signals'];
+  const idx = cols.indexOf(col);
+  if (idx>=0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
+  applyFltSort();
+};
+
+document.getElementById('search-input').addEventListener('input', e=>{
+  searchQuery = e.target.value.trim();
+  applyFltSort();
+});
+
+/* ─── HEATMAP ─── */
+function renderHeatmap() {
+  // Group by symbol, avg maxGain
+  const symMap = {};
+  allRows.forEach(r=>{
+    if (!symMap[r.symbol]) symMap[r.symbol]={total:0,count:0,best:0};
+    symMap[r.symbol].total  += r.maxGain;
+    symMap[r.symbol].count  += 1;
+    symMap[r.symbol].best    = Math.max(symMap[r.symbol].best, r.maxGain);
+  });
+
+  const entries = Object.entries(symMap)
+    .map(([sym,v])=>({ sym, avg: v.total/v.count, count: v.count, best: v.best }))
+    .sort((a,b)=>b.avg-a.avg);
+
+  const maxAvg = Math.max(...entries.map(e=>e.avg), 1);
+
+  const grid = document.getElementById('heatmap-grid');
+  grid.innerHTML = entries.map(e=>{
+    const t = e.avg / maxAvg;   // 0..1
+    const r = Math.round(t*0   + (1-t)*20);
+    const g = Math.round(t*201 + (1-t)*20);
+    const b = Math.round(t*122 + (1-t)*30);
+    const bg  = `rgba(${r},${g},${b},${0.15+t*0.35})`;
+    const bdr = `rgba(${r},${g},${b},${0.3+t*0.4})`;
+    const txt = t > 0.5 ? '#00c97a' : t > 0.25 ? '#ffb830' : '#ff4466';
+    const label = e.sym.replace('USDT','');
+    return `<div class="hm-cell" style="background:${bg};border-color:${bdr}">
+      <div class="hm-sym" style="color:${txt}">${label}</div>
+      <div class="hm-gain" style="color:${txt}">+${e.avg.toFixed(1)}%</div>
+      <div class="hm-score" style="color:${txt}">×${e.count}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ─── SCATTER CHART ─── */
+function renderScatter() {
+  if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
+
+  const data = allRows.map(r=>({ x: Math.round(r.score), y: parseFloat(r.maxGain.toFixed(2)) }));
+
+  // correlation
+  const n    = data.length;
+  const mx   = data.reduce((a,b)=>a+b.x,0)/n;
+  const my   = data.reduce((a,b)=>a+b.y,0)/n;
+  const cov  = data.reduce((a,b)=>a+(b.x-mx)*(b.y-my),0)/n;
+  const sdx  = Math.sqrt(data.reduce((a,b)=>a+(b.x-mx)**2,0)/n);
+  const sdy  = Math.sqrt(data.reduce((a,b)=>a+(b.y-my)**2,0)/n);
+  const corr = sdx*sdy > 0 ? (cov/(sdx*sdy)).toFixed(3) : '—';
+
+  // regression line
+  const slope = sdx > 0 ? cov/(sdx**2) : 0;
+  const intercept = my - slope*mx;
+  const xs = [0, 100];
+  const lineData = xs.map(x=>({ x, y: parseFloat((slope*x+intercept).toFixed(2)) }));
+
+  scatterChart = new Chart(document.getElementById('scatter-canvas'), {
+    type:'scatter',
+    data:{
+      datasets:[
+        {
+          label:'신호',
+          data,
+          backgroundColor:'rgba(91,159,255,0.4)',
+          pointRadius:4,
+          pointHoverRadius:6,
+        },
+        {
+          label:'추세선',
+          data: lineData,
+          type:'line',
+          borderColor:'rgba(0,201,122,0.6)',
+          borderWidth:1.5,
+          pointRadius:0,
+          fill:false,
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label: ctx => `스코어: ${ctx.parsed.x}  |  상승: +${ctx.parsed.y.toFixed(2)}%`
+          }
+        }
+      },
+      scales:{
+        x:{
+          title:{ display:true, text:'스코어', color:'#7c8099', font:{size:11} },
+          min:0, max:100,
+          grid:{ color:'rgba(255,255,255,0.05)' },
+          ticks:{ color:'#7c8099', font:{size:11} }
+        },
+        y:{
+          title:{ display:true, text:'최고 상승률 (%)', color:'#7c8099', font:{size:11} },
+          grid:{ color:'rgba(255,255,255,0.05)' },
+          ticks:{ color:'#7c8099', font:{size:11},
+            callback: v => '+'+v.toFixed(1)+'%'
+          }
+        }
+      }
+    }
+  });
+
+  document.getElementById('chart-stats').innerHTML = `
+    <span>상관계수 (r): <strong style="color:var(--green)">${corr}</strong></span>
+    <span>데이터 포인트: <strong style="color:var(--text)">${n}개</strong></span>
+    <span>평균 스코어: <strong style="color:var(--text)">${mx.toFixed(1)}</strong></span>
+    <span>평균 상승률: <strong style="color:var(--green)">+${my.toFixed(2)}%</strong></span>
+    <span>추세: 스코어 10pt 상승 → 평균 +${(slope*10).toFixed(2)}% 차이</span>
+  `;
+}
+
+/* ─── TABS ─── */
+window.switchTab = function(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.getElementById('table-view').style.display   = tab==='table'   ? 'block' : 'none';
+  document.getElementById('heatmap-view').style.display = tab==='heatmap' ? 'block' : 'none';
+  document.getElementById('chart-view').style.display   = tab==='chart'   ? 'block' : 'none';
+
+  if (tab==='heatmap') renderHeatmap();
+  if (tab==='chart')   renderScatter();
+};
+
+/* ─── WIRE UP ─── */
+document.getElementById('run-btn').addEventListener('click', runBacktest);
+document.getElementById('stop-btn').addEventListener('click', stopBacktest);
+</script>
+</body>
+</html>
