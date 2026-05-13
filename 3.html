@@ -152,6 +152,33 @@ tbody tr.candle-open td:first-child::before{content:'▶';font-size:8px;color:va
 
 .empty-row td{padding:48px;text-align:center;color:var(--text3);font-size:12px;line-height:2}
 
+/* TOOLTIP */
+.chip{position:relative;cursor:default}
+.tip{
+  display:none;
+  position:fixed;
+  z-index:9999;
+  background:#1a1b26;
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:8px;
+  padding:10px 13px;
+  min-width:220px;
+  max-width:280px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.6);
+  pointer-events:none;
+}
+.tip.visible{display:block}
+.tip-title{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.tip-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:11px;margin-bottom:4px}
+.tip-row:last-child{margin-bottom:0}
+.tip-lbl{color:#7c8099}
+.tip-val{font-weight:600;color:#dde0ec;text-align:right}
+.tip-val.green{color:#00c97a}
+.tip-val.red{color:#ff4466}
+.tip-val.yellow{color:#ffb830}
+.tip-val.blue{color:#5b9fff}
+.tip-sep{height:1px;background:rgba(255,255,255,0.06);margin:6px 0}
+
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:3px}
@@ -361,7 +388,10 @@ function scoreAt(klines, idx, funding) {
 
   return {
     score: Math.max(0, Math.min(100, score)),
-    signals, volRatio, ema7, ema25,
+    signals, volRatio, ema7, ema25, ema99,
+    bbPct, bbUpper: bb.upper, bbLower: bb.lower,
+    obvDir, mom,
+    price,
     change15m: prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0
   };
 }
@@ -529,6 +559,15 @@ async function runScan() {
         funding,
         volRatio: sc.volRatio,
         isBull: k.close >= k.open,
+        // 지표 수치 (툴팁용)
+        ema7:     sc.ema7    || 0,
+        ema25:    sc.ema25   || 0,
+        ema99:    sc.ema99   || 0,
+        bbPct:    sc.bbPct   ?? 0.5,
+        bbUpper:  sc.bbUpper || 0,
+        bbLower:  sc.bbLower || 0,
+        obvDir:   sc.obvDir  || 0,
+        mom:      sc.mom     || 0,
       });
 
       const pct = 50 + Math.round((i + 1) / displayKlines.length * 50);
@@ -570,7 +609,9 @@ function renderRow(item, dispRank) {
   const fndStr = (item.funding * 100).toFixed(4) + '%';
   const volCls = item.volRatio >= 2 ? 'hot' : '';
   const volStr = item.volRatio.toFixed(2) + 'x';
-  const sigH   = item.signals.map(s => `<span class="chip ${s.cls}">${s.t}</span>`).join('') || '<span class="chip chip-n">—</span>';
+  const sigH = item.signals.length
+    ? item.signals.map(s => `<span class="chip ${s.cls}" data-sig="${s.t}" data-row="${item.ts}">${s.t}</span>`).join('')
+    : '<span class="chip chip-n">—</span>';
   const bullCls = item.isBull ? '' : 'style="color:var(--red)"';
   const openCol = item.isBull ? 'var(--green)' : 'var(--red)';
 
@@ -590,7 +631,22 @@ function renderRow(item, dispRank) {
     <td class="r"><span class="chg ${chgCls}">${chgStr}</span></td>
     <td class="r"><span class="fnd ${fndCls}">${fndStr}</span></td>
     <td class="r"><span class="vol ${volCls}">${volStr}</span></td>
-    <td><div class="chips">${sigH}</div></td>
+    <td>
+      <div class="chips" data-ts="${item.ts}">${sigH}</div>
+      <div class="tip-meta" style="display:none"
+        data-ema7="${item.ema7.toFixed(4)}"
+        data-ema25="${item.ema25.toFixed(4)}"
+        data-ema99="${item.ema99.toFixed(4)}"
+        data-bbpct="${(item.bbPct*100).toFixed(1)}"
+        data-bbupper="${item.bbUpper.toFixed(4)}"
+        data-bblower="${item.bbLower.toFixed(4)}"
+        data-volratio="${item.volRatio.toFixed(2)}"
+        data-funding="${(item.funding*100).toFixed(4)}"
+        data-obvdir="${item.obvDir}"
+        data-mom="${item.mom}"
+        data-score="${Math.round(item.score)}"
+      ></div>
+    </td>
   </tr>`;
 }
 
@@ -656,6 +712,126 @@ function setStatus(msg) {
 }
 
 document.getElementById('scan-btn').addEventListener('click', runScan);
+
+/* ─── TOOLTIP ─── */
+const TIP_DEFS = {
+  'VOL↑': { title:'거래량 급증 (강)', desc:'최근 5봉 평균 거래량이 과거 15봉 평균의 2.5배 이상', pts:'+15~25pt', color:'green' },
+  'VOL':  { title:'거래량 증가 (보통)', desc:'최근 5봉 평균 거래량이 과거 15봉 평균보다 높음', pts:'+5~14pt', color:'yellow' },
+  'EMA↑': { title:'EMA 완전 상승배열', desc:'EMA7 > EMA25 > EMA99 — 단기·중기·장기 모두 상승 정렬', pts:'+20pt', color:'green' },
+  'EMA':  { title:'EMA 부분 상승배열', desc:'EMA7 > EMA25 만 성립 (EMA99 미달)', pts:'+10pt', color:'blue' },
+  'BB↓':  { title:'볼린저 하단 근접', desc:'현재가가 BB 하단 20% 이내 — 반등 가능성 높음', pts:'+20pt', color:'green' },
+  'BB':   { title:'볼린저 하단 중간', desc:'현재가가 BB 하단 40% 이내', pts:'+12pt', color:'yellow' },
+  'BB↑':  { title:'볼린저 상단 근접', desc:'현재가가 BB 상단 80% 초과 — 과매수 구간', pts:'-5pt', color:'red' },
+  'FND−': { title:'음수 펀딩비 (강)', desc:'펀딩비 < -0.05% — 숏 포지션 비용 부담, 롱에 유리', pts:'+15pt', color:'green' },
+  'FND+': { title:'양수 펀딩비 (과열)', desc:'펀딩비 > 0.1% — 롱 과열 구간, 청산 주의', pts:'-5pt', color:'red' },
+  'MOM':  { title:'가격 모멘텀', desc:'직전 3봉 중 2봉 이상 양봉 — 단기 상승 추세', pts:'+8~12pt', color:'green' },
+  'OBV':  { title:'OBV 상승', desc:'최근 5봉 구간 OBV(누적 거래량) 상승 — 매수세 유입', pts:'+8pt', color:'blue' },
+};
+
+const tipEl = document.createElement('div');
+tipEl.className = 'tip';
+tipEl.id = 'global-tip';
+document.body.appendChild(tipEl);
+
+function buildTipHTML(sigKey, metaEl) {
+  const def = TIP_DEFS[sigKey] || { title: sigKey, desc: '—', pts: '—', color: 'green' };
+  if (!metaEl) return `<div class="tip-title">${def.title}</div><div class="tip-row"><div class="tip-lbl">${def.desc}</div></div>`;
+
+  const ema7    = parseFloat(metaEl.dataset.ema7);
+  const ema25   = parseFloat(metaEl.dataset.ema25);
+  const ema99   = parseFloat(metaEl.dataset.ema99);
+  const bbPct   = parseFloat(metaEl.dataset.bbpct);
+  const bbUpper = parseFloat(metaEl.dataset.bbupper);
+  const bbLower = parseFloat(metaEl.dataset.bblower);
+  const vol     = parseFloat(metaEl.dataset.volratio);
+  const fnd     = parseFloat(metaEl.dataset.funding);
+  const obv     = parseInt(metaEl.dataset.obvdir);
+  const mom     = parseInt(metaEl.dataset.mom);
+  const score   = parseInt(metaEl.dataset.score);
+  const pf = v => isNaN(v) ? '—' : v < 0.001 ? v.toFixed(6) : v < 1 ? v.toFixed(5) : v < 100 ? v.toFixed(3) : v.toFixed(2);
+  const vc = v => v >= 0 ? 'green' : 'red';
+
+  let rows = '';
+
+  if (sigKey === 'VOL↑' || sigKey === 'VOL') {
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">거래량 배수</span><span class="tip-val ${vol>=2.5?'green':vol>=1.5?'yellow':'red'}">${vol.toFixed(2)}x</span></div>
+      <div class="tip-row"><span class="tip-lbl">조건 (강)</span><span class="tip-val">배수 ≥ 2.5x</span></div>
+      <div class="tip-row"><span class="tip-lbl">조건 (보통)</span><span class="tip-val">배수 ≥ 1.5x</span></div>`;
+  } else if (sigKey === 'EMA↑' || sigKey === 'EMA') {
+    const e7c = ema7 > ema25 ? 'green' : 'red';
+    const e2c = ema25 > ema99 ? 'green' : 'red';
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">EMA 7</span><span class="tip-val">${pf(ema7)}</span></div>
+      <div class="tip-row"><span class="tip-lbl">EMA 25</span><span class="tip-val">${pf(ema25)}</span></div>
+      <div class="tip-row"><span class="tip-lbl">EMA 99</span><span class="tip-val">${pf(ema99)}</span></div>
+      <div class="tip-sep"></div>
+      <div class="tip-row"><span class="tip-lbl">EMA7 > EMA25</span><span class="tip-val ${e7c}">${ema7>ema25?'✓ 성립':'✗ 미달'}</span></div>
+      <div class="tip-row"><span class="tip-lbl">EMA25 > EMA99</span><span class="tip-val ${e2c}">${ema25>ema99?'✓ 성립':'✗ 미달'}</span></div>`;
+  } else if (sigKey === 'BB↓' || sigKey === 'BB' || sigKey === 'BB↑') {
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">BB 상단</span><span class="tip-val">${pf(bbUpper)}</span></div>
+      <div class="tip-row"><span class="tip-lbl">BB 하단</span><span class="tip-val">${pf(bbLower)}</span></div>
+      <div class="tip-row"><span class="tip-lbl">BB 위치 (%B)</span><span class="tip-val ${bbPct<=20?'green':bbPct>=80?'red':'yellow'}">${bbPct.toFixed(1)}%</span></div>
+      <div class="tip-sep"></div>
+      <div class="tip-row"><span class="tip-lbl">하단 근접</span><span class="tip-val">%B ≤ 20%</span></div>
+      <div class="tip-row"><span class="tip-lbl">중간</span><span class="tip-val">%B ≤ 40%</span></div>
+      <div class="tip-row"><span class="tip-lbl">상단 과매수</span><span class="tip-val">%B ≥ 80%</span></div>`;
+  } else if (sigKey === 'FND−' || sigKey === 'FND+') {
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">현재 펀딩비</span><span class="tip-val ${fnd<0?'green':fnd>0?'red':'neu'}">${fnd.toFixed(4)}%</span></div>
+      <div class="tip-sep"></div>
+      <div class="tip-row"><span class="tip-lbl">롱 유리 조건</span><span class="tip-val">< -0.05%</span></div>
+      <div class="tip-row"><span class="tip-lbl">과열 조건</span><span class="tip-val">> +0.10%</span></div>
+      <div class="tip-row"><span class="tip-lbl">의미</span><span class="tip-val" style="font-size:10px;color:var(--text3)">음수 = 숏 비용, 롱에 프리미엄</span></div>`;
+  } else if (sigKey === 'MOM') {
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">3봉 모멘텀 점수</span><span class="tip-val ${mom>=2?'green':mom>=-1?'yellow':'red'}">${mom > 0 ? '+'+mom : mom}</span></div>
+      <div class="tip-row"><span class="tip-lbl">조건</span><span class="tip-val">점수 ≥ +2</span></div>
+      <div class="tip-sep"></div>
+      <div class="tip-row"><span class="tip-lbl">산출 방식</span><span class="tip-val" style="font-size:10px;color:var(--text3)">직전 3봉 각각 양봉+1 / 음봉-1</span></div>`;
+  } else if (sigKey === 'OBV') {
+    rows = `
+      <div class="tip-row"><span class="tip-lbl">OBV 방향</span><span class="tip-val ${obv>0?'green':'red'}">${obv>0?'▲ 상승':'▼ 하락'}</span></div>
+      <div class="tip-row"><span class="tip-lbl">조건</span><span class="tip-val">최근 5봉 OBV 상승</span></div>
+      <div class="tip-sep"></div>
+      <div class="tip-row"><span class="tip-lbl">산출 방식</span><span class="tip-val" style="font-size:10px;color:var(--text3)">양봉 +거래량 / 음봉 -거래량 누적</span></div>`;
+  }
+
+  return `
+    <div class="tip-title" style="color:var(--${def.color})">${def.title}
+      <span style="float:right;font-weight:400;color:var(--${def.color});font-size:10px">${def.pts}</span>
+    </div>
+    <div class="tip-row" style="margin-bottom:8px"><span class="tip-lbl" style="font-size:10px;line-height:1.4">${def.desc}</span></div>
+    ${rows ? '<div class="tip-sep"></div>' + rows : ''}`;
+}
+
+document.addEventListener('mouseover', e => {
+  const chip = e.target.closest('.chip[data-sig]');
+  if (!chip) return;
+  const sigKey = chip.dataset.sig;
+  const chipsWrap = chip.closest('.chips');
+  const metaEl = chipsWrap?.nextElementSibling;
+  tipEl.innerHTML = buildTipHTML(sigKey, metaEl);
+  tipEl.classList.add('visible');
+});
+
+document.addEventListener('mousemove', e => {
+  if (!tipEl.classList.contains('visible')) return;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const tw = tipEl.offsetWidth + 16, th = tipEl.offsetHeight + 16;
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + tw > vw) x = e.clientX - tw;
+  if (y + th > vh) y = e.clientY - th;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top  = y + 'px';
+});
+
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('.chip[data-sig]') && !e.relatedTarget?.closest('.chip[data-sig]')) {
+    tipEl.classList.remove('visible');
+  }
+});
 </script>
 </body>
 </html>
