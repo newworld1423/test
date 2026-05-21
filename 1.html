@@ -307,7 +307,7 @@
         <div class="logo-dot off" id="logo-dot"></div>
         <h1>15M Streak Scanner</h1>
       </div>
-      <div class="subtitle">Binance USDT Perpetuals &mdash; 오늘 연속 50점+ 봉수 기준 정렬</div>
+      <div class="subtitle">Binance USDT Perpetuals &mdash; KST 09:00 이후 연속 50점+ 봉수 기준 정렬</div>
     </div>
     <div class="header-right">
       <div class="live-badge idle" id="live-badge">
@@ -400,7 +400,7 @@
       </thead>
       <tbody id="result-body">
         <tr class="empty-row">
-          <td colspan="9">▶ 즉시 스캔 버튼을 눌러 시작하세요<br><span style="font-size:10px;margin-top:6px;display:block;opacity:0.5">오늘(KST 기준) 15분봉을 전부 스캔 — 연속 50점+ 봉수 순 정렬</span></td>
+          <td colspan="9">▶ 즉시 스캔 버튼을 눌러 시작하세요<br><span style="font-size:10px;margin-top:6px;display:block;opacity:0.5">오전 9시(KST 기준) 15분봉을 전부 스캔 — 연속 50점+ 봉수 순 정렬</span></td>
         </tr>
       </tbody>
     </table>
@@ -578,12 +578,14 @@ function scoreAtIndex(closes, volumes, idx, funding) {
   return { score, price, change15m, ema7, ema25, ema99, bbPct, bb, volRatio, obvDir, momentumScore, signals };
 }
 
-/* ─── KST 오늘 자정 타임스탬프 ─── */
+/* ─── KST 오늘 오전 9시 타임스탬프 ─── */
 function getTodayKSTStart() {
   const nowUTC  = Date.now();
   const nowKST  = new Date(nowUTC + 9 * 3600 * 1000);
   const kstDate = nowKST.toISOString().slice(0, 10); // "YYYY-MM-DD" in KST
-  return new Date(kstDate + 'T00:00:00+09:00').getTime();
+  const t9am = new Date(kstDate + 'T09:00:00+09:00').getTime();
+  // 만약 현재 시각이 오전 9시 이전이면 전날 9시부터
+  return nowUTC >= t9am ? t9am : t9am - 24 * 3600 * 1000;
 }
 
 /* ─── ANALYZE ONE SYMBOL ─── */
@@ -831,7 +833,7 @@ async function runScan() {
 
     const now = new Date();
     document.getElementById('last-scan').textContent = now.toLocaleTimeString('ko-KR');
-    setStatus(`스캔 완료 — ${allResults.length}개 페어, 오늘 KST 15분봉 기준 연속 50+ 정렬`);
+    setStatus(`스캔 완료 — ${allResults.length}개 페어, KST 09:00 이후 15분봉 기준 연속 50+ 정렬`);
     document.getElementById('progress').style.width = '100%';
     setTimeout(() => { document.getElementById('progress').style.width = '0%'; }, 2000);
 
