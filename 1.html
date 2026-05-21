@@ -610,12 +610,16 @@ async function analyzeSymbol(symbol, fundingMap) {
 
   if (todayIndices.length === 0) return null;
 
-  // 현재봉(가장 마지막)부터 역방향으로 연속 50점+ 카운트 + 평균 수집
+  // 현재 형성 중인 마지막 봉은 미완성이므로 스트릭 계산에서 제외
+  const lastKlineIdx = klines.length - 1;
+  const todayIndicesForStreak = todayIndices.filter(i => i < lastKlineIdx);
+
+  // 직전 완성봉부터 역방향으로 연속 50점+ 카운트 + 평균 수집
   let streak = 0;
   const streakVols    = [];
   const streakChanges = [];
-  for (let j = todayIndices.length - 1; j >= 0; j--) {
-    const idx = todayIndices[j];
+  for (let j = todayIndicesForStreak.length - 1; j >= 0; j--) {
+    const idx = todayIndicesForStreak[j];
     const result = scoreAtIndex(closes, volumes, idx, funding);
     if (result && result.score >= 50) {
       streak++;
