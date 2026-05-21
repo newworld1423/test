@@ -390,7 +390,7 @@
           <th>#</th>
           <th onclick="sortBy('symbol')">심볼</th>
           <th onclick="sortBy('streak')" class="sorted">연속 50+ ↓ <span style="font-size:8px;opacity:0.6">(봉수)</span></th>
-          <th onclick="sortBy('score')">현재 점수</th>
+          <th onclick="sortBy('score')">평균 점수 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
           <th onclick="sortBy('todayCandles')">오늘 봉수</th>
           <th onclick="sortBy('streakAvgChange')">평균 15m변동 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
           <th onclick="sortBy('streakAvgVol')">평균 거래량배수 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
@@ -616,6 +616,7 @@ async function analyzeSymbol(symbol, fundingMap) {
 
   // 직전 완성봉부터 역방향으로 연속 50점+ 카운트 + 평균 수집
   let streak = 0;
+  const streakScores  = [];
   const streakVols    = [];
   const streakChanges = [];
   for (let j = todayIndicesForStreak.length - 1; j >= 0; j--) {
@@ -623,6 +624,7 @@ async function analyzeSymbol(symbol, fundingMap) {
     const result = scoreAtIndex(closes, volumes, idx, funding);
     if (result && result.score >= 50) {
       streak++;
+      streakScores.push(result.score);
       streakVols.push(result.volRatio);
       streakChanges.push(result.change15m);
     } else {
@@ -630,33 +632,33 @@ async function analyzeSymbol(symbol, fundingMap) {
     }
   }
   const avg = arr => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const streakAvgScore  = avg(streakScores);
   const streakAvgVol    = avg(streakVols);
   const streakAvgChange = avg(streakChanges);
 
-  // 현재봉 지표 (마지막 봉)
-  const lastIdx = klines.length - 1;
-  const current = scoreAtIndex(closes, volumes, lastIdx, funding);
-  if (!current) return null;
+  // 직전 완성봉 기준 표시용 데이터 (현재 미완성봉 제외)
+  const refIdx = lastKlineIdx - 1;
+  const ref = refIdx >= 0 ? scoreAtIndex(closes, volumes, refIdx, funding) : null;
+  if (!ref) return null;
 
   return {
     symbol,
     streak,
+    streakAvgScore,
     streakAvgVol,
     streakAvgChange,
-    todayCandles: todayIndices.length,
-    score:         current.score,
-    price:         current.price,
-    change15m:     current.change15m,
+    todayCandles: todayIndicesForStreak.length,
+    score:         streakAvgScore,
+    price:         ref.price,
     funding,
-    volRatio:      current.volRatio,
-    signals:       current.signals,
-    ema7:          current.ema7,
-    ema25:         current.ema25,
-    ema99:         current.ema99,
-    bbPct:         current.bbPct,
-    bb:            current.bb,
-    obvDir:        current.obvDir,
-    momentumScore: current.momentumScore,
+    signals:       ref.signals,
+    ema7:          ref.ema7,
+    ema25:         ref.ema25,
+    ema99:         ref.ema99,
+    bbPct:         ref.bbPct,
+    bb:            ref.bb,
+    obvDir:        ref.obvDir,
+    momentumScore: ref.momentumScore,
   };
 }
 
