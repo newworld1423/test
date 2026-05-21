@@ -392,7 +392,8 @@
           <th onclick="sortBy('streak')" class="sorted">연속 50+ ↓ <span style="font-size:8px;opacity:0.6">(봉수)</span></th>
           <th onclick="sortBy('score')">현재 점수</th>
           <th onclick="sortBy('todayCandles')">오늘 봉수</th>
-          <th onclick="sortBy('change15m')">15m 변동</th>
+          <th onclick="sortBy('streakAvgChange')">평균 15m변동 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
+          <th onclick="sortBy('streakAvgVol')">평균 거래량배수 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
           <th onclick="sortBy('funding')">펀딩비</th>
           <th>신호</th>
           <th onclick="sortBy('price')">현재가</th>
@@ -609,17 +610,24 @@ async function analyzeSymbol(symbol, fundingMap) {
 
   if (todayIndices.length === 0) return null;
 
-  // 현재봉(가장 마지막)부터 역방향으로 연속 50점+ 카운트
+  // 현재봉(가장 마지막)부터 역방향으로 연속 50점+ 카운트 + 평균 수집
   let streak = 0;
+  const streakVols    = [];
+  const streakChanges = [];
   for (let j = todayIndices.length - 1; j >= 0; j--) {
     const idx = todayIndices[j];
     const result = scoreAtIndex(closes, volumes, idx, funding);
     if (result && result.score >= 50) {
       streak++;
+      streakVols.push(result.volRatio);
+      streakChanges.push(result.change15m);
     } else {
       break; // 연속이 끊기면 중단
     }
   }
+  const avg = arr => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const streakAvgVol    = avg(streakVols);
+  const streakAvgChange = avg(streakChanges);
 
   // 현재봉 지표 (마지막 봉)
   const lastIdx = klines.length - 1;
@@ -629,6 +637,8 @@ async function analyzeSymbol(symbol, fundingMap) {
   return {
     symbol,
     streak,
+    streakAvgVol,
+    streakAvgChange,
     todayCandles: todayIndices.length,
     score:         current.score,
     price:         current.price,
@@ -696,11 +706,14 @@ function renderRow(item, rank) {
   const stCls   = streakCls(st);
   const scCol   = scoreColor(sc);
   const scCls   = scoreCls(sc);
-  const chgCls  = item.change15m >= 0 ? 'up' : 'dn';
-  const chgStr  = (item.change15m >= 0 ? '+' : '') + item.change15m.toFixed(2) + '%';
-  const fndCls  = item.funding < 0 ? 'neg' : item.funding > 0 ? 'pos' : 'neu';
-  const fndStr  = (item.funding * 100).toFixed(4) + '%';
-  const volCls  = item.volRatio >= 2 ? 'hot' : '';
+  const avgChg    = item.streakAvgChange ?? item.change15m;
+  const avgVol    = item.streakAvgVol   ?? item.volRatio;
+  const chgCls    = avgChg >= 0 ? 'up' : 'dn';
+  const chgStr    = (avgChg >= 0 ? '+' : '') + avgChg.toFixed(2) + '%';
+  const fndCls    = item.funding < 0 ? 'neg' : item.funding > 0 ? 'pos' : 'neu';
+  const fndStr    = (item.funding * 100).toFixed(4) + '%';
+  const volCls    = avgVol >= 2 ? 'hot' : '';
+  const volStr    = avgVol.toFixed(2) + 'x';
 
   const metaAttrs = [
     `data-ema7="${fmtPrice(item.ema7)}"`,
@@ -709,7 +722,7 @@ function renderRow(item, rank) {
     `data-bbpct="${(item.bbPct * 100).toFixed(1)}"`,
     `data-bbupper="${fmtPrice(item.bb?.upper || 0)}"`,
     `data-bblower="${fmtPrice(item.bb?.lower || 0)}"`,
-    `data-vol="${item.volRatio.toFixed(2)}"`,
+    `data-vol="${avgVol.toFixed(2)}"`,
     `data-fnd="${(item.funding * 100).toFixed(4)}"`,
     `data-obvdir="${item.obvDir || 0}"`,
     `data-mom="${item.momentumScore || 0}"`,
@@ -741,6 +754,7 @@ function renderRow(item, rank) {
     </td>
     <td class="today-info"><span class="today-num">${item.todayCandles}</span>봉</td>
     <td><span class="chg ${chgCls}">${chgStr}</span></td>
+    <td><span class="vol ${volCls}">${volStr}</span></td>
     <td><span class="fnd ${fndCls}">${fndStr}</span></td>
     <td>
       <div class="chips" ${metaAttrs}>${sigHtml || '<span class="chip chip-n">—</span>'}</div>
@@ -875,7 +889,7 @@ window.sortBy = function(col) {
   document.querySelectorAll('thead th').forEach(t => t.classList.remove('sorted'));
   if (currentSort.col === col) currentSort.dir *= -1;
   else { currentSort.col = col; currentSort.dir = -1; }
-  const cols = ['#', 'symbol', 'streak', 'score', 'todayCandles', 'change15m', 'funding', 'signals', 'price'];
+  const cols = ['#', 'symbol', 'streak', 'score', 'todayCandles', 'streakAvgChange', 'streakAvgVol', 'funding', 'signals', 'price'];
   const idx = cols.indexOf(col);
   if (idx >= 0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
   applyFilterAndSort();
