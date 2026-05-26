@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>99MA 근접 스캐너 — Binance USDT Perp</title>
+<style>
+:root {
+  --bg:     #070d1a;
+  --bg2:    #0c1526;
+  --bg3:    #111e35;
+  --bg4:    #172444;
+  --border: #1a2d4e;
+  --text:   #c0ceea;
+  --muted:  #4a5e80;
+  --green:  #00d49a;
+  --red:    #ff4d68;
+  --blue:   #3d9aff;
+  --yellow: #ffb340;
+  --white:  #e4ecfc;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Consolas','Monaco','Courier New',monospace;font-size:13px;min-height:100vh;}
+a{color:var(--blue);text-decoration:none;}
+
+/* ── HEADER ── */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.logo{font-size:16px;font-weight:700;color:var(--white);letter-spacing:1px;}
+.logo span{color:var(--green);}
+.badge{font-size:10px;background:var(--bg4);border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:3px;}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+/* ── BUTTONS ── */
+button{font-family:inherit;font-size:12px;cursor:pointer;border-radius:4px;border:1px solid var(--border);padding:6px 14px;transition:all .15s;}
+.btn-primary{background:var(--green);color:#000;border-color:var(--green);font-weight:700;}
+.btn-primary:hover{opacity:.85;}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-secondary{background:transparent;color:var(--text);border-color:var(--border);}
+.btn-secondary:hover{background:var(--bg3);border-color:var(--blue);color:var(--blue);}
+.btn-notif{background:transparent;color:var(--muted);border-color:var(--border);}
+.btn-notif.granted{color:var(--green);border-color:var(--green);}
+.btn-auto{background:transparent;color:var(--muted);border-color:var(--border);}
+.btn-auto.on{color:var(--yellow);border-color:var(--yellow);}
+
+/* ── STATUS BAR ── */
+.statusbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted);}
+.statusbar span b{color:var(--text);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:5px;}
+.dot.scanning{background:var(--yellow);animation:pulse 1s infinite;}
+.dot.ready{background:var(--green);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── PROGRESS ── */
+.progress-wrap{padding:0 20px;background:var(--bg2);border-bottom:1px solid var(--border);}
+.progress-inner{height:2px;background:var(--bg3);}
+.progress-fill{height:100%;background:var(--green);width:0%;transition:width .2s;border-radius:1px;}
+.progress-txt{font-size:11px;color:var(--muted);padding:4px 0 6px;min-height:22px;}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
+.stat{background:var(--bg2);padding:10px 16px;}
+.stat-label{font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px;}
+.stat-val{font-size:18px;font-weight:700;color:var(--white);}
+.stat-val.green{color:var(--green);}
+.stat-val.red{color:var(--red);}
+.stat-val.yellow{color:var(--yellow);}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+thead th{
+  background:var(--bg3);
+  padding:8px 12px;
+  text-align:left;
+  font-size:11px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+  cursor:pointer;
+  user-select:none;
+  position:sticky;top:0;z-index:10;
+}
+thead th:hover{color:var(--text);}
+thead th.sorted{color:var(--blue);}
+td{
+  padding:7px 12px;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+  color:var(--text);
+}
+tr:hover td{background:var(--bg2);}
+.rank{color:var(--muted);font-size:11px;width:36px;}
+.sym{color:var(--white);font-weight:700;font-size:13px;}
+.sym-usdt{color:var(--muted);font-size:11px;font-weight:400;}
+.price{font-variant-numeric:tabular-nums;}
+.diff-pct{font-weight:700;}
+.diff-pct.tight{color:var(--green);}
+.diff-pct.mid{color:var(--yellow);}
+.diff-pct.far{color:var(--muted);}
+.pos-badge{font-size:10px;padding:2px 7px;border-radius:3px;display:inline-block;}
+.pos-above{background:rgba(0,212,154,.12);color:var(--green);border:1px solid rgba(0,212,154,.3);}
+.pos-below{background:rgba(255,77,104,.12);color:var(--red);border:1px solid rgba(255,77,104,.3);}
+.bar-cell{width:80px;}
+.bar-wrap{width:70px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;background:var(--green);}
+.bar-fill.far{background:var(--muted);}
+.ts{font-size:10px;color:var(--muted);}
+.empty-row td{text-align:center;color:var(--muted);padding:40px;font-size:14px;}
+
+/* ── SEARCH ── */
+.toolbar{display:flex;gap:8px;padding:10px 20px;background:var(--bg);border-bottom:1px solid var(--border);align-items:center;}
+.search-input{
+  background:var(--bg2);border:1px solid var(--border);color:var(--text);
+  font-family:inherit;font-size:12px;padding:5px 10px;border-radius:4px;width:160px;
+}
+.search-input:focus{outline:none;border-color:var(--blue);}
+.search-input::placeholder{color:var(--muted);}
+.filter-btn{font-size:11px;padding:4px 10px;}
+.filter-btn.active{background:var(--bg4);color:var(--blue);border-color:var(--blue);}
+.count-txt{margin-left:auto;font-size:11px;color:var(--muted);}
+
+/* ── SORT ARROW ── */
+.arr{font-size:10px;margin-left:3px;opacity:.5;}
+.arr.on{opacity:1;color:var(--blue);}
+
+/* ── NEXT SCAN TIMER ── */
+#nextTimer{font-weight:700;color:var(--white);}
+#nextTimer.soon{color:var(--yellow);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">99MA <span>SCANNER</span></div>
+  <div class="badge">BINANCE USDT PERP · 15M</div>
+  <div class="header-right">
+    <button class="btn-notif" id="notifBtn" onclick="requestNotif()">🔔 알림 허용</button>
+    <button class="btn-auto" id="autoBtn" onclick="toggleAuto()">⏱ 자동스캔 OFF</button>
+    <button class="btn-primary" id="scanBtn" onclick="startScan()">스캔 시작</button>
+  </div>
+</div>
+
+<div class="statusbar">
+  <span><span class="dot" id="statusDot"></span><span id="statusTxt">대기 중</span></span>
+  <span>심볼: <b id="symCount">-</b></span>
+  <span>마지막 스캔: <b id="lastScanTime">-</b></span>
+  <span>다음 자동스캔: <b id="nextTimer">-</b></span>
+  <span>스캔 모드: <b id="scanMode">최초 스캔 (전체)</b></span>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-inner"><div class="progress-fill" id="progFill"></div></div>
+  <div class="progress-txt" id="progTxt"></div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">스캔 완료</div><div class="stat-val" id="s-done">0</div></div>
+  <div class="stat"><div class="stat-label">99MA 위 (롱 구간)</div><div class="stat-val green" id="s-above">0</div></div>
+  <div class="stat"><div class="stat-label">99MA 아래 (숏 구간)</div><div class="stat-val red" id="s-below">0</div></div>
+  <div class="stat"><div class="stat-label">0.5% 이내</div><div class="stat-val yellow" id="s-tight">0</div></div>
+  <div class="stat"><div class="stat-label">1% 이내</div><div class="stat-val" id="s-mid">0</div></div>
+</div>
+
+<div class="toolbar">
+  <input class="search-input" id="searchInput" placeholder="심볼 검색 (예: BTC)" oninput="renderTable()">
+  <button class="btn-secondary filter-btn active" onclick="setFilter('all',this)">전체</button>
+  <button class="btn-secondary filter-btn" onclick="setFilter('tight',this)">0.5% 이내</button>
+  <button class="btn-secondary filter-btn" onclick="setFilter('mid',this)">1% 이내</button>
+  <button class="btn-secondary filter-btn" onclick="setFilter('above',this)">MA 위</button>
+  <button class="btn-secondary filter-btn" onclick="setFilter('below',this)">MA 아래</button>
+  <span class="count-txt" id="countTxt"></span>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th class="rank">#</th>
+      <th onclick="setSort('symbol')">심볼 <span class="arr" id="arr-symbol"></span></th>
+      <th onclick="setSort('prevClose')">이전봉 종가 <span class="arr" id="arr-prevClose"></span></th>
+      <th onclick="setSort('ma99')">99MA <span class="arr" id="arr-ma99"></span></th>
+      <th onclick="setSort('diffPct')" class="sorted">차이 % <span class="arr on" id="arr-diffPct">▲</span></th>
+      <th onclick="setSort('diffAbs')">차이 $ <span class="arr" id="arr-diffAbs"></span></th>
+      <th>위치</th>
+      <th class="bar-cell">근접도</th>
+      <th onclick="setSort('lastTs')">갱신 시각 <span class="arr" id="arr-lastTs"></span></th>
+    </tr>
+  </thead>
+  <tbody id="tableBody">
+    <tr class="empty-row"><td colspan="9">스캔 시작 버튼을 눌러주세요</td></tr>
+  </tbody>
+</table>
+</div>
+
+<script>
+'use strict';
+
+/* ── STATE ── */
+const symbolData = {};   // symbol -> { closes[], lastTs, ma99, prevClose, diffPct, diffAbs, above }
+let allSymbols   = [];
+let isFirstScan  = true;
+let scanRunning  = false;
+let autoEnabled  = false;
+let autoInterval = null;
+let lastAutoMin  = -1;
+let filterMode   = 'all';
+let sortKey      = 'diffPct';
+let sortDir      =  1;       // 1 = asc, -1 = desc
+
+/* ── NOTIFICATION ── */
+function requestNotif() {
+  if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
+  Notification.requestPermission().then(p => updateNotifBtn(p));
+}
+function updateNotifBtn(p) {
+  const btn = document.getElementById('notifBtn');
+  if (p === 'granted') { btn.textContent = '🔔 알림 허용됨'; btn.classList.add('granted'); }
+  else { btn.textContent = '🔕 알림 거부됨'; btn.classList.remove('granted'); }
+}
+function sendNotif(title, body) {
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '' });
+  }
+}
+if ('Notification' in window) updateNotifBtn(Notification.permission);
+
+/* ── AUTO SCAN SCHEDULER ── */
+function toggleAuto() {
+  autoEnabled = !autoEnabled;
+  const btn = document.getElementById('autoBtn');
+  if (autoEnabled) {
+    btn.textContent = '⏱ 자동스캔 ON';
+    btn.classList.add('on');
+    if (!autoInterval) autoInterval = setInterval(autoCheck, 10000);
+    autoCheck();
+  } else {
+    btn.textContent = '⏱ 자동스캔 OFF';
+    btn.classList.remove('on');
+  }
+  updateNextTimer();
+}
+
+function autoCheck() {
+  updateNextTimer();
+  if (!autoEnabled || scanRunning) return;
+  const now = new Date();
+  const min = now.getMinutes();
+  const sec = now.getSeconds();
+  // trigger at :00, :15, :30, :45 within first 30 seconds of that minute
+  if ([0,15,30,45].includes(min) && sec < 30 && min !== lastAutoMin) {
+    lastAutoMin = min;
+    startScan(true);
+  }
+}
+
+function getNextScanMs() {
+  const now = new Date();
+  const min = now.getMinutes();
+  const sec = now.getSeconds();
+  const ms  = now.getMilliseconds();
+  const elapsedInMin = sec * 1000 + ms;
+  const nextBoundary = [0,15,30,45,60].find(m => m > min) ?? 60;
+  const remainMin = nextBoundary - min;
+  return remainMin * 60000 - elapsedInMin;
+}
+
+function updateNextTimer() {
+  const el = document.getElementById('nextTimer');
+  if (!autoEnabled) { el.textContent = '-'; el.classList.remove('soon'); return; }
+  const ms = getNextScanMs();
+  const s  = Math.ceil(ms / 1000);
+  const m  = Math.floor(s / 60);
+  const ss = s % 60;
+  el.textContent = m + ':' + String(ss).padStart(2,'0');
+  el.classList.toggle('soon', ms < 30000);
+}
+setInterval(updateNextTimer, 1000);
+
+/* ── BINANCE API HELPERS ── */
+const BASE = 'https://fapi.binance.com';
+
+async function getSymbols() {
+  const r = await fetch(BASE + '/fapi/v1/exchangeInfo');
+  const d = await r.json();
+  return d.symbols
+    .filter(s => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT' && s.status === 'TRADING')
+    .map(s => s.symbol);
+}
+
+async function fetchInitial(sym) {
+  // limit=101: klines[100]=current open, klines[0..99]=100 closed, use [1..99] for 99MA (99 values), prevClose=[99]
+  // Actually: limit=100 → klines[0..98]=99 closed + klines[99]=open candle → perfect
+  const r = await fetch(`${BASE}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`);
+  if (!r.ok) return;
+  const k = await r.json();
+  if (!Array.isArray(k) || k.length < 100) return;
+  // k[99] = current open candle (ignore), k[0..98] = 99 closed candles
+  const closed = k.slice(0, 99);
+  const closes = closed.map(c => parseFloat(c[4]));
+  const lastTs  = closed[98][0];   // openTime of 이전봉
+  const ma99    = closes.reduce((a,b) => a+b, 0) / 99;
+  const prevClose = closes[98];
+  const diffAbs = Math.abs(prevClose - ma99);
+  const diffPct = diffAbs / ma99 * 100;
+  const above   = prevClose >= ma99;
+  symbolData[sym] = { closes, lastTs, ma99, prevClose, diffPct, diffAbs, above };
+}
+
+async function fetchUpdate(sym) {
+  // limit=3: [0]=older, [1]=이전봉(closed), [2]=현재봉(open)
+  const r = await fetch(`${BASE}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=3`);
+  if (!r.ok) return;
+  const k = await r.json();
+  if (!Array.isArray(k) || k.length < 3) return;
+  const prev = k[1];
+  const ts   = prev[0];
+  const s    = symbolData[sym];
+  if (!s) return;
+  if (ts !== s.lastTs) {
+    // new candle formed — slide window
+    s.closes.shift();
+    s.closes.push(parseFloat(prev[4]));
+    s.lastTs    = ts;
+    s.ma99      = s.closes.reduce((a,b) => a+b, 0) / 99;
+    s.prevClose = s.closes[98];
+    s.diffAbs   = Math.abs(s.prevClose - s.ma99);
+    s.diffPct   = s.diffAbs / s.ma99 * 100;
+    s.above     = s.prevClose >= s.ma99;
+  }
+}
+
+async function runBatch(items, fn, batchSize, delay, onProgress) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    if (!scanRunning) break;
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(x => fn(x).catch(() => {})));
+    onProgress(Math.min(i + batchSize, items.length), items.length);
+    if (i + batchSize < items.length) await sleep(delay);
+  }
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── MAIN SCAN ── */
+async function startScan(isAuto = false) {
+  if (scanRunning) return;
+  scanRunning = true;
+  setStatus('scanning', '스캔 중...');
+  document.getElementById('scanBtn').disabled = true;
+  setProgress(0, '');
+
+  try {
+    if (isFirstScan || !allSymbols.length) {
+      // ── FIRST SCAN: full init ──
+      document.getElementById('scanMode').textContent = '최초 스캔 (전체 다운로드)';
+      setProgress(0, '바이낸스에서 심볼 목록 불러오는 중...');
+      allSymbols = await getSymbols();
+      document.getElementById('symCount').textContent = allSymbols.length;
+
+      let done = 0;
+      await runBatch(allSymbols, fetchInitial, 25, 120,
+        (cur, total) => {
+          done = cur;
+          setProgress(cur / total * 100, `초기 로딩: ${cur} / ${total} (99개 종가 저장 중)`);
+          updateStats();
+          if (cur % 50 === 0) renderTable();
+        }
+      );
+      isFirstScan = false;
+
+    } else {
+      // ── SUBSEQUENT SCAN: update only ──
+      document.getElementById('scanMode').textContent = '업데이트 스캔 (이전봉만)';
+      const syms = Object.keys(symbolData);
+      await runBatch(syms, fetchUpdate, 40, 80,
+        (cur, total) => {
+          setProgress(cur / total * 100, `업데이트: ${cur} / ${total}`);
+          if (cur % 80 === 0) renderTable();
+        }
+      );
+    }
+
+    setProgress(100, '');
+    updateStats();
+    renderTable();
+
+    const now = new Date();
+    const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('lastScanTime').textContent = timeStr;
+    setStatus('ready', '스캔 완료');
+
+    if (isAuto) {
+      const top3 = getSorted().slice(0, 3).map(s => `${s.symbol.replace('USDT','')} ${s.diffPct.toFixed(3)}%`).join(' | ');
+      sendNotif('📊 99MA 스캔 완료', `상위 3: ${top3}`);
+    }
+
+  } catch(e) {
+    setStatus('', '오류: ' + e.message);
+    console.error(e);
+  }
+
+  scanRunning = false;
+  document.getElementById('scanBtn').disabled = false;
+}
+
+/* ── UI HELPERS ── */
+function setStatus(cls, txt) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'dot' + (cls ? ' ' + cls : '');
+  document.getElementById('statusTxt').textContent = txt;
+}
+
+function setProgress(pct, txt) {
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progTxt').textContent = txt;
+}
+
+function updateStats() {
+  const vals = Object.values(symbolData);
+  document.getElementById('s-done').textContent   = vals.length;
+  document.getElementById('s-above').textContent  = vals.filter(v => v.above).length;
+  document.getElementById('s-below').textContent  = vals.filter(v => !v.above).length;
+  document.getElementById('s-tight').textContent  = vals.filter(v => v.diffPct < 0.5).length;
+  document.getElementById('s-mid').textContent    = vals.filter(v => v.diffPct < 1.0).length;
+}
+
+/* ── TABLE ── */
+function setFilter(mode, el) {
+  filterMode = mode;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+function setSort(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = key === 'diffPct' ? 1 : -1; }
+  document.querySelectorAll('[id^="arr-"]').forEach(el => { el.textContent = ''; el.classList.remove('on'); });
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+  const arr = document.getElementById('arr-' + key);
+  if (arr) { arr.textContent = sortDir === 1 ? '▲' : '▼'; arr.classList.add('on'); }
+  renderTable();
+}
+
+function getSorted() {
+  const q = document.getElementById('searchInput').value.toUpperCase().trim();
+  return Object.values(symbolData)
+    .filter(v => {
+      if (q && !v.symbol.includes(q)) return false;
+      if (filterMode === 'tight')  return v.diffPct < 0.5;
+      if (filterMode === 'mid')    return v.diffPct < 1.0;
+      if (filterMode === 'above')  return v.above;
+      if (filterMode === 'below')  return !v.above;
+      return true;
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] ?? 0, bv = b[sortKey] ?? 0;
+      if (typeof av === 'string') return av.localeCompare(bv) * sortDir;
+      return (av - bv) * sortDir;
+    });
+}
+
+function fmtPrice(p) {
+  if (p === undefined || p === null) return '-';
+  if (p >= 1000)   return p.toFixed(2);
+  if (p >= 1)      return p.toFixed(4);
+  if (p >= 0.01)   return p.toFixed(5);
+  return p.toFixed(7);
+}
+
+function fmtTs(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  return d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function renderTable() {
+  const rows = getSorted();
+  document.getElementById('countTxt').textContent = rows.length + '개 표시';
+  const tbody = document.getElementById('tableBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">결과 없음</td></tr>';
+    return;
+  }
+  const maxDiff = Math.max(...rows.map(r => r.diffPct), 0.001);
+  tbody.innerHTML = rows.map((r, i) => {
+    const pctClass = r.diffPct < 0.5 ? 'tight' : r.diffPct < 1.5 ? 'mid' : 'far';
+    const barPct   = Math.max(1, 100 - (r.diffPct / maxDiff * 100));
+    const barClass = r.diffPct < 1 ? '' : 'far';
+    const posHtml  = r.above
+      ? '<span class="pos-badge pos-above">MA 위 ▲</span>'
+      : '<span class="pos-badge pos-below">MA 아래 ▼</span>';
+    return `<tr>
+      <td class="rank">${i+1}</td>
+      <td><span class="sym">${r.symbol.replace('USDT','')}</span><span class="sym-usdt">/USDT</span></td>
+      <td class="price">${fmtPrice(r.prevClose)}</td>
+      <td class="price">${fmtPrice(r.ma99)}</td>
+      <td class="diff-pct ${pctClass}">${r.diffPct.toFixed(4)}%</td>
+      <td class="price">${fmtPrice(r.diffAbs)}</td>
+      <td>${posHtml}</td>
+      <td class="bar-cell"><div class="bar-wrap"><div class="bar-fill ${barClass}" style="width:${barPct.toFixed(1)}%"></div></div></td>
+      <td class="ts">${fmtTs(r.lastTs)}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
