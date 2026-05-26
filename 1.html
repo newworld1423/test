@@ -213,9 +213,9 @@
   .score-fill-bar { height: 100%; border-radius: 2px; }
   .score-num { font-size: 12px; font-weight: 600; min-width: 24px; text-align: right; }
 
-  /* TODAY CANDLES */
-  .today-info { font-size: 11px; color: var(--text3); }
-  .today-num { color: var(--text2); font-weight: 500; }
+  /* START TIME */
+  .start-time { font-size: 11px; color: var(--text3); }
+  .start-time .sv { color: var(--text2); font-weight: 500; }
 
   /* CHANGE */
   .chg { font-size: 12px; font-weight: 500; }
@@ -307,7 +307,7 @@
         <div class="logo-dot off" id="logo-dot"></div>
         <h1>15M Streak Scanner</h1>
       </div>
-      <div class="subtitle">Binance USDT Perpetuals &mdash; KST 09:00 이후 연속 50점+ 봉수 기준 정렬</div>
+      <div class="subtitle">Binance USDT Perpetuals &mdash; 시간 제한 없이 현재 시점 연속 50점+ 봉수 기준 (2봉 이상)</div>
     </div>
     <div class="header-right">
       <div class="live-badge idle" id="live-badge">
@@ -327,6 +327,10 @@
     <div class="meta-card">
       <div class="lbl">스캔 완료</div>
       <div class="val" id="scanned-count">—</div>
+    </div>
+    <div class="meta-card">
+      <div class="lbl">연속 2봉+ 탐지</div>
+      <div class="val" id="streak2-count">—</div>
     </div>
     <div class="meta-card">
       <div class="lbl">연속 8봉+ (2시간+)</div>
@@ -357,7 +361,7 @@
   <!-- FILTER -->
   <div class="filter-row">
     <span class="filter-lbl">필터</span>
-    <button class="btn active" id="f-all"      onclick="setFilter('all',this)">전체</button>
+    <button class="btn active" id="f-all"      onclick="setFilter('all',this)">전체 (2봉+)</button>
     <button class="btn"        id="f-top20"    onclick="setFilter('top20',this)">상위 20</button>
     <button class="btn"        id="f-streak4"  onclick="setFilter('streak4',this)">연속 4봉+</button>
     <button class="btn"        id="f-streak8"  onclick="setFilter('streak8',this)">연속 8봉+</button>
@@ -373,7 +377,10 @@
     <div class="sl-row"><span class="sl-name">펀딩비 음수 (숏 부담 → 롱 유리)</span><span class="sl-pts">15pt</span></div>
     <div class="sl-row"><span class="sl-name">가격 모멘텀 (최근 3봉 방향)</span><span class="sl-pts">12pt</span></div>
     <div class="sl-row"><span class="sl-name">OBV 상승 (거래량 선행)</span><span class="sl-pts">8pt</span></div>
-    <div class="sl-row" style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px"><span class="sl-name" style="color:var(--text3)">연속 봉수 = 현재봉부터 역방향으로 50점 이상 유지한 봉 수</span><span class="sl-pts" style="color:var(--purple)">기준</span></div>
+    <div class="sl-row" style="margin-top:4px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px">
+      <span class="sl-name" style="color:var(--text3)">연속 봉수 = 현재봉 직전부터 역방향으로 50점+ 유지한 봉 수 (시간 무제한)</span>
+      <span class="sl-pts" style="color:var(--purple)">기준</span>
+    </div>
   </div>
 
   <!-- PROGRESS -->
@@ -391,7 +398,7 @@
           <th onclick="sortBy('symbol')">심볼</th>
           <th onclick="sortBy('streak')" class="sorted">연속 50+ ↓ <span style="font-size:8px;opacity:0.6">(봉수)</span></th>
           <th onclick="sortBy('score')">평균 점수 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
-          <th onclick="sortBy('todayCandles')">오늘 봉수</th>
+          <th onclick="sortBy('streakStartTime')">스트릭 시작</th>
           <th onclick="sortBy('streakAvgChange')">평균 15m변동 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
           <th onclick="sortBy('streakAvgVol')">평균 거래량배수 <span style="font-size:8px;opacity:0.6">(streak)</span></th>
           <th onclick="sortBy('funding')">펀딩비</th>
@@ -401,7 +408,7 @@
       </thead>
       <tbody id="result-body">
         <tr class="empty-row">
-          <td colspan="9">▶ 즉시 스캔 버튼을 눌러 시작하세요<br><span style="font-size:10px;margin-top:6px;display:block;opacity:0.5">오전 9시(KST 기준) 15분봉을 전부 스캔 — 연속 50점+ 봉수 순 정렬</span></td>
+          <td colspan="10">▶ 즉시 스캔 버튼을 눌러 시작하세요<br><span style="font-size:10px;margin-top:6px;display:block;opacity:0.5">시간 제한 없이 현재 시점 기준 연속 50점+ 봉 2개 이상인 종목만 표시</span></td>
         </tr>
       </tbody>
     </table>
@@ -410,7 +417,7 @@
 
 <script>
 const BATCH = 4;
-const KLINE_LIMIT = 200; // 99 history + up to 96 today candles
+const KLINE_LIMIT = 200;
 let allResults = [];
 let currentFilter = 'all';
 let currentSort = { col: 'streak', dir: -1 };
@@ -419,7 +426,7 @@ let scanning = false;
 let autoEnabled = false;
 let autoTimer = null;
 let countdownTimer = null;
-let maxStreakGlobal = 1; // for bar scaling
+let maxStreakGlobal = 1;
 
 /* ─── FETCH WITH CORS PROXY FALLBACK ─── */
 const BASE = 'https://fapi.binance.com';
@@ -502,7 +509,6 @@ function calcOBV(closes, volumes) {
 
 /* ─── SCORE FOR A SINGLE CANDLE AT INDEX `idx` ─── */
 function scoreAtIndex(closes, volumes, idx, funding) {
-  // Need at least 22 candles before this point for reliable indicators
   if (idx < 21) return null;
 
   const c = closes.slice(0, idx + 1);
@@ -536,13 +542,11 @@ function scoreAtIndex(closes, volumes, idx, funding) {
   let score = 0;
   const signals = [];
 
-  /* VOL 25pt */
   const volPts = Math.min(25, Math.round(Math.max(0, (volRatio - 1) * 10)));
   score += volPts;
   if (volPts >= 15) signals.push({ t: 'VOL↑', cls: 'chip-g' });
   else if (volPts >= 5) signals.push({ t: 'VOL', cls: 'chip-y' });
 
-  /* EMA 20pt */
   let emaPts = 0;
   if (ema7  > ema25) emaPts += 10;
   if (ema25 > ema99) emaPts += 10;
@@ -550,26 +554,22 @@ function scoreAtIndex(closes, volumes, idx, funding) {
   if (emaPts >= 20) signals.push({ t: 'EMA↑', cls: 'chip-g' });
   else if (emaPts >= 10) signals.push({ t: 'EMA', cls: 'chip-b' });
 
-  /* BB 20pt */
   let bbPts = 0;
   if (bbPct < 0.2)      { bbPts = 20; signals.push({ t: 'BB↓', cls: 'chip-g' }); }
   else if (bbPct < 0.4) { bbPts = 12; signals.push({ t: 'BB', cls: 'chip-y' }); }
   else if (bbPct > 0.8) { bbPts = -5; signals.push({ t: 'BB↑', cls: 'chip-r' }); }
   score += bbPts;
 
-  /* FUNDING 15pt */
   let fundPts = 0;
   if (funding < -0.0005)    { fundPts = 15; signals.push({ t: 'FND−', cls: 'chip-g' }); }
   else if (funding < 0)     { fundPts = 8; }
   else if (funding > 0.001) { fundPts = -5; signals.push({ t: 'FND+', cls: 'chip-r' }); }
   score += fundPts;
 
-  /* MOMENTUM 12pt */
   const momPts = Math.max(0, momentumScore * 4);
   score += momPts;
   if (momentumScore >= 2) signals.push({ t: 'MOM', cls: 'chip-g' });
 
-  /* OBV 8pt */
   const obvPts = obvDir > 0 ? 8 : 0;
   score += obvPts;
   if (obvDir > 0) signals.push({ t: 'OBV', cls: 'chip-b' });
@@ -579,17 +579,7 @@ function scoreAtIndex(closes, volumes, idx, funding) {
   return { score, price, change15m, ema7, ema25, ema99, bbPct, bb, volRatio, obvDir, momentumScore, signals };
 }
 
-/* ─── KST 오늘 오전 9시 타임스탬프 ─── */
-function getTodayKSTStart() {
-  const nowUTC  = Date.now();
-  const nowKST  = new Date(nowUTC + 9 * 3600 * 1000);
-  const kstDate = nowKST.toISOString().slice(0, 10); // "YYYY-MM-DD" in KST
-  const t9am = new Date(kstDate + 'T09:00:00+09:00').getTime();
-  // 만약 현재 시각이 오전 9시 이전이면 전날 9시부터
-  return nowUTC >= t9am ? t9am : t9am - 24 * 3600 * 1000;
-}
-
-/* ─── ANALYZE ONE SYMBOL ─── */
+/* ─── ANALYZE ONE SYMBOL — 시간 제한 없이 현재 기준 연속 카운트 ─── */
 async function analyzeSymbol(symbol, fundingMap) {
   const klines = await fetchWithMirror(
     `/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${KLINE_LIMIT}`
@@ -599,46 +589,45 @@ async function analyzeSymbol(symbol, fundingMap) {
   const closes    = klines.map(k => parseFloat(k[4]));
   const volumes   = klines.map(k => parseFloat(k[5]));
   const openTimes = klines.map(k => parseInt(k[0]));
+  const funding   = fundingMap[symbol] || 0;
 
-  const todayStart    = getTodayKSTStart();
-  const funding       = fundingMap[symbol] || 0;
+  // 현재 형성 중인 마지막 봉(미완성)은 제외하고,
+  // 그 직전 완성봉부터 역방향으로 연속 50점+ 카운트
+  const lastCompletedIdx = klines.length - 2; // 미완성 봉 제외
+  if (lastCompletedIdx < 21) return null;
 
-  // 오늘 봉 인덱스 (open time >= KST 자정)
-  const todayIndices = openTimes
-    .map((t, i) => (t >= todayStart ? i : -1))
-    .filter(i => i >= 0);
-
-  if (todayIndices.length === 0) return null;
-
-  // 현재 형성 중인 마지막 봉은 미완성이므로 스트릭 계산에서 제외
-  const lastKlineIdx = klines.length - 1;
-  const todayIndicesForStreak = todayIndices.filter(i => i < lastKlineIdx);
-
-  // 직전 완성봉부터 역방향으로 연속 50점+ 카운트 + 평균 수집
   let streak = 0;
+  let streakStartIdx = lastCompletedIdx;
   const streakScores  = [];
   const streakVols    = [];
   const streakChanges = [];
-  for (let j = todayIndicesForStreak.length - 1; j >= 0; j--) {
-    const idx = todayIndicesForStreak[j];
+
+  for (let idx = lastCompletedIdx; idx >= 21; idx--) {
     const result = scoreAtIndex(closes, volumes, idx, funding);
     if (result && result.score >= 50) {
       streak++;
       streakScores.push(result.score);
       streakVols.push(result.volRatio);
       streakChanges.push(result.change15m);
+      streakStartIdx = idx;
     } else {
-      break; // 연속이 끊기면 중단
+      break; // 연속이 끊기면 즉시 중단
     }
   }
+
+  // 연속 2봉 미만이면 skip
+  if (streak < 2) return null;
+
   const avg = arr => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
   const streakAvgScore  = avg(streakScores);
   const streakAvgVol    = avg(streakVols);
   const streakAvgChange = avg(streakChanges);
 
-  // 직전 완성봉 기준 표시용 데이터 (현재 미완성봉 제외)
-  const refIdx = lastKlineIdx - 1;
-  const ref = refIdx >= 0 ? scoreAtIndex(closes, volumes, refIdx, funding) : null;
+  // 스트릭 시작 시각 (KST)
+  const streakStartTime = openTimes[streakStartIdx];
+
+  // 직전 완성봉 기준 표시용 데이터
+  const ref = scoreAtIndex(closes, volumes, lastCompletedIdx, funding);
   if (!ref) return null;
 
   return {
@@ -647,7 +636,7 @@ async function analyzeSymbol(symbol, fundingMap) {
     streakAvgScore,
     streakAvgVol,
     streakAvgChange,
-    todayCandles: todayIndicesForStreak.length,
+    streakStartTime,  // 정렬/표시용 타임스탬프
     score:         streakAvgScore,
     price:         ref.price,
     funding,
@@ -701,6 +690,15 @@ function fmtPrice(p) {
   return p.toFixed(2);
 }
 
+function fmtKST(ts) {
+  const d = new Date(ts + 9 * 3600 * 1000); // UTC → KST
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${mo}/${da} ${hh}:${mm}`;
+}
+
 /* ─── RENDER ROW ─── */
 function renderRow(item, rank) {
   const rankCls = rank <= 3 ? 'top3' : '';
@@ -712,14 +710,14 @@ function renderRow(item, rank) {
   const stCls   = streakCls(st);
   const scCol   = scoreColor(sc);
   const scCls   = scoreCls(sc);
-  const avgChg    = item.streakAvgChange ?? item.change15m;
-  const avgVol    = item.streakAvgVol   ?? item.volRatio;
-  const chgCls    = avgChg >= 0 ? 'up' : 'dn';
-  const chgStr    = (avgChg >= 0 ? '+' : '') + avgChg.toFixed(2) + '%';
-  const fndCls    = item.funding < 0 ? 'neg' : item.funding > 0 ? 'pos' : 'neu';
-  const fndStr    = (item.funding * 100).toFixed(4) + '%';
-  const volCls    = avgVol >= 2 ? 'hot' : '';
-  const volStr    = avgVol.toFixed(2) + 'x';
+  const avgChg  = item.streakAvgChange;
+  const avgVol  = item.streakAvgVol;
+  const chgCls  = avgChg >= 0 ? 'up' : 'dn';
+  const chgStr  = (avgChg >= 0 ? '+' : '') + avgChg.toFixed(2) + '%';
+  const fndCls  = item.funding < 0 ? 'neg' : item.funding > 0 ? 'pos' : 'neu';
+  const fndStr  = (item.funding * 100).toFixed(4) + '%';
+  const volCls  = avgVol >= 2 ? 'hot' : '';
+  const volStr  = avgVol.toFixed(2) + 'x';
 
   const metaAttrs = [
     `data-ema7="${fmtPrice(item.ema7)}"`,
@@ -737,6 +735,8 @@ function renderRow(item, rank) {
   const sigHtml = item.signals.map(s =>
     `<span class="chip ${s.cls}" data-sig="${s.t}">${s.t}</span>`
   ).join('');
+
+  const startTimeStr = item.streakStartTime ? fmtKST(item.streakStartTime) : '—';
 
   return `<tr>
     <td class="rank ${rankCls}">${rank}</td>
@@ -758,7 +758,7 @@ function renderRow(item, rank) {
         <span class="score-num ${scCls}">${sc}</span>
       </div>
     </td>
-    <td class="today-info"><span class="today-num">${item.todayCandles}</span>봉</td>
+    <td class="start-time"><span class="sv">${startTimeStr}</span> KST</td>
     <td><span class="chg ${chgCls}">${chgStr}</span></td>
     <td><span class="vol ${volCls}">${volStr}</span></td>
     <td><span class="fnd ${fndCls}">${fndStr}</span></td>
@@ -782,20 +782,20 @@ function applyFilterAndSort() {
   data.sort((a, b) => {
     const av = a[col], bv = b[col];
     if (typeof av === 'string') return dir * av.localeCompare(bv);
-    return dir * (av - bv);
+    return dir * ((av || 0) - (bv || 0));
   });
 
   if      (currentFilter === 'top20')    data = data.slice(0, 20);
   else if (currentFilter === 'streak4')  data = data.filter(d => d.streak >= 4);
   else if (currentFilter === 'streak8')  data = data.filter(d => d.streak >= 8);
   else if (currentFilter === 'streak16') data = data.filter(d => d.streak >= 16);
+  // 'all' = streak >= 2 (already filtered at analyzeSymbol level)
 
-  // 현재 보이는 데이터의 최대 streak (bar 스케일 기준)
   maxStreakGlobal = data.length > 0 ? Math.max(1, ...data.map(d => d.streak)) : 1;
 
   const body = document.getElementById('result-body');
   if (!data.length) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="9">해당 조건의 결과가 없습니다</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="10">해당 조건의 결과가 없습니다</td></tr>';
     return;
   }
   body.innerHTML = data.map((item, i) => renderRow(item, i + 1)).join('');
@@ -831,6 +831,7 @@ async function runScan() {
         batch.map(s => analyzeSymbol(s, fundingMap))
       );
       results.forEach(r => {
+        // analyzeSymbol이 streak < 2 이면 null 반환 → 여기서 자동 필터됨
         if (r.status === 'fulfilled' && r.value) allResults.push(r.value);
       });
 
@@ -838,12 +839,14 @@ async function runScan() {
       const pct = Math.round(done / total * 100);
       document.getElementById('progress').style.width = pct + '%';
       document.getElementById('scanned-count').textContent = done + ' / ' + total;
-      setStatus(`분석 중... ${done}/${total} (${pct}%) — 오늘 15분봉 전체 스캔`);
+      setStatus(`분석 중... ${done}/${total} (${pct}%) — 현재 시점 연속 50점+ 2봉 이상 탐색`);
 
       // 실시간 정렬 & 렌더
       allResults.sort((a, b) => b.streak - a.streak);
-      const high8 = allResults.filter(d => d.streak >= 8).length;
-      const maxSt = allResults.length > 0 ? Math.max(...allResults.map(d => d.streak)) : 0;
+      const high2  = allResults.length;
+      const high8  = allResults.filter(d => d.streak >= 8).length;
+      const maxSt  = allResults.length > 0 ? Math.max(...allResults.map(d => d.streak)) : 0;
+      document.getElementById('streak2-count').textContent   = high2;
       document.getElementById('high-streak-count').textContent = high8;
       document.getElementById('max-streak').textContent = maxSt > 0 ? maxSt + '봉 (' + fmtTime(maxSt * 15) + ')' : '—';
       applyFilterAndSort();
@@ -853,7 +856,7 @@ async function runScan() {
 
     const now = new Date();
     document.getElementById('last-scan').textContent = now.toLocaleTimeString('ko-KR');
-    setStatus(`스캔 완료 — ${allResults.length}개 페어, KST 09:00 이후 15분봉 기준 연속 50+ 정렬`);
+    setStatus(`스캔 완료 — 연속 2봉+ 조건 충족 ${allResults.length}개 페어 (총 ${total}개 중)`);
     document.getElementById('progress').style.width = '100%';
     setTimeout(() => { document.getElementById('progress').style.width = '0%'; }, 2000);
 
@@ -895,7 +898,7 @@ window.sortBy = function(col) {
   document.querySelectorAll('thead th').forEach(t => t.classList.remove('sorted'));
   if (currentSort.col === col) currentSort.dir *= -1;
   else { currentSort.col = col; currentSort.dir = -1; }
-  const cols = ['#', 'symbol', 'streak', 'score', 'todayCandles', 'streakAvgChange', 'streakAvgVol', 'funding', 'signals', 'price'];
+  const cols = ['#', 'symbol', 'streak', 'score', 'streakStartTime', 'streakAvgChange', 'streakAvgVol', 'funding', 'signals', 'price'];
   const idx = cols.indexOf(col);
   if (idx >= 0) document.querySelectorAll('thead th')[idx]?.classList.add('sorted');
   applyFilterAndSort();
@@ -973,12 +976,12 @@ async function requestNotifPerm() {
   return (await Notification.requestPermission()) === 'granted';
 }
 
-async function sendNotif(streak8Count) {
+async function sendNotif(streak8Count, totalFound) {
   const ok = await requestNotifPerm();
   if (!ok) return;
   const body = streak8Count > 0
-    ? `연속 8봉+ 종목 ${streak8Count}개 발견됨`
-    : `전체 페어 스캔 완료`;
+    ? `연속 8봉+ 종목 ${streak8Count}개 | 전체 연속 2봉+ ${totalFound}개`
+    : `연속 2봉+ 종목 ${totalFound}개 발견`;
   const n = new Notification('15M Streak Scanner', { body });
   setTimeout(() => n.close(), 6000);
 }
@@ -996,8 +999,9 @@ notifBtn.addEventListener('click', async () => {
 document.querySelector('.controls').appendChild(notifBtn);
 
 window._scanNotifHook = async function() {
-  const s8 = allResults.filter(r => r.streak >= 8).length;
-  await sendNotif(s8);
+  const s8    = allResults.filter(r => r.streak >= 8).length;
+  const total = allResults.length;
+  await sendNotif(s8, total);
 };
 
 /* ─── TOOLTIP ─── */
@@ -1022,16 +1026,16 @@ document.body.appendChild(tipEl);
 function buildTip(sigKey, chips) {
   const def = TIP_MAP[sigKey];
   if (!def) return '';
-  const ema7  = chips.dataset.ema7    || '—';
-  const ema25 = chips.dataset.ema25   || '—';
-  const ema99 = chips.dataset.ema99   || '—';
-  const bbPct = chips.dataset.bbpct   || '—';
-  const bbU   = chips.dataset.bbupper || '—';
-  const bbL   = chips.dataset.bblower || '—';
-  const vol   = chips.dataset.vol     || '—';
-  const fnd   = parseFloat(chips.dataset.fnd   || 0);
-  const obvDir = parseInt(chips.dataset.obvdir || 0);
-  const mom    = parseInt(chips.dataset.mom    || 0);
+  const ema7   = chips.dataset.ema7    || '—';
+  const ema25  = chips.dataset.ema25   || '—';
+  const ema99  = chips.dataset.ema99   || '—';
+  const bbPct  = chips.dataset.bbpct   || '—';
+  const bbU    = chips.dataset.bbupper || '—';
+  const bbL    = chips.dataset.bblower || '—';
+  const vol    = chips.dataset.vol     || '—';
+  const fnd    = parseFloat(chips.dataset.fnd   || 0);
+  const obvDir = parseInt(chips.dataset.obvdir  || 0);
+  const mom    = parseInt(chips.dataset.mom     || 0);
 
   let rows = '';
   if (sigKey === 'VOL↑' || sigKey === 'VOL') {
