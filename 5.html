@@ -259,6 +259,7 @@ td:last-child{padding-right:20px}
   <span class="sep">│</span>
   <span class="fbar-label">필터</span>
   <span class="ftag on" id="flt-pos_fund"       onclick="toggleFlt('pos_fund')">양수 펀딩만</span>
+  <span class="ftag on" id="flt-zone_range"      onclick="toggleFlt('zone_range')">(저항-지지)/저항 &gt; 2%</span>
   <span class="ftag" id="flt-above_ma"          onclick="toggleFlt('above_ma')">99MA 위 only</span>
   <span class="ftag" id="flt-has_res"           onclick="toggleFlt('has_res')">저항존 있는것만</span>
   <div class="fbar-right">
@@ -277,6 +278,7 @@ td:last-child{padding-right:20px}
       <col class="c0"><col class="c1"><col class="c2">
       <col class="c3"><col class="c4"><col class="c5">
       <col class="c6"><col class="c7"><col class="c8">
+      <col style="width:82px">
     </colgroup>
     <thead>
       <tr>
@@ -289,6 +291,7 @@ td:last-child{padding-right:20px}
         <th onclick="setSort('dist_res')" class="sort-active">저항까지 % <span id="si-dist_res">↑</span></th>
         <th>지지 구간 / 강도</th>
         <th onclick="setSort('dist_sup')">지지까지 % <span id="si-dist_sup"></span></th>
+        <th onclick="setSort('zone_range')" title="(저항구간 - 지지구간) / 저항구간">(R-S)/R <span id="si-zone_range"></span></th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -330,7 +333,7 @@ let nextScanTime   = null;
 
 let sortKey = 'dist_res';
 let sortAsc = true;
-let filters = { pos_fund: true, above_ma: false, has_res: false };
+let filters = { pos_fund: true, above_ma: false, has_res: false, zone_range: true };
 
 /* ═══════════════════════════════════════════
    BINANCE API
@@ -415,6 +418,8 @@ function calcResult(sym, candles, funding) {
   const supZones = findZones(candles, 'sup');
   const nearRes  = nearestAbove(resZones, price);
   const nearSup  = nearestBelow(supZones, price);
+  // (저항구간 - 지지구간) / 저항구간
+  const zoneRange = (nearRes && nearSup) ? (nearRes.p - nearSup.p) / nearRes.p * 100 : null;
   return {
     symbol:    sym,
     price,
@@ -425,6 +430,7 @@ function calcResult(sym, candles, funding) {
     nearSup,
     distRes:   nearRes ? (nearRes.p - price) / price * 100 : null,
     distSup:   nearSup ? (price - nearSup.p) / price * 100 : null,
+    zoneRange,
     resZones:  resZones.slice(0, 5),
     supZones:  supZones.slice(0, 5),
     isNew:     false,
@@ -720,7 +726,7 @@ function setSort(key) {
   document.querySelectorAll('.ftag[id^="srt-"]').forEach(el => el.classList.remove('sort-on'));
   const el = document.getElementById('srt-' + key);
   if (el) el.classList.add('sort-on');
-  ['symbol','price','funding','ma_dist','dist_res','dist_sup'].forEach(k => {
+  ['symbol','price','funding','ma_dist','dist_res','dist_sup','zone_range'].forEach(k => {
     const s = document.getElementById('si-' + k);
     if (s) s.textContent = '';
   });
@@ -737,17 +743,19 @@ function toggleFlt(key) {
 
 function applyFiltersSort() {
   let d = [...results];
-  if (filters.pos_fund)  d = d.filter(x => x.funding > 0);
-  if (filters.above_ma)  d = d.filter(x => x.maDistPct !== null && x.maDistPct > 0);
-  if (filters.has_res)   d = d.filter(x => x.nearRes !== null);
+  if (filters.pos_fund)    d = d.filter(x => x.funding > 0);
+  if (filters.zone_range)  d = d.filter(x => x.zoneRange !== null && x.zoneRange > 2);
+  if (filters.above_ma)    d = d.filter(x => x.maDistPct !== null && x.maDistPct > 0);
+  if (filters.has_res)     d = d.filter(x => x.nearRes !== null);
   d.sort((a, b) => {
     let av, bv;
     switch (sortKey) {
-      case 'dist_res': av = a.distRes ?? 9e9; bv = b.distRes ?? 9e9; break;
-      case 'dist_sup': av = a.distSup ?? 9e9; bv = b.distSup ?? 9e9; break;
-      case 'funding':  av = a.funding; bv = b.funding; break;
-      case 'ma_dist':  av = a.maDistPct ?? -9e9; bv = b.maDistPct ?? -9e9; break;
-      case 'price':    av = a.price; bv = b.price; break;
+      case 'dist_res':    av = a.distRes ?? 9e9;    bv = b.distRes ?? 9e9;    break;
+      case 'dist_sup':    av = a.distSup ?? 9e9;    bv = b.distSup ?? 9e9;    break;
+      case 'zone_range':  av = a.zoneRange ?? -9e9; bv = b.zoneRange ?? -9e9; break;
+      case 'funding':     av = a.funding;            bv = b.funding;           break;
+      case 'ma_dist':     av = a.maDistPct ?? -9e9; bv = b.maDistPct ?? -9e9; break;
+      case 'price':       av = a.price;              bv = b.price;             break;
       case 'symbol':   return sortAsc ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol);
       default: av = 0; bv = 0;
     }
@@ -816,6 +824,7 @@ function render() {
       <td>${distResCell}</td>
       <td>${supCell}</td>
       <td class="neg">${d.distSup !== null ? '-'+d.distSup.toFixed(2)+'%' : '<span class="dim">—</span>'}</td>
+      <td class="${d.zoneRange !== null ? (d.zoneRange > 5 ? 'pos' : d.zoneRange > 2 ? 'ylw' : 'dim') : 'dim'}">${d.zoneRange !== null ? d.zoneRange.toFixed(2)+'%' : '—'}</td>
     </tr>`;
   });
 
