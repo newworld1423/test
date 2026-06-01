@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LONGSCAN · Binance USDT-M · 음수펀딩</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#07090f;--bg2:#0c0f1a;--bg3:#111827;
+  --border:#1c2540;--border2:#243050;
+  --acc:#a78bfa;--acc2:#8b5cf6;
+  --grn:#34d399;--red:#f87171;--ylw:#fbbf24;--cyn:#38bdf8;--org:#fb923c;
+  --txt:#c8d8f0;--txt2:#7a90b8;--txt3:#3a4e70;
+  --mono:'IBM Plex Mono',monospace;--ui:'Syne',sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--ui)}
+body{display:flex;flex-direction:column;overflow:hidden}
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+  pointer-events:none;z-index:0
+}
+
+/* ── HEADER ── */
+.hdr{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:12px 20px;background:var(--bg2);
+  border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:2
+}
+.logo{font-size:17px;font-weight:800;letter-spacing:3px;white-space:nowrap}
+.logo em{color:var(--acc);font-style:normal}
+.logo small{color:var(--txt3);font-weight:400;font-size:11px;letter-spacing:1px;margin-left:8px}
+.logo-tag{
+  font-family:var(--mono);font-size:10px;padding:3px 8px;
+  border:1px solid var(--acc2);color:var(--acc);letter-spacing:1px;
+  background:rgba(139,92,246,.08)
+}
+.hdr-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+.countdown-badge{
+  font-family:var(--mono);font-size:12px;font-weight:500;
+  padding:5px 12px;border:1px solid var(--border2);
+  color:var(--txt2);white-space:nowrap;display:flex;align-items:center;gap:6px
+}
+.countdown-badge.active{border-color:var(--grn);color:var(--grn)}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--grn);display:none;flex-shrink:0}
+.pulse-dot.on{display:block;animation:pulse-anim 1s ease-in-out infinite}
+@keyframes pulse-anim{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.update-badge{font-family:var(--mono);font-size:11px;color:var(--txt3);white-space:nowrap}
+
+/* ── CONTROLS ── */
+.ctrl{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 20px;background:var(--bg2);
+  border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:2
+}
+.btn{
+  font-family:var(--ui);font-size:12px;font-weight:700;letter-spacing:1.5px;
+  padding:8px 18px;border:none;cursor:pointer;text-transform:uppercase;transition:all .15s
+}
+.btn-scan{background:var(--acc);color:#050810}
+.btn-scan:hover:not(:disabled){background:var(--grn)}
+.btn-scan:disabled{background:var(--txt3);cursor:not-allowed}
+.btn-auto{background:transparent;color:var(--txt2);border:1px solid var(--border2)}
+.btn-auto:hover{border-color:var(--grn);color:var(--grn)}
+.btn-auto.on{border-color:var(--grn);color:var(--grn);background:rgba(52,211,153,.08)}
+.btn-notif{background:transparent;color:var(--txt2);border:1px solid var(--border2)}
+.btn-notif:hover{border-color:var(--acc);color:var(--acc)}
+.btn-notif.granted{border-color:var(--acc);color:var(--acc)}
+.notif-thr{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--txt2)}
+.notif-thr input{
+  width:52px;background:var(--bg3);border:1px solid var(--border2);
+  color:var(--acc);font-family:var(--mono);font-size:12px;
+  padding:4px 6px;text-align:center;outline:none
+}
+.notif-thr input:focus{border-color:var(--acc)}
+.ctrl-sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+.stats-row{display:flex;gap:18px;margin-left:auto;flex-wrap:wrap}
+.stat{text-align:right}
+.stat-l{font-size:9px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase;font-family:var(--mono)}
+.stat-v{font-family:var(--mono);font-size:16px;color:var(--acc);font-weight:500}
+.scan-type{
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:3px 8px;
+  border:1px solid;text-transform:uppercase;display:none
+}
+.scan-type.full{border-color:var(--acc);color:var(--acc)}
+.scan-type.incr{border-color:var(--grn);color:var(--grn)}
+
+/* ── PROGRESS ── */
+.prog-wrap{height:2px;background:var(--bg3);flex-shrink:0;position:relative;z-index:2}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--acc2),var(--grn));width:0;transition:width .3s}
+@keyframes shimmer{0%,100%{opacity:1}50%{opacity:.4}}
+.prog-fill.active{animation:shimmer 1s ease-in-out infinite}
+
+/* ── STATUS ── */
+.status{
+  padding:5px 20px;font-family:var(--mono);font-size:11px;
+  color:var(--txt2);border-bottom:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;min-height:26px;position:relative;z-index:2
+}
+.tick{color:var(--acc)}.tick-grn{color:var(--grn)}.tick-ylw{color:var(--ylw)}
+
+/* ── FILTER BAR ── */
+.fbar{
+  display:flex;align-items:center;gap:7px;padding:9px 20px 7px;
+  flex-shrink:0;flex-wrap:wrap;color:var(--txt3);position:relative;z-index:2
+}
+.fbar-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:2px}
+.ftag{
+  font-family:var(--ui);font-size:10px;font-weight:600;letter-spacing:1px;
+  padding:3px 9px;border:1px solid var(--border2);cursor:pointer;
+  transition:all .15s;text-transform:uppercase;color:var(--txt3)
+}
+.ftag:hover{color:var(--txt2);border-color:var(--border)}
+.ftag.on{border-color:var(--grn);color:var(--grn);background:rgba(52,211,153,.06)}
+.ftag.sort-on{border-color:var(--acc);color:var(--acc);background:rgba(167,139,250,.06)}
+.sep{color:var(--border2);font-size:10px}
+.fbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.alert-count{
+  font-family:var(--mono);font-size:10px;padding:2px 8px;
+  border:1px solid var(--grn);color:var(--grn);display:none
+}
+.alert-count.show{display:inline-block}
+
+/* ── TABLE ── */
+.tbl-wrap{flex:1;overflow:auto;position:relative;z-index:1}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+
+thead{position:sticky;top:0;z-index:10}
+thead th{
+  font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--txt3);padding:9px 8px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  text-align:right;cursor:pointer;white-space:nowrap;user-select:none
+}
+thead th:first-child{text-align:left;padding-left:20px}
+thead th:last-child{padding-right:20px}
+thead th:hover{color:var(--txt2)}
+thead th.sort-active{color:var(--acc)}
+
+tbody tr{border-bottom:1px solid rgba(28,37,64,.5);transition:background .1s}
+tbody tr:hover{background:var(--bg3)}
+@keyframes rowfade{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+tbody tr.row-new{animation:rowfade .25s ease both}
+@keyframes flash-upd{0%{background:rgba(52,211,153,.1)}100%{background:transparent}}
+tbody tr.row-updated{animation:flash-upd .8s ease both}
+@keyframes flash-alert{0%,100%{background:rgba(167,139,250,.07)}50%{background:rgba(167,139,250,.16)}}
+tbody tr.row-alert{animation:flash-alert 1s ease 2}
+
+td{
+  padding:9px 8px;text-align:right;font-family:var(--mono);
+  font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+td:first-child{text-align:left;padding-left:20px}
+td:last-child{padding-right:20px}
+
+/* symbol */
+.sym{display:inline-flex;align-items:center;font-family:var(--ui);font-size:13px;font-weight:700;letter-spacing:.3px}
+.sym-bar{display:inline-block;width:2px;height:13px;margin-right:7px;vertical-align:middle;background:var(--acc)}
+.sym-bar.alert-bar{background:var(--grn)}
+.sym-base{color:var(--txt)}.sym-quote{color:var(--txt3);font-size:10px;font-weight:400}
+.sym-badge{display:inline-block;font-size:9px;padding:1px 5px;margin-left:4px;vertical-align:middle;border:1px solid;letter-spacing:.5px}
+.badge-alert{border-color:var(--grn);color:var(--grn)}
+.badge-new{border-color:var(--acc);color:var(--acc)}
+.badge-upd{border-color:var(--txt3);color:var(--txt3);font-size:8px}
+
+/* colors */
+.pos{color:var(--grn)}.neg{color:var(--red)}.acc{color:var(--acc)}
+.ylw{color:var(--ylw)}.dim{color:var(--txt3)}.cyn{color:var(--cyn)}
+
+/* zone cell */
+.zone-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.zone-p{color:var(--txt)}.zone-t{font-size:9px;color:var(--txt3)}
+.zone-t em{color:var(--ylw);font-style:normal}
+
+/* dist cell */
+.dist-wrap{display:inline-flex;align-items:center;gap:5px;justify-content:flex-end}
+.dbar{width:36px;height:3px;background:var(--bg3);overflow:hidden;flex-shrink:0}
+.dbar-inner{height:100%}
+
+/* profit cell */
+.profit-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.profit-pct{font-size:13px;font-weight:600}
+.profit-sub{font-size:9px;color:var(--txt3);letter-spacing:.5px}
+
+/* price position bar */
+.pos-bar-wrap{display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.pos-bar{width:50px;height:5px;background:var(--bg3);position:relative;border-radius:1px}
+.pos-bar-fill{position:absolute;top:0;left:0;height:100%;background:var(--acc);border-radius:1px;transition:width .3s}
+.pos-bar-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);letter-spacing:.3px}
+
+/* empty */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--txt3);font-family:var(--ui)}
+.empty-icon{font-size:48px;opacity:.25}.empty-msg{font-size:13px;letter-spacing:2px;text-transform:uppercase}
+
+/* scrollbar */
+.tbl-wrap::-webkit-scrollbar{width:5px;height:5px}
+.tbl-wrap::-webkit-scrollbar-track{background:var(--bg)}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--border2)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo"><em>LONG</em>SCAN <small>· BINANCE USDT-M · 15M</small></div>
+  <div class="logo-tag">음수 펀딩 · 지지→저항 롱</div>
+  <div class="hdr-right">
+    <div class="countdown-badge" id="countdownBadge">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <span id="countdownText">자동스캔 꺼짐</span>
+    </div>
+    <div class="update-badge" id="lastUpdate">—</div>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="ctrl">
+  <button class="btn btn-scan" id="scanBtn" onclick="startFullScan()">▶ SCAN START</button>
+  <button class="btn btn-auto" id="autoBtn" onclick="toggleAuto()">⏰ 자동스캔 ON</button>
+  <div class="ctrl-sep"></div>
+  <button class="btn btn-notif" id="notifBtn" onclick="requestNotif()">🔔 알림 허용</button>
+  <div class="notif-thr">
+    <span>알림 기준</span>
+    <input type="number" id="notifThr" value="1.0" min="0.1" max="10" step="0.1" title="지지까지 %이하일때 알림">
+    <span>% 이내</span>
+  </div>
+  <span class="scan-type" id="scanTypeBadge"></span>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-l">전체 심볼</div><div class="stat-v" id="s-total">—</div></div>
+    <div class="stat"><div class="stat-l">음수 펀딩</div><div class="stat-v" id="s-neg">—</div></div>
+    <div class="stat"><div class="stat-l">스캔 #</div><div class="stat-v" id="s-count">0</div></div>
+    <div class="stat"><div class="stat-l">결과 수</div><div class="stat-v" id="s-result">—</div></div>
+  </div>
+</div>
+
+<div class="prog-wrap"><div class="prog-fill" id="progFill"></div></div>
+<div class="status" id="statusBar"><span class="tick">▸</span> SCAN START 버튼을 눌러 스캔을 시작하세요</div>
+
+<!-- FILTER BAR -->
+<div class="fbar">
+  <span class="fbar-label">정렬</span>
+  <span class="ftag sort-on" id="srt-dist_res"  onclick="setSort('dist_res')">저항까지 거리 ↑</span>
+  <span class="ftag" id="srt-dist_sup"          onclick="setSort('dist_sup')">지지까지 거리 ↑</span>
+  <span class="ftag" id="srt-profit"            onclick="setSort('profit')">수익률 ↓</span>
+  <span class="ftag" id="srt-funding"           onclick="setSort('funding')">펀딩비 ↑</span>
+  <span class="ftag" id="srt-ma_dist"           onclick="setSort('ma_dist')">MA 거리</span>
+  <span class="sep">│</span>
+  <span class="fbar-label">필터</span>
+  <span class="ftag on" id="flt-neg_fund"       onclick="toggleFlt('neg_fund')">음수 펀딩만</span>
+  <span class="ftag on" id="flt-profit2"        onclick="toggleFlt('profit2')">수익률 2% 이상</span>
+  <span class="ftag" id="flt-above_ma"          onclick="toggleFlt('above_ma')">99MA 위 only</span>
+  <span class="ftag" id="flt-near_sup"          onclick="toggleFlt('near_sup')">지지 3% 이내</span>
+  <div class="fbar-right">
+    <span class="alert-count" id="alertCount">▲ <span id="alertNum">0</span>개 진입 근접</span>
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="tbl-wrap">
+  <div class="empty" id="emptyState">
+    <div class="empty-icon">◈</div>
+    <div class="empty-msg">스캔 대기 중</div>
+  </div>
+  <table id="mainTable" style="display:none">
+    <colgroup>
+      <col style="width:145px"><!-- 심볼 -->
+      <col style="width:105px"><!-- 현재가 -->
+      <col style="width:88px"> <!-- 펀딩비 -->
+      <col style="width:100px"><!-- 99MA -->
+      <col style="width:82px"> <!-- MA대비 -->
+      <col style="width:128px"><!-- 저항구간 -->
+      <col style="width:110px"><!-- 저항까지% -->
+      <col style="width:128px"><!-- 지지구간 -->
+      <col style="width:110px"><!-- 지지까지% -->
+      <col style="width:105px"><!-- 수익 잠재 -->
+      <col style="width:100px"><!-- 현재 위치 -->
+    </colgroup>
+    <thead>
+      <tr>
+        <th onclick="setSort('symbol')" style="text-align:left;padding-left:20px">심볼 <span id="si-symbol"></span></th>
+        <th onclick="setSort('price')">현재가 <span id="si-price"></span></th>
+        <th onclick="setSort('funding')">펀딩비 <span id="si-funding"></span></th>
+        <th>99MA (이전봉)</th>
+        <th onclick="setSort('ma_dist')">MA 대비 <span id="si-ma_dist"></span></th>
+        <th>저항 구간 / 강도</th>
+        <th onclick="setSort('dist_res')" class="sort-active">저항까지 % <span id="si-dist_res">↑</span></th>
+        <th>지지 구간 / 강도</th>
+        <th onclick="setSort('dist_sup')">지지까지 % <span id="si-dist_sup"></span></th>
+        <th onclick="setSort('profit')" title="(저항-지지)/지지 × 100">수익 잠재 <span id="si-profit"></span></th>
+        <th>현재 위치</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════ */
+const CFG = {
+  KLINES:      200,
+  KLINES_INCR: 3,
+  MA_PERIOD:   99,
+  ZONE_THR:    0.003,
+  MIN_TOUCH:   2,
+  BATCH:       8,
+  DELAY:       150,
+  AUTO_BUFFER: 12000,
+  BASE:        'https://fapi.binance.com'
+};
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let symbolCandles  = {};
+let symbolFunding  = {};
+let results        = [];
+let prevAlertSet   = new Set();
+let updatedSymbols = new Set();
+let scanCount      = 0;
+let scanning       = false;
+let autoEnabled    = false;
+let autoTimer      = null;
+let countTimer     = null;
+let nextScanTime   = null;
+
+let sortKey = 'dist_res';
+let sortAsc = true;
+let filters = { neg_fund: true, profit2: true, above_ma: false, near_sup: false };
+
+/* ═══════════════════════════════════════════
+   BINANCE API
+═══════════════════════════════════════════ */
+async function getSymbols() {
+  const r = await fetch(`${CFG.BASE}/fapi/v1/exchangeInfo`);
+  const d = await r.json();
+  return d.symbols
+    .filter(s => s.quoteAsset==='USDT' && s.contractType==='PERPETUAL' && s.status==='TRADING')
+    .map(s => s.symbol);
+}
+
+async function getFundingRates() {
+  const r = await fetch(`${CFG.BASE}/fapi/v1/premiumIndex`);
+  const d = await r.json();
+  const m = {};
+  for (const x of d) m[x.symbol] = parseFloat(x.lastFundingRate);
+  return m;
+}
+
+async function getKlines(symbol, limit) {
+  const lim = limit || CFG.KLINES;
+  const r = await fetch(`${CFG.BASE}/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${lim}`);
+  const d = await r.json();
+  if (!Array.isArray(d) || d.length === 0) return null;
+  return d.map(k => ({
+    t:  k[0],
+    o:  parseFloat(k[1]),
+    h:  parseFloat(k[2]),
+    l:  parseFloat(k[3]),
+    c:  parseFloat(k[4]),
+    v:  parseFloat(k[5]),
+    ct: k[6]
+  }));
+}
+
+/* ═══════════════════════════════════════════
+   ANALYSIS
+═══════════════════════════════════════════ */
+function calcMA(candles, period) {
+  if (candles.length < period + 1) return null;
+  let sum = 0;
+  for (let i = candles.length - period - 1; i < candles.length - 1; i++) sum += candles[i].c;
+  return sum / period;
+}
+
+function findZones(candles, type) {
+  const prices = candles.map(c => type==='res' ? c.h : c.l);
+  const zones  = [];
+  for (const p of prices) {
+    let bestIdx = -1, bestDist = Infinity;
+    for (let i = 0; i < zones.length; i++) {
+      const d = Math.abs(p - zones[i].p) / zones[i].p;
+      if (d < CFG.ZONE_THR && d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx !== -1) {
+      const z = zones[bestIdx];
+      z.p = (z.p * z.n + p) / (z.n + 1);
+      z.n++;
+    } else {
+      zones.push({ p, n: 1 });
+    }
+  }
+  return zones.filter(z => z.n >= CFG.MIN_TOUCH).sort((a, b) => b.n - a.n);
+}
+
+function nearestAbove(zones, price) {
+  const above = zones.filter(z => z.p > price * 1.0002).sort((a, b) => a.p - b.p);
+  return above[0] || null;
+}
+function nearestBelow(zones, price) {
+  const below = zones.filter(z => z.p < price * 0.9998).sort((a, b) => b.p - a.p);
+  return below[0] || null;
+}
+
+function calcResult(sym, candles, funding) {
+  if (!candles || candles.length < CFG.MA_PERIOD + 2) return null;
+  const price    = candles[candles.length - 1].c;
+  const ma       = calcMA(candles, CFG.MA_PERIOD);
+  const resZones = findZones(candles, 'res');
+  const supZones = findZones(candles, 'sup');
+  const nearRes  = nearestAbove(resZones, price);
+  const nearSup  = nearestBelow(supZones, price);
+
+  const distRes = nearRes ? (nearRes.p - price) / price * 100 : null;
+  const distSup = nearSup ? (price - nearSup.p) / price * 100 : null;
+
+  // 지지→저항 수익률: 지지에서 사서 저항에서 팔 때 수익%
+  // (저항구간 - 지지구간) / 지지구간 × 100
+  const profit = (nearRes && nearSup) ? (nearRes.p - nearSup.p) / nearSup.p * 100 : null;
+
+  // 현재가가 지지~저항 사이에서 몇 % 위치인지 (0% = 지지, 100% = 저항)
+  const pricePos = (nearRes && nearSup)
+    ? Math.max(0, Math.min(100, (price - nearSup.p) / (nearRes.p - nearSup.p) * 100))
+    : null;
+
+  return {
+    symbol: sym, price, funding, ma,
+    maDistPct: ma ? (price - ma) / ma * 100 : null,
+    nearRes, nearSup,
+    distRes, distSup,
+    profit, pricePos,
+    resZones: resZones.slice(0,5),
+    supZones: supZones.slice(0,5),
+    isNew: false, isUpdated: false
+  };
+}
+
+/* ═══════════════════════════════════════════
+   FULL SCAN
+═══════════════════════════════════════════ */
+async function startFullScan() {
+  if (scanning) return;
+  scanning = true;
+  scanCount++;
+  results = [];
+  symbolCandles = {};
+  symbolFunding = {};
+  updatedSymbols.clear();
+
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = '⟳ SCANNING…';
+  showScanType('full'); set('s-count', scanCount);
+  showEmpty('⟳', '전체 스캔 중…');
+  prog(0, true);
+  status('<span class="tick">▸</span> 거래소 정보 및 펀딩비 조회 중…');
+
+  try {
+    const [allSyms, fundMap] = await Promise.all([getSymbols(), getFundingRates()]);
+    symbolFunding = fundMap;
+    set('s-total', allSyms.length);
+
+    // 음수 펀딩비 심볼만
+    const targets = allSyms.filter(s => (fundMap[s] || 0) < 0);
+    set('s-neg', targets.length);
+    status(`<span class="tick">▸</span> 음수 펀딩 ${targets.length}개 심볼 · 15분봉 ${CFG.KLINES}개 전체 로드 시작`);
+
+    let done = 0;
+    for (let i = 0; i < targets.length; i += CFG.BATCH) {
+      const batch = targets.slice(i, i + CFG.BATCH);
+      const settled = await Promise.allSettled(batch.map(s => getKlines(s)));
+      for (let j = 0; j < settled.length; j++) {
+        const sym = batch[j];
+        if (settled[j].status === 'fulfilled' && settled[j].value) {
+          const candles = settled[j].value;
+          symbolCandles[sym] = candles;
+          const r = calcResult(sym, candles, fundMap[sym] || 0);
+          if (r) { r.isNew = true; results.push(r); }
+        }
+        done++;
+      }
+      set('s-count', scanCount); set('s-result', results.length);
+      prog((done / targets.length) * 100, true);
+      status(`<span class="tick">▸</span> 전체 스캔 ${done}/${targets.length} — ${batch[batch.length-1]}`);
+      if (results.length > 0) render();
+      if (i + CFG.BATCH < targets.length) await sleep(CFG.DELAY);
+    }
+    prog(100, false);
+    finalizeScan('전체 스캔');
+  } catch(e) {
+    status(`<span class="tick">▸</span> 오류: ${e.message}`); console.error(e);
+  }
+
+  scanning = false;
+  btn.disabled = false; btn.textContent = '↺ 재스캔 (전체)';
+  if (autoEnabled) scheduleNext();
+}
+
+/* ═══════════════════════════════════════════
+   INCREMENTAL SCAN
+═══════════════════════════════════════════ */
+async function runIncrementalScan() {
+  if (scanning) return;
+  if (Object.keys(symbolCandles).length === 0) { await startFullScan(); return; }
+  scanning = true;
+  scanCount++;
+  updatedSymbols.clear();
+
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = '⟳ 증분 스캔…';
+  showScanType('incr'); set('s-count', scanCount);
+  prog(0, true);
+  status('<span class="tick-grn">▸</span> 증분 스캔 — 직전 15분봉 추가 중…');
+
+  try {
+    const fundMap = await getFundingRates();
+    symbolFunding = fundMap;
+
+    const syms = Object.keys(symbolCandles);
+    const now = Date.now();
+    let done = 0, added = 0;
+
+    for (let i = 0; i < syms.length; i += CFG.BATCH) {
+      const batch = syms.slice(i, i + CFG.BATCH);
+      const settled = await Promise.allSettled(batch.map(s => getKlines(s, CFG.KLINES_INCR)));
+      for (let j = 0; j < settled.length; j++) {
+        const sym = batch[j];
+        if (settled[j].status === 'fulfilled' && settled[j].value) {
+          const fresh = settled[j].value;
+          const stored = symbolCandles[sym];
+          const lastT  = stored[stored.length - 1].t;
+          const newClosed = fresh.filter(c => c.t > lastT && c.ct < now - 5000);
+          if (newClosed.length > 0) {
+            stored.push(...newClosed);
+            if (stored.length > CFG.KLINES) symbolCandles[sym] = stored.slice(-CFG.KLINES);
+            updatedSymbols.add(sym); added++;
+          }
+          symbolFunding[sym] = fundMap[sym] || 0;
+        }
+        done++;
+      }
+      prog((done / syms.length) * 100, true);
+      if (i + CFG.BATCH < syms.length) await sleep(CFG.DELAY);
+    }
+
+    // 전체 재계산
+    results = [];
+    for (const sym of syms) {
+      const r = calcResult(sym, symbolCandles[sym], symbolFunding[sym] || 0);
+      if (r) { r.isUpdated = updatedSymbols.has(sym); results.push(r); }
+    }
+    set('s-result', results.length);
+    prog(100, false);
+    finalizeScan(`증분 스캔 — ${added}개 심볼 봉 추가`);
+  } catch(e) {
+    status(`<span class="tick">▸</span> 오류: ${e.message}`); console.error(e);
+  }
+
+  scanning = false;
+  btn.disabled = false; btn.textContent = '↺ 재스캔 (전체)';
+  if (autoEnabled) scheduleNext();
+}
+
+function finalizeScan(label) {
+  const nowStr = new Date().toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  document.getElementById('lastUpdate').textContent = `${nowStr} 업데이트`;
+
+  const thr = parseFloat(document.getElementById('notifThr').value) || 1.0;
+  // 알림: 지지까지 거리 thr% 이내 (진입 근접)
+  const alertSyms = results.filter(r =>
+    r.distSup !== null && r.distSup <= thr &&
+    r.profit  !== null && r.profit >= 2
+  ).map(r => r.symbol);
+  const newAlerts = alertSyms.filter(s => !prevAlertSet.has(s));
+  prevAlertSet = new Set(alertSyms);
+
+  const alertEl = document.getElementById('alertCount');
+  if (alertSyms.length > 0) {
+    document.getElementById('alertNum').textContent = alertSyms.length;
+    alertEl.classList.add('show');
+  } else {
+    alertEl.classList.remove('show');
+  }
+
+  status(`<span class="tick-grn">✓</span> ${label} 완료 — ${results.length}개 결과 | 진입 근접 ${alertSyms.length}개`);
+  render();
+
+  if (Notification.permission === 'granted') {
+    if (newAlerts.length > 0) {
+      sendNotif(
+        `▲ 진입 근접 ${newAlerts.length}개`,
+        newAlerts.slice(0,5).join(', ') + (newAlerts.length > 5 ? ` 외 ${newAlerts.length-5}개` : '') + ' — 지지구간 접근'
+      );
+    } else {
+      sendNotif('LONGSCAN 스캔 완료', `${label} · ${results.length}개 결과 · 진입 근접 ${alertSyms.length}개`);
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════
+   AUTO SCHEDULER
+═══════════════════════════════════════════ */
+function toggleAuto() {
+  autoEnabled = !autoEnabled;
+  const btn   = document.getElementById('autoBtn');
+  const badge = document.getElementById('countdownBadge');
+  const dot   = document.getElementById('pulseDot');
+  if (autoEnabled) {
+    btn.textContent = '⏸ 자동스캔 OFF'; btn.classList.add('on');
+    badge.classList.add('active'); dot.classList.add('on');
+    if (Object.keys(symbolCandles).length === 0) startFullScan();
+    else scheduleNext();
+  } else {
+    btn.textContent = '⏰ 자동스캔 ON'; btn.classList.remove('on');
+    badge.classList.remove('active'); dot.classList.remove('on');
+    clearTimeout(autoTimer); clearInterval(countTimer);
+    document.getElementById('countdownText').textContent = '자동스캔 꺼짐';
+    nextScanTime = null;
+  }
+}
+
+function scheduleNext() {
+  clearTimeout(autoTimer); clearInterval(countTimer);
+  const now      = Date.now();
+  const interval = 15 * 60 * 1000;
+  nextScanTime   = Math.ceil(now / interval) * interval + CFG.AUTO_BUFFER;
+  autoTimer = setTimeout(async () => { if (autoEnabled) await runIncrementalScan(); }, nextScanTime - now);
+  startCountdown();
+}
+
+function startCountdown() {
+  clearInterval(countTimer);
+  countTimer = setInterval(() => {
+    if (!nextScanTime) return;
+    const rem = nextScanTime - Date.now();
+    if (rem <= 0) { document.getElementById('countdownText').textContent = '스캔 중…'; clearInterval(countTimer); return; }
+    const m = Math.floor(rem / 60000);
+    const s = Math.floor((rem % 60000) / 1000);
+    document.getElementById('countdownText').textContent = `다음 스캔 ${m}:${s.toString().padStart(2,'0')}`;
+  }, 500);
+}
+
+/* ═══════════════════════════════════════════
+   NOTIFICATIONS
+═══════════════════════════════════════════ */
+async function requestNotif() {
+  if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
+  const perm = await Notification.requestPermission();
+  const btn  = document.getElementById('notifBtn');
+  if (perm === 'granted') {
+    btn.textContent = '🔔 알림 ON'; btn.classList.add('granted');
+    sendNotif('LONGSCAN 알림 활성화', '지지구간 진입 근접 시 알림을 받습니다.');
+  } else {
+    btn.textContent = '🔕 알림 거부됨';
+  }
+}
+
+function sendNotif(title, body) {
+  if (Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, {
+      body,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="%230c0f1a"/><text x="16" y="22" text-anchor="middle" font-size="18" fill="%23a78bfa">▲</text></svg>'
+    });
+  } catch(_) {}
+}
+
+/* ═══════════════════════════════════════════
+   SORT / FILTER
+═══════════════════════════════════════════ */
+const SORT_KEYS = ['symbol','price','funding','ma_dist','dist_res','dist_sup','profit'];
+
+function setSort(key) {
+  sortAsc = (sortKey === key) ? !sortAsc : (key === 'dist_res' || key === 'dist_sup');
+  sortKey = key;
+  document.querySelectorAll('.ftag[id^="srt-"]').forEach(el => el.classList.remove('sort-on'));
+  const el = document.getElementById('srt-' + key);
+  if (el) el.classList.add('sort-on');
+  SORT_KEYS.forEach(k => { const s = document.getElementById('si-'+k); if(s) s.textContent=''; });
+  const si = document.getElementById('si-' + key);
+  if (si) si.textContent = sortAsc ? '↑' : '↓';
+  render();
+}
+
+function toggleFlt(key) {
+  filters[key] = !filters[key];
+  document.getElementById('flt-' + key).classList.toggle('on', filters[key]);
+  render();
+}
+
+function applyFiltersSort() {
+  let d = [...results];
+  if (filters.neg_fund)  d = d.filter(x => x.funding < 0);
+  if (filters.profit2)   d = d.filter(x => x.profit !== null && x.profit >= 2);
+  if (filters.above_ma)  d = d.filter(x => x.maDistPct !== null && x.maDistPct > 0);
+  if (filters.near_sup)  d = d.filter(x => x.distSup !== null && x.distSup <= 3);
+
+  d.sort((a, b) => {
+    let av, bv;
+    switch(sortKey) {
+      case 'dist_res': av = a.distRes ?? 9e9;    bv = b.distRes ?? 9e9;    break;
+      case 'dist_sup': av = a.distSup ?? 9e9;    bv = b.distSup ?? 9e9;    break;
+      case 'profit':   av = a.profit  ?? -9e9;   bv = b.profit  ?? -9e9;   break;
+      case 'funding':  av = a.funding;            bv = b.funding;           break;
+      case 'ma_dist':  av = a.maDistPct ?? -9e9; bv = b.maDistPct ?? -9e9; break;
+      case 'price':    av = a.price;              bv = b.price;             break;
+      case 'symbol':   return sortAsc ? a.symbol.localeCompare(b.symbol) : b.symbol.localeCompare(a.symbol);
+      default: av = 0; bv = 0;
+    }
+    return sortAsc ? av - bv : bv - av;
+  });
+  return d;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════ */
+function render() {
+  const data  = applyFiltersSort();
+  const thr   = parseFloat(document.getElementById('notifThr').value) || 1.0;
+  const tbody = document.getElementById('tbody');
+
+  if (data.length === 0) {
+    document.getElementById('mainTable').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'flex';
+    document.getElementById('emptyState').innerHTML =
+      '<div class="empty-icon">◈</div><div class="empty-msg">결과 없음</div>';
+    return;
+  }
+  document.getElementById('mainTable').style.display = 'table';
+  document.getElementById('emptyState').style.display = 'none';
+
+  const rows = data.map(d => {
+    const base     = d.symbol.replace('USDT','');
+    // 알림 조건: 지지까지 thr% 이내
+    const isAlert  = d.distSup !== null && d.distSup <= thr && d.profit !== null && d.profit >= 2;
+    const barCls   = isAlert ? 'alert-bar' : '';
+
+    let badges = '';
+    if (isAlert)             badges += '<span class="sym-badge badge-alert">▲ 진입근접</span>';
+    if (d.isNew)             badges += '<span class="sym-badge badge-new">NEW</span>';
+    if (d.isUpdated&&!d.isNew) badges += '<span class="sym-badge badge-upd">UPD</span>';
+
+    const fundCls  = d.funding < 0 ? 'neg' : 'pos';
+    const maCls    = d.maDistPct !== null ? (d.maDistPct > 0 ? 'pos' : 'neg') : 'dim';
+
+    // 저항 구간
+    const resCell = d.nearRes
+      ? `<div class="zone-wrap"><span class="zone-p">${fmtP(d.nearRes.p)}</span><span class="zone-t">터치 <em>${d.nearRes.n}회</em></span></div>`
+      : '<span class="dim">—</span>';
+
+    // 저항까지 거리 바
+    const distResColor = d.distRes !== null
+      ? (d.distRes < 1 ? 'var(--grn)' : d.distRes < 3 ? 'var(--ylw)' : 'var(--txt2)')
+      : 'var(--txt3)';
+    const distResBarPct = d.distRes !== null ? Math.min(d.distRes / 10 * 100, 100).toFixed(1) : 0;
+    const distResCell = d.distRes !== null
+      ? `<div class="dist-wrap"><div class="dbar"><div class="dbar-inner" style="width:${distResBarPct}%;background:${distResColor}"></div></div><span style="color:${distResColor}">+${d.distRes.toFixed(2)}%</span></div>`
+      : '<span class="dim">—</span>';
+
+    // 지지 구간
+    const supCell = d.nearSup
+      ? `<div class="zone-wrap"><span class="zone-p">${fmtP(d.nearSup.p)}</span><span class="zone-t">터치 <em>${d.nearSup.n}회</em></span></div>`
+      : '<span class="dim">—</span>';
+
+    // 지지까지 거리 바 (진입 근접할수록 밝게)
+    const distSupColor = d.distSup !== null
+      ? (d.distSup <= thr ? 'var(--acc)' : d.distSup < 3 ? 'var(--ylw)' : 'var(--txt2)')
+      : 'var(--txt3)';
+    const distSupBarPct = d.distSup !== null ? Math.min(d.distSup / 10 * 100, 100).toFixed(1) : 0;
+    const distSupCell = d.distSup !== null
+      ? `<div class="dist-wrap"><div class="dbar"><div class="dbar-inner" style="width:${distSupBarPct}%;background:${distSupColor}"></div></div><span style="color:${distSupColor}">-${d.distSup.toFixed(2)}%</span></div>`
+      : '<span class="dim">—</span>';
+
+    // 수익 잠재 = (저항-지지)/지지 × 100
+    const profitColor = d.profit !== null
+      ? (d.profit >= 5 ? 'var(--grn)' : d.profit >= 2 ? 'var(--ylw)' : 'var(--txt3)')
+      : 'var(--txt3)';
+    const profitCell = d.profit !== null
+      ? `<div class="profit-wrap">
+          <span class="profit-pct" style="color:${profitColor}">+${d.profit.toFixed(2)}%</span>
+          <span class="profit-sub">지지→저항</span>
+        </div>`
+      : '<span class="dim">—</span>';
+
+    // 현재 위치 (지지~저항 사이 몇 %인지)
+    const posCell = d.pricePos !== null
+      ? `<div class="pos-bar-wrap">
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+            <div class="pos-bar"><div class="pos-bar-fill" style="width:${d.pricePos.toFixed(1)}%"></div></div>
+            <span style="font-size:9px;color:var(--txt3)">${d.pricePos.toFixed(0)}%</span>
+          </div>
+        </div>`
+      : '<span class="dim">—</span>';
+
+    const rowCls = isAlert ? 'row-alert' : (d.isNew ? 'row-new' : d.isUpdated ? 'row-updated' : '');
+
+    return `<tr class="${rowCls}">
+      <td><span class="sym"><span class="sym-bar ${barCls}"></span><span class="sym-base">${base}</span><span class="sym-quote">/USDT</span></span>${badges}</td>
+      <td class="acc">${fmtP(d.price)}</td>
+      <td class="${fundCls}">${(d.funding*100).toFixed(4)}%</td>
+      <td class="${maCls}">${d.ma ? fmtP(d.ma) : '<span class="dim">—</span>'}</td>
+      <td class="${maCls}">${d.maDistPct!==null ? fmtSign(d.maDistPct,2)+'%' : '<span class="dim">—</span>'}</td>
+      <td>${resCell}</td>
+      <td>${distResCell}</td>
+      <td>${supCell}</td>
+      <td>${distSupCell}</td>
+      <td>${profitCell}</td>
+      <td>${posCell}</td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = rows.join('');
+}
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function fmtP(p) {
+  if (p===null||p===undefined) return '—';
+  if (p>=10000) return p.toFixed(1);
+  if (p>=100)   return p.toFixed(2);
+  if (p>=1)     return p.toFixed(4);
+  if (p>=0.01)  return p.toFixed(5);
+  return p.toFixed(8);
+}
+function fmtSign(v,dec){ return (v>=0?'+':'')+v.toFixed(dec); }
+function prog(pct,active){ const f=document.getElementById('progFill'); f.style.width=pct+'%'; f.classList.toggle('active',active); }
+function status(html){ document.getElementById('statusBar').innerHTML=html; }
+function set(id,val){ document.getElementById(id).textContent=val; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function showEmpty(icon,msg){
+  document.getElementById('mainTable').style.display='none';
+  document.getElementById('emptyState').style.display='flex';
+  document.getElementById('emptyState').innerHTML=`<div class="empty-icon">${icon}</div><div class="empty-msg">${msg}</div>`;
+}
+function showScanType(type){
+  const el=document.getElementById('scanTypeBadge');
+  el.style.display='inline-block';
+  el.className='scan-type '+type;
+  el.textContent=type==='full'?'● FULL SCAN':'▲ INCR SCAN';
+}
+
+// 초기 알림 버튼 상태
+if (Notification.permission==='granted'){
+  document.getElementById('notifBtn').textContent='🔔 알림 ON';
+  document.getElementById('notifBtn').classList.add('granted');
+}
+document.getElementById('si-dist_res').textContent='↑';
+</script>
+</body>
+</html>
