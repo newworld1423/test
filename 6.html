@@ -377,9 +377,29 @@ function calcMA(candles, period) {
 }
 
 function findZones(candles, type) {
-  const prices = candles.map(c => type==='res' ? c.h : c.l);
-  const zones  = [];
-  for (const p of prices) {
+  const N = 2; // 전후 N봉보다 높은(낮은) 봉만 스윙 포인트로 인정
+
+  // 1단계: 스윙 고점 / 저점 추출
+  const swings = [];
+  for (let i = N; i < candles.length - N; i++) {
+    const c = candles[i];
+    let isSwing = true;
+    if (type === 'res') {
+      for (let j = i - N; j <= i + N; j++) {
+        if (j !== i && candles[j].h >= c.h) { isSwing = false; break; }
+      }
+      if (isSwing) swings.push(c.h);
+    } else {
+      for (let j = i - N; j <= i + N; j++) {
+        if (j !== i && candles[j].l <= c.l) { isSwing = false; break; }
+      }
+      if (isSwing) swings.push(c.l);
+    }
+  }
+
+  // 2단계: 비슷한 가격대끼리 클러스터링
+  const zones = [];
+  for (const p of swings) {
     let bestIdx = -1, bestDist = Infinity;
     for (let i = 0; i < zones.length; i++) {
       const d = Math.abs(p - zones[i].p) / zones[i].p;
@@ -393,6 +413,8 @@ function findZones(candles, type) {
       zones.push({ p, n: 1 });
     }
   }
+
+  // 3단계: 2회 이상 겹친 구간만 유효, 강도 내림차순
   return zones.filter(z => z.n >= CFG.MIN_TOUCH).sort((a, b) => b.n - a.n);
 }
 
