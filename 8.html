@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>매집 단계 스캐너 — Binance USDT Perp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c0f;
+  --bg2: #111418;
+  --bg3: #181c22;
+  --bg4: #1e242d;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8eaed;
+  --text2: #8a9099;
+  --text3: #4a5260;
+  --accent: #00d4aa;
+  --accent2: #0099ff;
+  --warn: #f5a623;
+  --danger: #ff4757;
+  --green: #00d4aa;
+  --amber: #f5a623;
+  --red: #ff4757;
+  --blue: #0099ff;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans KR', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+body{min-height:100vh;background:var(--bg)}
+
+/* GRID NOISE BG */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,212,170,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,170,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+
+.app{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:24px 20px}
+
+/* HEADER */
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;border:1px solid var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);letter-spacing:-1px}
+.logo-text h1{font-size:16px;font-weight:700;color:var(--text);letter-spacing:0.02em}
+.logo-text p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* NOTIFICATION BADGE */
+.notif-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--border2);border-radius:8px;background:var(--bg3);cursor:pointer;font-size:12px;color:var(--text2);font-family:var(--mono);transition:all 0.2s}
+.notif-btn:hover{border-color:var(--accent);color:var(--accent)}
+.notif-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,0.08)}
+.notif-dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.notif-btn.active .notif-dot{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+
+/* AUTO SCAN CONTROLS */
+.auto-row{display:flex;align-items:center;gap:8px}
+.auto-label{font-size:11px;color:var(--text3);font-family:var(--mono)}
+select{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 10px;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none}
+select:focus{border-color:var(--accent)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;font-family:var(--mono);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all 0.18s;letter-spacing:0.02em}
+.btn-scan{background:var(--accent);color:#000;font-weight:700}
+.btn-scan:hover{background:#00f0c0;transform:translateY(-1px)}
+.btn-scan:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed;transform:none}
+.btn-stop{background:var(--bg3);color:var(--red);border:1px solid var(--red)}
+.btn-stop:hover{background:rgba(255,71,87,0.1)}
+
+/* TIMER BAR */
+.timer-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.timer-info{flex:1;min-width:200px}
+.timer-label{font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:6px}
+.timer-bar-wrap{width:100%;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.timer-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.5s linear}
+.timer-next{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);min-width:60px;text-align:right}
+.timer-sub{font-size:10px;color:var(--text3);font-family:var(--mono);text-align:right}
+#scanStatus{font-size:11px;color:var(--text2);font-family:var(--mono)}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.stat-label{font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px}
+.stat-val{font-size:24px;font-weight:700;color:var(--text);font-family:var(--mono)}
+.stat-val.accent{color:var(--accent)}
+.stat-val.warn{color:var(--amber)}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)}
+
+/* PROGRESS */
+.prog-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:none}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:8px}
+.prog-title{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.prog-pct{font-size:11px;color:var(--accent);font-family:var(--mono);font-weight:700}
+.prog-bar{width:100%;height:2px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--blue));border-radius:2px;transition:width 0.3s;width:0%}
+.prog-log{font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* PHASE TABS */
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:6px 16px;border:1px solid var(--border);border-radius:20px;font-size:12px;font-family:var(--mono);color:var(--text3);cursor:pointer;transition:all 0.18s;white-space:nowrap}
+.tab:hover{border-color:var(--border2);color:var(--text2)}
+.tab.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,0.08)}
+.tab-cnt{opacity:0.7}
+
+/* FILTER ROW */
+.filter-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.filter-label{font-size:11px;color:var(--text3);font-family:var(--mono)}
+
+/* TABLE */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+thead th{background:var(--bg3);padding:10px 14px;text-align:left;font-family:var(--mono);font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--text2)}
+thead th.sorted{color:var(--accent)}
+tbody tr{border-bottom:1px solid var(--border);transition:background 0.12s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--bg3)}
+td{padding:9px 14px;vertical-align:middle;font-family:var(--mono)}
+
+.sym-name{font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.02em}
+.sym-quote{color:var(--text3);font-weight:400}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10px;font-family:var(--mono);font-weight:500;white-space:nowrap}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.badge-reac{background:rgba(0,212,170,0.12);color:var(--green);border:1px solid rgba(0,212,170,0.3)}
+.badge-reac::before{background:var(--green);box-shadow:0 0 4px var(--green)}
+.badge-stophunt{background:rgba(245,166,35,0.12);color:var(--amber);border:1px solid rgba(245,166,35,0.3)}
+.badge-stophunt::before{background:var(--amber)}
+.badge-accum{background:rgba(0,153,255,0.12);color:var(--blue);border:1px solid rgba(0,153,255,0.3)}
+.badge-accum::before{background:var(--blue)}
+
+.num{font-family:var(--mono);font-size:12px}
+.pos{color:var(--green)}
+.neg{color:var(--red)}
+.neu{color:var(--text2)}
+
+.score-wrap{display:flex;align-items:center;gap:8px}
+.score-track{width:60px;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;flex-shrink:0}
+.score-fill{height:100%;border-radius:2px}
+.score-num{font-size:13px;font-weight:700;min-width:28px}
+
+.sh-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(245,166,35,0.15);color:var(--amber);border:1px solid rgba(245,166,35,0.25)}
+.sh-none{color:var(--text3);font-size:11px}
+
+.empty-row td{text-align:center;padding:48px;color:var(--text3);font-size:13px}
+
+/* ALERT TOAST */
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:340px}
+.toast{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px 16px;font-family:var(--mono);font-size:12px;animation:slideIn 0.3s ease;display:flex;flex-direction:column;gap:4px}
+.toast.reac{border-left:3px solid var(--green)}
+.toast.stophunt{border-left:3px solid var(--amber)}
+.toast-title{font-size:13px;font-weight:700;color:var(--text)}
+.toast-body{color:var(--text2);font-size:11px}
+.toast-time{color:var(--text3);font-size:10px}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0;transform:translateX(10px)}}
+
+/* SCAN STATUS DOT */
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:6px}
+.status-dot.active{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* NOTIF HISTORY */
+.notif-history{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:16px;display:none}
+.notif-history h3{font-size:11px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px}
+.notif-item{border-bottom:1px solid var(--border);padding:8px 0;font-family:var(--mono);font-size:11px;display:flex;gap:10px;align-items:flex-start}
+.notif-item:last-child{border-bottom:none}
+.notif-sym{font-weight:700;color:var(--text);min-width:100px}
+.notif-phase{color:var(--amber)}
+.notif-phase.reac{color:var(--green)}
+.notif-time{color:var(--text3);font-size:10px;margin-left:auto;white-space:nowrap}
+
+footer{margin-top:28px;text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);line-height:1.8}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">매집</div>
+      <div class="logo-text">
+        <h1>ACCUMULATION SCANNER</h1>
+        <p>binance usdt perpetual futures · phase detector</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="notif-btn" id="notifBtn" onclick="toggleNotif()">
+        <span class="notif-dot" id="notifDot"></span>
+        <span id="notifText">알림 OFF</span>
+      </button>
+      <div class="auto-row">
+        <span class="auto-label">자동:</span>
+        <select id="autoInterval" onchange="updateAutoInterval()">
+          <option value="0">수동</option>
+          <option value="5">5분</option>
+          <option value="10">10분</option>
+          <option value="15">15분</option>
+          <option value="30" selected>30분</option>
+          <option value="60">60분</option>
+        </select>
+      </div>
+      <select id="minScore">
+        <option value="30">점수 30+</option>
+        <option value="40">점수 40+</option>
+        <option value="50" selected>점수 50+</option>
+        <option value="60">점수 60+</option>
+      </select>
+      <select id="mktCap">
+        <option value="all">전체 규모</option>
+        <option value="mid" selected>중형 (50만~500만)</option>
+        <option value="small">소형 (~50만)</option>
+        <option value="large">대형 (500만+)</option>
+      </select>
+      <button class="btn btn-scan" id="scanBtn" onclick="startScan()">▶ 스캔 시작</button>
+      <button class="btn btn-stop" id="stopBtn" style="display:none" onclick="stopScan()">■ 중지</button>
+    </div>
+  </div>
+
+  <!-- TIMER BAR -->
+  <div class="timer-wrap" id="timerWrap" style="display:none">
+    <div class="timer-info">
+      <div class="timer-label"><span class="status-dot active"></span>자동 스캔 실행 중</div>
+      <div class="timer-bar-wrap"><div class="timer-bar-fill" id="timerFill"></div></div>
+      <div id="scanStatus" style="margin-top:6px">대기 중...</div>
+    </div>
+    <div>
+      <div class="timer-next" id="timerNext">--:--</div>
+      <div class="timer-sub">다음 스캔</div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">스캔 완료</div>
+      <div class="stat-val" id="sScanned">0</div>
+      <div class="stat-sub">/ <span id="sTotal">-</span> 심볼</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">패턴 감지</div>
+      <div class="stat-val accent" id="sFound">0</div>
+      <div class="stat-sub">종목</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">③ 2차 매집</div>
+      <div class="stat-val warn" id="sReac">0</div>
+      <div class="stat-sub">최고 우선순위</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">② 가짜 하락</div>
+      <div class="stat-val" id="sStop">0</div>
+      <div class="stat-sub">스탑헌트 완료</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">① 조용한 축적</div>
+      <div class="stat-val" id="sAccum">0</div>
+      <div class="stat-sub">OI 증가 중</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">마지막 스캔</div>
+      <div class="stat-val" id="sTime" style="font-size:14px">-</div>
+      <div class="stat-sub">업데이트</div>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="prog-wrap" id="progWrap">
+    <div class="prog-top">
+      <div class="prog-title" id="progLabel">준비 중...</div>
+      <div class="prog-pct" id="progPct">0%</div>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-log" id="progLog">-</div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="filterPhase('all',this)">전체 <span class="tab-cnt" id="cnt-all">0</span></div>
+    <div class="tab" onclick="filterPhase('reaccumulate',this)">③ 2차 매집 <span class="tab-cnt" id="cnt-reaccumulate">0</span></div>
+    <div class="tab" onclick="filterPhase('stophunt',this)">② 가짜 하락 <span class="tab-cnt" id="cnt-stophunt">0</span></div>
+    <div class="tab" onclick="filterPhase('accumulate',this)">① 조용한 축적 <span class="tab-cnt" id="cnt-accumulate">0</span></div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('symbol')">심볼</th>
+          <th>단계</th>
+          <th onclick="sortBy('score')" class="sorted">점수 ↓</th>
+          <th onclick="sortBy('oiChange')">OI 변화 (24h)</th>
+          <th onclick="sortBy('funding')">펀딩비</th>
+          <th onclick="sortBy('priceChange1d')">가격 변화 (1d)</th>
+          <th onclick="sortBy('volRatio')">거래량 비율</th>
+          <th>Stop Hunt</th>
+          <th onclick="sortBy('price')">현재가</th>
+          <th>거래대금 24h</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr class="empty-row"><td colspan="10">스캔 시작 버튼을 눌러주세요<br><span style="font-size:10px;color:var(--text3);margin-top:4px;display:block">중형/소형 알트 기준으로 세력 매집 패턴을 탐지합니다</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- NOTIFICATION HISTORY -->
+  <div class="notif-history" id="notifHistory">
+    <h3>알림 기록</h3>
+    <div id="notifList"></div>
+  </div>
+
+  <footer>
+    바이낸스 공개 API 기준 · 투자 참고용 (매매 신호 아님) · 자동 스캔 권장 주기: 30분 (4h 캔들 기반)<br>
+    중형 알트: 24h 거래대금 50만~500만 USDT | 소형 알트: ~50만 USDT | 세력 매집 최적 구간
+  </footer>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+const BATCH = 5;
+const DELAY_MS = 400;
+
+let allResults = [];
+let currentPhase = 'all';
+let sortKey = 'score';
+let sortDir = -1;
+let scanning = false;
+let autoTimer = null;
+let autoCountdown = null;
+let autoIntervalMin = 30;
+let notifEnabled = false;
+let notifHistory = [];
+let prevAlerted = new Set();
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = id => document.getElementById(id);
+
+// ─── NOTIFICATION ─────────────────────────────────────────────
+async function toggleNotif() {
+  if (!notifEnabled) {
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        showToast('알림 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.', 'warn');
+        return;
+      }
+    }
+    if (Notification.permission === 'denied') {
+      showToast('브라우저 알림이 차단되어 있습니다. 주소창 왼쪽 자물쇠 아이콘에서 허용해주세요.', 'warn');
+      return;
+    }
+    notifEnabled = true;
+    $('notifBtn').classList.add('active');
+    $('notifText').textContent = '알림 ON';
+    showToast('브라우저 알림이 활성화되었습니다. 2차 매집 감지 시 즉시 알림을 드립니다.', 'info');
+  } else {
+    notifEnabled = false;
+    $('notifBtn').classList.remove('active');
+    $('notifText').textContent = '알림 OFF';
+  }
+}
+
+function sendNotification(result) {
+  const key = result.symbol + result.phase;
+  if (prevAlerted.has(key)) return;
+  prevAlerted.add(key);
+
+  const phaseNames = { reaccumulate: '③ 2차 매집 진입', stophunt: '② 가짜 하락 완료', accumulate: '① 조용한 축적 중' };
+  const phaseName = phaseNames[result.phase];
+  const body = `점수 ${result.score} · OI ${result.oiChange > 0 ? '+' : ''}${parseFloat(result.oiChange).toFixed(1)}% · 펀딩비 ${(parseFloat(result.funding)).toFixed(4)}% · 가격 ${result.priceChange1d > 0 ? '+' : ''}${parseFloat(result.priceChange1d).toFixed(2)}%`;
+
+  if (notifEnabled && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(`[매집 감지] ${result.symbol} — ${phaseName}`, {
+        body,
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230a0c0f" rx="16"/><text x="50" y="68" font-size="50" text-anchor="middle" fill="%2300d4aa" font-family="monospace" font-weight="700">매</text></svg>',
+        tag: key
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch(e) {}
+  }
+
+  // in-app toast
+  showToast(`${result.symbol} — ${phaseName}`, result.phase, body);
+
+  // history
+  notifHistory.unshift({ sym: result.symbol, phase: result.phase, phaseName, time: new Date() });
+  renderNotifHistory();
+  $('notifHistory').style.display = 'block';
+}
+
+function showToast(title, type, body = '') {
+  const wrap = $('toastWrap');
+  const el = document.createElement('div');
+  el.className = `toast ${type === 'reaccumulate' ? 'reac' : type === 'stophunt' ? 'stophunt' : ''}`;
+  el.innerHTML = `<div class="toast-title">${title}</div>${body ? `<div class="toast-body">${body}</div>` : ''}<div class="toast-time">${new Date().toLocaleTimeString('ko-KR')}</div>`;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'fadeOut 0.4s ease forwards';
+    setTimeout(() => el.remove(), 400);
+  }, 6000);
+}
+
+function renderNotifHistory() {
+  const list = $('notifList');
+  list.innerHTML = notifHistory.slice(0, 20).map(n => `
+    <div class="notif-item">
+      <div class="notif-sym">${n.sym}</div>
+      <div class="notif-phase ${n.phase === 'reaccumulate' ? 'reac' : ''}">${n.phaseName}</div>
+      <div class="notif-time">${n.time.toLocaleTimeString('ko-KR')}</div>
+    </div>
+  `).join('');
+}
+
+// ─── AUTO SCAN TIMER ─────────────────────────────────────────────
+function updateAutoInterval() {
+  autoIntervalMin = parseInt($('autoInterval').value);
+  clearAutoTimer();
+  if (autoIntervalMin > 0 && !scanning) {
+    startAutoTimer();
+  } else {
+    $('timerWrap').style.display = 'none';
+  }
+}
+
+function startAutoTimer() {
+  if (autoIntervalMin === 0) return;
+  $('timerWrap').style.display = 'flex';
+  let remaining = autoIntervalMin * 60;
+  const total = remaining;
+
+  autoCountdown = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(autoCountdown);
+      startScan();
+      return;
+    }
+    const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const ss = String(remaining % 60).padStart(2, '0');
+    $('timerNext').textContent = `${mm}:${ss}`;
+    $('timerFill').style.width = ((total - remaining) / total * 100) + '%';
+  }, 1000);
+}
+
+function clearAutoTimer() {
+  if (autoCountdown) { clearInterval(autoCountdown); autoCountdown = null; }
+}
+
+function stopScan() {
+  scanning = false;
+  clearAutoTimer();
+  $('scanBtn').disabled = false;
+  $('scanBtn').textContent = '▶ 스캔 시작';
+  $('stopBtn').style.display = 'none';
+  $('progWrap').style.display = 'none';
+  $('timerWrap').style.display = 'none';
+  $('scanStatus').textContent = '중지됨';
+}
+
+// ─── API CALLS ─────────────────────────────────────────────────
+async function fetchJSON(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function getSymbols() {
+  const [info, ticker] = await Promise.all([
+    fetchJSON('https://fapi.binance.com/fapi/v1/exchangeInfo'),
+    fetchJSON('https://fapi.binance.com/fapi/v1/ticker/24hr')
+  ]);
+
+  const volMap = {};
+  ticker.forEach(t => { volMap[t.symbol] = parseFloat(t.quoteVolume); });
+
+  const mktCap = $('mktCap').value;
+  return info.symbols
+    .filter(s => s.status === 'TRADING' && s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+    .map(s => ({ symbol: s.symbol, vol: volMap[s.symbol] || 0 }))
+    .filter(s => {
+      if (mktCap === 'small') return s.vol < 500000;
+      if (mktCap === 'mid') return s.vol >= 500000 && s.vol < 5000000;
+      if (mktCap === 'large') return s.vol >= 5000000;
+      return true; // all
+    })
+    .sort((a, b) => {
+      // 중형/소형은 거래대금 중간 순 우선 (너무 크거나 작은 건 뒤로)
+      if (mktCap === 'mid' || mktCap === 'small') {
+        return Math.abs(b.vol - 1000000) < Math.abs(a.vol - 1000000) ? 1 : -1;
+      }
+      return b.vol - a.vol;
+    })
+    .slice(0, 200)
+    .map(s => ({ symbol: s.symbol, vol: s.vol }));
+}
+
+async function getKlines(sym, interval, limit) {
+  const d = await fetchJSON(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
+  return d.map(k => ({ o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
+}
+
+async function getFunding(sym) {
+  try {
+    const d = await fetchJSON(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&limit=10`);
+    return d.map(x => +x.fundingRate);
+  } catch { return [0]; }
+}
+
+async function getOI(sym) {
+  try {
+    const d = await fetchJSON(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=24`);
+    return d.map(x => +x.sumOpenInterestValue);
+  } catch { return null; }
+}
+
+// ─── ANALYSIS ──────────────────────────────────────────────────
+function analyzeSymbol(sym, k4h, k1d, funding, oiArr, vol24h) {
+  let score = 0;
+  const sig = {};
+
+  // 1. OI 변화 (24h)
+  let oiChange = 0;
+  if (oiArr && oiArr.length >= 12) {
+    const oiNow = oiArr[oiArr.length - 1];
+    const oi24h = oiArr[0];
+    oiChange = ((oiNow - oi24h) / Math.max(oi24h, 1)) * 100;
+    if (oiChange > 8) score += 18;
+    else if (oiChange > 4) score += 12;
+    else if (oiChange > 2) score += 6;
+    else if (oiChange < -8) score -= 15;
+    else if (oiChange < -3) score -= 5;
+  }
+  sig.oiChange = oiChange;
+
+  // 2. 펀딩비 분석
+  const avgFunding = funding.reduce((a, b) => a + b, 0) / Math.max(funding.length, 1);
+  const lastFunding = funding[funding.length - 1] || 0;
+  const firstFunding = funding[0] || 0;
+  sig.funding = lastFunding;
+  sig.avgFunding = avgFunding;
+
+  // 음수 펀딩 = 세력이 숏처럼 보이며 은밀히 롱 매집 중
+  if (avgFunding < -0.0005) score += 18;
+  else if (avgFunding < -0.0002) score += 12;
+  else if (avgFunding < 0) score += 6;
+  else if (avgFunding > 0.001) score -= 8;
+
+  // 펀딩비 전환 (음수→중립): 2차 매집 핵심 신호
+  const fundingTrend = lastFunding - firstFunding;
+  if (avgFunding < 0 && lastFunding > avgFunding * 0.5) {
+    score += 12;
+    sig.fundingTurning = true;
+  }
+
+  // 3. 가격 횡보 분석 (7일)
+  const recent7d = k1d.slice(-7);
+  const highs = recent7d.map(c => c.h), lows = recent7d.map(c => c.l);
+  const range7d = (Math.max(...highs) - Math.min(...lows)) / recent7d[0].o * 100;
+  sig.range7d = range7d;
+  if (range7d < 6) score += 15;
+  else if (range7d < 10) score += 10;
+  else if (range7d < 15) score += 5;
+  else if (range7d > 25) score -= 8; // 너무 변동성 크면 이미 터진 것
+
+  // 4. 가격 변화 (1d)
+  const priceChange1d = k1d.length >= 2
+    ? ((k1d[k1d.length - 1].c - k1d[k1d.length - 2].c) / k1d[k1d.length - 2].c) * 100
+    : 0;
+  sig.priceChange1d = priceChange1d;
+  if (priceChange1d > -2 && priceChange1d < 1) score += 6; // 소폭 약세/횡보
+  if (priceChange1d < -10) score -= 12;
+  if (priceChange1d > 8) score -= 6; // 이미 올라가기 시작한 것
+
+  // 5. 거래량 분석 (4h, 최근 vs 이전)
+  const vols = k4h.map(c => c.v);
+  const prevVols = vols.slice(0, -4);
+  const recentVols = vols.slice(-4);
+  const avgPrev = prevVols.reduce((a, b) => a + b, 0) / Math.max(prevVols.length, 1);
+  const avgRecent = recentVols.reduce((a, b) => a + b, 0) / Math.max(recentVols.length, 1);
+  const volRatio = avgPrev > 0 ? avgRecent / avgPrev : 1;
+  sig.volRatio = volRatio;
+  // 소폭 증가(1.1~2.0배)가 매집 신호, 너무 폭발하면 이미 터진 것
+  if (volRatio >= 1.1 && volRatio <= 2.0) score += 12;
+  else if (volRatio > 2.0 && volRatio <= 3.0) score += 5;
+  else if (volRatio > 3.0) score -= 3;
+
+  // 6. Stop Hunt 분석 (4h 캔들)
+  const k4hRecent = k4h.slice(-16);
+  let stopHuntCount = 0;
+  let stopHuntBars = [];
+  for (let i = 1; i < k4hRecent.length - 1; i++) {
+    const prev = k4hRecent[i - 1];
+    const cur = k4hRecent[i];
+    const next = k4hRecent[i + 1];
+    const prevSupport = Math.min(prev.l, prev.c);
+    // 이전 저점 이탈 후 회복
+    if (cur.l < prevSupport * 0.997 && cur.c > prevSupport && next.c > cur.o) {
+      stopHuntCount++;
+      stopHuntBars.push(i);
+    }
+  }
+  sig.stopHunt = stopHuntCount > 0;
+  sig.stopHuntCount = stopHuntCount;
+  if (stopHuntCount >= 2) score += 22;
+  else if (stopHuntCount === 1) score += 14;
+
+  // 7. OI 증가 + 가격 횡보 동시 충족 (핵심 조합)
+  if (sig.oiChange > 3 && range7d < 12) score += 10;
+
+  // ─── 단계 판별 ───
+  let phase = null;
+
+  // ③ 2차 매집: 가짜 하락 완료 + 펀딩비 전환 + OI 재증가
+  if (sig.stopHunt && sig.fundingTurning && oiChange > 2) {
+    phase = 'reaccumulate';
+  }
+  // ② 가짜 하락: Stop Hunt 감지
+  else if (sig.stopHunt) {
+    phase = 'stophunt';
+  }
+  // ① 조용한 축적: OI 증가 + 가격 횡보 + 거래량 소폭 증가
+  else if (oiChange > 3 && range7d < 12 && volRatio >= 1.1) {
+    phase = 'accumulate';
+  }
+
+  if (!phase) return null;
+
+  const finalScore = Math.max(0, Math.min(100, score));
+  const minScore = parseInt($('minScore').value);
+  if (finalScore < minScore) return null;
+
+  return {
+    symbol: sym,
+    phase,
+    score: finalScore,
+    oiChange: oiChange.toFixed(2),
+    funding: (lastFunding * 100).toFixed(4),
+    fundingTurning: !!sig.fundingTurning,
+    priceChange1d: priceChange1d.toFixed(2),
+    volRatio: volRatio.toFixed(2),
+    stopHunt: sig.stopHunt,
+    stopHuntCount: sig.stopHuntCount,
+    price: k1d[k1d.length - 1].c,
+    vol24h
+  };
+}
+
+// ─── SCAN ──────────────────────────────────────────────────────
+async function startScan() {
+  if (scanning) return;
+  scanning = true;
+  clearAutoTimer();
+  prevAlerted = new Set(); // 새 스캔마다 초기화
+
+  $('scanBtn').disabled = true;
+  $('scanBtn').textContent = '스캔 중...';
+  $('stopBtn').style.display = 'inline-flex';
+  $('progWrap').style.display = 'block';
+  $('tbody').innerHTML = '<tr class="empty-row"><td colspan="10">스캔 중입니다...</td></tr>';
+  allResults = [];
+
+  try {
+    $('progLog').textContent = '심볼 목록 불러오는 중...';
+    const symbolList = await getSymbols();
+    const total = symbolList.length;
+    $('sTotal').textContent = total;
+    $('scanStatus').textContent = `총 ${total}개 심볼 분석`;
+
+    let done = 0;
+    for (let i = 0; i < symbolList.length; i += BATCH) {
+      if (!scanning) break;
+      const batch = symbolList.slice(i, i + BATCH);
+
+      await Promise.all(batch.map(async ({ symbol, vol }) => {
+        try {
+          $('progLog').textContent = `분석 중: ${symbol}`;
+          const [k4h, k1d, funding, oi] = await Promise.all([
+            getKlines(symbol, '4h', 48),
+            getKlines(symbol, '1d', 10),
+            getFunding(symbol),
+            getOI(symbol)
+          ]);
+          const result = analyzeSymbol(symbol, k4h, k1d, funding, oi, vol);
+          if (result) {
+            allResults.push(result);
+            // 2차 매집 즉시 알림
+            if (result.phase === 'reaccumulate') sendNotification(result);
+          }
+        } catch (e) {}
+        done++;
+        const pct = Math.round(done / total * 100);
+        $('progFill').style.width = pct + '%';
+        $('progPct').textContent = pct + '%';
+        $('progLabel').textContent = `${done} / ${total} 분석 완료`;
+        $('sScanned').textContent = done;
+      }));
+
+      await sleep(DELAY_MS);
+      updateCounts();
+      renderFiltered();
+    }
+
+    $('sTime').textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    $('progLog').textContent = `스캔 완료 · ${allResults.length}개 패턴 감지`;
+    $('scanStatus').textContent = `마지막 스캔: ${new Date().toLocaleTimeString('ko-KR')} · ${allResults.length}개 감지`;
+
+  } catch (e) {
+    $('progLog').textContent = '오류: ' + e.message;
+    $('tbody').innerHTML = `<tr class="empty-row"><td colspan="10">API 오류: ${e.message}<br><span style="font-size:10px;color:var(--text3)">잠시 후 재시도해주세요</span></td></tr>`;
+  }
+
+  scanning = false;
+  $('scanBtn').disabled = false;
+  $('scanBtn').textContent = '▶ 다시 스캔';
+  $('stopBtn').style.display = 'none';
+
+  // 자동 타이머 재시작
+  if (autoIntervalMin > 0) startAutoTimer();
+}
+
+// ─── RENDER ────────────────────────────────────────────────────
+function updateCounts() {
+  const all = allResults;
+  $('cnt-all').textContent = all.length;
+  $('cnt-reaccumulate').textContent = all.filter(r => r.phase === 'reaccumulate').length;
+  $('cnt-stophunt').textContent = all.filter(r => r.phase === 'stophunt').length;
+  $('cnt-accumulate').textContent = all.filter(r => r.phase === 'accumulate').length;
+  $('sFound').textContent = all.length;
+  $('sReac').textContent = all.filter(r => r.phase === 'reaccumulate').length;
+  $('sStop').textContent = all.filter(r => r.phase === 'stophunt').length;
+  $('sAccum').textContent = all.filter(r => r.phase === 'accumulate').length;
+}
+
+function renderFiltered() {
+  let data = allResults
+    .filter(r => currentPhase === 'all' || r.phase === currentPhase)
+    .sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey];
+      if (typeof av === 'string') av = parseFloat(av) || av;
+      if (typeof bv === 'string') bv = parseFloat(bv) || bv;
+      return sortDir * (bv > av ? 1 : bv < av ? -1 : 0);
+    });
+  renderTable(data);
+}
+
+function scoreColor(s) {
+  if (s >= 65) return 'var(--green)';
+  if (s >= 50) return 'var(--amber)';
+  return 'var(--text3)';
+}
+
+function phaseBadge(p) {
+  if (p === 'reaccumulate') return '<span class="badge badge-reac">③ 2차 매집</span>';
+  if (p === 'stophunt') return '<span class="badge badge-stophunt">② 가짜 하락</span>';
+  return '<span class="badge badge-accum">① 조용한 축적</span>';
+}
+
+function fmtPrice(p) {
+  if (p < 0.0001) return p.toFixed(8);
+  if (p < 0.01) return p.toFixed(6);
+  if (p < 1) return p.toFixed(4);
+  if (p < 100) return p.toFixed(3);
+  return p.toFixed(2);
+}
+
+function fmtVol(v) {
+  if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+  if (v >= 1000) return (v / 1000).toFixed(0) + 'K';
+  return v.toFixed(0);
+}
+
+function renderTable(data) {
+  const tbody = $('tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">조건에 맞는 종목이 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => {
+    const oi = parseFloat(r.oiChange);
+    const pc = parseFloat(r.priceChange1d);
+    const fund = parseFloat(r.funding);
+    const vr = parseFloat(r.volRatio);
+    return `<tr>
+      <td><span class="sym-name">${r.symbol.replace('USDT', '')}<span class="sym-quote">/USDT</span></span></td>
+      <td>${phaseBadge(r.phase)}</td>
+      <td>
+        <div class="score-wrap">
+          <div class="score-track"><div class="score-fill" style="width:${r.score}%;background:${scoreColor(r.score)}"></div></div>
+          <span class="score-num" style="color:${scoreColor(r.score)}">${r.score}</span>
+        </div>
+      </td>
+      <td class="num ${oi > 0 ? 'pos' : oi < -2 ? 'neg' : 'neu'}">${oi > 0 ? '+' : ''}${oi.toFixed(1)}%</td>
+      <td class="num ${fund < 0 ? 'neg' : fund > 0.05 ? 'pos' : 'neu'}">${fund.toFixed(4)}%${r.fundingTurning ? ' <span style="font-size:9px;color:var(--amber)">↑전환</span>' : ''}</td>
+      <td class="num ${pc > 0 ? 'pos' : pc < -5 ? 'neg' : 'neu'}">${pc > 0 ? '+' : ''}${pc.toFixed(2)}%</td>
+      <td class="num ${vr >= 1.1 && vr <= 2.5 ? 'pos' : vr > 2.5 ? 'neu' : ''}">${vr.toFixed(2)}x</td>
+      <td>${r.stopHunt ? `<span class="sh-badge">${r.stopHuntCount}회 감지</span>` : '<span class="sh-none">-</span>'}</td>
+      <td class="num neu">${fmtPrice(r.price)}</td>
+      <td class="num neu" style="font-size:11px">${fmtVol(r.vol24h)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── CONTROLS ──────────────────────────────────────────────────
+function filterPhase(phase, el) {
+  currentPhase = phase;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderFiltered();
+}
+
+let lastSortKey = 'score';
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+  renderFiltered();
+}
+
+// init
+$('minScore').addEventListener('change', renderFiltered);
+</script>
+</body>
+</html>
