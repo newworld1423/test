@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1M 역대최저 + 15분봉 확인 스캐너</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;--bg4:#21262d;
+  --border:#30363d;--border2:#444c56;
+  --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+  --green:#3fb950;--green2:#238636;--green-bg:rgba(63,185,80,0.1);
+  --red:#f85149;--red-bg:rgba(248,81,73,0.1);
+  --yellow:#d29922;--yellow-bg:rgba(210,153,34,0.1);
+  --blue:#58a6ff;--blue-bg:rgba(88,166,255,0.1);
+  --purple:#bc8cff;--purple-bg:rgba(188,140,255,0.1);
+  --radius:6px;--radius2:10px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;min-height:100vh}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.logo{font-size:16px;font-weight:700;color:var(--blue);letter-spacing:.5px}
+.logo span{color:var(--text2);font-weight:400;font-size:12px;margin-left:8px}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toggle-group{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px}
+.toggle-label{font-size:12px;color:var(--text2)}
+.toggle{position:relative;width:36px;height:20px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.slider-t{position:absolute;inset:0;background:var(--border2);border-radius:10px;transition:.2s}
+.slider-t:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle input:checked+.slider-t{background:var(--green2)}
+.toggle input:checked+.slider-t:before{transform:translateX(16px)}
+.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--radius);padding:6px 14px;cursor:pointer;font-size:13px;transition:all .15s;display:flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg4);border-color:var(--blue);color:var(--blue)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#000;font-weight:600}
+.btn.primary:hover{opacity:.85}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.danger:hover{background:var(--red-bg)}
+main{padding:16px 20px;max-width:1400px;margin:0 auto}
+.status-bar{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.status-dot.scanning{background:var(--yellow);box-shadow:0 0 6px var(--yellow);animation:pulse 1s infinite}
+.status-dot.done{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-text{color:var(--text2);font-size:13px;flex:1}
+.status-text strong{color:var(--text)}
+.stats-row{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;font-size:12px;color:var(--text2)}
+.stat strong{color:var(--text)}
+.progress-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;height:4px;margin-bottom:16px;display:none}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .3s;width:0}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.section-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px}
+.badge{display:inline-flex;align-items:center;justify-content:center;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(88,166,255,.3);border-radius:12px;padding:2px 10px;font-size:12px;font-weight:600}
+.badge.green{background:var(--green-bg);color:var(--green);border-color:rgba(63,185,80,.3)}
+.badge.yellow{background:var(--yellow-bg);color:var(--yellow);border-color:rgba(210,153,34,.3)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;margin-bottom:16px}
+thead th{background:var(--bg3);color:var(--text2);font-weight:500;font-size:12px;text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--bg3)}
+td{padding:10px 14px;color:var(--text);vertical-align:middle}
+.symbol{font-weight:700;color:var(--blue);font-size:14px;letter-spacing:.3px}
+.price{font-family:'Courier New',monospace;font-size:13px}
+.price.low{color:var(--red)}
+.price.match{color:var(--green);font-weight:600}
+.tag{display:inline-block;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600}
+.tag.new{background:var(--green-bg);color:var(--green);border:1px solid rgba(63,185,80,.25)}
+.tag.cached{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.time-col{color:var(--text2);font-size:12px;font-family:'Courier New',monospace}
+.empty{text-align:center;padding:48px;color:var(--text3)}
+.empty-icon{font-size:32px;margin-bottom:10px;opacity:.4}
+.log-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden}
+.log-head{background:var(--bg3);padding:8px 14px;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.log-body{padding:10px 14px;max-height:180px;overflow-y:auto;font-family:'Courier New',monospace;font-size:11px;line-height:1.8}
+.log-body::-webkit-scrollbar{width:4px}
+.log-body::-webkit-scrollbar-track{background:transparent}
+.log-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-line{color:var(--text3);word-break:break-word}
+.log-line.info{color:var(--blue)}
+.log-line.ok{color:var(--green)}
+.log-line.warn{color:var(--yellow)}
+.log-line.err{color:var(--red)}
+.next-scan{color:var(--text2);font-size:12px}
+.next-scan strong{color:var(--yellow)}
+.cache-info{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:16px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cache-info .ci-item{display:flex;align-items:center;gap:5px}
+.ci-val{color:var(--text);font-weight:600}
+.sep{color:var(--border2)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">1M ALLTIME LOW SCANNER <span>USDT 무기한 선물</span></div>
+  </div>
+  <div class="controls">
+    <div class="toggle-group">
+      <span class="toggle-label">자동스캔</span>
+      <label class="toggle"><input type="checkbox" id="autoToggle"><span class="slider-t"></span></label>
+      <span id="nextScanLabel" class="next-scan"></span>
+    </div>
+    <div class="toggle-group">
+      <span class="toggle-label">🔔 알림</span>
+      <label class="toggle"><input type="checkbox" id="notifToggle"><span class="slider-t"></span></label>
+    </div>
+    <button class="btn primary" id="scanBtn" onclick="startScan()">▶ 스캔 시작</button>
+    <button class="btn danger" onclick="clearCache()">캐시 초기화</button>
+  </div>
+</header>
+
+<main>
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-text" id="statusText">대기 중. 스캔 시작 버튼을 눌러주세요.</div>
+    <div class="stats-row">
+      <div class="stat">심볼 <strong id="statTotal">-</strong></div>
+      <div class="stat">1M통과 <strong id="statPass1m">-</strong></div>
+      <div class="stat">최종결과 <strong id="statFinal">-</strong></div>
+      <div class="stat">1M캐시 <strong id="statCache">-</strong></div>
+    </div>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="cache-info" id="cacheInfo" style="display:none">
+    <div class="ci-item">📦 1M캐시 <span class="ci-val" id="ciCount">0</span>개 심볼</div>
+    <span class="sep">|</span>
+    <div class="ci-item">🕐 캐시시간 <span class="ci-val" id="ciTime">-</span></div>
+    <span class="sep">|</span>
+    <div class="ci-item">다음 1M 갱신 <span class="ci-val" id="ciNext">-</span></div>
+  </div>
+
+  <div class="section-header">
+    <div class="section-title">스캔 결과</div>
+    <div class="badge green" id="resultBadge">0개</div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>심볼</th>
+          <th>1M 역대최저가</th>
+          <th>현재 15분봉[-2] 저가</th>
+          <th>현재 1M 진행중 저가</th>
+          <th>일치 여부</th>
+          <th>1M캐시</th>
+          <th>발견시각</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody">
+        <tr><td colspan="7" class="empty"><div class="empty-icon">🔍</div><div>스캔 결과가 없습니다.</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="log-wrap">
+    <div class="log-head">
+      <span>스캔 로그</span>
+      <span id="logCount">0줄</span>
+    </div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+</main>
+
+<script>
+const BASE = 'https://fapi.binance.com';
+const ALT1 = 'https://fapi1.binance.com';
+const ALT2 = 'https://fapi2.binance.com';
+
+const CACHE_KEY = '1m_low_cache_v3';
+const RESULT_KEY = '1m_scanner_results_v3';
+const DELAY = 250;
+
+let scanning = false;
+let autoTimer = null;
+let countdownTimer = null;
+let results = [];
+let cache = {};
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) { cache = JSON.parse(raw); }
+  } catch(e) { cache = {}; }
+}
+
+function saveCache() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch(e){}
+}
+
+function loadResults() {
+  try {
+    const raw = localStorage.getItem(RESULT_KEY);
+    if (raw) { results = JSON.parse(raw); renderResults(); }
+  } catch(e) { results = []; }
+}
+
+function saveResults() {
+  try { localStorage.setItem(RESULT_KEY, JSON.stringify(results)); } catch(e){}
+}
+
+function clearCache() {
+  if (!confirm('캐시와 결과를 모두 초기화하시겠습니까?')) return;
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(RESULT_KEY);
+  cache = {};
+  results = [];
+  renderResults();
+  updateCacheInfo();
+  log('캐시 및 결과 초기화 완료', 'warn');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithFallback(path, params='') {
+  const urls = [BASE, ALT1, ALT2].map(b => b + path + (params ? '?'+params : ''));
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
+      if (r.ok) return await r.json();
+    } catch(e) {}
+  }
+  throw new Error('모든 엔드포인트 실패');
+}
+
+function log(msg, type='info') {
+  const lb = document.getElementById('logBody');
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  const t = new Date().toLocaleTimeString('ko-KR');
+  d.textContent = `[${t}] ${msg}`;
+  lb.appendChild(d);
+  lb.scrollTop = lb.scrollHeight;
+  const lc = document.getElementById('logCount');
+  lc.textContent = lb.children.length + '줄';
+  if (lb.children.length > 500) lb.removeChild(lb.firstChild);
+}
+
+function setStatus(msg, state='idle') {
+  document.getElementById('statusText').innerHTML = msg;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot';
+  if (state === 'scanning') dot.classList.add('scanning');
+  else if (state === 'done') dot.classList.add('done');
+  else if (state === 'error') dot.classList.add('error');
+}
+
+function setProgress(v, max) {
+  const pw = document.getElementById('progressWrap');
+  const pb = document.getElementById('progressBar');
+  if (v === null) { pw.style.display='none'; return; }
+  pw.style.display='block';
+  pb.style.width = Math.round(v/max*100) + '%';
+}
+
+function updateCacheInfo() {
+  const keys = Object.keys(cache);
+  const ci = document.getElementById('cacheInfo');
+  if (keys.length === 0) { ci.style.display='none'; return; }
+  ci.style.display='flex';
+  document.getElementById('ciCount').textContent = keys.length;
+  const now = Date.now();
+  const nextMonth = new Date();
+  nextMonth.setDate(1);
+  nextMonth.setMonth(nextMonth.getMonth()+1);
+  nextMonth.setHours(0,0,0,0);
+  const times = keys.map(k => cache[k].ts || 0).filter(Boolean);
+  if (times.length > 0) {
+    const latest = Math.max(...times);
+    document.getElementById('ciTime').textContent = new Date(latest).toLocaleString('ko-KR');
+  }
+  document.getElementById('ciNext').textContent = nextMonth.toLocaleDateString('ko-KR');
+  document.getElementById('statCache').textContent = keys.length;
+}
+
+function renderResults() {
+  const tbody = document.getElementById('resultBody');
+  document.getElementById('resultBadge').textContent = results.length + '개';
+  if (results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty"><div class="empty-icon">🔍</div><div>조건에 맞는 심볼이 없습니다.</div></td></tr>';
+    return;
+  }
+  const sorted = [...results].sort((a,b) => b.foundAt - a.foundAt);
+  tbody.innerHTML = sorted.map(r => `
+    <tr>
+      <td class="symbol">${r.symbol}</td>
+      <td class="price low">${formatPrice(r.monthLow)}</td>
+      <td class="price match">${formatPrice(r.prev2Low)}</td>
+      <td class="price low">${formatPrice(r.currentMonthLow)}</td>
+      <td><span class="tag new">✅ 일치</span></td>
+      <td><span class="tag ${r.cached ? 'cached':'new'}">${r.cached ? '캐시':'신규스캔'}</span></td>
+      <td class="time-col">${new Date(r.foundAt).toLocaleString('ko-KR')}</td>
+    </tr>
+  `).join('');
+}
+
+function formatPrice(p) {
+  if (!p) return '-';
+  const n = parseFloat(p);
+  if (n < 0.0001) return n.toExponential(4);
+  if (n < 0.01) return n.toFixed(6);
+  if (n < 1) return n.toFixed(4);
+  if (n < 100) return n.toFixed(3);
+  return n.toFixed(2);
+}
+
+function isSameCurrentMonth(ts) {
+  const now = new Date();
+  const t = new Date(ts);
+  return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth();
+}
+
+async function startScan() {
+  if (scanning) return;
+  scanning = true;
+  results = [];
+  saveResults();
+  renderResults();
+  document.getElementById('scanBtn').disabled = true;
+  document.getElementById('scanBtn').textContent = '⏳ 스캔 중...';
+
+  try {
+    setStatus('<strong>심볼 목록 조회 중...</strong>', 'scanning');
+    log('=== 스캔 시작 ===', 'info');
+
+    const exchangeInfo = await fetchWithFallback('/fapi/v1/exchangeInfo');
+    const symbols = exchangeInfo.symbols
+      .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+      .map(s => s.symbol);
+
+    log(`총 ${symbols.length}개 USDT 무기한 심볼 발견`, 'ok');
+    document.getElementById('statTotal').textContent = symbols.length;
+    document.getElementById('statPass1m').textContent = '-';
+    document.getElementById('statFinal').textContent = '-';
+
+    const nowMs = Date.now();
+    const openMs = getMonthOpenTime();
+
+    const pass1m = [];
+    const toFetch1m = [];
+    const fromCache = [];
+
+    for (const sym of symbols) {
+      const c = cache[sym];
+      if (c && isSameCurrentMonth(c.ts) && typeof c.allTimeLow === 'number' && typeof c.currentMonthLow === 'number') {
+        fromCache.push({symbol: sym, allTimeLow: c.allTimeLow, currentMonthLow: c.currentMonthLow, cached: true});
+      } else {
+        toFetch1m.push(sym);
+      }
+    }
+
+    log(`1M캐시 사용: ${fromCache.length}개 / 신규 스캔: ${toFetch1m.length}개`, 'info');
+
+    setProgress(0, toFetch1m.length + fromCache.length);
+
+    for (const c of fromCache) {
+      if (c.currentMonthLow < c.allTimeLow) {
+        pass1m.push(c);
+      }
+    }
+
+    let doneCount = fromCache.length;
+
+    const BATCH = 3;
+    for (let i = 0; i < toFetch1m.length; i += BATCH) {
+      const batch = toFetch1m.slice(i, i + BATCH);
+      await Promise.all(batch.map(async sym => {
+        try {
+          const klines = await fetchWithFallback('/fapi/v1/klines', `symbol=${sym}&interval=1M&limit=500`);
+          if (!klines || klines.length < 2) return;
+
+          const allPrev = klines.slice(0, -1);
+          const current = klines[klines.length - 1];
+          const currentLow = parseFloat(current[3]);
+          const prevLows = allPrev.map(k => parseFloat(k[3]));
+          const allTimeLow = Math.min(...prevLows);
+
+          cache[sym] = { allTimeLow, currentMonthLow: currentLow, ts: Date.now() };
+
+          if (currentLow < allTimeLow) {
+            pass1m.push({symbol: sym, allTimeLow, currentMonthLow: currentLow, cached: false});
+          }
+        } catch(e) {
+          log(`${sym} 1M 조회 실패: ${e.message}`, 'err');
+        } finally {
+          doneCount++;
+          setProgress(doneCount, symbols.length);
+        }
+      }));
+
+      setStatus(`<strong>1M봉 스캔 중...</strong> ${doneCount}/${symbols.length} (1M역대최저 후보: ${pass1m.length}개)`, 'scanning');
+      saveCache();
+      await sleep(DELAY);
+    }
+
+    saveCache();
+    updateCacheInfo();
+    log(`1M봉 역대최저 후보: ${pass1m.length}개`, pass1m.length > 0 ? 'ok' : 'warn');
+    document.getElementById('statPass1m').textContent = pass1m.length;
+
+    setProgress(0, pass1m.length);
+    let p15done = 0;
+
+    for (const sym of pass1m) {
+      try {
+        const klines15 = await fetchWithFallback('/fapi/v1/klines', `symbol=${sym.symbol}&interval=15m&limit=10`);
+        if (!klines15 || klines15.length < 3) continue;
+
+        const prev2 = klines15[klines15.length - 3];
+        const prev2Low = parseFloat(prev2[3]);
+        const currentMonthLow = sym.currentMonthLow;
+
+        const diff = Math.abs(prev2Low - currentMonthLow);
+        const tolerance = currentMonthLow * 0.000001;
+
+        if (diff <= tolerance || prev2Low === currentMonthLow) {
+          const entry = {
+            symbol: sym.symbol,
+            monthLow: sym.allTimeLow,
+            prev2Low,
+            currentMonthLow,
+            cached: sym.cached,
+            foundAt: Date.now()
+          };
+          results.push(entry);
+          log(`🎯 매칭! ${sym.symbol} | 1M저가=${formatPrice(currentMonthLow)} | 15분[-2]저가=${formatPrice(prev2Low)}`, 'ok');
+          renderResults();
+          saveResults();
+          sendNotification(sym.symbol, currentMonthLow, prev2Low);
+        }
+      } catch(e) {
+        log(`${sym.symbol} 15분봉 조회 실패: ${e.message}`, 'err');
+      } finally {
+        p15done++;
+        setProgress(p15done, pass1m.length);
+      }
+      await sleep(120);
+    }
+
+    document.getElementById('statFinal').textContent = results.length;
+    setProgress(null);
+    setStatus(`<strong>스캔 완료!</strong> 1M역대최저: ${pass1m.length}개 → 15분봉 일치: ${results.length}개`, 'done');
+    log(`=== 스캔 완료: 결과 ${results.length}개 ===`, 'ok');
+
+    if (results.length === 0) log('조건에 맞는 심볼이 없습니다.', 'warn');
+
+  } catch(e) {
+    setStatus(`오류: ${e.message}`, 'error');
+    log('스캔 중 오류: ' + e.message, 'err');
+  } finally {
+    scanning = false;
+    document.getElementById('scanBtn').disabled = false;
+    document.getElementById('scanBtn').textContent = '▶ 스캔 시작';
+  }
+}
+
+function getMonthOpenTime() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+}
+
+function sendNotification(symbol, mLow, f15Low) {
+  if (!document.getElementById('notifToggle').checked) return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  new Notification('📉 1M 역대최저 + 15분 일치', {
+    body: `${symbol}\n1M저가: ${formatPrice(mLow)}\n15분[-2]저가: ${formatPrice(f15Low)}`,
+    icon: ''
+  });
+}
+
+document.getElementById('notifToggle').addEventListener('change', async function() {
+  if (!this.checked) return;
+  if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); this.checked=false; return; }
+  if (Notification.permission === 'default') {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') { this.checked=false; log('알림 권한이 거부되었습니다.', 'warn'); return; }
+  }
+  if (Notification.permission === 'denied') { alert('브라우저 설정에서 알림을 허용해주세요.'); this.checked=false; return; }
+  log('브라우저 알림 활성화', 'ok');
+});
+
+function getNextQuarterTime() {
+  const now = new Date();
+  const m = now.getMinutes();
+  const nextM = Math.ceil((m+1)/15)*15;
+  const next = new Date(now);
+  next.setSeconds(0);
+  next.setMilliseconds(0);
+  if (nextM >= 60) {
+    next.setMinutes(0);
+    next.setHours(next.getHours()+1);
+  } else {
+    next.setMinutes(nextM);
+  }
+  return next;
+}
+
+function startAutoScan() {
+  stopAutoScan();
+  function schedule() {
+    const next = getNextQuarterTime();
+    const delay = next - Date.now();
+    updateNextScanLabel(next);
+
+    autoTimer = setTimeout(() => {
+      if (!document.getElementById('autoToggle').checked) return;
+      log(`⏰ 자동 스캔 시작 (${next.toLocaleTimeString('ko-KR')})`, 'info');
+      startScan().then(() => schedule());
+    }, delay);
+
+    countdownTimer = setInterval(() => {
+      if (!document.getElementById('autoToggle').checked) return;
+      updateNextScanLabel(next);
+    }, 10000);
+  }
+  schedule();
+}
+
+function stopAutoScan() {
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer=null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer=null; }
+  document.getElementById('nextScanLabel').textContent = '';
+}
+
+function updateNextScanLabel(next) {
+  const diff = Math.max(0, Math.floor((next - Date.now()) / 1000));
+  const m = Math.floor(diff/60);
+  const s = diff%60;
+  document.getElementById('nextScanLabel').innerHTML = `다음 <strong>${next.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</strong> (${m}:${String(s).padStart(2,'0')})`;
+}
+
+document.getElementById('autoToggle').addEventListener('change', function() {
+  if (this.checked) {
+    log('자동 스캔 ON (00/15/30/45분)', 'ok');
+    startAutoScan();
+  } else {
+    log('자동 스캔 OFF', 'warn');
+    stopAutoScan();
+  }
+});
+
+loadCache();
+loadResults();
+updateCacheInfo();
+</script>
+</body>
+</html>
