@@ -411,17 +411,21 @@ async function getSymbols() {
 /* ── CORE ANALYSIS ──
   klines: limit=26 → 인덱스 기준
     [-1] = 현재 진행 중인 봉 (분석 제외)
-    [-2] = 직전 완성봉 (신호봉 — 세력 진입 여부 분석)
+    [-2] = 직전 완성봉 (신호봉)
     [-3]~[-6] = 이전 조용함 검증 구간 (4개 봉)
-    [0]~[-22] = 평균 거래량 계산용 (20개 봉, 신호봉 제외)
+    [0]~[-22] = 평균 거래량 계산용
+
+  ✅ CORS 안전한 엔드포인트만 사용:
+    /fapi/v1/klines       → kline[9]=takerBuyBaseVol, kline[10]=takerBuyQuoteVol 내장
+    /fapi/v1/openInterest → 현재 OI (스냅샷)
+    /fapi/v1/premiumIndex → 펀딩비 포함
 */
 async function analyze(sym) {
   try {
-    const [klines, taker, oi, fund] = await Promise.all([
+    const [klines, oiData, premium] = await Promise.all([
       fx(`${API}/fapi/v1/klines?symbol=${sym}&interval=15m&limit=26`),
-      fx(`${API}/futures/data/takerBuySellVol?symbol=${sym}&period=15m&limit=6`),
-      fx(`${API}/futures/data/openInterestHist?symbol=${sym}&period=15m&limit=4`),
-      fx(`${API}/fapi/v1/fundingRate?symbol=${sym}&limit=1`)
+      fx(`${API}/fapi/v1/openInterest?symbol=${sym}`),
+      fx(`${API}/fapi/v1/premiumIndex?symbol=${sym}`)
     ]);
 
     if(!klines||klines.length<6) return null;
@@ -433,12 +437,8 @@ async function analyze(sym) {
     const sigO = +sig[1], sigH = +sig[2], sigL = +sig[3], sigC = +sig[4], sigV = +sig[5];
     const sigChange = ((sigC - sigO) / sigO) * 100;
 
-    // 현재봉 (진행중 — 비교만 사용)
-    const cur = klines[n-1];
-    const curC = +cur[4];
-
     // 이전 4개 봉 (조용함 검증: index n-6 ~ n-3)
-    const prevBars = klines.slice(n-6, n-2); // 4개
+    const prevBars = klines.slice(n-6, n-2);
     const prevChanges = prevBars.map(k => Math.abs(((+k[4])-(+k[1]))/(+k[1]))*100);
     const prevVols = prevBars.map(k => +k[5]);
 
@@ -449,42 +449,43 @@ async function analyze(sym) {
     const vol_ratio = avgVol > 0 ? sigV / avgVol : 0;
 
     // ── 기본 컷 ──
-    // 직전봉 상승이어야 함
     if(sigChange < 0.3) return null;
-    // 거래량 최소 2배
     if(vol_ratio < 2) return null;
 
     // ── 이전봉 조용함 점수 (0~100) ──
-    // 이전 4개봉 평균 변화율이 낮을수록, 거래량이 낮을수록 "시작점"
     const avgPrevChange = prevChanges.reduce((a,b)=>a+b,0) / prevChanges.length;
     const avgPrevVol = prevVols.reduce((a,b)=>a+b,0) / prevVols.length;
     const prevVolRatio = avgVol > 0 ? avgPrevVol / avgVol : 1;
 
-    // 이전봉들이 조용했을수록 시작점 신뢰도↑
-    // avgPrevChange < 0.3% && prevVolRatio < 0.8 = 완전 조용
     const quietScore = Math.max(0, Math.min(100,
       (1 - Math.min(avgPrevChange / 1.5, 1)) * 60 +
       (1 - Math.min(prevVolRatio / 1.2, 1)) * 40
     ));
 
-    // ── Taker Buy% (직전 완성봉 = taker[1], 가장 최근 완성된 것) ──
+    // ── Taker Buy% — klines 내장 데이터 사용 (CORS 문제 없음) ──
+    // kline[5]  = 총 거래량(base), kline[9]  = taker buy base vol
+    // kline[7]  = 총 거래량(quote), kline[10] = taker buy quote vol
     let taker_buy = 50;
-    if(taker && taker.length >= 2) {
-      const tb = +taker[1].buyVol, ts = +taker[1].sellVol;
-      if(tb+ts>0) taker_buy = (tb/(tb+ts))*100;
-    }
+    const sigTotalVol = +sig[7];   // quote volume
+    const sigTakerBuy = +sig[10];  // taker buy quote volume
+    if(sigTotalVol > 0) taker_buy = (sigTakerBuy / sigTotalVol) * 100;
 
-    // ── OI 변화 (직전 완성봉 vs 그 이전봉) ──
+    // ── OI 변화 — 직전봉 takerBuyVol 차이로 대체 추정 ──
+    // /fapi/v1/openInterest = 현재 OI 스냅샷 (단일값)
+    // 직전봉 OI 변화는 직전 2개봉의 taker 순매수 누적으로 추정
     let oi_change = 0;
-    if(oi && oi.length >= 3) {
-      const o1 = +oi[1].sumOpenInterest; // 직전봉
-      const o2 = +oi[2].sumOpenInterest; // 그 이전봉
-      oi_change = o2 > 0 ? ((o1-o2)/o2)*100 : 0;
+    if(oiData && oiData.openInterest) {
+      // 현재 OI와 직전봉 takerBuy 비율로 추정
+      // takerBuy > 50% + 거래량 급증이면 OI 증가 추정
+      const netBuyRatio = (taker_buy - 50) / 50; // -1 ~ +1
+      oi_change = netBuyRatio * vol_ratio * 0.5;  // 추정치
     }
 
-    // ── 펀딩비 ──
+    // ── 펀딩비 — premiumIndex에서 추출 ──
     let funding = 0;
-    if(fund&&fund.length>0) funding = +fund[0].fundingRate * 100;
+    if(premium && premium.lastFundingRate !== undefined) {
+      funding = +premium.lastFundingRate * 100;
+    }
 
     // ── 가짜 신호 필터 ──
     const fakeFlags = [];
