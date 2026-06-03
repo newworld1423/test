@@ -369,13 +369,15 @@ function notify(sym,score,grade) {
   new Notification(`🎯 세력 시작점 [${grade}] ${sym}`,{body:`스코어 ${score}점 · 직전봉 세력 진입 확인`,tag:sym});
 }
 
-/* ── COUNTDOWN ── */
+/* ── COUNTDOWN & AUTO-SCAN ── */
 function nextMs() {
   const n=new Date(), m=n.getMinutes(), s=n.getSeconds(), ms=n.getMilliseconds();
   let diff = (Math.ceil((m+s/60+ms/60000)/15)*15 - m - s/60 - ms/60000)*60000;
   if(diff<=0) diff+=15*60000;
   return diff;
 }
+
+// 카운트다운 UI 업데이트 (표시용만 — 스캔 트리거 아님)
 function tick() {
   if(scanning) return;
   const ms=nextMs(), tot=15*60000;
@@ -383,9 +385,19 @@ function tick() {
   const mi=Math.floor(ms/60000), se=Math.floor((ms%60000)/1000);
   document.getElementById('tcd').textContent=`${String(mi).padStart(2,'0')}:${String(se).padStart(2,'0')}`;
   document.getElementById('tfill').style.width=pct+'%';
-  if(ms<1100&&ms>80) startScan();
 }
-setInterval(tick,500);
+setInterval(tick, 500);
+
+// 스캔 예약 — setTimeout 방식: 백그라운드 탭/다른 탭에서도 정확히 실행됨
+function scheduleNext() {
+  const ms = nextMs();
+  log(`다음 자동스캔 예약: ${Math.round(ms/1000)}초 후`);
+  setTimeout(async () => {
+    await startScan();
+    scheduleNext(); // 스캔 끝난 뒤 다음 타이밍 재예약
+  }, ms);
+}
+scheduleNext();
 
 /* ── FETCH ── */
 async function fx(url) {
@@ -706,7 +718,6 @@ function setSrt(k,el) {
 
 log('세력 시작점 스캐너 준비 완료','ok');
 log('직전 완성봉 기준 · 이전 4개봉 조용함 검증');
-tick();
 </script>
 </body>
 </html>
