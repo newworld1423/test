@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Binance 8% 급등봉 스캐너</title>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --bg2: #111318;
+    --bg3: #181b22;
+    --border: #1e2330;
+    --accent: #f0b90b;
+    --accent2: #ff4d4d;
+    --green: #00c087;
+    --text: #e8eaf0;
+    --text2: #7a8099;
+    --text3: #4a5070;
+    --font: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; min-height: 100vh; }
+
+  #app { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+  .title-block h1 { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+  .title-block p { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .threshold-wrap { display: flex; align-items: center; gap: 6px; }
+  .threshold-wrap label { font-size: 11px; color: var(--text2); }
+  .threshold-wrap input { width: 56px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 5px 8px; font-family: var(--font); font-size: 12px; text-align: center; }
+  .threshold-wrap input:focus { outline: none; border-color: var(--accent); }
+
+  button { background: var(--accent); color: #000; border: none; border-radius: var(--radius); padding: 7px 16px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px; transition: opacity .15s; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.stop { background: var(--accent2); color: #fff; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .stat-card .label { font-size: 10px; color: var(--text2); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 5px; }
+  .stat-card .val { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-card .val.accent { color: var(--accent); }
+  .stat-card .val.green { color: var(--green); }
+  .stat-card .val.red { color: var(--accent2); }
+
+  .progress-wrap { margin-bottom: 16px; }
+  .progress-bar-bg { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .2s; }
+  .progress-text { font-size: 10px; color: var(--text2); margin-top: 5px; }
+
+  .log-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; height: 56px; overflow-y: auto; margin-bottom: 20px; font-size: 11px; color: var(--text2); }
+  .log-box .log-line { padding: 1px 0; }
+  .log-box .log-line.ok { color: var(--green); }
+  .log-box .log-line.warn { color: var(--accent); }
+  .log-box .log-line.err { color: var(--accent2); }
+
+  .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filter-row input[type=text] { flex: 1; min-width: 160px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 6px 10px; font-family: var(--font); font-size: 12px; }
+  .filter-row input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .sort-btn { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); font-size: 11px; padding: 5px 10px; font-weight: 400; }
+  .sort-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); }
+  thead th.r { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--bg2); }
+  tbody td { padding: 7px 10px; font-size: 12px; vertical-align: middle; }
+  tbody td.r { text-align: right; }
+  tbody td.symbol { color: var(--text); font-weight: 600; }
+  tbody td.cnt { color: var(--accent); font-size: 16px; font-weight: 700; }
+  tbody td.maxg { color: var(--green); }
+  tbody td.time { color: var(--text2); font-size: 11px; }
+
+  .candles-mini { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+  .candle-pill { font-size: 10px; padding: 2px 5px; border-radius: 3px; background: rgba(0,192,135,0.12); color: var(--green); border: 1px solid rgba(0,192,135,0.25); white-space: nowrap; cursor: default; }
+  .candle-pill.big { background: rgba(240,185,11,0.12); color: var(--accent); border-color: rgba(240,185,11,0.3); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 13px; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .scanning-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite; margin-right: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="title-block">
+      <h1>⚡ 급등봉 스캐너</h1>
+      <p>Binance USDT 무기한 선물 · 오늘 UTC 00:00 ~ 현재 · 15분봉</p>
+    </div>
+    <div class="controls">
+      <div class="threshold-wrap">
+        <label>임계값</label>
+        <input type="number" id="thresholdInput" value="8" min="1" max="50" step="0.5">
+        <label>%</label>
+      </div>
+      <button id="startBtn" onclick="startScan()">스캔 시작</button>
+      <button id="stopBtn" class="stop" onclick="stopScan()" style="display:none">중단</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">전체 심볼</div>
+      <div class="val" id="statTotal">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">스캔 완료</div>
+      <div class="val green" id="statDone">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">8%+ 심볼</div>
+      <div class="val accent" id="statHits">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">8%+ 캔들 합계</div>
+      <div class="val red" id="statCandles">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">최대 단봉 상승</div>
+      <div class="val" id="statMaxG" style="font-size:16px">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">스캔 시각</div>
+      <div class="val" id="statTime" style="font-size:11px;margin-top:4px;color:var(--text2)">—</div>
+    </div>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap" style="display:none">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-text" id="progressText">준비 중...</div>
+  </div>
+
+  <div class="log-box" id="logBox"></div>
+
+  <div class="filter-row">
+    <input type="text" id="searchInput" placeholder="심볼 검색 (예: BTC, ETH...)" oninput="renderTable()">
+    <button class="sort-btn active" id="sortCnt" onclick="setSort('cnt')">캔들수 ↓</button>
+    <button class="sort-btn" id="sortMax" onclick="setSort('max')">최대% ↓</button>
+    <button class="sort-btn" id="sortSym" onclick="setSort('sym')">심볼 A-Z</button>
+  </div>
+
+  <div id="tableWrap">
+    <div class="empty-state">스캔을 시작하면 결과가 표시됩니다.</div>
+  </div>
+</div>
+
+<script>
+let results = [];
+let scanning = false;
+let stopFlag = false;
+let sortMode = 'cnt';
+
+const BASE = 'https://fapi.binance.com';
+const CONCURRENCY = 8;
+const SLEEP_MS = 120;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function log(msg, type='') {
+  const box = document.getElementById('logBox');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.textContent = '[' + new Date().toTimeString().slice(0,8) + '] ' + msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  if (box.children.length > 80) box.removeChild(box.firstChild);
+}
+
+function todayUTCStart() {
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+async function getSymbols() {
+  const r = await fetch(BASE + '/fapi/v1/exchangeInfo');
+  const d = await r.json();
+  return d.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+    .map(s => s.symbol);
+}
+
+async function getKlines(symbol, startTime) {
+  const url = `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=15m&startTime=${startTime}&limit=500`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return await r.json();
+}
+
+function analyzeKlines(klines, threshold) {
+  const hits = [];
+  for (const k of klines) {
+    const open = parseFloat(k[1]);
+    const close = parseFloat(k[4]);
+    if (open <= 0) continue;
+    const chg = (close - open) / open * 100;
+    if (chg >= threshold) {
+      const t = new Date(k[0]);
+      hits.push({ time: t.toUTCString().slice(17,22), chg: chg.toFixed(2) });
+    }
+  }
+  return hits;
+}
+
+async function scanSymbol(symbol, startTime, threshold) {
+  let allKlines = [];
+  let st = startTime;
+  while (true) {
+    const klines = await getKlines(symbol, st);
+    if (!klines.length) break;
+    allKlines = allKlines.concat(klines);
+    const lastOpen = klines[klines.length - 1][0];
+    if (klines.length < 500) break;
+    st = lastOpen + 1;
+    await sleep(40);
+  }
+  const now = Date.now();
+  const valid = allKlines.filter(k => k[0] <= now);
+  return analyzeKlines(valid, threshold);
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  ['sortCnt','sortMax','sortSym'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = {cnt:'sortCnt', max:'sortMax', sym:'sortSym'};
+  document.getElementById(map[mode]).classList.add('active');
+  renderTable();
+}
+
+function renderTable() {
+  const query = document.getElementById('searchInput').value.trim().toUpperCase();
+  const threshold = parseFloat(document.getElementById('thresholdInput').value) || 8;
+
+  let filtered = results.filter(r => r.hits.length > 0);
+  if (query) filtered = filtered.filter(r => r.symbol.includes(query));
+
+  if (sortMode === 'cnt') filtered.sort((a,b) => b.hits.length - a.hits.length || b.maxChg - a.maxChg);
+  else if (sortMode === 'max') filtered.sort((a,b) => b.maxChg - a.maxChg);
+  else filtered.sort((a,b) => a.symbol.localeCompare(b.symbol));
+
+  const wrap = document.getElementById('tableWrap');
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="empty-state">' +
+      (results.length ? `${threshold}%+ 캔들이 없거나 검색 결과 없음` : '스캔을 시작하면 결과가 표시됩니다.') +
+      '</div>';
+    return;
+  }
+
+  let html = `<table><thead><tr>
+    <th>#</th>
+    <th>심볼</th>
+    <th class="r">8%+ 캔들수</th>
+    <th class="r">최대 상승%</th>
+    <th>발생 시각 (UTC)</th>
+  </tr></thead><tbody>`;
+
+  filtered.forEach((r, i) => {
+    const pillsHtml = r.hits.map(h => {
+      const isBig = parseFloat(h.chg) >= 15;
+      return `<span class="candle-pill${isBig?' big':''}" title="${h.chg}%">${h.time} +${h.chg}%</span>`;
+    }).join('');
+
+    html += `<tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td class="symbol">${r.symbol.replace('USDT','')}<span style="color:var(--text3);font-size:10px;font-weight:400">USDT</span></td>
+      <td class="cnt r">${r.hits.length}</td>
+      <td class="maxg r">+${r.maxChg.toFixed(2)}%</td>
+      <td><div class="candles-mini">${pillsHtml}</div></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function updateStats(done, total, hits) {
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statDone').textContent = done;
+  document.getElementById('statHits').textContent = hits.length;
+  const totalCandles = hits.reduce((s,r)=>s+r.hits.length,0);
+  document.getElementById('statCandles').textContent = totalCandles;
+  if (hits.length) {
+    const maxG = Math.max(...hits.map(r=>r.maxChg));
+    const maxSym = hits.find(r=>r.maxChg===maxG);
+    document.getElementById('statMaxG').textContent = '+' + maxG.toFixed(2) + '% (' + maxSym.symbol.replace('USDT','') + ')';
+    document.getElementById('statMaxG').style.color = 'var(--green)';
+  }
+}
+
+async function startScan() {
+  if (scanning) return;
+  scanning = true;
+  stopFlag = false;
+  results = [];
+
+  const threshold = parseFloat(document.getElementById('thresholdInput').value) || 8;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').style.display = '';
+  document.getElementById('progressWrap').style.display = '';
+  document.getElementById('statMaxG').textContent = '—';
+  document.getElementById('statMaxG').style.color = '';
+  document.getElementById('statTime').textContent = new Date().toLocaleTimeString('ko-KR');
+  renderTable();
+
+  log('심볼 목록 조회 중...', '');
+  let symbols;
+  try {
+    symbols = await getSymbols();
+    log(`${symbols.length}개 USDT 무기한 페어 확인`, 'ok');
+    document.getElementById('statTotal').textContent = symbols.length;
+  } catch(e) {
+    log('심볼 조회 실패: ' + e.message, 'err');
+    scanning = false;
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').style.display = 'none';
+    return;
+  }
+
+  const startTime = todayUTCStart();
+  log(`스캔 시작: UTC ${new Date(startTime).toUTCString().slice(5,22)} 이후 15분봉`, '');
+
+  let done = 0;
+  const total = symbols.length;
+
+  for (let i = 0; i < total; i += CONCURRENCY) {
+    if (stopFlag) { log('스캔 중단됨', 'warn'); break; }
+    const batch = symbols.slice(i, i + CONCURRENCY);
+
+    await Promise.all(batch.map(async sym => {
+      try {
+        const hits = await scanSymbol(sym, startTime, threshold);
+        const entry = { symbol: sym, hits, maxChg: hits.length ? Math.max(...hits.map(h=>parseFloat(h.chg))) : 0 };
+        results.push(entry);
+        if (hits.length > 0) {
+          log(`${sym}: ${hits.length}개 봉 발견 (최대 +${entry.maxChg.toFixed(2)}%)`, 'ok');
+        }
+      } catch(e) {
+        results.push({ symbol: sym, hits: [], maxChg: 0 });
+        log(`${sym} 오류: ${e.message}`, 'err');
+      }
+      done++;
+      const pct = Math.round(done / total * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressText').textContent = `${done} / ${total} 심볼 스캔 완료 (${pct}%)`;
+      const hitsOnly = results.filter(r=>r.hits.length>0);
+      updateStats(done, total, hitsOnly);
+    }));
+
+    renderTable();
+    await sleep(SLEEP_MS);
+  }
+
+  log(`스캔 완료! ${threshold}%+ 캔들 보유 심볼: ${results.filter(r=>r.hits.length>0).length}개`, 'ok');
+  scanning = false;
+  stopFlag = false;
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').style.display = 'none';
+  renderTable();
+}
+
+function stopScan() {
+  stopFlag = true;
+  log('중단 신호 전송...', 'warn');
+}
+</script>
+</body>
+</html>
