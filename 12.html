@@ -74,16 +74,12 @@
   tbody td.symbol { color: var(--text); font-weight: 600; }
   tbody td.cnt { color: var(--accent); font-size: 16px; font-weight: 700; }
   tbody td.maxg { color: var(--green); }
-  tbody td.time { color: var(--text2); font-size: 11px; }
 
   .candles-mini { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
   .candle-pill { font-size: 10px; padding: 2px 5px; border-radius: 3px; background: rgba(0,192,135,0.12); color: var(--green); border: 1px solid rgba(0,192,135,0.25); white-space: nowrap; cursor: default; }
   .candle-pill.big { background: rgba(240,185,11,0.12); color: var(--accent); border-color: rgba(240,185,11,0.3); }
 
   .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 13px; }
-
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .scanning-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite; margin-right: 6px; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -91,7 +87,7 @@
   <div class="header">
     <div class="title-block">
       <h1>⚡ 급등봉 스캐너</h1>
-      <p>Binance USDT 무기한 선물 · 오늘 KST 00:00 ~ 현재 · 15분봉</p>
+      <p>Binance USDT 무기한 선물 · 오늘 KST 09:00 ~ 현재 · 15분봉 · 시각 표시 KST 기준</p>
     </div>
     <div class="controls">
       <div class="threshold-wrap">
@@ -159,6 +155,7 @@ let sortMode = 'cnt';
 const BASE = 'https://fapi.binance.com';
 const CONCURRENCY = 8;
 const SLEEP_MS = 120;
+const KST_OFFSET = 9 * 60 * 60 * 1000;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -166,26 +163,26 @@ function log(msg, type='') {
   const box = document.getElementById('logBox');
   const line = document.createElement('div');
   line.className = 'log-line ' + type;
-  line.textContent = '[' + new Date().toTimeString().slice(0,8) + '] ' + msg;
+  const kstNow = new Date(Date.now() + KST_OFFSET);
+  const hh = String(kstNow.getUTCHours()).padStart(2,'0');
+  const mm = String(kstNow.getUTCMinutes()).padStart(2,'0');
+  const ss = String(kstNow.getUTCSeconds()).padStart(2,'0');
+  line.textContent = '[' + hh + ':' + mm + ':' + ss + '] ' + msg;
   box.appendChild(line);
   box.scrollTop = box.scrollHeight;
   if (box.children.length > 80) box.removeChild(box.firstChild);
 }
 
-function todayKSTStart() {
-  const KST_OFFSET = 9 * 60 * 60 * 1000;
+// UTC 00:00 = KST 09:00 — 스캔 기준은 UTC 오늘 00:00 그대로
+function todayUTCMidnight() {
   const now = new Date();
-  const kstNow = new Date(now.getTime() + KST_OFFSET);
-  const kstMidnight = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
-  return kstMidnight - KST_OFFSET;
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
 
-function toKSTTime(ts) {
-  const KST_OFFSET = 9 * 60 * 60 * 1000;
+// 타임스탬프 → KST HH:MM 문자열
+function toKST(ts) {
   const d = new Date(ts + KST_OFFSET);
-  const h = String(d.getUTCHours()).padStart(2,'0');
-  const m = String(d.getUTCMinutes()).padStart(2,'0');
-  return h + ':' + m;
+  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
 }
 
 async function getSymbols() {
@@ -211,7 +208,7 @@ function analyzeKlines(klines, threshold) {
     if (open <= 0) continue;
     const chg = (close - open) / open * 100;
     if (chg >= threshold) {
-      hits.push({ time: toKSTTime(k[0]), chg: chg.toFixed(2) });
+      hits.push({ time: toKST(k[0]), chg: chg.toFixed(2) });
     }
   }
   return hits;
@@ -265,7 +262,7 @@ function renderTable() {
   let html = `<table><thead><tr>
     <th>#</th>
     <th>심볼</th>
-    <th class="r">8%+ 캔들수</th>
+    <th class="r">${threshold}%+ 캔들수</th>
     <th class="r">최대 상승%</th>
     <th>발생 시각 (KST)</th>
   </tr></thead><tbody>`;
@@ -332,9 +329,8 @@ async function startScan() {
     return;
   }
 
-  const startTime = todayKSTStart();
-  const kstStart = new Date(startTime + 9*60*60*1000);
-  log(`스캔 시작: KST ${String(kstStart.getUTCFullYear())}.${String(kstStart.getUTCMonth()+1).padStart(2,'0')}.${String(kstStart.getUTCDate()).padStart(2,'0')} 00:00 이후 15분봉`, '');
+  const startTime = todayUTCMidnight(); // UTC 00:00 = KST 09:00
+  log(`스캔 시작: KST 09:00 이후 15분봉 (UTC 기준 ${new Date(startTime).toISOString().slice(0,10)} 00:00)`, '');
 
   let done = 0;
   const total = symbols.length;
