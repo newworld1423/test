@@ -91,7 +91,7 @@
   <div class="header">
     <div class="title-block">
       <h1>⚡ 급등봉 스캐너</h1>
-      <p>Binance USDT 무기한 선물 · 오늘 UTC 00:00 ~ 현재 · 15분봉</p>
+      <p>Binance USDT 무기한 선물 · 오늘 KST 00:00 ~ 현재 · 15분봉</p>
     </div>
     <div class="controls">
       <div class="threshold-wrap">
@@ -172,9 +172,20 @@ function log(msg, type='') {
   if (box.children.length > 80) box.removeChild(box.firstChild);
 }
 
-function todayUTCStart() {
+function todayKSTStart() {
+  const KST_OFFSET = 9 * 60 * 60 * 1000;
   const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const kstNow = new Date(now.getTime() + KST_OFFSET);
+  const kstMidnight = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+  return kstMidnight - KST_OFFSET;
+}
+
+function toKSTTime(ts) {
+  const KST_OFFSET = 9 * 60 * 60 * 1000;
+  const d = new Date(ts + KST_OFFSET);
+  const h = String(d.getUTCHours()).padStart(2,'0');
+  const m = String(d.getUTCMinutes()).padStart(2,'0');
+  return h + ':' + m;
 }
 
 async function getSymbols() {
@@ -200,8 +211,7 @@ function analyzeKlines(klines, threshold) {
     if (open <= 0) continue;
     const chg = (close - open) / open * 100;
     if (chg >= threshold) {
-      const t = new Date(k[0]);
-      hits.push({ time: t.toUTCString().slice(17,22), chg: chg.toFixed(2) });
+      hits.push({ time: toKSTTime(k[0]), chg: chg.toFixed(2) });
     }
   }
   return hits;
