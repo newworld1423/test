@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swing Pattern Scanner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #080b10;
+    --bg2: #0d1117;
+    --bg3: #131920;
+    --border: #1e2a36;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff6b;
+    --text: #cdd6e0;
+    --text-dim: #4a6070;
+    --text-bright: #f0f6fc;
+    --profit: #3ddc84;
+    --loss: #ff4d6d;
+    --tag-bg: #0a1f2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .logo h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    color: var(--text-bright);
+    letter-spacing: -0.5px;
+  }
+
+  .logo span {
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* clock */
+  #clock {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  #next-scan {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 9px 20px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #33ecff; }
+  .btn-primary:disabled { background: #1a3540; color: var(--text-dim); cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-notif {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+  }
+  .btn-notif.on { color: var(--accent3); border-color: var(--accent3); }
+
+  /* STATUS BAR */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-dot.scanning { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1s infinite; }
+  .status-dot.done { background: var(--accent3); }
+  .status-dot.error { background: var(--loss); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  #status-text { color: var(--text-dim); }
+  #stats { color: var(--text-dim); margin-left: auto; }
+
+  /* PATTERN LEGEND */
+  .legend {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    border-radius: 4px;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  thead tr {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 11px 14px;
+    text-align: left;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(30,42,54,0.6);
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: rgba(0,229,255,0.04); }
+  tbody tr:last-child { border-bottom: none; }
+
+  td {
+    padding: 10px 14px;
+    white-space: nowrap;
+  }
+
+  .symbol-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .symbol-name {
+    font-weight: 700;
+    color: var(--text-bright);
+    font-size: 13px;
+  }
+
+  .chart-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+  .chart-link:hover { color: var(--accent); border-color: var(--accent); }
+
+  .profit-cell {
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .profit-cell.pos { color: var(--profit); }
+  .profit-cell.neg { color: var(--loss); }
+
+  .price-cell { color: var(--text-bright); }
+  .dim-cell { color: var(--text-dim); }
+
+  /* pattern tags */
+  .tag {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+  .tag-s1 { background: rgba(255,107,53,0.15); color: var(--accent2); border: 1px solid rgba(255,107,53,0.3); }
+  .tag-s2 { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.25); }
+  .tag-s3 { background: rgba(127,255,107,0.1); color: var(--accent3); border: 1px solid rgba(127,255,107,0.25); }
+
+  .dist-cell { color: var(--text-dim); font-size: 11px; }
+
+  /* EMPTY / LOADING */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+  .empty-state .big { font-size: 36px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-state p { font-size: 12px; line-height: 1.8; }
+
+  /* progress */
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.2s;
+  }
+
+  /* notification toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg3);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 12px;
+    color: var(--accent);
+    max-width: 320px;
+    z-index: 999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* scan counter badge */
+  .scan-badge {
+    font-size: 10px;
+    background: rgba(0,229,255,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,255,0.2);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .auto-badge {
+    font-size: 10px;
+    background: rgba(127,255,107,0.08);
+    color: var(--accent3);
+    border: 1px solid rgba(127,255,107,0.2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: none;
+  }
+  .auto-badge.on { display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <h1>SWING PATTERN SCANNER</h1>
+      <span>15M · USDT PERP</span>
+    </div>
+    <div class="header-right">
+      <div>
+        <div id="clock">--:--:--</div>
+        <div id="next-scan">next scan: --:--</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btn-scan">▶ SCAN NOW</button>
+    <button class="btn btn-secondary" id="btn-auto">AUTO OFF</button>
+    <button class="btn btn-notif" id="btn-notif" title="브라우저 알림">🔔</button>
+    <span class="auto-badge" id="auto-badge">● AUTO</span>
+    <span class="scan-badge" id="scan-count">스캔 0회</span>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">스캔 대기 중</span>
+    <span id="stats"></span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>STEP1: 로컬 저점 (B봉)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>STEP2: 로컬 고점 (E봉) → 매도가</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7fff6b"></div>STEP3: 로컬 저점 (H봉) → 진입봉(G) 종가</div>
+    <div class="legend-item" style="color:#cdd6e0">수익률 = (E고가 − G종가) / G종가 × 100</div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    <table>
+      <thead>
+        <tr>
+          <th>심볼</th>
+          <th class="sortable" id="th-profit">수익률 ▼</th>
+          <th>진입가 (G종가)</th>
+          <th>목표가 (E고가)</th>
+          <th>현재가</th>
+          <th>현재→목표</th>
+          <th>G봉</th>
+          <th>E봉</th>
+          <th>스텝</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <div class="big">◈</div>
+            <p>SCAN NOW 버튼을 눌러 스캔을 시작하세요<br>패턴: 로컬저점 → 로컬고점 → 로컬저점 (15분봉)</p>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const BASE = 'https://fapi.binance.com';
+const INTERVAL = '15m';
+const KLINE_LIMIT = 500;
+const BATCH = 20;        // 동시 요청 수
+const DELAY = 300;       // 배치 간 딜레이(ms)
+
+// ─── STATE ────────────────────────────────────────────────
+let results = [];
+let isScanning = false;
+let autoOn = false;
+let autoTimer = null;
+let scanCount = 0;
+let notifGranted = false;
+let sortDir = -1; // -1: 내림차순
+
+// ─── DOM ──────────────────────────────────────────────────
+const tbody    = document.getElementById('tbody');
+const btnScan  = document.getElementById('btn-scan');
+const btnAuto  = document.getElementById('btn-auto');
+const btnNotif = document.getElementById('btn-notif');
+const statusDot  = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const statsEl    = document.getElementById('stats');
+const progress   = document.getElementById('progress');
+const clockEl    = document.getElementById('clock');
+const nextScanEl = document.getElementById('next-scan');
+const scanCountEl= document.getElementById('scan-count');
+const autoBadge  = document.getElementById('auto-badge');
+const toast      = document.getElementById('toast');
+
+// ─── CLOCK ────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9*3600*1000);
+  const h = String(kst.getUTCHours()).padStart(2,'0');
+  const m = String(kst.getUTCMinutes()).padStart(2,'0');
+  const s = String(kst.getUTCSeconds()).padStart(2,'0');
+  clockEl.textContent = `${h}:${m}:${s} KST`;
+
+  // next :00/:15/:30/:45
+  const totalMin = kst.getUTCHours()*60 + kst.getUTCMinutes();
+  const nextMin = (Math.floor(totalMin/15)+1)*15;
+  const nh = Math.floor(nextMin/60)%24;
+  const nm = nextMin%60;
+  const diffSec = (nextMin - totalMin)*60 - kst.getUTCSeconds();
+  const ds = String(Math.floor(diffSec/60)).padStart(2,'0');
+  const ss = String(diffSec%60).padStart(2,'0');
+  nextScanEl.textContent = `next: ${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')} (${ds}:${ss})`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── AUTO SCAN (clock-aligned) ────────────────────────────
+function scheduleNext() {
+  if (!autoOn) return;
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9*3600*1000);
+  const totalSec = kst.getUTCHours()*3600 + kst.getUTCMinutes()*60 + kst.getUTCSeconds();
+  const next15 = (Math.floor(totalSec/900)+1)*900;
+  const wait = (next15 - totalSec)*1000 + 3000; // 봉 마감 후 3초
+  autoTimer = setTimeout(() => {
+    if (autoOn && !isScanning) runScan();
+    scheduleNext();
+  }, wait);
+}
+
+btnAuto.addEventListener('click', () => {
+  autoOn = !autoOn;
+  btnAuto.textContent = autoOn ? 'AUTO ON' : 'AUTO OFF';
+  btnAuto.style.borderColor = autoOn ? 'var(--accent3)' : '';
+  btnAuto.style.color = autoOn ? 'var(--accent3)' : '';
+  autoBadge.classList.toggle('on', autoOn);
+  if (autoOn) { scheduleNext(); showToast('자동 스캔 활성화 — 매 15분봉 마감 후 스캔'); }
+  else { clearTimeout(autoTimer); showToast('자동 스캔 비활성화'); }
+});
+
+// ─── NOTIFICATION ─────────────────────────────────────────
+btnNotif.addEventListener('click', async () => {
+  if (notifGranted) {
+    notifGranted = false;
+    btnNotif.classList.remove('on');
+    showToast('브라우저 알림 비활성화');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    notifGranted = true;
+    btnNotif.classList.add('on');
+    showToast('브라우저 알림 활성화');
+  } else {
+    showToast('알림 권한이 거부되었습니다');
+  }
+});
+
+function sendNotif(title, body) {
+  if (!notifGranted) return;
+  new Notification(title, { body, icon: '' });
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ─── API HELPERS ──────────────────────────────────────────
+async function getSymbols() {
+  const res = await fetch(`${BASE}/fapi/v1/exchangeInfo`);
+  const data = await res.json();
+  return data.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.contractType === 'PERPETUAL')
+    .map(s => s.symbol);
+}
+
+async function getKlines(symbol) {
+  const res = await fetch(`${BASE}/fapi/v1/klines?symbol=${symbol}&interval=${INTERVAL}&limit=${KLINE_LIMIT}`);
+  if (!res.ok) return null;
+  const raw = await res.json();
+  // [open_time, open, high, low, close, volume, ...]
+  return raw.map(k => ({
+    time: k[0],
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low:  parseFloat(k[3]),
+    close: parseFloat(k[4]),
+  }));
+}
+
+async function getCurrentPrice(symbol) {
+  try {
+    const res = await fetch(`${BASE}/fapi/v1/ticker/price?symbol=${symbol}`);
+    const d = await res.json();
+    return parseFloat(d.price);
+  } catch { return null; }
+}
+
+// ─── PATTERN LOGIC ────────────────────────────────────────
+/*
+  candles: 인덱스 0이 가장 오래된 봉, N-1이 가장 최근 봉
+  현재봉(미완성) = N-1, 이전봉1 = N-2 (=1봉), 이전봉2 = N-3 (=2봉), ...
+  
+  STEP1: candles[N-2].low > candles[N-3].low < candles[N-4].low
+         → i1=N-4, i2=N-3, i3=N-2  (2봉이 로컬저점)
+  
+  STEP2: i3+1부터 과거(인덱스 감소 방향)로 찾기
+         j-1, j, j+1 에서 (j-1).high < j.high > (j+1).high
+         → j가 로컬고점 E
+         
+  STEP3: j+1부터 과거로 찾기
+         k-1, k, k+1 에서 (k-1).low > k.low < (k+1).low
+         → k가 로컬저점 H, k+1이 G봉
+*/
+function findPattern(candles) {
+  const N = candles.length;
+  if (N < 7) return null;
+
+  // ── STEP 1: 최근 3봉 (현재봉 제외) ──
+  // index (N-2)=1봉, (N-3)=2봉, (N-4)=3봉
+  const i1 = N-4; // 3봉 (=C)
+  const i2 = N-3; // 2봉 (=B) — 로컬저점
+  const i3 = N-2; // 1봉 (=A)
+
+  if (i1 < 0) return null;
+  if (!(candles[i1].low > candles[i2].low && candles[i2].low < candles[i3].low)) return null;
+
+  // ── STEP 2: i1-1 부터 과거 방향으로 로컬고점 탐색 ──
+  // 탐색 대상: index 0 ~ i1-1
+  // 인접 3봉: (j-1, j, j+1) 에서 j가 로컬고점
+  // j 범위: 1 ~ i1-2  (j-1>=0, j+1<=i1-1)
+  let eIdx = -1;
+  for (let j = i1-2; j >= 1; j--) {
+    if (candles[j-1].high < candles[j].high && candles[j].high > candles[j+1].high) {
+      eIdx = j;
+      break;
+    }
+  }
+  if (eIdx < 0) return null;
+
+  // ── STEP 3: eIdx-1 부터 과거 방향으로 로컬저점 탐색 ──
+  // k 범위: 1 ~ eIdx-2
+  let hIdx = -1;
+  for (let k = eIdx-2; k >= 1; k--) {
+    if (candles[k-1].low > candles[k].low && candles[k].low < candles[k+1].low) {
+      hIdx = k;
+      break;
+    }
+  }
+  if (hIdx < 0) return null;
+
+  const gIdx = hIdx + 1; // G봉 = H봉의 다음봉 (현재 방향)
+
+  const entryPrice = candles[gIdx].close;   // G 종가
+  const targetPrice = candles[eIdx].high;   // E 고가
+  const profit = (targetPrice - entryPrice) / entryPrice * 100;
+
+  // 봉 번호 (현재봉=0, 1봉=1, ...)
+  const barsAgoG = (N-1) - gIdx;
+  const barsAgoE = (N-1) - eIdx;
+
+  return {
+    entryPrice,
+    targetPrice,
+    profit,
+    barsAgoG,
+    barsAgoE,
+    gTime: candles[gIdx].time,
+    eTime: candles[eIdx].time,
+  };
+}
+
+// ─── SCAN ─────────────────────────────────────────────────
+btnScan.addEventListener('click', () => { if (!isScanning) runScan(); });
+
+async function runScan() {
+  isScanning = true;
+  btnScan.disabled = true;
+  results = [];
+  renderTable([]);
+
+  setStatus('scanning', '심볼 목록 로딩...');
+  progress.style.width = '0%';
+
+  let symbols;
+  try {
+    symbols = await getSymbols();
+  } catch(e) {
+    setStatus('error', '심볼 로딩 실패: ' + e.message);
+    isScanning = false;
+    btnScan.disabled = false;
+    return;
+  }
+
+  setStatus('scanning', `스캐닝 중... (0 / ${symbols.length})`);
+
+  let done = 0;
+  let matched = 0;
+  const step1Pass = [];
+
+  // ── STEP1 필터: klines fetch + pattern ──
+  for (let i = 0; i < symbols.length; i += BATCH) {
+    const batch = symbols.slice(i, i+BATCH);
+    const promises = batch.map(async sym => {
+      try {
+        const candles = await getKlines(sym);
+        if (!candles || candles.length < 7) return;
+        const result = findPattern(candles);
+        if (result) {
+          step1Pass.push({ symbol: sym, ...result });
+        }
+      } catch {}
+    });
+    await Promise.all(promises);
+    done += batch.length;
+    const pct = Math.round(done / symbols.length * 100);
+    progress.style.width = pct + '%';
+    setStatus('scanning', `스캐닝 중... (${done} / ${symbols.length}) — 패턴 발견: ${step1Pass.length}개`);
+    if (i + BATCH < symbols.length) await sleep(DELAY);
+  }
+
+  // 현재가 fetch
+  setStatus('scanning', `현재가 조회 중... (${step1Pass.length}개 매칭)`);
+  for (const r of step1Pass) {
+    const cur = await getCurrentPrice(r.symbol);
+    r.currentPrice = cur;
+    r.distToTarget = cur ? (r.targetPrice - cur) / cur * 100 : null;
+  }
+
+  // 수익률 내림차순 정렬
+  step1Pass.sort((a,b) => b.profit - a.profit);
+  results = step1Pass;
+  matched = results.length;
+
+  scanCount++;
+  scanCountEl.textContent = `스캔 ${scanCount}회`;
+
+  progress.style.width = '100%';
+  setTimeout(() => { progress.style.width = '0%'; }, 1000);
+
+  setStatus('done', `스캔 완료 — 전체 ${symbols.length}개 중 패턴 매칭: ${matched}개`);
+  statsEl.textContent = `${new Date().toLocaleTimeString('ko-KR')} 기준`;
+
+  renderTable(results);
+
+  if (matched > 0) {
+    sendNotif(`패턴 ${matched}개 발견`, results.slice(0,3).map(r=>r.symbol).join(', ') + ' 외');
+  }
+
+  isScanning = false;
+  btnScan.disabled = false;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setStatus(type, msg) {
+  statusDot.className = 'status-dot ' + type;
+  statusText.textContent = msg;
+}
+
+// ─── RENDER ───────────────────────────────────────────────
+function renderTable(data) {
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="9">
+      <div class="empty-state">
+        <div class="big">◈</div>
+        <p>패턴 매칭 결과 없음<br>조건: 로컬저점(B) → 로컬고점(E) → 로컬저점(H)</p>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map((r, idx) => {
+    const profitCls = r.profit >= 0 ? 'pos' : 'neg';
+    const profitStr = (r.profit >= 0 ? '+' : '') + r.profit.toFixed(2) + '%';
+    const distStr = r.distToTarget != null
+      ? (r.distToTarget >= 0 ? '+' : '') + r.distToTarget.toFixed(2) + '%'
+      : '-';
+    const distCls = r.distToTarget != null && r.distToTarget < 0 ? 'color:var(--loss)' : '';
+    const curStr = r.currentPrice ? r.currentPrice.toFixed(r.currentPrice < 1 ? 5 : 2) : '-';
+    const entryStr = r.entryPrice.toFixed(r.entryPrice < 1 ? 5 : 2);
+    const targetStr = r.targetPrice.toFixed(r.targetPrice < 1 ? 5 : 2);
+    const gAgo = `${r.barsAgoG}봉 전`;
+    const eAgo = `${r.barsAgoE}봉 전`;
+    const chartUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${r.symbol}.P`;
+
+    return `<tr>
+      <td>
+        <div class="symbol-cell">
+          <span class="symbol-name">${r.symbol.replace('USDT','')}</span>
+          <a class="chart-link" href="${chartUrl}" target="_blank">차트↗</a>
+        </div>
+      </td>
+      <td class="profit-cell ${profitCls}">${profitStr}</td>
+      <td class="price-cell">${entryStr}</td>
+      <td class="price-cell">${targetStr}</td>
+      <td class="price-cell">${curStr}</td>
+      <td style="${distCls};font-size:12px">${distStr}</td>
+      <td class="dim-cell">${gAgo}</td>
+      <td class="dim-cell">${eAgo}</td>
+      <td>
+        <span class="tag tag-s1">저점B</span>
+        <span class="tag tag-s2">고점E</span>
+        <span class="tag tag-s3">저점H→G</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── SORT ─────────────────────────────────────────────────
+document.getElementById('th-profit').addEventListener('click', () => {
+  sortDir *= -1;
+  results.sort((a,b) => sortDir * (b.profit - a.profit));
+  document.getElementById('th-profit').textContent = sortDir === -1 ? '수익률 ▼' : '수익률 ▲';
+  renderTable(results);
+});
+</script>
+</body>
+</html>
