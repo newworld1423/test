@@ -389,10 +389,10 @@
   </div>
 
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>STEP1: 로컬 저점 (B봉)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>STEP2: 로컬 고점 (E봉) → 매도가</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#7fff6b"></div>STEP3: 로컬 저점 (H봉) → 진입봉(G) 종가</div>
-    <div class="legend-item" style="color:#cdd6e0">수익률 = (E고가 − G종가) / G종가 × 100</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>B봉: 스윙저점 (손절 기준)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>E봉: 스윙고점 → 익절가</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7fff6b"></div>H봉: 이전 스윙저점 → 손절가 (H저가 &lt; B저가 필터)</div>
+    <div class="legend-item" style="color:#cdd6e0">진입: A종가 | 익절: E고가 | 손절: H저가</div>
   </div>
 
   <div class="table-wrap">
@@ -402,17 +402,19 @@
         <tr>
           <th>심볼</th>
           <th class="sortable" id="th-profit">수익률 ▼</th>
-          <th>진입가 (G종가)</th>
-          <th>목표가 (E고가)</th>
+          <th class="sortable" id="th-rr">손익비 ▼</th>
+          <th>진입가 (A종가)</th>
+          <th>익절가 (E고가)</th>
+          <th>손절가 (H저가)</th>
           <th>현재가</th>
-          <th>현재→목표</th>
-          <th>G봉</th>
+          <th>현재→익절</th>
+          <th>A봉</th>
           <th>E봉</th>
-          <th>스텝</th>
+          <th>H봉</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="9">
+        <tr><td colspan="11">
           <div class="empty-state">
             <div class="big">◈</div>
             <p>SCAN NOW 버튼을 눌러 스캔을 시작하세요<br>패턴: 로컬저점 → 로컬고점 → 로컬저점 (15분봉)</p>
@@ -587,20 +589,19 @@ function findPattern(candles) {
   if (N < 7) return null;
 
   // ── STEP 1: 최근 3봉 (현재봉 제외) ──
-  // index (N-2)=1봉, (N-3)=2봉, (N-4)=3봉
-  const i1 = N-4; // 3봉 (=C)
-  const i2 = N-3; // 2봉 (=B) — 로컬저점
-  const i3 = N-2; // 1봉 (=A)
+  // A=N-2(1봉), B=N-3(2봉), C=N-4(3봉)
+  const aIdx = N-2; // A봉 — 진입봉
+  const bIdx = N-3; // B봉 — 로컬저점
+  const cIdx = N-4; // C봉
 
-  if (i1 < 0) return null;
-  if (!(candles[i1].low > candles[i2].low && candles[i2].low < candles[i3].low)) return null;
+  if (cIdx < 0) return null;
+  // C저가 > B저가 < A저가
+  if (!(candles[cIdx].low > candles[bIdx].low && candles[bIdx].low < candles[aIdx].low)) return null;
 
-  // ── STEP 2: i1-1 부터 과거 방향으로 로컬고점 탐색 ──
-  // 탐색 대상: index 0 ~ i1-1
-  // 인접 3봉: (j-1, j, j+1) 에서 j가 로컬고점
-  // j 범위: 1 ~ i1-2  (j-1>=0, j+1<=i1-1)
+  // ── STEP 2: C봉 이전부터 과거 방향으로 로컬고점(E) 탐색 ──
+  // (j-1).high < j.high > (j+1).high, j+1 <= cIdx-1
   let eIdx = -1;
-  for (let j = i1-2; j >= 1; j--) {
+  for (let j = cIdx-2; j >= 1; j--) {
     if (candles[j-1].high < candles[j].high && candles[j].high > candles[j+1].high) {
       eIdx = j;
       break;
@@ -608,8 +609,8 @@ function findPattern(candles) {
   }
   if (eIdx < 0) return null;
 
-  // ── STEP 3: eIdx-1 부터 과거 방향으로 로컬저점 탐색 ──
-  // k 범위: 1 ~ eIdx-2
+  // ── STEP 3: E봉 이전부터 과거 방향으로 로컬저점(H) 탐색 ──
+  // (k-1).low > k.low < (k+1).low, k+1 <= eIdx-1
   let hIdx = -1;
   for (let k = eIdx-2; k >= 1; k--) {
     if (candles[k-1].low > candles[k].low && candles[k].low < candles[k+1].low) {
@@ -619,24 +620,27 @@ function findPattern(candles) {
   }
   if (hIdx < 0) return null;
 
-  const gIdx = hIdx + 1; // G봉 = H봉의 다음봉 (현재 방향)
+  // ── 필터: H저가 < B저가 (저점 상승 구조) ──
+  if (!(candles[hIdx].low < candles[bIdx].low)) return null;
 
-  const entryPrice = candles[gIdx].close;   // G 종가
-  const targetPrice = candles[eIdx].high;   // E 고가
+  const entryPrice  = candles[aIdx].close;  // A봉 종가 — 진입가
+  const targetPrice = candles[eIdx].high;   // E봉 고가 — 익절가
+  const stopPrice   = candles[hIdx].low;    // H봉 저가 — 손절가
+
   const profit = (targetPrice - entryPrice) / entryPrice * 100;
-
-  // 봉 번호 (현재봉=0, 1봉=1, ...)
-  const barsAgoG = (N-1) - gIdx;
-  const barsAgoE = (N-1) - eIdx;
+  const rr = entryPrice > stopPrice
+    ? (targetPrice - entryPrice) / (entryPrice - stopPrice)
+    : null;
 
   return {
     entryPrice,
     targetPrice,
+    stopPrice,
     profit,
-    barsAgoG,
-    barsAgoE,
-    gTime: candles[gIdx].time,
-    eTime: candles[eIdx].time,
+    rr,
+    barsAgoA: (N-1) - aIdx,
+    barsAgoE: (N-1) - eIdx,
+    barsAgoH: (N-1) - hIdx,
   };
 }
 
@@ -695,6 +699,7 @@ async function runScan() {
     const cur = await getCurrentPrice(r.symbol);
     r.currentPrice = cur;
     r.distToTarget = cur ? (r.targetPrice - cur) / cur * 100 : null;
+    r.distToStop   = cur ? (cur - r.stopPrice) / cur * 100 : null;
   }
 
   // 수익률 내림차순 정렬
@@ -729,59 +734,68 @@ function setStatus(type, msg) {
 }
 
 // ─── RENDER ───────────────────────────────────────────────
+function fmt(p) {
+  if (p == null) return '-';
+  return p.toFixed(p < 1 ? 5 : 2);
+}
+
 function renderTable(data) {
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="9">
+    tbody.innerHTML = `<tr><td colspan="11">
       <div class="empty-state">
         <div class="big">◈</div>
-        <p>패턴 매칭 결과 없음<br>조건: 로컬저점(B) → 로컬고점(E) → 로컬저점(H)</p>
+        <p>패턴 매칭 결과 없음<br>조건: 스윙저점(H) → 스윙고점(E) → 스윙저점(B) + H저가 &lt; B저가</p>
       </div>
     </td></tr>`;
     return;
   }
 
-  tbody.innerHTML = data.map((r, idx) => {
+  tbody.innerHTML = data.map((r) => {
     const profitCls = r.profit >= 0 ? 'pos' : 'neg';
     const profitStr = (r.profit >= 0 ? '+' : '') + r.profit.toFixed(2) + '%';
+    const rrStr = r.rr != null ? r.rr.toFixed(2) + ':1' : '-';
+    const rrCls = r.rr != null && r.rr >= 2 ? 'color:var(--profit)' : r.rr != null && r.rr < 1 ? 'color:var(--loss)' : 'color:var(--text-dim)';
     const distStr = r.distToTarget != null
-      ? (r.distToTarget >= 0 ? '+' : '') + r.distToTarget.toFixed(2) + '%'
-      : '-';
+      ? (r.distToTarget >= 0 ? '+' : '') + r.distToTarget.toFixed(2) + '%' : '-';
     const distCls = r.distToTarget != null && r.distToTarget < 0 ? 'color:var(--loss)' : '';
-    const curStr = r.currentPrice ? r.currentPrice.toFixed(r.currentPrice < 1 ? 5 : 2) : '-';
-    const entryStr = r.entryPrice.toFixed(r.entryPrice < 1 ? 5 : 2);
-    const targetStr = r.targetPrice.toFixed(r.targetPrice < 1 ? 5 : 2);
-    const gAgo = `${r.barsAgoG}봉 전`;
-    const eAgo = `${r.barsAgoE}봉 전`;
-    const chartUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${r.symbol}.P`;
+    const curStr = r.currentPrice ? fmt(r.currentPrice) : '-';
+    const chartUrl = \`https://www.tradingview.com/chart/?symbol=BINANCE:\${r.symbol}.P\`;
 
-    return `<tr>
+    return \`<tr>
       <td>
         <div class="symbol-cell">
-          <span class="symbol-name">${r.symbol.replace('USDT','')}</span>
-          <a class="chart-link" href="${chartUrl}" target="_blank">차트↗</a>
+          <span class="symbol-name">\${r.symbol.replace('USDT','')}</span>
+          <a class="chart-link" href="\${chartUrl}" target="_blank">차트↗</a>
         </div>
       </td>
-      <td class="profit-cell ${profitCls}">${profitStr}</td>
-      <td class="price-cell">${entryStr}</td>
-      <td class="price-cell">${targetStr}</td>
-      <td class="price-cell">${curStr}</td>
-      <td style="${distCls};font-size:12px">${distStr}</td>
-      <td class="dim-cell">${gAgo}</td>
-      <td class="dim-cell">${eAgo}</td>
-      <td>
-        <span class="tag tag-s1">저점B</span>
-        <span class="tag tag-s2">고점E</span>
-        <span class="tag tag-s3">저점H→G</span>
-      </td>
-    </tr>`;
+      <td class="profit-cell \${profitCls}">\${profitStr}</td>
+      <td style="\${rrCls};font-weight:700">\${rrStr}</td>
+      <td class="price-cell">\${fmt(r.entryPrice)}</td>
+      <td class="price-cell" style="color:var(--accent)">\${fmt(r.targetPrice)}</td>
+      <td class="price-cell" style="color:var(--loss)">\${fmt(r.stopPrice)}</td>
+      <td class="price-cell">\${curStr}</td>
+      <td style="\${distCls};font-size:12px">\${distStr}</td>
+      <td class="dim-cell">\${r.barsAgoA}봉 전</td>
+      <td class="dim-cell">\${r.barsAgoE}봉 전</td>
+      <td class="dim-cell">\${r.barsAgoH}봉 전</td>
+    </tr>\`;
   }).join('');
 }
 
 // ─── SORT ─────────────────────────────────────────────────
+let sortKey = 'profit';
 document.getElementById('th-profit').addEventListener('click', () => {
-  sortDir *= -1;
-  results.sort((a,b) => sortDir * (b.profit - a.profit));
-  document.getElementById('th-profit').textContent = sortDir === -1 ? '수익률 ▼' : '수익률 ▲';
+  sortKey = 'profit'; sortDir = -1;
+  results.sort((a,b) => b.profit - a.profit);
+  document.getElementById('th-profit').textContent = '수익률 ▼';
+  document.getElementById('th-rr').textContent = '손익비';
+  renderTable(results);
+});
+document.getElementById('th-rr').addEventListener('click', () => {
+  sortKey = 'rr'; sortDir = -1;
+  results.sort((a,b) => (b.rr||0) - (a.rr||0));
+  document.getElementById('th-rr').textContent = '손익비 ▼';
+  document.getElementById('th-profit').textContent = '수익률';
   renderTable(results);
 });
 </script>
