@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고점 판독기</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@700;800&display=swap');
+:root{
+  --bg:#06090d;--s1:#0a0f16;--s2:#0e151e;
+  --bd:#182230;--bd2:#1f2f42;
+  --acc:#ff4d6d;--acc2:#ff9a3c;
+  --safe:#00e5b0;--acc3:#a78bfa;
+  --text:#e2eef8;--mt:#4a6880;--mt2:#2a3f55;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;min-height:100vh}
+.gbg{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(255,77,109,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,77,109,.02) 1px,transparent 1px);
+  background-size:52px 52px}
+.gbg::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 20% 20%,rgba(255,77,109,.05) 0%,transparent 55%),
+    radial-gradient(ellipse at 80% 80%,rgba(167,139,250,.04) 0%,transparent 50%)}
+.wrap{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:36px 20px 60px}
+
+/* header */
+header{margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px}
+.tag{display:inline-block;font-size:10px;letter-spacing:3px;font-weight:600;
+  color:var(--acc);border:1px solid rgba(255,77,109,.3);padding:3px 10px;border-radius:2px;margin-bottom:8px}
+h1{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;line-height:1.1}
+h1 em{color:var(--acc);font-style:normal}
+.sub{color:var(--mt);font-size:11px;margin-top:5px;line-height:1.7}
+.timer-box{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.tl{font-size:10px;letter-spacing:2px;color:var(--mt);text-transform:uppercase}
+.tc{font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--acc);letter-spacing:2px}
+.ab{font-size:10px;letter-spacing:1px;padding:3px 10px;border-radius:2px;text-transform:uppercase}
+.ab.on{background:rgba(255,77,109,.12);color:var(--acc);border:1px solid rgba(255,77,109,.3)}
+.ab.off{background:rgba(74,104,128,.08);color:var(--mt);border:1px solid rgba(74,104,128,.2)}
+
+/* condition card */
+.ccard{background:var(--s1);border:1px solid var(--bd);border-radius:2px;
+  padding:18px 22px;margin-bottom:18px;position:relative;overflow:hidden}
+.ccard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.ccard h2{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:var(--mt);margin-bottom:12px}
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 24px}
+.ci{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.65;color:var(--mt)}
+.cd{flex-shrink:0;width:5px;height:5px;border-radius:50%;margin-top:6px}
+.must{background:var(--acc)}
+.strong{background:var(--acc2)}
+.sub2{background:var(--acc3)}
+.cv{color:var(--text);font-weight:600}
+.basis{margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);
+  font-size:10px;color:var(--mt2);line-height:1.9}
+.basis strong{color:var(--mt)}
+
+/* notif row */
+.nr{display:flex;align-items:center;flex-wrap:wrap;gap:14px;
+  background:var(--s1);border:1px solid var(--bd);border-radius:2px;
+  padding:11px 20px;margin-bottom:18px}
+.nl{font-size:11px;color:var(--mt)}
+.tw{display:flex;align-items:center;gap:7px}
+.tg{position:relative;width:36px;height:20px;flex-shrink:0}
+.tg input{opacity:0;width:0;height:0;position:absolute}
+.ts{position:absolute;inset:0;background:var(--bd2);border-radius:20px;cursor:pointer;transition:background .2s}
+.ts::before{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;
+  border-radius:50%;background:var(--mt);transition:transform .2s,background .2s}
+.tg input:checked+.ts{background:rgba(255,77,109,.2);border:1px solid var(--acc)}
+.tg input:checked+.ts::before{transform:translateX(16px);background:var(--acc)}
+.nst{font-size:11px}
+.sep{color:var(--mt2)}
+select.sel{background:var(--bg);border:1px solid var(--bd2);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 8px;border-radius:2px;outline:none}
+
+/* ctrl */
+.ctrl{background:var(--s1);border:1px solid var(--bd);border-radius:2px;
+  padding:18px 22px;margin-bottom:18px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr)) auto;
+  gap:14px;align-items:end}
+.field label{display:block;font-size:10px;letter-spacing:2px;color:var(--mt);
+  text-transform:uppercase;margin-bottom:7px}
+.field input{width:100%;background:var(--bg);border:1px solid var(--bd2);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;padding:9px 11px;
+  border-radius:2px;outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--acc)}
+.btn{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;padding:9px 18px;border:none;border-radius:2px;
+  cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.bp{background:var(--acc);color:#fff}
+.bp:hover:not(:disabled){opacity:.85}
+.bo{background:transparent;border:1px solid var(--bd2);color:var(--mt)}
+.bo:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}
+
+/* progress */
+.pw{margin-bottom:14px;display:none}
+.ph{display:flex;justify-content:space-between;margin-bottom:5px;font-size:11px}
+.pb{height:2px;background:var(--bd);border-radius:2px;overflow:hidden;margin-bottom:4px}
+.pf{height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0%;transition:width .25s}
+.ps{font-size:11px;color:var(--mt);min-height:15px}
+
+/* log */
+.lw{background:var(--s1);border:1px solid var(--bd);border-radius:2px;
+  padding:10px 14px;max-height:100px;overflow-y:auto;font-size:11px;
+  line-height:1.9;margin-bottom:18px;display:none}
+.ll{color:var(--mt)}.ll.ok{color:var(--safe)}.ll.warn{color:var(--acc2)}
+.ll.err{color:var(--acc)}.ll.hit{color:var(--acc);font-weight:700}
+
+/* stats */
+.sb{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.sp{background:var(--s1);border:1px solid var(--bd);border-radius:2px;padding:12px 14px}
+.sp .sl{font-size:10px;letter-spacing:1.5px;color:var(--mt);text-transform:uppercase;margin-bottom:4px}
+.sp .sv{font-size:20px;font-weight:500;color:var(--text)}
+.sp .sv.red{color:var(--acc)}.sp .sv.warn{color:var(--acc2)}.sp .sv.sm{font-size:13px}
+
+/* table */
+.rh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.rt{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:var(--mt)}
+.tw2{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:960px}
+thead th{text-align:left;color:var(--mt);font-weight:400;letter-spacing:.5px;
+  padding:7px 9px;border-bottom:1px solid var(--bd);white-space:nowrap;
+  position:sticky;top:0;background:var(--bg);z-index:2;cursor:pointer}
+thead th:hover{color:var(--text)}
+thead th.sd::after{content:' ↓';color:var(--acc)}
+thead th.sa::after{content:' ↑';color:var(--acc)}
+tbody tr:hover td{background:rgba(255,77,109,.02)}
+tbody td{padding:8px 9px;border-bottom:1px solid rgba(24,34,48,.8);white-space:nowrap}
+
+.sym{font-weight:700;color:var(--text);font-size:12px}
+.sym-s{font-size:10px;color:var(--mt);margin-top:1px}
+
+/* peak score badge */
+.pb2{display:inline-flex;align-items:center;justify-content:center;
+  padding:3px 10px;border-radius:2px;font-size:11px;font-weight:700;min-width:52px}
+.ps-s{background:rgba(255,77,109,.18);color:var(--acc);border:1px solid rgba(255,77,109,.35)}
+.ps-a{background:rgba(255,154,60,.12);color:var(--acc2);border:1px solid rgba(255,154,60,.25)}
+.ps-b{background:rgba(167,139,250,.1);color:var(--acc3);border:1px solid rgba(167,139,250,.2)}
+.ps-c{background:rgba(74,104,128,.1);color:var(--mt);border:1px solid rgba(74,104,128,.2)}
+
+/* signal tags */
+.sw{display:flex;flex-wrap:wrap;gap:3px;max-width:240px}
+.sig{display:inline-block;font-size:9px;letter-spacing:.5px;padding:2px 6px;
+  border-radius:1px;text-transform:uppercase;font-weight:500}
+.s-rsi{background:rgba(255,77,109,.12);color:#ff8099}
+.s-stoch{background:rgba(255,154,60,.1);color:#ffb86c}
+.s-macd{background:rgba(167,139,250,.1);color:#c4b5fd}
+.s-bb{background:rgba(0,229,176,.08);color:#66d4b5}
+.s-ema{background:rgba(0,150,255,.1);color:#5dbcff}
+.s-vol{background:rgba(255,209,102,.1);color:#ffd166}
+.s-bear{background:rgba(255,61,85,.1);color:#ff6b84}
+
+td.red{color:var(--acc)}
+td.warn{color:var(--acc2)}
+td.safe{color:var(--safe)}
+td.mono{font-family:'JetBrains Mono',monospace}
+.er td{text-align:center;color:var(--mt2);padding:32px;font-size:12px}
+
+/* alert log */
+.al{background:var(--s1);border:1px solid var(--bd);border-radius:2px;
+  padding:16px 20px;margin-top:22px}
+.al h3{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:var(--mt);margin-bottom:10px}
+.ai{display:grid;grid-template-columns:75px 110px 1fr;gap:10px;align-items:start;
+  padding:9px 0;border-bottom:1px solid rgba(24,34,48,.8);font-size:11px}
+.ai:last-child{border-bottom:none}
+.ai-t{font-size:10px;color:var(--mt2);padding-top:1px}
+.ai-s .sym{font-size:12px}
+.ai-b{font-size:10px;color:var(--mt);line-height:1.8}
+.ai-b strong{color:var(--text)}
+.ai-b .hi{color:var(--acc)}
+.noal{font-size:11px;color:var(--mt2);text-align:center;padding:14px 0}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="gbg"></div>
+<div class="wrap">
+
+<header>
+  <div>
+    <div class="tag">Peak Detector · 15m</div>
+    <h1>고점 <em>판독기</em></h1>
+    <p class="sub">
+      LIGHT·PIEVERSE·MYX·BROCCOLI(×2)·CLO·ZKP 7종목 고점봉 공통조건 기반<br>
+      직전봉이 고점인지 실시간 감지 · 매시 00·15·30·45분 자동실행
+    </p>
+  </div>
+  <div class="timer-box">
+    <span class="tl">다음 자동스캔</span>
+    <span class="tc" id="nextTime">--:--</span>
+    <span class="ab off" id="autoBadge">자동OFF</span>
+  </div>
+</header>
+
+<!-- 조건 카드 -->
+<div class="ccard">
+  <h2>고점 감지 조건 — 7종목 실측 공통점</h2>
+  <div class="cg">
+    <div class="ci"><div class="cd must"></div>
+      <div><span class="cv">EMA 9 &gt; 21 &gt; 50</span> — 7종목 100% 공통 (상승 정렬 유지)</div></div>
+    <div class="ci"><div class="cd must"></div>
+      <div><span class="cv">RSI 60~88</span> — 7종목 모두 해당 (과열 구간)</div></div>
+    <div class="ci"><div class="cd must"></div>
+      <div><span class="cv">MACD Hist ≥ -0.002</span> — 6/7종목 양수, 감소 시작 직전</div></div>
+    <div class="ci"><div class="cd strong"></div>
+      <div><span class="cv">StochK ≥ 75</span> — 6/7종목 해당 (CLO 49.9 예외)</div></div>
+    <div class="ci"><div class="cd strong"></div>
+      <div><span class="cv">StochK &gt; StochD</span> — 5/7종목 해당 (과매수 진입)</div></div>
+    <div class="ci"><div class="cd sub2"></div>
+      <div><span class="cv">BB%B ≥ 75</span> — 보조 확인 (7종목 77~139)</div></div>
+    <div class="ci"><div class="cd sub2"></div>
+      <div><span class="cv">VolR ≥ 1.0x</span> — 보조 확인 (거래량 유지)</div></div>
+    <div class="ci"><div class="cd sub2"></div>
+      <div>고점 이후 공통: <span class="cv">MACD Hist 감소 + StochK 하락</span> 시작</div></div>
+  </div>
+  <div class="basis">
+    ● 필수(3개) + 강력(2개) 중 1개 이상 충족 시 감지 &nbsp;|&nbsp;
+    <strong>S(85+) A(70+) B(55+)</strong> 등급 표시 &nbsp;|&nbsp;
+    스코어가 높을수록 7종목 고점 패턴과 유사
+  </div>
+</div>
+
+<!-- 알림/자동 -->
+<div class="nr">
+  <span class="nl">브라우저 알림</span>
+  <div class="tw"><label class="tg"><input type="checkbox" id="nc" onchange="toggleNotif()"><span class="ts"></span></label>
+  <span class="nst" id="nst">꺼짐</span></div>
+  <span class="sep">|</span>
+  <span class="nl">자동스캔 (매 00·15·30·45분)</span>
+  <div class="tw"><label class="tg"><input type="checkbox" id="ac" onchange="toggleAuto()"><span class="ts"></span></label>
+  <span class="nst" id="ast">꺼짐</span></div>
+  <span class="sep">|</span>
+  <span class="nl">알림 최소 스코어</span>
+  <select class="sel" id="minScore">
+    <option value="40">40점+</option>
+    <option value="55" selected>55점+ (권장)</option>
+    <option value="70">70점+</option>
+    <option value="85">85점+</option>
+  </select>
+</div>
+
+<!-- 컨트롤 -->
+<div class="ctrl">
+  <div class="field"><label>최소 거래량 (USDT)</label><input type="number" id="minVol" value="5000000" step="1000000"></div>
+  <div class="field"><label>최대 종목 수</label><input type="number" id="maxSym" value="250" min="20" max="500"></div>
+  <div class="field"><label>요청 간격 ms</label><input type="number" id="reqDelay" value="300" min="150" max="2000" step="50"></div>
+  <button class="btn bp" id="btnScan" onclick="startScan(false)">▶ 즉시 스캔</button>
+</div>
+
+<!-- 진행 -->
+<div class="pw" id="pw">
+  <div class="ph">
+    <span style="font-size:11px;color:var(--mt)">스캔 진행</span>
+    <span style="font-size:11px;color:var(--acc)" id="pp">0%</span>
+  </div>
+  <div class="pb"><div class="pf" id="pf"></div></div>
+  <div class="ps" id="ps">초기화...</div>
+</div>
+<div class="lw" id="lw"></div>
+
+<!-- 통계 -->
+<div class="sb">
+  <div class="sp"><div class="sl">스캔 종목</div><div class="sv" id="s0">—</div></div>
+  <div class="sp"><div class="sl">고점 감지</div><div class="sv red" id="s1">—</div></div>
+  <div class="sp"><div class="sl">S등급 (85+)</div><div class="sv red" id="s2">—</div></div>
+  <div class="sp"><div class="sl">A등급 (70+)</div><div class="sv warn" id="s3">—</div></div>
+  <div class="sp"><div class="sl">마지막 스캔</div><div class="sv sm" id="s4">—</div></div>
+</div>
+
+<!-- 결과 테이블 -->
+<div class="rh">
+  <span class="rt">감지 결과</span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span style="font-size:11px;color:var(--mt)" id="scanTs"></span>
+    <button class="btn bo" onclick="dlCSV()" id="btnCsv" style="padding:6px 14px" disabled>↓ CSV</button>
+  </div>
+</div>
+<div class="tw2">
+<table id="rtbl">
+  <thead><tr>
+    <th onclick="srt('rank')">순위</th>
+    <th onclick="srt('symbol')">종목</th>
+    <th onclick="srt('score')">스코어</th>
+    <th onclick="srt('chgFromOpen')">당일 시가대비%</th>
+    <th onclick="srt('prevRsi')">직전봉 RSI</th>
+    <th onclick="srt('prevStochK')">직전봉 StochK</th>
+    <th onclick="srt('prevStochD')">직전봉 StochD</th>
+    <th onclick="srt('prevMacdH')">직전봉 MACD Hist</th>
+    <th onclick="srt('prevBBpctb')">직전봉 BB%B</th>
+    <th onclick="srt('prevVolR')">직전봉 VolR</th>
+    <th>EMA 정렬</th>
+    <th onclick="srt('prevChg')">직전봉 봉등락%</th>
+    <th>신호</th>
+    <th onclick="srt('close')">현재가</th>
+  </tr></thead>
+  <tbody id="rtBody"><tr class="er"><td colspan="14">스캔 버튼을 눌러 시작하세요</td></tr></tbody>
+</table>
+</div>
+
+<!-- 알림 로그 -->
+<div class="al">
+  <h3>알림 기록</h3>
+  <div id="alBody"><div class="noal">아직 알림 없음</div></div>
+</div>
+
+</div>
+
+<script>
+// ── 상태 ──
+let autoEnabled=false,notifEnabled=false,notifGranted=false;
+let autoTimer=null,scanRunning=false;
+let lastResults=[],alertHistory=[];
+let sortKey='score',sortDir=-1;
+
+// ── 타이머 ──
+function nextQtr(){
+  const n=new Date(),cur=n.getMinutes()*60+n.getSeconds();
+  for(const s of[0,900,1800,2700,3600])if(s>cur)return(s-cur)*1000-n.getMilliseconds();
+  return 0;
+}
+function updClock(){
+  const t=Math.floor(nextQtr()/1000);
+  document.getElementById('nextTime').textContent=
+    String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+}
+setInterval(updClock,1000);updClock();
+
+function toggleAuto(){
+  autoEnabled=document.getElementById('ac').checked;
+  document.getElementById('ast').textContent=autoEnabled?'켜짐':'꺼짐';
+  document.getElementById('autoBadge').textContent=autoEnabled?'자동ON':'자동OFF';
+  document.getElementById('autoBadge').className='ab '+(autoEnabled?'on':'off');
+  if(autoEnabled)schedNext();else clearTimeout(autoTimer);
+}
+function schedNext(){
+  if(!autoEnabled)return;
+  clearTimeout(autoTimer);
+  autoTimer=setTimeout(()=>{startScan(true);schedNext();},nextQtr());
+}
+
+// ── 알림 ──
+async function toggleNotif(){
+  notifEnabled=document.getElementById('nc').checked;
+  if(notifEnabled){
+    if(Notification.permission==='granted')notifGranted=true;
+    else if(Notification.permission!=='denied')
+      notifGranted=await Notification.requestPermission()==='granted';
+    if(!notifGranted){
+      document.getElementById('nc').checked=false;notifEnabled=false;
+      document.getElementById('nst').textContent='권한 거부됨';return;
+    }
+    document.getElementById('nst').textContent='켜짐';
+  }else document.getElementById('nst').textContent='꺼짐';
+}
+function sendNotif(r){
+  if(!notifEnabled||!notifGranted)return;
+  const n=new Notification(`⚠️ 고점 감지: ${r.symbol}`,{
+    body:`스코어 ${r.score}점 | RSI ${r.prevRsi.toFixed(1)} | StochK ${r.prevStochK.toFixed(1)} | 당일 +${r.chgFromOpen.toFixed(1)}%`,
+    tag:r.symbol
+  });
+  setTimeout(()=>n.close(),10000);
+}
+function addAlert(r){
+  alertHistory.unshift({time:new Date().toTimeString().slice(0,8),r});
+  if(alertHistory.length>40)alertHistory.pop();
+  renderAlerts();
+}
+function renderAlerts(){
+  const el=document.getElementById('alBody');
+  if(!alertHistory.length){el.innerHTML='<div class="noal">아직 알림 없음</div>';return;}
+  el.innerHTML=alertHistory.map(a=>`
+    <div class="ai">
+      <div class="ai-t">${a.time}</div>
+      <div class="ai-s">
+        <div class="sym">${a.r.symbol}</div>
+        <div style="margin-top:4px"><span class="pb2 ${scCls(a.r.score)}">${scLbl(a.r.score)} ${a.r.score}</span></div>
+      </div>
+      <div class="ai-b">
+        RSI <strong>${a.r.prevRsi.toFixed(1)}</strong> · StochK <strong>${a.r.prevStochK.toFixed(1)}</strong>
+        · BB%B <strong>${a.r.prevBBpctb.toFixed(0)}</strong> · MACD_H <strong>${a.r.prevMacdH.toFixed(5)}</strong><br>
+        당일 시가대비 <span class="hi">+${a.r.chgFromOpen.toFixed(2)}%</span>
+        · 현재가 ${a.r.close.toFixed(4)}
+      </div>
+    </div>`).join('');
+}
+
+// ── 로그 ──
+function log(msg,type=''){
+  const b=document.getElementById('lw');
+  b.style.display='block';
+  const d=document.createElement('div');
+  d.className='ll '+type;
+  d.textContent='['+new Date().toTimeString().slice(0,8)+'] '+msg;
+  b.appendChild(d);b.scrollTop=b.scrollHeight;
+  if(b.children.length>60)b.removeChild(b.firstChild);
+}
+function setProg(p,s){
+  document.getElementById('pf').style.width=p+'%';
+  document.getElementById('pp').textContent=Math.round(p)+'%';
+  if(s!=null)document.getElementById('ps').textContent=s;
+}
+
+// ── 유틸 ──
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function fetchR(url,tries=3,delay=500){
+  for(let i=0;i<tries;i++){
+    try{
+      const r=await fetch(url);
+      if(r.status===418||r.status===429){await sleep(delay*(i+2));continue;}
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return await r.json();
+    }catch(e){if(i===tries-1)throw e;await sleep(delay*(i+1));}
+  }
+}
+
+// ── 지표 ──
+function calcEMA(arr,p){
+  const k=2/(p+1);let e=arr[0];
+  return arr.map((v,i)=>{e=i<p?arr.slice(0,i+1).reduce((a,b)=>a+b)/(i+1):v*k+e*(1-k);return e;});
+}
+function calcRSI(C,p=14){
+  return C.map((_,i)=>{
+    if(i<p)return null;
+    let g=0,l=0;
+    for(let j=i-p+1;j<=i;j++){const d=C[j]-C[j-1];if(d>0)g+=d;else l-=d;}
+    return 100-100/(1+(g/p)/((l/p)||.0001));
+  });
+}
+function calcStoch(H,L,C,k=14,d=3){
+  const pK=C.map((_,i)=>{
+    if(i<k-1)return null;
+    const hh=Math.max(...H.slice(i-k+1,i+1)),ll=Math.min(...L.slice(i-k+1,i+1));
+    return hh===ll?50:(C[i]-ll)/(hh-ll)*100;
+  });
+  const pD=pK.map((_,i)=>{
+    if(i<k-1+d-1||pK[i]===null)return null;
+    const sl=pK.slice(i-d+1,i+1).filter(v=>v!=null);
+    return sl.reduce((a,b)=>a+b)/sl.length;
+  });
+  return{pK,pD};
+}
+function calcMACD(C){
+  const e12=calcEMA(C,12),e26=calcEMA(C,26);
+  const m=e12.map((v,i)=>v-e26[i]);
+  const sig=calcEMA(m,9);
+  return{hist:m.map((v,i)=>v-sig[i])};
+}
+function calcBB(C,p=20,mult=2){
+  return C.map((_,i)=>{
+    if(i<p-1)return null;
+    const sl=C.slice(i-p+1,i+1);
+    const mean=sl.reduce((a,b)=>a+b)/p;
+    const std=Math.sqrt(sl.reduce((a,b)=>a+(b-mean)**2)/p);
+    const u=mean+mult*std,l=mean-mult*std;
+    return u!==l?(C[i]-l)/(u-l)*100:50;
+  });
+}
+function calcVolMA(V){
+  return V.map((_,i)=>{
+    if(i<20)return V[i];
+    return V.slice(i-20,i).reduce((a,b)=>a+b)/20;
+  });
+}
+
+// ── 핵심: 고점 감지 ──
+// 직전봉(pi=n-1)이 7종목 고점 패턴과 일치하는지 확인
+function detectPeak(klines){
+  if(!klines||klines.length<55)return null;
+
+  const O=klines.map(k=>parseFloat(k[1]));
+  const H=klines.map(k=>parseFloat(k[2]));
+  const L=klines.map(k=>parseFloat(k[3]));
+  const C=klines.map(k=>parseFloat(k[4]));
+  const V=klines.map(k=>parseFloat(k[5]));
+  const T=klines.map(k=>k[0]);
+  const n=C.length-1;
+  const pi=n-1; // 직전봉
+
+  if(pi<50)return null;
+
+  const RSI=calcRSI(C);
+  const STH=calcStoch(H,L,C);
+  const MCD=calcMACD(C);
+  const BB=calcBB(C);
+  const VMA=calcVolMA(V);
+  const e9=calcEMA(C,9),e21=calcEMA(C,21),e50=calcEMA(C,50);
+
+  const rsi=RSI[pi];
+  const stochK=STH.pK[pi];
+  const stochD=STH.pD[pi];
+  const macdH=MCD.hist[pi];
+  const bbPctb=BB[pi];
+  const volR=VMA[pi]>0?V[pi]/VMA[pi]:0;
+  const prevChg=(C[pi]-O[pi])/O[pi]*100;
+
+  if([rsi,stochK,macdH,bbPctb].some(v=>v===null||isNaN(v)))return null;
+
+  // ── 필수 조건 3개 (모두 충족) ──
+  // 1. EMA 정렬
+  const ema3=e9[pi]>e21[pi]&&e21[pi]>e50[pi];
+  if(!ema3)return null;
+
+  // 2. RSI 60~88
+  if(rsi<58||rsi>90)return null;
+
+  // 3. MACD Hist >= -0.002 (양수 또는 막 음전환 시작)
+  if(macdH<-0.002)return null;
+
+  // ── 스코어 계산 (100점) ──
+  let score=0;
+  const sigs=[];
+
+  // RSI 구간 (25점)
+  if(rsi>=70&&rsi<=88){score+=25;sigs.push('RSI과열');}
+  else if(rsi>=60&&rsi<=90){score+=15;sigs.push('RSI상승');}
+  else score+=5;
+
+  // StochK (20점)
+  if(stochK>=80){score+=20;sigs.push('StochK과매수');}
+  else if(stochK>=65){score+=12;sigs.push('StochK높음');}
+  else if(stochK>=50){score+=6;}
+  else score+=0;
+
+  // StochK > StochD (15점)
+  if(stochD!==null&&stochK>stochD){score+=15;sigs.push('Stoch↑진입');}
+  else if(stochD!==null&&stochK<stochD&&stochK>=75){score+=5;sigs.push('Stoch↓반전');}
+
+  // MACD Hist 상태 (15점)
+  // 7종목 모두 고점에서 MACD Hist가 양수였으나 이후 감소/음전환
+  if(macdH>0.0001){score+=15;sigs.push('MACD양수');}
+  else if(macdH>=-0.001){score+=8;sigs.push('MACD0근처');}
+  else score+=3;
+
+  // BB%B (15점)
+  if(bbPctb>=90){score+=15;sigs.push('BB%B과열');}
+  else if(bbPctb>=75){score+=10;sigs.push('BB%B상단');}
+  else if(bbPctb>=60){score+=5;}
+  else score+=0;
+
+  // VolR (10점)
+  if(volR>=2){score+=10;sigs.push('거래량급증');}
+  else if(volR>=1){score+=6;}
+  else score+=2;
+
+  // 당일 상승폭 보너스 (얼마나 많이 올랐는지)
+  // 당일 시가 대비 현재가 (직전봉 종가)
+  const todayStart=(()=>{const d=new Date();d.setUTCHours(0,0,0,0);return d.getTime();})();
+  let todayOpen=O[pi];
+  for(let i=0;i<=pi;i++){if(T[i]>=todayStart){todayOpen=O[i];break;}}
+  const chgFromOpen=(C[pi]-todayOpen)/todayOpen*100;
+
+  // 급등 후 고점 패턴: 당일 +20% 이상 올라있을 때 더 신뢰
+  if(chgFromOpen>=30)      {score+=10;sigs.push(`+${chgFromOpen.toFixed(0)}%급등후`);}
+  else if(chgFromOpen>=15) {score+=6;sigs.push(`+${chgFromOpen.toFixed(0)}%상승후`);}
+  else if(chgFromOpen>=5)  {score+=3;}
+
+  // 음봉 전환 감지 (현재봉이 하락 중이면 추가 신호)
+  const curChg=(C[n]-O[n])/O[n]*100;
+  if(curChg<-1){score+=5;sigs.push('현재봉하락');}
+
+  return{
+    score:Math.min(score,100),
+    sigs,
+    prevRsi:rsi,
+    prevStochK:stochK,
+    prevStochD:stochD||0,
+    prevMacdH:macdH,
+    prevBBpctb:bbPctb,
+    prevVolR:volR,
+    prevChg,
+    ema3,
+    chgFromOpen,
+    curChg,
+    close:C[n]
+  };
+}
+
+// ── 메인 스캔 ──
+async function startScan(isAuto=false){
+  if(scanRunning)return;
+  scanRunning=true;
+  document.getElementById('btnScan').disabled=true;
+  document.getElementById('pw').style.display='block';
+  setProg(0,'종목 목록 로드...');
+  if(!isAuto){
+    document.getElementById('lw').innerHTML='';
+    document.getElementById('lw').style.display='none';
+  }
+
+  const minVol=parseFloat(document.getElementById('minVol').value)||5e6;
+  const maxSym=parseInt(document.getElementById('maxSym').value)||250;
+  const delay=parseInt(document.getElementById('reqDelay').value)||300;
+  const minScore=parseInt(document.getElementById('minScore').value)||55;
+
+  try{
+    const info=await fetchR('https://fapi.binance.com/fapi/v1/exchangeInfo');
+    let symbols=info.symbols
+      .filter(s=>s.quoteAsset==='USDT'&&s.contractType==='PERPETUAL'&&s.status==='TRADING')
+      .map(s=>s.symbol);
+    log(`${symbols.length}개 종목 발견`,'ok');
+    if(symbols.length>maxSym)symbols=symbols.slice(0,maxSym);
+
+    setProg(5,'거래량 필터...');
+    const t24=await fetchR('https://fapi.binance.com/fapi/v1/ticker/24hr');
+    const vmap={};t24.forEach(t=>{vmap[t.symbol]=parseFloat(t.quoteVolume);});
+    symbols=symbols.filter(s=>(vmap[s]||0)>=minVol);
+    log(`거래량 필터 후 ${symbols.length}개`,'ok');
+
+    setProg(12,'고점 패턴 스캔...');
+    const results=[];
+    const bsz=5;
+
+    for(let i=0;i<symbols.length;i+=bsz){
+      const sl=symbols.slice(i,i+bsz);
+      await Promise.all(sl.map(async sym=>{
+        try{
+          await sleep(Math.random()*60);
+          // 80봉: EMA50(50봉)+BB20(20봉)+여유
+          const url=`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=80`;
+          const klines=await fetchR(url,2,400);
+          const res=detectPeak(klines);
+          if(!res||res.score<minScore)return;
+          results.push({symbol:sym,...res});
+          log(`고점 감지: ${sym} 스코어=${res.score} | RSI=${res.prevRsi.toFixed(1)} | StochK=${res.prevStochK.toFixed(1)} | +${res.chgFromOpen.toFixed(1)}%`,'hit');
+        }catch(e){}
+      }));
+      setProg(12+(i/symbols.length)*82,`${Math.min(i+bsz,symbols.length)}/${symbols.length} — 감지 ${results.length}개`);
+      await sleep(delay);
+    }
+
+    results.sort((a,b)=>b.score-a.score);
+    lastResults=results;
+
+    document.getElementById('s0').textContent=symbols.length;
+    document.getElementById('s1').textContent=results.length;
+    document.getElementById('s2').textContent=results.filter(r=>r.score>=85).length;
+    document.getElementById('s3').textContent=results.filter(r=>r.score>=70&&r.score<85).length;
+    const now=new Date().toTimeString().slice(0,8);
+    document.getElementById('s4').textContent=now;
+    document.getElementById('scanTs').textContent='완료: '+now;
+
+    renderTable(results);
+    document.getElementById('btnCsv').disabled=results.length===0;
+
+    results.forEach(r=>{
+      addAlert(r);
+      if(r.score>=parseInt(document.getElementById('minScore').value))sendNotif(r);
+    });
+
+    setProg(100,`완료 — ${results.length}개 감지`);
+    log(`스캔 완료. 고점 감지: ${results.length}개`,'ok');
+  }catch(e){
+    log('오류: '+e.message,'err');
+  }finally{
+    document.getElementById('btnScan').disabled=false;
+    scanRunning=false;
+  }
+}
+
+// ── 테이블 렌더 ──
+function scCls(s){return s>=85?'ps-s':s>=70?'ps-a':s>=55?'ps-b':'ps-c';}
+function scLbl(s){return s>=85?'S':s>=70?'A':s>=55?'B':'C';}
+function sigCls(s){
+  if(s.includes('RSI'))return's-rsi';
+  if(s.includes('Stoch'))return's-stoch';
+  if(s.includes('MACD'))return's-macd';
+  if(s.includes('BB'))return's-bb';
+  if(s.includes('EMA'))return's-ema';
+  if(s.includes('거래량'))return's-vol';
+  if(s.includes('하락')||s.includes('반전'))return's-bear';
+  return's-rsi';
+}
+
+function renderTable(data){
+  const body=document.getElementById('rtBody');
+  if(!data.length){body.innerHTML='<tr class="er"><td colspan="14">고점 패턴 감지 종목 없음</td></tr>';return;}
+  body.innerHTML=data.map((r,i)=>{
+    const sigHtml=r.sigs.slice(0,5).map(s=>`<span class="sig ${sigCls(s)}">${s}</span>`).join('');
+    const emaStr=r.ema3
+      ?'<span style="color:var(--safe);font-size:10px">9&gt;21&gt;50</span>'
+      :'<span style="color:var(--acc);font-size:10px">미정렬</span>';
+    const rsiCls=r.prevRsi>=75?'red':r.prevRsi>=65?'warn':'mono';
+    const stochCls=r.prevStochK>=80?'red':r.prevStochK>=65?'warn':'mono';
+    const macdCls=r.prevMacdH>0?'warn':r.prevMacdH>=-0.001?'mono':'red';
+    const chgCls=r.chgFromOpen>=30?'red':r.chgFromOpen>=15?'warn':'safe';
+    return`<tr>
+      <td style="color:var(--mt)">${i+1}</td>
+      <td>
+        <div class="sym">${r.symbol}</div>
+        <div class="sym-s">현재봉 ${r.curChg>=0?'+':''}${r.curChg.toFixed(2)}%</div>
+      </td>
+      <td><span class="pb2 ${scCls(r.score)}">${scLbl(r.score)} ${r.score}</span></td>
+      <td class="${chgCls}">+${r.chgFromOpen.toFixed(2)}%</td>
+      <td class="${rsiCls}">${r.prevRsi.toFixed(1)}</td>
+      <td class="${stochCls}">${r.prevStochK.toFixed(1)}</td>
+      <td class="mono">${r.prevStochD.toFixed(1)}</td>
+      <td class="${macdCls}">${r.prevMacdH>=0?'+':''}${r.prevMacdH.toFixed(5)}</td>
+      <td class="${r.prevBBpctb>=90?'red':r.prevBBpctb>=75?'warn':'mono'}">${r.prevBBpctb.toFixed(1)}</td>
+      <td class="mono">${r.prevVolR.toFixed(2)}x</td>
+      <td>${emaStr}</td>
+      <td class="${r.prevChg>=0?'safe':'red'}">${r.prevChg>=0?'+':''}${r.prevChg.toFixed(2)}%</td>
+      <td><div class="sw">${sigHtml}</div></td>
+      <td class="mono">${r.close.toFixed(4)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 정렬 ──
+const sm={rank:'score',symbol:'symbol',score:'score',chgFromOpen:'chgFromOpen',
+  prevRsi:'prevRsi',prevStochK:'prevStochK',prevStochD:'prevStochD',
+  prevMacdH:'prevMacdH',prevBBpctb:'prevBBpctb',prevVolR:'prevVolR',
+  prevChg:'prevChg',close:'close'};
+function srt(key){
+  const f=sm[key]||key;
+  if(sortKey===f)sortDir*=-1;else{sortKey=f;sortDir=-1;}
+  document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sd','sa'));
+  const idx=Object.keys(sm).indexOf(key);
+  if(idx>=0){const t=document.querySelectorAll('thead th')[idx];t&&t.classList.add(sortDir===-1?'sd':'sa');}
+  renderTable([...lastResults].sort((a,b)=>{
+    const av=a[f],bv=b[f];
+    if(typeof av==='string')return sortDir*av.localeCompare(bv);
+    return sortDir*((av||0)-(bv||0));
+  }));
+}
+
+// ── CSV ──
+function dlCSV(){
+  if(!lastResults.length)return;
+  const h=['symbol','score','grade','chgFromOpen','prevRsi','prevStochK','prevStochD',
+    'prevMacdH','prevBBpctb','prevVolR','prevChg','ema3','curChg','signals','close'];
+  const rows=[h,...lastResults.map(r=>[
+    r.symbol,r.score,scLbl(r.score),
+    r.chgFromOpen.toFixed(3),r.prevRsi.toFixed(2),r.prevStochK.toFixed(2),
+    r.prevStochD.toFixed(2),r.prevMacdH.toFixed(6),r.prevBBpctb.toFixed(2),
+    r.prevVolR.toFixed(3),r.prevChg.toFixed(3),r.ema3?'true':'false',
+    r.curChg.toFixed(3),'"'+r.sigs.join('|')+'"',r.close
+  ])];
+  const blob=new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`peak_detect_${new Date().toISOString().slice(0,16).replace(':','')}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
