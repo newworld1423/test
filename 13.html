@@ -408,13 +408,15 @@
           <th>손절가 (H저가)</th>
           <th>현재가</th>
           <th>현재→익절</th>
+          <th class="sortable" id="th-vol500">500봉 평균거래량 ▼</th>
+          <th class="sortable" id="th-volpat">패턴구간 평균거래량 ▼</th>
           <th>A봉</th>
           <th>E봉</th>
           <th>H봉</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="11">
+        <tr><td colspan="13">
           <div class="empty-state">
             <div class="big">◈</div>
             <p>SCAN NOW 버튼을 눌러 스캔을 시작하세요<br>패턴: 로컬저점 → 로컬고점 → 로컬저점 (15분봉)</p>
@@ -553,10 +555,11 @@ async function getKlines(symbol) {
   // [open_time, open, high, low, close, volume, ...]
   return raw.map(k => ({
     time: k[0],
-    open: parseFloat(k[1]),
-    high: parseFloat(k[2]),
-    low:  parseFloat(k[3]),
-    close: parseFloat(k[4]),
+    open:   parseFloat(k[1]),
+    high:   parseFloat(k[2]),
+    low:    parseFloat(k[3]),
+    close:  parseFloat(k[4]),
+    volume: parseFloat(k[5]),
   }));
 }
 
@@ -641,6 +644,8 @@ function findPattern(candles) {
     barsAgoA: (N-1) - aIdx,
     barsAgoE: (N-1) - eIdx,
     barsAgoH: (N-1) - hIdx,
+    hIdx,
+    eIdx,
   };
 }
 
@@ -681,7 +686,12 @@ async function runScan() {
         if (!candles || candles.length < 7) return;
         const result = findPattern(candles);
         if (result) {
-          step1Pass.push({ symbol: sym, ...result });
+          // 500봉 평균 거래량
+          const vol500Avg = candles.reduce((s, c) => s + c.volume, 0) / candles.length;
+          // 패턴 구간(H봉~현재) 평균 거래량
+          const patternCandles = candles.slice(result.hIdx);
+          const volPatAvg = patternCandles.reduce((s, c) => s + c.volume, 0) / patternCandles.length;
+          step1Pass.push({ symbol: sym, ...result, vol500Avg, volPatAvg });
         }
       } catch {}
     });
@@ -739,9 +749,17 @@ function fmt(p) {
   return p.toFixed(p < 1 ? 5 : 2);
 }
 
+function fmtVol(v) {
+  if (v == null) return '-';
+  if (v >= 1e9) return (v/1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v/1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(2) + 'K';
+  return v.toFixed(2);
+}
+
 function renderTable(data) {
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="11">
+    tbody.innerHTML = `<tr><td colspan="13">
       <div class="empty-state">
         <div class="big">◈</div>
         <p>패턴 매칭 결과 없음<br>조건: 스윙저점(H) → 스윙고점(E) → 스윙저점(B) + H저가 &lt; B저가</p>
@@ -775,6 +793,8 @@ function renderTable(data) {
       <td class="price-cell" style="color:var(--loss)">${fmt(r.stopPrice)}</td>
       <td class="price-cell">${curStr}</td>
       <td style="${distCls};font-size:12px">${distStr}</td>
+      <td class="dim-cell">${fmtVol(r.vol500Avg)}</td>
+      <td class="dim-cell">${fmtVol(r.volPatAvg)}</td>
       <td class="dim-cell">${r.barsAgoA}봉 전</td>
       <td class="dim-cell">${r.barsAgoE}봉 전</td>
       <td class="dim-cell">${r.barsAgoH}봉 전</td>
@@ -796,6 +816,22 @@ document.getElementById('th-rr').addEventListener('click', () => {
   results.sort((a,b) => (b.rr||0) - (a.rr||0));
   document.getElementById('th-rr').textContent = '손익비 ▼';
   document.getElementById('th-profit').textContent = '수익률';
+  renderTable(results);
+});
+document.getElementById('th-vol500').addEventListener('click', () => {
+  results.sort((a,b) => (b.vol500Avg||0) - (a.vol500Avg||0));
+  document.getElementById('th-vol500').textContent = '500봉 평균거래량 ▼';
+  document.getElementById('th-volpat').textContent = '패턴구간 평균거래량';
+  document.getElementById('th-profit').textContent = '수익률';
+  document.getElementById('th-rr').textContent = '손익비';
+  renderTable(results);
+});
+document.getElementById('th-volpat').addEventListener('click', () => {
+  results.sort((a,b) => (b.volPatAvg||0) - (a.volPatAvg||0));
+  document.getElementById('th-volpat').textContent = '패턴구간 평균거래량 ▼';
+  document.getElementById('th-vol500').textContent = '500봉 평균거래량';
+  document.getElementById('th-profit').textContent = '수익률';
+  document.getElementById('th-rr').textContent = '손익비';
   renderTable(results);
 });
 </script>
