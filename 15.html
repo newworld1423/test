@@ -1,1393 +1,960 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Binance USDⓈ-M Futures 급등 분석 CSV 스캐너</title>
-  <style>
-    :root {
-      --bg: #0b1020;
-      --panel: #121a30;
-      --panel-2: #18223c;
-      --line: rgba(255,255,255,.11);
-      --text: #eef3ff;
-      --muted: #9ca9c2;
-      --accent: #f0b90b;
-      --accent-2: #2bd4bd;
-      --danger: #ff5c7a;
-      --good: #4ade80;
-      --shadow: 0 18px 60px rgba(0,0,0,.32);
-      --radius: 18px;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SURGE CSV SCANNER — Binance USDⓈ-M 급등 데이터셋 생성기</title>
+<style>
+/* ============================================================
+   다크 트레이딩 터미널 테마
+   - 텍스트 가독성 최우선: 밝은 텍스트, 충분한 대비, 14px 이상
+   ============================================================ */
+:root{
+  --bg:#0a0d13;
+  --panel:#121723;
+  --panel2:#181f2e;
+  --border:#2a3447;
+  --text:#eef3fb;       /* 본문: 매우 밝게 */
+  --text-dim:#aab8cf;   /* 보조 텍스트도 충분히 밝게 */
+  --amber:#ffc857;      /* 시그니처 액센트 */
+  --green:#3ddc84;
+  --red:#ff6b6b;
+  --blue:#6ab7ff;
+  --mono:'Consolas','SF Mono','Roboto Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Segoe UI','Pretendard','Apple SD Gothic Neo',sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  padding:24px 16px 60px;
+}
+.wrap{max-width:980px;margin:0 auto;}
 
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 15% 0%, rgba(240,185,11,.18), transparent 32%),
-        radial-gradient(circle at 85% 10%, rgba(43,212,189,.13), transparent 35%),
-        linear-gradient(180deg, #08101f 0%, var(--bg) 100%);
-    }
+header{margin-bottom:24px;}
+header h1{
+  font-family:var(--mono);
+  font-size:26px;
+  letter-spacing:1px;
+  color:var(--amber);
+}
+header p{color:var(--text-dim);font-size:14.5px;margin-top:4px;}
 
-    .app {
-      width: min(1180px, calc(100% - 36px));
-      margin: 0 auto;
-      padding: 34px 0 46px;
-    }
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+  margin-bottom:16px;
+}
+.panel h2{
+  font-size:15px;
+  font-family:var(--mono);
+  color:var(--amber);
+  letter-spacing:2px;
+  margin-bottom:14px;
+}
 
-    .hero {
-      padding: 28px;
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      background: rgba(18,26,48,.84);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-    }
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.field label{display:block;font-size:13.5px;color:var(--text-dim);margin-bottom:6px;}
+input[type=date]{
+  background:var(--panel2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-size:16px;
+  font-family:var(--mono);
+  padding:10px 14px;
+  color-scheme:dark;
+}
+button{
+  border:none;border-radius:8px;
+  font-size:15.5px;font-weight:700;
+  padding:11px 22px;cursor:pointer;
+  transition:filter .15s;
+}
+button:hover{filter:brightness(1.12);}
+button:disabled{opacity:.4;cursor:not-allowed;}
+#btnScan{background:var(--amber);color:#1a1405;}
+#btnStop{background:var(--panel2);color:var(--red);border:1px solid var(--red);}
+.dl-btn{background:var(--panel2);color:var(--green);border:1px solid var(--green);margin:6px 10px 0 0;}
 
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-      padding: 7px 12px;
-      border: 1px solid rgba(240,185,11,.38);
-      border-radius: 999px;
-      color: #ffe6a3;
-      background: rgba(240,185,11,.1);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: .02em;
-    }
+/* 진행률 */
+.progress-track{
+  height:14px;background:var(--panel2);
+  border:1px solid var(--border);border-radius:7px;
+  overflow:hidden;margin:10px 0 8px;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--amber),#ff9d3d);
+  transition:width .2s;
+}
+.status-line{
+  font-family:var(--mono);font-size:14px;color:var(--text-dim);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+.status-line .sym{color:var(--blue);}
 
-    h1 {
-      margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 46px);
-      line-height: 1.12;
-      letter-spacing: -.04em;
-    }
+/* 결과 카드 */
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+.stat{
+  background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;padding:12px 14px;
+}
+.stat .k{font-size:13px;color:var(--text-dim);letter-spacing:.5px;}
+.stat .v{
+  font-family:var(--mono);font-size:19px;font-weight:700;
+  margin-top:2px;word-break:break-all;
+}
+.v.up{color:var(--green);}
+.v.hl{color:var(--amber);}
 
-    .desc {
-      margin: 0;
-      max-width: 860px;
-      color: var(--muted);
-      line-height: 1.7;
-      font-size: 15px;
-    }
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:14px;}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;}
+th{color:var(--text-dim);font-weight:600;font-size:13px;}
+td:first-child,th:first-child{text-align:left;}
+td.sym{color:var(--blue);}
+td.gain{color:var(--green);font-weight:700;}
 
-    .grid {
-      display: grid;
-      grid-template-columns: 420px 1fr;
-      gap: 18px;
-      margin-top: 18px;
-    }
-
-    .card {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: rgba(18,26,48,.82);
-      box-shadow: 0 14px 48px rgba(0,0,0,.18);
-      overflow: hidden;
-    }
-
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(255,255,255,.025);
-    }
-
-    .card-head h2 {
-      margin: 0;
-      font-size: 17px;
-      letter-spacing: -.02em;
-    }
-
-    .card-body { padding: 20px; }
-
-    .field { margin-bottom: 16px; }
-    .field label {
-      display: block;
-      margin-bottom: 8px;
-      color: #d7def0;
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    input, select {
-      width: 100%;
-      height: 46px;
-      padding: 0 13px;
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 13px;
-      color: var(--text);
-      background: rgba(5,10,22,.55);
-      outline: none;
-      font-size: 14px;
-    }
-
-    input:focus, select:focus {
-      border-color: rgba(240,185,11,.65);
-      box-shadow: 0 0 0 4px rgba(240,185,11,.10);
-    }
-
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    .hint {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 18px;
-    }
-
-    button {
-      border: 0;
-      border-radius: 14px;
-      height: 48px;
-      color: #171100;
-      background: linear-gradient(135deg, #f0b90b, #ffd875);
-      font-weight: 900;
-      letter-spacing: -.01em;
-      cursor: pointer;
-      transition: transform .15s ease, opacity .15s ease, filter .15s ease;
-    }
-
-    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
-    button:disabled { cursor: not-allowed; opacity: .44; }
-
-    .btn-secondary {
-      color: #dce6ff;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.12);
-    }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      color: var(--muted);
-      background: rgba(255,255,255,.06);
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--muted);
-    }
-    .dot.running { background: var(--accent); box-shadow: 0 0 0 5px rgba(240,185,11,.14); }
-    .dot.done { background: var(--good); }
-    .dot.error { background: var(--danger); }
-
-    .progress-wrap {
-      margin-bottom: 18px;
-      padding: 14px;
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      background: rgba(255,255,255,.04);
-    }
-
-    .progress-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .bar {
-      overflow: hidden;
-      width: 100%;
-      height: 11px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.08);
-    }
-
-    .bar > span {
-      display: block;
-      width: 0%;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition: width .18s ease;
-    }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .metric {
-      min-height: 86px;
-      padding: 14px;
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      background: rgba(255,255,255,.04);
-    }
-
-    .metric .label {
-      margin-bottom: 8px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .metric .value {
-      overflow-wrap: anywhere;
-      font-size: 18px;
-      font-weight: 900;
-      letter-spacing: -.02em;
-    }
-
-    .metric .sub {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .log {
-      height: 250px;
-      overflow: auto;
-      margin-top: 18px;
-      padding: 14px;
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      background: rgba(3,8,18,.72);
-      color: #b9c8e6;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
-
-    .notice {
-      margin-top: 14px;
-      padding: 13px 14px;
-      border: 1px solid rgba(255,92,122,.32);
-      border-radius: 15px;
-      color: #ffd2dc;
-      background: rgba(255,92,122,.08);
-      font-size: 13px;
-      line-height: 1.6;
-      display: none;
-    }
-
-    .notice.show { display: block; }
-
-    .download-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .footer-note {
-      margin-top: 18px;
-      color: rgba(238,243,255,.55);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-
-    @media (max-width: 920px) {
-      .grid { grid-template-columns: 1fr; }
-      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    @media (max-width: 560px) {
-      .app { width: min(100% - 24px, 1180px); padding-top: 20px; }
-      .hero { padding: 22px; border-radius: 22px; }
-      .row, .summary-grid, .download-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+#errBox{
+  display:none;background:#2a1518;border:1px solid var(--red);
+  border-radius:8px;padding:14px 16px;color:#ffb3b3;
+  font-size:14.5px;margin-bottom:16px;white-space:pre-wrap;
+}
+.hidden{display:none;}
+.note{font-size:13.5px;color:var(--text-dim);margin-top:10px;}
+.badge{
+  display:inline-block;font-family:var(--mono);font-size:13px;
+  border:1px solid var(--amber);color:var(--amber);
+  border-radius:5px;padding:1px 8px;margin-left:8px;
+}
+</style>
 </head>
 <body>
-  <main class="app">
-    <section class="hero">
-      <div class="eyebrow">Binance USDⓈ-M Futures · 15m Surge Dataset Builder</div>
-      <h1>급등 시작 전 지표 분석용 CSV 생성 스캐너</h1>
-      <p class="desc">
-        특정 KST 날짜를 선택하면 USDT 무기한 선물 페어 전체를 스캔하고, 일봉 시가 대비 고가 상승률이 가장 높았던 winner를 찾습니다.
-        이후 winner의 급등 시작 15분봉을 자동 탐지해 과거 96개 + 기준봉 + 이후 24개 봉의 지표 CSV를 생성합니다.
-      </p>
-    </section>
+<div class="wrap">
 
-    <section class="grid">
-      <aside class="card">
-        <div class="card-head">
-          <h2>스캔 설정</h2>
-          <span class="status-pill"><span id="statusDot" class="dot"></span><span id="statusText">대기 중</span></span>
-        </div>
-        <div class="card-body">
-          <div class="field">
-            <label for="scanDate">분석 날짜 · KST 기준</label>
-            <input id="scanDate" type="date" />
-            <div class="hint">선택일 00:00:00 KST ~ 23:59:59 KST가 UTC millisecond로 변환되어 요청됩니다.</div>
-          </div>
+<header>
+  <h1>SURGE CSV SCANNER</h1>
+  <p>Binance USDⓈ-M 무기한 선물 · 일간 최대 급등 페어 탐색 → 급등 시작 15분봉 자동 탐지 → 지표 데이터셋 CSV 생성</p>
+</header>
 
-          <div class="field">
-            <label for="apiBase">API Base URL</label>
-            <input id="apiBase" type="text" value="https://fapi.binance.com" />
-            <div class="hint">브라우저/CORS 차단이 발생하면 다른 네트워크 또는 프록시 환경에서 실행해야 할 수 있습니다.</div>
-          </div>
+<div id="errBox"></div>
 
-          <div class="row">
-            <div class="field">
-              <label for="delayMs">심볼별 요청 딜레이(ms)</label>
-              <input id="delayMs" type="number" min="0" step="10" value="120" />
-            </div>
-            <div class="field">
-              <label for="retryCount">오류 재시도 횟수</label>
-              <input id="retryCount" type="number" min="0" max="10" step="1" value="4" />
-            </div>
-          </div>
+<div class="panel">
+  <h2>SCAN SETTINGS</h2>
+  <div class="controls">
+    <div class="field">
+      <label>분석 날짜 (KST 기준)</label>
+      <input type="date" id="datePick">
+    </div>
+    <button id="btnScan">스캔 시작</button>
+    <button id="btnStop" class="hidden">중지</button>
+  </div>
+  <p class="note">선택일 00:00:00 ~ 23:59:59 KST 구간의 15분봉(96개)으로 시가 대비 고가 상승률을 계산합니다. API 키 불필요 · 전 심볼 스캔에 약 30초~1분 소요.</p>
+</div>
 
-          <div class="actions">
-            <button id="scanBtn">스캔 시작</button>
-            <button id="downloadScanBtn" class="btn-secondary" disabled>scan_result CSV 다운로드</button>
-            <button id="downloadWinnerBtn" class="btn-secondary" disabled>winner 급등 분석 CSV 다운로드</button>
-          </div>
+<div class="panel" id="progressPanel" style="display:none;">
+  <h2>PROGRESS</h2>
+  <div class="progress-track"><div class="progress-bar" id="pbar"></div></div>
+  <div class="status-line">
+    <span id="pCount">0 / 0</span>
+    <span>scanning: <span class="sym" id="pSym">—</span></span>
+    <span id="pErr"></span>
+  </div>
+</div>
 
-          <div id="errorNotice" class="notice"></div>
-          <div class="footer-note">
-            이 도구는 매매 신호 생성이 아니라, 급등 전 공통 지표 상태를 분석하기 위한 데이터셋 생성용입니다.
-          </div>
-        </div>
-      </aside>
+<div class="panel" id="winnerPanel" style="display:none;">
+  <h2>WINNER <span class="badge" id="wReason"></span></h2>
+  <div class="result-grid">
+    <div class="stat"><div class="k">SYMBOL</div><div class="v hl" id="wSymbol">—</div></div>
+    <div class="stat"><div class="k">DAY GAIN</div><div class="v up" id="wGain">—</div></div>
+    <div class="stat"><div class="k">DAY OPEN</div><div class="v" id="wOpen">—</div></div>
+    <div class="stat"><div class="k">DAY HIGH</div><div class="v" id="wHigh">—</div></div>
+    <div class="stat"><div class="k">DAY HIGH TIME (KST)</div><div class="v" id="wHighTime">—</div></div>
+    <div class="stat"><div class="k">SURGE START (KST)</div><div class="v hl" id="wSurgeTime">—</div></div>
+  </div>
+  <div style="margin-top:14px;">
+    <button class="dl-btn" id="btnDlScan">scan_result CSV 다운로드</button>
+    <button class="dl-btn" id="btnDlWinner">winner 급등 분석 CSV 다운로드</button>
+  </div>
+</div>
 
-      <section class="card">
-        <div class="card-head">
-          <h2>진행률 및 결과</h2>
-          <span id="symbolNow" class="status-pill">현재 심볼: -</span>
-        </div>
-        <div class="card-body">
-          <div class="progress-wrap">
-            <div class="progress-meta">
-              <span id="progressLabel">0 / 0</span>
-              <span id="progressPct">0%</span>
-            </div>
-            <div class="bar"><span id="progressBar"></span></div>
-          </div>
+<div class="panel" id="topPanel" style="display:none;">
+  <h2>TOP 10 GAINERS</h2>
+  <table>
+    <thead><tr><th>SYMBOL</th><th>DAY OPEN</th><th>DAY HIGH</th><th>GAIN %</th></tr></thead>
+    <tbody id="topBody"></tbody>
+  </table>
+</div>
 
-          <div class="summary-grid">
-            <div class="metric">
-              <div class="label">Winner Symbol</div>
-              <div id="winnerSymbol" class="value">-</div>
-            </div>
-            <div class="metric">
-              <div class="label">day_gain_pct</div>
-              <div id="winnerGain" class="value">-</div>
-            </div>
-            <div class="metric">
-              <div class="label">day_open / day_high</div>
-              <div id="dayOpenHigh" class="value">-</div>
-            </div>
-            <div class="metric">
-              <div class="label">day_high_time</div>
-              <div id="dayHighTime" class="value">-</div>
-              <div class="sub">KST</div>
-            </div>
-            <div class="metric">
-              <div class="label">surge_start_time</div>
-              <div id="surgeStartTime" class="value">-</div>
-              <div id="surgeReason" class="sub">-</div>
-            </div>
-            <div class="metric">
-              <div class="label">CSV window</div>
-              <div id="csvWindow" class="value">-</div>
-              <div class="sub">과거 96 + 기준봉 + 이후 24</div>
-            </div>
-          </div>
+</div>
 
-          <pre id="log" class="log"></pre>
-        </div>
-      </section>
-    </section>
-  </main>
+<script>
+'use strict';
+/* ================================================================
+   SURGE CSV SCANNER
+   - Binance USDⓈ-M Futures public API (API 키 불필요)
+   - /fapi/v1/exchangeInfo : USDT PERPETUAL TRADING 심볼 목록
+   - /fapi/v1/klines       : 15분봉
+   목적: 매매가 아니라 "급등 시작 전 지표 상태" 분석용 데이터셋 생성
+   ================================================================ */
 
-  <script>
-    /**********************************************************************
-     * Binance USDⓈ-M Futures 급등 분석 CSV 스캐너
-     * - 외부 라이브러리 없이 순수 JavaScript로 작성
-     * - API 키 없이 public REST API만 사용
-     * - 날짜는 KST 기준으로 입력받고 UTC millisecond로 변환해서 요청
-     **********************************************************************/
+const API_BASE = 'https://fapi.binance.com';
+const KST_OFFSET_MS = 9 * 3600 * 1000;   // Asia/Seoul = UTC+9 (DST 없음)
+const M15 = 15 * 60 * 1000;              // 15분(ms)
+const WARMUP = 60;                       // 지표 워밍업용 추가 봉 수 (EMA50/zscore20 안정화)
+const PAST_N = 96, FUT_N = 24;           // CSV 추출 범위: 과거 96 + 당봉 + 이후 24 = 121
 
-    const $ = (id) => document.getElementById(id);
+// 전역 상태
+let stopFlag = false;
+let scanRows = [];        // 전체 심볼 스캔 결과 (scan_result CSV용)
+let winnerCsvText = null; // winner 분석 CSV 텍스트
+let scanCsvText = null;
+let selectedDateStr = '';
+let winnerSymbol = '';
 
-    const state = {
-      scanRows: [],
-      winnerRows: [],
-      scanCsv: '',
-      winnerCsv: '',
-      selectedDate: '',
-      running: false
-    };
+/* ---------------- 유틸 ---------------- */
 
-    const SCAN_COLUMNS = [
-      'rank', 'symbol', 'selected_date_kst', 'day_open', 'day_high', 'day_gain_pct',
-      'day_high_time_utc', 'day_high_time_kst', 'candle_count', 'scan_status', 'error_message'
-    ];
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    const WINNER_COLUMNS = [
-      'symbol', 'selected_date_kst', 'open_time_utc', 'open_time_kst',
-      'relative_index_from_surge_start', 'is_selected_date', 'is_winner',
-      'is_day_high_candle', 'is_surge_start',
+// NaN/Infinity/null 방어: CSV에는 빈 문자열, 화면에는 '—'
+function safeNum(v, digits = 8) {
+  if (v === null || v === undefined) return '';
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  // 불필요한 소수 자릿수 제거
+  return Number(n.toFixed(digits)).toString();
+}
 
-      'open', 'high', 'low', 'close', 'volume', 'quote_volume',
-      'number_of_trades', 'taker_buy_base_volume', 'taker_buy_quote_volume',
+// ms timestamp → ISO UTC 문자열
+function fmtUTC(ms) {
+  return new Date(ms).toISOString().replace('.000Z', 'Z');
+}
+// ms timestamp → KST 문자열 (YYYY-MM-DD HH:mm)
+function fmtKST(ms) {
+  const d = new Date(ms + KST_OFFSET_MS);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
 
-      'day_open', 'day_high', 'day_gain_pct', 'pct_from_day_open',
-      'candle_return_pct', 'high_from_open_pct', 'range_pct', 'body_pct',
-      'upper_wick_pct', 'lower_wick_pct',
+function showErr(msg) {
+  const box = $('errBox');
+  box.style.display = 'block';
+  box.textContent = msg;
+}
 
-      'volume_ma20', 'volume_ratio20', 'volume_zscore20',
-      'quote_volume_ma20', 'quote_volume_ratio20', 'quote_volume_zscore20',
-      'trades_ma20', 'trades_ratio20', 'trades_zscore20', 'taker_buy_ratio',
+/* ---------------- API (재시도 + 백오프) ---------------- */
 
-      'ema9', 'ema20', 'ema50', 'ema9_above_ema20', 'ema20_above_ema50', 'close_above_ema20',
+/**
+ * fetch 래퍼.
+ * - 429(레이트리밋)/418(IP 밴 경고)/5xx → 지수 백오프 재시도
+ * - 네트워크/CORS 실패(TypeError) → 1회 재시도 후 안내 메시지
+ */
+async function apiGet(path, params = {}, maxRetry = 5) {
+  const qs = new URLSearchParams(params).toString();
+  const url = `${API_BASE}${path}${qs ? '?' + qs : ''}`;
+  let lastErr = null;
 
-      'rsi14', 'macd', 'macd_signal', 'macd_hist',
+  for (let attempt = 0; attempt <= maxRetry; attempt++) {
+    if (stopFlag) throw new Error('STOPPED');
+    try {
+      const res = await fetch(url);
+      if (res.ok) return await res.json();
 
-      'bollinger_mid20', 'bollinger_upper20', 'bollinger_lower20', 'bollinger_width_pct',
-      'atr14', 'atr14_pct',
-
-      'rolling_high_20_prev', 'high_breakout_20', 'close_breakout_20',
-      'rolling_low_20_prev', 'distance_from_rolling_low20_pct',
-
-      'future_max_high_4', 'future_max_high_8', 'future_max_high_16',
-      'future_return_max_4_pct', 'future_return_max_8_pct', 'future_return_max_16_pct',
-      'surge_start_candidate', 'surge_start_score', 'surge_detection_reason'
-    ];
-
-    window.addEventListener('DOMContentLoaded', () => {
-      // 기본 날짜는 KST 기준 어제로 설정합니다. 오늘은 아직 봉이 완성되지 않았을 수 있기 때문입니다.
-      const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-      nowKst.setUTCDate(nowKst.getUTCDate() - 1);
-      $('scanDate').value = nowKst.toISOString().slice(0, 10);
-
-      $('scanBtn').addEventListener('click', startScan);
-      $('downloadScanBtn').addEventListener('click', () => downloadCsv(`scan_result_${state.selectedDate}.csv`, state.scanCsv));
-      $('downloadWinnerBtn').addEventListener('click', () => {
-        const symbol = $('winnerSymbol').textContent.trim() || 'UNKNOWN';
-        downloadCsv(`winner_${state.selectedDate}_${symbol}_15m_surge_window.csv`, state.winnerCsv);
-      });
-    });
-
-    async function startScan() {
-      if (state.running) return;
-
-      const selectedDate = $('scanDate').value;
-      const apiBase = $('apiBase').value.trim().replace(/\/$/, '');
-      const delayMs = Math.max(0, toFiniteNumber($('delayMs').value, 120));
-      const retryCount = Math.max(0, Math.min(10, toFiniteNumber($('retryCount').value, 4)));
-
-      if (!selectedDate) {
-        showError('분석할 날짜를 먼저 선택해주세요.');
-        return;
+      if (res.status === 429 || res.status === 418 || res.status >= 500) {
+        // Retry-After 헤더가 있으면 존중, 없으면 지수 백오프
+        const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+        const wait = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 15000);
+        await sleep(wait);
+        lastErr = new Error(`HTTP ${res.status}`);
+        continue;
       }
-      if (!apiBase) {
-        showError('API Base URL을 입력해주세요.');
-        return;
+      throw new Error(`HTTP ${res.status} (${path})`);
+    } catch (e) {
+      if (e.message === 'STOPPED') throw e;
+      lastErr = e;
+      // TypeError = 네트워크 차단 또는 CORS 문제 가능성
+      if (e instanceof TypeError && attempt >= 1) {
+        showErr('네트워크/CORS 오류: Binance API(fapi.binance.com)에 접근할 수 없습니다.\n' +
+          '- 일부 국가/네트워크에서 Binance가 차단되어 있을 수 있습니다 (VPN 필요).\n' +
+          '- 브라우저 확장 프로그램(광고 차단 등)이 요청을 막는지 확인하세요.\n' +
+          '- file:// 로 열었다면 그대로 동작해야 하지만, 사내 프록시 환경에서는 차단될 수 있습니다.');
       }
+      await sleep(Math.min(800 * Math.pow(2, attempt), 10000));
+    }
+  }
+  throw lastErr || new Error('API 요청 실패');
+}
 
-      resetUi();
-      state.running = true;
-      state.selectedDate = selectedDate;
-      setStatus('running', '스캔 중');
-      logLine(`선택 날짜: ${selectedDate} KST`);
+/* ---------------- 지표 계산 함수 ----------------
+   모든 함수는 캔들 배열 전체에 대해 시계열을 반환.
+   초기 구간(데이터 부족)은 null → CSV에서 빈 칸 처리.
+-------------------------------------------------- */
 
+/**
+ * EMA (지수이동평균)
+ * - 첫 period개 값의 SMA를 시드로 사용 (TradingView 방식)
+ * - alpha = 2 / (period + 1)
+ */
+function emaSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  if (values.length < period) return out;
+  const k = 2 / (period + 1);
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += values[i];
+  let prev = sum / period;
+  out[period - 1] = prev;
+  for (let i = period; i < values.length; i++) {
+    prev = values[i] * k + prev * (1 - k);
+    out[i] = prev;
+  }
+  return out;
+}
+
+/**
+ * SMA (단순이동평균) - 거래량 MA 등에 사용
+ */
+function smaSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i];
+    if (i >= period) sum -= values[i - period];
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+/**
+ * 표준편차 시계열 (모집단 기준, Bollinger/z-score 용)
+ */
+function stdSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    const mean = sum / period;
+    let sq = 0;
+    for (let j = i - period + 1; j <= i; j++) sq += (values[j] - mean) ** 2;
+    out[i] = Math.sqrt(sq / period);
+  }
+  return out;
+}
+
+/**
+ * z-score 시계열: (현재값 - 기간평균) / 기간표준편차
+ * 표준편차 0이면 null (NaN 방어)
+ */
+function zscoreSeries(values, period) {
+  const ma = smaSeries(values, period);
+  const sd = stdSeries(values, period);
+  return values.map((v, i) => {
+    if (ma[i] === null || sd[i] === null || sd[i] === 0) return null;
+    return (v - ma[i]) / sd[i];
+  });
+}
+
+/**
+ * RSI(14) - Wilder 방식
+ * - 첫 평균은 단순평균, 이후 Wilder smoothing: avg = (prev*(n-1) + cur) / n
+ */
+function rsiSeries(closes, period = 14) {
+  const out = new Array(closes.length).fill(null);
+  if (closes.length <= period) return out;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) gain += d; else loss -= d;
+  }
+  let avgG = gain / period, avgL = loss / period;
+  out[period] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgG = (avgG * (period - 1) + Math.max(d, 0)) / period;
+    avgL = (avgL * (period - 1) + Math.max(-d, 0)) / period;
+    out[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+  }
+  return out;
+}
+
+/**
+ * MACD(12,26,9)
+ * - macd = EMA12 - EMA26
+ * - signal = macd 시계열의 EMA9 (macd가 정의된 지점부터 시드)
+ */
+function macdSeries(closes) {
+  const e12 = emaSeries(closes, 12);
+  const e26 = emaSeries(closes, 26);
+  const macd = closes.map((_, i) =>
+    (e12[i] === null || e26[i] === null) ? null : e12[i] - e26[i]);
+
+  const signal = new Array(closes.length).fill(null);
+  const start = macd.findIndex(v => v !== null);
+  if (start >= 0 && macd.length - start >= 9) {
+    const k = 2 / 10;
+    let sum = 0;
+    for (let i = start; i < start + 9; i++) sum += macd[i];
+    let prev = sum / 9;
+    signal[start + 8] = prev;
+    for (let i = start + 9; i < macd.length; i++) {
+      prev = macd[i] * k + prev * (1 - k);
+      signal[i] = prev;
+    }
+  }
+  const hist = macd.map((m, i) =>
+    (m === null || signal[i] === null) ? null : m - signal[i]);
+  return { macd, signal, hist };
+}
+
+/**
+ * ATR(14) - Wilder 방식
+ * TR = max(high-low, |high-prevClose|, |low-prevClose|)
+ */
+function atrSeries(candles, period = 14) {
+  const out = new Array(candles.length).fill(null);
+  if (candles.length <= period) return out;
+  const tr = [candles[0].high - candles[0].low];
+  for (let i = 1; i < candles.length; i++) {
+    const pc = candles[i - 1].close;
+    tr.push(Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - pc),
+      Math.abs(candles[i].low - pc)
+    ));
+  }
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += tr[i];
+  let prev = sum / period;
+  out[period - 1] = prev;
+  for (let i = period; i < candles.length; i++) {
+    prev = (prev * (period - 1) + tr[i]) / period;  // Wilder smoothing
+    out[i] = prev;
+  }
+  return out;
+}
+
+/**
+ * 직전 N개(자기 자신 제외) 고가의 최댓값 / 저가의 최솟값 시계열
+ * - 돌파(breakout) 판정용
+ */
+function rollingPrevExtreme(candles, period, kind) {
+  const out = new Array(candles.length).fill(null);
+  for (let i = period; i < candles.length; i++) {
+    let ext = kind === 'high' ? -Infinity : Infinity;
+    for (let j = i - period; j < i; j++) {
+      const v = kind === 'high' ? candles[j].high : candles[j].low;
+      ext = kind === 'high' ? Math.max(ext, v) : Math.min(ext, v);
+    }
+    out[i] = ext;
+  }
+  return out;
+}
+
+/* ---------------- 메인 로직 ---------------- */
+
+// 선택 날짜(YYYY-MM-DD) → KST 하루 구간의 UTC ms 범위
+function kstDayRange(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const start = Date.UTC(y, m - 1, d) - KST_OFFSET_MS; // 00:00:00 KST
+  const end = start + 24 * 3600 * 1000 - 1;            // 23:59:59.999 KST
+  return { start, end };
+}
+
+// USDT 무기한 + TRADING 심볼 목록
+async function fetchSymbols() {
+  const info = await apiGet('/fapi/v1/exchangeInfo');
+  return info.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+    .map(s => s.symbol)
+    .sort();
+}
+
+// 원시 kline 배열 → 객체 변환
+function parseKlines(raw) {
+  return raw.map(k => ({
+    openTime: k[0],
+    open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+    volume: +k[5],
+    quoteVolume: +k[7],
+    trades: +k[8],
+    takerBuyBase: +k[9],
+    takerBuyQuote: +k[10]
+  }));
+}
+
+/**
+ * 1단계: 전 심볼 스캔
+ * - 동시 4개 워커 + 워커당 요청 간 delay → 레이트리밋(2400 weight/min) 안전
+ * - 각 심볼: 선택일 96개 15분봉만 요청 (klines limit≤100 → weight 1)
+ */
+async function scanAllSymbols(symbols, range) {
+  const results = [];
+  let done = 0, errors = 0;
+  let cursor = 0;
+  const CONCURRENCY = 4;
+  const PER_REQ_DELAY = 70; // ms
+
+  async function worker() {
+    while (true) {
+      if (stopFlag) return;
+      const idx = cursor++;
+      if (idx >= symbols.length) return;
+      const sym = symbols[idx];
+      $('pSym').textContent = sym;
       try {
-        const { startUtcMs, endUtcMs } = kstDateRangeToUtcMs(selectedDate);
-        logLine(`UTC 요청 범위: ${new Date(startUtcMs).toISOString()} ~ ${new Date(endUtcMs).toISOString()}`);
-
-        const symbols = await loadUsdtPerpetualSymbols(apiBase, retryCount);
-        logLine(`스캔 대상 USDT PERPETUAL TRADING 심볼 수: ${symbols.length}`);
-
-        const scanRows = await scanAllSymbols({ apiBase, symbols, selectedDate, startUtcMs, endUtcMs, delayMs, retryCount });
-        state.scanRows = rankScanRows(scanRows);
-        state.scanCsv = buildCsv(state.scanRows, SCAN_COLUMNS);
-        $('downloadScanBtn').disabled = false;
-
-        const winner = state.scanRows.find(row => row.scan_status === 'ok' && isFiniteNumber(row.day_gain_pct));
-        if (!winner) {
-          throw new Error('유효한 winner를 찾지 못했습니다. 선택 날짜에 캔들이 없는 심볼만 있거나 API 요청이 실패했습니다.');
-        }
-
-        updateWinnerSummary(winner);
-        logLine(`winner: ${winner.symbol} / day_gain_pct=${formatNumber(winner.day_gain_pct)}%`);
-
-        const analysis = await analyzeWinner({ apiBase, winner, selectedDate, startUtcMs, endUtcMs, retryCount });
-        state.winnerRows = analysis.csvRows;
-        state.winnerCsv = buildCsv(state.winnerRows, WINNER_COLUMNS);
-        $('downloadWinnerBtn').disabled = false;
-
-        $('surgeStartTime').textContent = analysis.surgeStart ? formatKst(analysis.surgeStart.openTime) : '-';
-        $('surgeReason').textContent = analysis.surgeStart ? analysis.surgeStart.surge_detection_reason : '-';
-        $('csvWindow').textContent = `${analysis.csvRows.length} candles`;
-
-        setStatus('done', '완료');
-        logLine(`surge_start: ${analysis.surgeStart ? formatKst(analysis.surgeStart.openTime) : '없음'}`);
-        logLine(`winner CSV row count: ${analysis.csvRows.length}`);
-      } catch (err) {
-        setStatus('error', '오류');
-        showError(makeFriendlyError(err));
-        logLine(`ERROR: ${err && err.message ? err.message : String(err)}`);
-      } finally {
-        state.running = false;
-        $('scanBtn').disabled = false;
-        $('symbolNow').textContent = '현재 심볼: -';
-      }
-    }
-
-    async function loadUsdtPerpetualSymbols(apiBase, retryCount) {
-      const data = await requestJson(apiBase, '/fapi/v1/exchangeInfo', {}, retryCount);
-      if (!data || !Array.isArray(data.symbols)) {
-        throw new Error('exchangeInfo 응답에서 symbols 배열을 찾지 못했습니다.');
-      }
-
-      return data.symbols
-        .filter(s => s && s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
-        .map(s => s.symbol)
-        .sort();
-    }
-
-    async function scanAllSymbols({ apiBase, symbols, selectedDate, startUtcMs, endUtcMs, delayMs, retryCount }) {
-      const rows = [];
-      const total = symbols.length;
-
-      for (let i = 0; i < total; i++) {
-        const symbol = symbols[i];
-        $('symbolNow').textContent = `현재 심볼: ${symbol}`;
-        updateProgress(i, total);
-
-        try {
-          const klines = await fetchKlines(apiBase, symbol, '15m', startUtcMs, endUtcMs, 1500, retryCount);
-          const candles = klines.map(parseKline).filter(Boolean);
-
-          if (!candles.length) {
-            rows.push({
-              rank: '', symbol, selected_date_kst: selectedDate,
-              day_open: '', day_high: '', day_gain_pct: '',
-              day_high_time_utc: '', day_high_time_kst: '', candle_count: 0,
-              scan_status: 'no_data', error_message: ''
-            });
-          } else {
-            const dayOpen = candles[0].open;
-            const dayHighCandle = candles.reduce((best, c) => c.high > best.high ? c : best, candles[0]);
-            const dayHigh = dayHighCandle.high;
-            const dayGainPct = pct(dayHigh, dayOpen);
-
-            rows.push({
-              rank: '',
-              symbol,
-              selected_date_kst: selectedDate,
-              day_open: dayOpen,
-              day_high: dayHigh,
-              day_gain_pct: dayGainPct,
-              day_high_time_utc: formatUtc(dayHighCandle.openTime),
-              day_high_time_kst: formatKst(dayHighCandle.openTime),
-              candle_count: candles.length,
-              scan_status: 'ok',
-              error_message: ''
-            });
+        const raw = await apiGet('/fapi/v1/klines', {
+          symbol: sym, interval: '15m',
+          startTime: range.start, endTime: range.end, limit: 100
+        });
+        const ks = parseKlines(raw);
+        // 신규 상장 등으로 데이터가 거의 없으면 제외 (최소 4봉 = 1시간)
+        if (ks.length >= 4) {
+          const dayOpen = ks[0].open;
+          let dayHigh = -Infinity, dayHighTime = null;
+          for (const c of ks) {
+            if (c.high > dayHigh) { dayHigh = c.high; dayHighTime = c.openTime; }
           }
-        } catch (err) {
-          rows.push({
-            rank: '', symbol, selected_date_kst: selectedDate,
-            day_open: '', day_high: '', day_gain_pct: '',
-            day_high_time_utc: '', day_high_time_kst: '', candle_count: 0,
-            scan_status: 'error', error_message: err && err.message ? err.message : String(err)
-          });
-          logLine(`[${symbol}] 요청 실패: ${err && err.message ? err.message : String(err)}`);
-        }
-
-        updateProgress(i + 1, total);
-        if (delayMs > 0) await sleep(delayMs);
-      }
-
-      return rows;
-    }
-
-    function rankScanRows(rows) {
-      const sorted = [...rows].sort((a, b) => {
-        const av = isFiniteNumber(a.day_gain_pct) ? a.day_gain_pct : -Infinity;
-        const bv = isFiniteNumber(b.day_gain_pct) ? b.day_gain_pct : -Infinity;
-        return bv - av;
-      });
-
-      let rank = 1;
-      return sorted.map(row => {
-        const next = { ...row };
-        if (next.scan_status === 'ok' && isFiniteNumber(next.day_gain_pct)) next.rank = rank++;
-        return next;
-      });
-    }
-
-    async function analyzeWinner({ apiBase, winner, selectedDate, startUtcMs, endUtcMs, retryCount }) {
-      // winner 분석은 지표 warm-up을 위해 선택일 시작보다 넉넉히 이전 데이터부터 가져옵니다.
-      // 15분봉 400개는 약 4.16일입니다. EMA50, MACD, RSI, ATR 안정성을 위해 사용합니다.
-      const warmupCandles = 400;
-      const afterCandles = 48;
-      const fetchStart = startUtcMs - warmupCandles * 15 * 60 * 1000;
-      const fetchEnd = endUtcMs + afterCandles * 15 * 60 * 1000;
-
-      logLine(`${winner.symbol} 지표 계산용 15분봉 재수집 중...`);
-      const raw = await fetchKlines(apiBase, winner.symbol, '15m', fetchStart, fetchEnd, 1500, retryCount);
-      const candles = raw.map(parseKline).filter(Boolean).sort((a, b) => a.openTime - b.openTime);
-
-      if (!candles.length) throw new Error(`${winner.symbol} 분석용 캔들 데이터가 없습니다.`);
-
-      const enriched = enrichCandles(candles, {
-        symbol: winner.symbol,
-        selectedDate,
-        selectedStartUtcMs: startUtcMs,
-        selectedEndUtcMs: endUtcMs,
-        dayOpen: winner.day_open,
-        dayHigh: winner.day_high,
-        dayGainPct: winner.day_gain_pct
-      });
-
-      const selectedCandles = enriched.filter(c => c.is_selected_date);
-      if (!selectedCandles.length) throw new Error(`${winner.symbol} 선택일 캔들 데이터가 없습니다.`);
-
-      const dayHighCandle = selectedCandles.reduce((best, c) => c.high > best.high ? c : best, selectedCandles[0]);
-      const dayHighIndex = enriched.findIndex(c => c.openTime === dayHighCandle.openTime);
-      enriched[dayHighIndex].is_day_high_candle = true;
-
-      const detection = detectSurgeStart(enriched, dayHighIndex, startUtcMs, endUtcMs);
-      if (detection.index >= 0) {
-        enriched[detection.index].is_surge_start = true;
-        enriched[detection.index].surge_detection_reason = detection.reason;
-      }
-
-      const start = detection.index >= 0 ? Math.max(0, detection.index - 96) : 0;
-      const end = detection.index >= 0 ? Math.min(enriched.length - 1, detection.index + 24) : Math.min(enriched.length - 1, 120);
-      const window = enriched.slice(start, end + 1).map((c, idx) => ({
-        ...c,
-        relative_index_from_surge_start: detection.index >= 0 ? (start + idx) - detection.index : ''
-      }));
-
-      return {
-        surgeStart: detection.index >= 0 ? enriched[detection.index] : null,
-        csvRows: window.map(toWinnerCsvRow)
-      };
-    }
-
-    function detectSurgeStart(candles, dayHighIndex, selectedStartUtcMs, selectedEndUtcMs) {
-      // 1차 엄격 조건: 거래량 2배, 1.5% 캔들 상승, 20봉 고가 돌파, 8봉 내 +5% 확인
-      const strict = [];
-      for (let i = 0; i < dayHighIndex; i++) {
-        const c = candles[i];
-        if (!isInside(c.openTime, selectedStartUtcMs, selectedEndUtcMs)) continue;
-        const ok =
-          bool(c.close_above_ema20) &&
-          isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 2 &&
-          isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.5 &&
-          bool(c.high_breakout_20) &&
-          isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 5;
-        if (ok) strict.push(i);
-      }
-      if (strict.length) return { index: strict[0], reason: 'strict' };
-
-      // 2차 완화 조건: 거래량 1.5배, 1.0% 캔들 상승, 8봉 내 +3% 확인
-      const relaxed = [];
-      for (let i = 0; i < dayHighIndex; i++) {
-        const c = candles[i];
-        if (!isInside(c.openTime, selectedStartUtcMs, selectedEndUtcMs)) continue;
-        const ok =
-          bool(c.close_above_ema20) &&
-          isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 1.5 &&
-          isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.0 &&
-          isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 3;
-        if (ok) relaxed.push(i);
-      }
-      if (relaxed.length) return { index: relaxed[0], reason: 'relaxed' };
-
-      // 3차 fallback: day_high 이전 96개 봉 중 surge_start_score가 가장 높은 봉 선택
-      let bestIndex = -1;
-      let bestScore = -Infinity;
-      const from = Math.max(0, dayHighIndex - 96);
-      for (let i = from; i < dayHighIndex; i++) {
-        const score = isFiniteNumber(candles[i].surge_start_score) ? candles[i].surge_start_score : -Infinity;
-        if (score > bestScore) {
-          bestScore = score;
-          bestIndex = i;
-        }
-      }
-      if (bestIndex >= 0) return { index: bestIndex, reason: 'score_fallback' };
-      return { index: -1, reason: 'not_found' };
-    }
-
-    function enrichCandles(candles, meta) {
-      const close = candles.map(c => c.close);
-      const high = candles.map(c => c.high);
-      const low = candles.map(c => c.low);
-      const volume = candles.map(c => c.volume);
-      const quoteVolume = candles.map(c => c.quoteVolume);
-      const trades = candles.map(c => c.numberOfTrades);
-
-      // EMA: 최근 가격에 더 큰 가중치를 부여하는 지수이동평균입니다.
-      // 첫 EMA 값은 period개의 단순평균으로 시작하고 이후 alpha = 2/(period+1)로 누적 계산합니다.
-      const ema9 = calcEMA(close, 9);
-      const ema20 = calcEMA(close, 20);
-      const ema50 = calcEMA(close, 50);
-
-      // RSI14: Wilder 방식의 평균 상승폭/하락폭을 사용해 0~100 모멘텀을 계산합니다.
-      const rsi14 = calcRSI(close, 14);
-
-      // MACD: EMA12 - EMA26, Signal은 MACD의 EMA9, Histogram은 MACD - Signal입니다.
-      const macdPack = calcMACD(close, 12, 26, 9);
-
-      // Bollinger Band: 20봉 SMA ± 2표준편차입니다. width_pct는 밴드 폭이 가격 대비 얼마나 넓은지 나타냅니다.
-      const boll = calcBollinger(close, 20, 2);
-
-      // ATR14: True Range를 Wilder 방식으로 평균내 변동성을 측정합니다.
-      const atr14 = calcATR(high, low, close, 14);
-
-      const out = candles.map((c, i) => {
-        const volumeStats = prevWindowStats(volume, i, 20);
-        const quoteStats = prevWindowStats(quoteVolume, i, 20);
-        const tradeStats = prevWindowStats(trades, i, 20);
-        const rollingHigh20Prev = rollingMax(high, i, 20);
-        const rollingLow20Prev = rollingMin(low, i, 20);
-        const future4 = futureMax(high, i, 4);
-        const future8 = futureMax(high, i, 8);
-        const future16 = futureMax(high, i, 16);
-
-        const row = {
-          ...c,
-          symbol: meta.symbol,
-          selected_date_kst: meta.selectedDate,
-          is_selected_date: isInside(c.openTime, meta.selectedStartUtcMs, meta.selectedEndUtcMs),
-          is_winner: true,
-          is_day_high_candle: false,
-          is_surge_start: false,
-
-          day_open: meta.dayOpen,
-          day_high: meta.dayHigh,
-          day_gain_pct: meta.dayGainPct,
-          pct_from_day_open: pct(c.close, meta.dayOpen),
-          candle_return_pct: pct(c.close, c.open),
-          high_from_open_pct: pct(c.high, c.open),
-          range_pct: ratioPct(c.high - c.low, c.open),
-          body_pct: ratioPct(Math.abs(c.close - c.open), c.open),
-          upper_wick_pct: ratioPct(c.high - Math.max(c.open, c.close), c.open),
-          lower_wick_pct: ratioPct(Math.min(c.open, c.close) - c.low, c.open),
-
-          volume_ma20: volumeStats.mean,
-          volume_ratio20: safeDiv(c.volume, volumeStats.mean),
-          volume_zscore20: zscore(c.volume, volumeStats.mean, volumeStats.std),
-          quote_volume_ma20: quoteStats.mean,
-          quote_volume_ratio20: safeDiv(c.quoteVolume, quoteStats.mean),
-          quote_volume_zscore20: zscore(c.quoteVolume, quoteStats.mean, quoteStats.std),
-          trades_ma20: tradeStats.mean,
-          trades_ratio20: safeDiv(c.numberOfTrades, tradeStats.mean),
-          trades_zscore20: zscore(c.numberOfTrades, tradeStats.mean, tradeStats.std),
-          taker_buy_ratio: safeDiv(c.takerBuyBaseVolume, c.volume),
-
-          ema9: ema9[i],
-          ema20: ema20[i],
-          ema50: ema50[i],
-          ema9_above_ema20: isFiniteNumber(ema9[i]) && isFiniteNumber(ema20[i]) ? ema9[i] > ema20[i] : '',
-          ema20_above_ema50: isFiniteNumber(ema20[i]) && isFiniteNumber(ema50[i]) ? ema20[i] > ema50[i] : '',
-          close_above_ema20: isFiniteNumber(ema20[i]) ? c.close > ema20[i] : '',
-
-          rsi14: rsi14[i],
-          macd: macdPack.macd[i],
-          macd_signal: macdPack.signal[i],
-          macd_hist: macdPack.hist[i],
-
-          bollinger_mid20: boll.mid[i],
-          bollinger_upper20: boll.upper[i],
-          bollinger_lower20: boll.lower[i],
-          bollinger_width_pct: boll.widthPct[i],
-          bollinger_width_change_pct: boll.widthPct[i - 1] ? pct(boll.widthPct[i], boll.widthPct[i - 1]) : '',
-          atr14: atr14[i],
-          atr14_pct: ratioPct(atr14[i], c.close),
-
-          rolling_high_20_prev: rollingHigh20Prev,
-          high_breakout_20: isFiniteNumber(rollingHigh20Prev) ? c.high > rollingHigh20Prev : '',
-          close_breakout_20: isFiniteNumber(rollingHigh20Prev) ? c.close > rollingHigh20Prev : '',
-          rolling_low_20_prev: rollingLow20Prev,
-          distance_from_rolling_low20_pct: isFiniteNumber(rollingLow20Prev) ? pct(c.close, rollingLow20Prev) : '',
-
-          future_max_high_4: future4,
-          future_max_high_8: future8,
-          future_max_high_16: future16,
-          future_return_max_4_pct: pct(future4, c.close),
-          future_return_max_8_pct: pct(future8, c.close),
-          future_return_max_16_pct: pct(future16, c.close),
-
-          surge_start_candidate: false,
-          surge_start_score: '',
-          surge_detection_reason: ''
-        };
-
-        row.surge_start_score = calcSurgeStartScore(row);
-        row.surge_start_candidate = isSurgeCandidateForCsv(row);
-        return row;
-      });
-
-      return out;
-    }
-
-    function isSurgeCandidateForCsv(c) {
-      // CSV용 candidate 표시는 엄격 조건 또는 완화 조건 중 하나라도 충족하면 true로 둡니다.
-      const strict =
-        bool(c.close_above_ema20) &&
-        isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 2 &&
-        isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.5 &&
-        bool(c.high_breakout_20) &&
-        isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 5;
-
-      const relaxed =
-        bool(c.close_above_ema20) &&
-        isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 1.5 &&
-        isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.0 &&
-        isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 3;
-
-      return strict || relaxed;
-    }
-
-    function calcSurgeStartScore(c) {
-      // 0~100점 스코어. 급등 전 특징 후보를 비교하기 위한 상대 점수입니다.
-      // - 거래량/거래대금 z-score는 과열 정도를 반영합니다.
-      // - candle_return_pct는 기준봉 자체의 추진력을 반영합니다.
-      // - 돌파/EMA 조건은 추세 전환 여부를 반영합니다.
-      // - taker_buy_ratio는 시장가 매수 우위 정도를 반영합니다.
-      // - Bollinger width 변화와 ATR은 변동성 확장 여부를 반영합니다.
-      let score = 0;
-
-      score += clamp(toFiniteNumber(c.volume_zscore20, 0), 0, 5) / 5 * 18;
-      score += clamp(toFiniteNumber(c.quote_volume_zscore20, 0), 0, 5) / 5 * 14;
-      score += clamp(toFiniteNumber(c.candle_return_pct, 0), 0, 8) / 8 * 16;
-      score += bool(c.high_breakout_20) ? 12 : 0;
-      score += bool(c.close_above_ema20) ? 10 : 0;
-      score += bool(c.ema9_above_ema20) ? 8 : 0;
-      score += clamp((toFiniteNumber(c.taker_buy_ratio, 0.5) - 0.5) / 0.35, 0, 1) * 8;
-      score += clamp(toFiniteNumber(c.bollinger_width_change_pct, 0), 0, 50) / 50 * 7;
-      score += clamp(toFiniteNumber(c.atr14_pct, 0), 0, 8) / 8 * 7;
-
-      return clamp(score, 0, 100);
-    }
-
-    /**********************************************************************
-     * 지표 계산 함수들
-     **********************************************************************/
-
-    function calcEMA(values, period) {
-      const result = Array(values.length).fill('');
-      if (!values.length || values.length < period) return result;
-
-      const alpha = 2 / (period + 1);
-      let sum = 0;
-      for (let i = 0; i < values.length; i++) {
-        const v = values[i];
-        if (!isFiniteNumber(v)) continue;
-        if (i < period) sum += v;
-        if (i === period - 1) {
-          result[i] = sum / period;
-        } else if (i >= period) {
-          result[i] = v * alpha + result[i - 1] * (1 - alpha);
-        }
-      }
-      return result;
-    }
-
-    function calcRSI(values, period = 14) {
-      const result = Array(values.length).fill('');
-      if (values.length <= period) return result;
-
-      let gainSum = 0;
-      let lossSum = 0;
-
-      for (let i = 1; i <= period; i++) {
-        const change = values[i] - values[i - 1];
-        if (change >= 0) gainSum += change;
-        else lossSum += Math.abs(change);
-      }
-
-      let avgGain = gainSum / period;
-      let avgLoss = lossSum / period;
-      result[period] = rsiFromAvg(avgGain, avgLoss);
-
-      for (let i = period + 1; i < values.length; i++) {
-        const change = values[i] - values[i - 1];
-        const gain = Math.max(change, 0);
-        const loss = Math.max(-change, 0);
-        avgGain = (avgGain * (period - 1) + gain) / period;
-        avgLoss = (avgLoss * (period - 1) + loss) / period;
-        result[i] = rsiFromAvg(avgGain, avgLoss);
-      }
-
-      return result;
-    }
-
-    function rsiFromAvg(avgGain, avgLoss) {
-      if (!isFiniteNumber(avgLoss) || avgLoss === 0) return 100;
-      const rs = avgGain / avgLoss;
-      return 100 - (100 / (1 + rs));
-    }
-
-    function calcMACD(values, fast = 12, slow = 26, signalPeriod = 9) {
-      const emaFast = calcEMA(values, fast);
-      const emaSlow = calcEMA(values, slow);
-      const macd = values.map((_, i) => {
-        if (!isFiniteNumber(emaFast[i]) || !isFiniteNumber(emaSlow[i])) return '';
-        return emaFast[i] - emaSlow[i];
-      });
-      const signal = calcEMANullable(macd, signalPeriod);
-      const hist = macd.map((v, i) => isFiniteNumber(v) && isFiniteNumber(signal[i]) ? v - signal[i] : '');
-      return { macd, signal, hist };
-    }
-
-    function calcEMANullable(values, period) {
-      const result = Array(values.length).fill('');
-      const alpha = 2 / (period + 1);
-      let buffer = [];
-      let prev = '';
-
-      for (let i = 0; i < values.length; i++) {
-        const v = values[i];
-        if (!isFiniteNumber(v)) continue;
-
-        if (buffer.length < period) {
-          buffer.push(v);
-          if (buffer.length === period) {
-            prev = mean(buffer);
-            result[i] = prev;
-          }
-        } else {
-          prev = v * alpha + prev * (1 - alpha);
-          result[i] = prev;
-        }
-      }
-      return result;
-    }
-
-    function calcBollinger(values, period = 20, mult = 2) {
-      const mid = Array(values.length).fill('');
-      const upper = Array(values.length).fill('');
-      const lower = Array(values.length).fill('');
-      const widthPct = Array(values.length).fill('');
-
-      for (let i = 0; i < values.length; i++) {
-        if (i < period - 1) continue;
-        const window = values.slice(i - period + 1, i + 1).filter(isFiniteNumber);
-        if (window.length !== period) continue;
-        const m = mean(window);
-        const sd = stddev(window, m);
-        mid[i] = m;
-        upper[i] = m + mult * sd;
-        lower[i] = m - mult * sd;
-        widthPct[i] = safeDiv(upper[i] - lower[i], m) * 100;
-      }
-      return { mid, upper, lower, widthPct };
-    }
-
-    function calcATR(high, low, close, period = 14) {
-      const tr = Array(close.length).fill('');
-      const atr = Array(close.length).fill('');
-
-      for (let i = 0; i < close.length; i++) {
-        if (i === 0) {
-          tr[i] = high[i] - low[i];
-        } else {
-          tr[i] = Math.max(
-            high[i] - low[i],
-            Math.abs(high[i] - close[i - 1]),
-            Math.abs(low[i] - close[i - 1])
-          );
-        }
-      }
-
-      if (tr.length < period) return atr;
-      let first = 0;
-      for (let i = 0; i < period; i++) first += tr[i];
-      atr[period - 1] = first / period;
-
-      for (let i = period; i < tr.length; i++) {
-        atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period;
-      }
-      return atr;
-    }
-
-    function prevWindowStats(values, index, period) {
-      const from = index - period;
-      if (from < 0) return { mean: '', std: '' };
-      const window = values.slice(from, index).filter(isFiniteNumber);
-      if (window.length !== period) return { mean: '', std: '' };
-      const m = mean(window);
-      return { mean: m, std: stddev(window, m) };
-    }
-
-    function rollingMax(values, index, period) {
-      const from = index - period;
-      if (from < 0) return '';
-      const window = values.slice(from, index).filter(isFiniteNumber);
-      return window.length === period ? Math.max(...window) : '';
-    }
-
-    function rollingMin(values, index, period) {
-      const from = index - period;
-      if (from < 0) return '';
-      const window = values.slice(from, index).filter(isFiniteNumber);
-      return window.length === period ? Math.min(...window) : '';
-    }
-
-    function futureMax(values, index, forward) {
-      const window = values.slice(index + 1, index + 1 + forward).filter(isFiniteNumber);
-      return window.length ? Math.max(...window) : '';
-    }
-
-    /**********************************************************************
-     * API / CSV / Utility
-     **********************************************************************/
-
-    async function fetchKlines(apiBase, symbol, interval, startTime, endTime, limit, retryCount) {
-      return requestJson(apiBase, '/fapi/v1/klines', { symbol, interval, startTime, endTime, limit }, retryCount);
-    }
-
-    async function requestJson(apiBase, path, params = {}, retryCount = 4) {
-      const query = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') query.set(key, value);
-      });
-      const url = `${apiBase}${path}${query.toString() ? '?' + query.toString() : ''}`;
-
-      let lastError = null;
-      for (let attempt = 0; attempt <= retryCount; attempt++) {
-        try {
-          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-
-          if (res.status === 429 || res.status === 418) {
-            const retryAfter = Number(res.headers.get('Retry-After'));
-            const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(30000, 1200 * Math.pow(2, attempt));
-            lastError = new Error(`HTTP ${res.status} rate limited. ${Math.round(wait / 1000)}초 후 재시도합니다.`);
-            logLine(lastError.message);
-            await sleep(wait);
-            continue;
-          }
-
-          if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`HTTP ${res.status}: ${text.slice(0, 240)}`);
-          }
-
-          return await res.json();
-        } catch (err) {
-          lastError = err;
-          const isCorsLike = err instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(err && err.message));
-          if (isCorsLike && attempt === retryCount) {
-            throw new Error('브라우저에서 Binance API 요청이 차단되었거나 네트워크/CORS 문제가 발생했습니다. 로컬 파일이 아니라 간단한 로컬 서버에서 열거나, 네트워크/VPN/보안 프로그램 차단 여부를 확인해주세요.');
-          }
-          if (attempt < retryCount) {
-            const wait = Math.min(15000, 800 * Math.pow(2, attempt));
-            await sleep(wait);
+          const gain = dayOpen > 0 ? (dayHigh / dayOpen - 1) * 100 : null;
+          if (gain !== null && isFinite(gain)) {
+            results.push({ symbol: sym, dayOpen, dayHigh, dayHighTime, gain });
           }
         }
+      } catch (e) {
+        if (e.message === 'STOPPED') return;
+        errors++;
+        $('pErr').textContent = `errors: ${errors}`;
       }
-      throw lastError || new Error('API 요청 실패');
+      done++;
+      $('pCount').textContent = `${done} / ${symbols.length}`;
+      $('pbar').style.width = (done / symbols.length * 100).toFixed(1) + '%';
+      await sleep(PER_REQ_DELAY);
     }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  return results;
+}
 
-    function parseKline(k) {
-      if (!Array.isArray(k) || k.length < 11) return null;
-      return {
-        openTime: Number(k[0]),
-        open: toFiniteNumber(k[1], 0),
-        high: toFiniteNumber(k[2], 0),
-        low: toFiniteNumber(k[3], 0),
-        close: toFiniteNumber(k[4], 0),
-        volume: toFiniteNumber(k[5], 0),
-        closeTime: Number(k[6]),
-        quoteVolume: toFiniteNumber(k[7], 0),
-        numberOfTrades: toFiniteNumber(k[8], 0),
-        takerBuyBaseVolume: toFiniteNumber(k[9], 0),
-        takerBuyQuoteVolume: toFiniteNumber(k[10], 0)
-      };
+/**
+ * 2단계: winner 상세 분석
+ * - 선택일 시작 기준 (96 + WARMUP)개 봉 이전부터, 선택일 종료 + 24봉 이후까지 요청
+ *   → surge_start가 선택일 첫 봉이어도 과거 96개 + 지표 워밍업 확보
+ */
+async function analyzeWinner(symbol, range) {
+  const startTime = range.start - (PAST_N + WARMUP) * M15;
+  const endTime = range.end + FUT_N * M15;
+  const raw = await apiGet('/fapi/v1/klines', {
+    symbol, interval: '15m', startTime, endTime, limit: 1000
+  });
+  return parseKlines(raw);
+}
+
+/**
+ * 전체 캔들 배열에 대해 모든 지표 시계열 계산
+ */
+function computeIndicators(candles) {
+  const closes = candles.map(c => c.close);
+  const vols = candles.map(c => c.volume);
+  const qvols = candles.map(c => c.quoteVolume);
+  const trades = candles.map(c => c.trades);
+
+  const ema9 = emaSeries(closes, 9);
+  const ema20 = emaSeries(closes, 20);
+  const ema50 = emaSeries(closes, 50);
+  const rsi14 = rsiSeries(closes, 14);
+  const { macd, signal, hist } = macdSeries(closes);
+
+  // Bollinger(20, 2σ)
+  const bbMid = smaSeries(closes, 20);
+  const bbStd = stdSeries(closes, 20);
+  const bbUp = bbMid.map((m, i) => m === null ? null : m + 2 * bbStd[i]);
+  const bbLo = bbMid.map((m, i) => m === null ? null : m - 2 * bbStd[i]);
+  // 밴드폭 % = (상단-하단)/중단 * 100
+  const bbWidthPct = bbMid.map((m, i) =>
+    (m === null || m === 0) ? null : (bbUp[i] - bbLo[i]) / m * 100);
+
+  const atr14 = atrSeries(candles, 14);
+  const atr14Pct = atr14.map((a, i) =>
+    (a === null || closes[i] === 0) ? null : a / closes[i] * 100);
+
+  const volMa20 = smaSeries(vols, 20);
+  const volZ20 = zscoreSeries(vols, 20);
+  const qvolMa20 = smaSeries(qvols, 20);
+  const qvolZ20 = zscoreSeries(qvols, 20);
+  const trMa20 = smaSeries(trades, 20);
+  const trZ20 = zscoreSeries(trades, 20);
+
+  const rollHigh20 = rollingPrevExtreme(candles, 20, 'high');
+  const rollLow20 = rollingPrevExtreme(candles, 20, 'low');
+
+  return {
+    ema9, ema20, ema50, rsi14, macd, signal, hist,
+    bbMid, bbUp, bbLo, bbWidthPct, atr14, atr14Pct,
+    volMa20, volZ20, qvolMa20, qvolZ20, trMa20, trZ20,
+    rollHigh20, rollLow20
+  };
+}
+
+/**
+ * i번째 봉의 surge_start_score (0~100)
+ * 구성 요소와 배점:
+ *  - volume_zscore20            : z를 0~4로 클램프 → 0~15점
+ *  - quote_volume_zscore20      : z를 0~4로 클램프 → 0~10점
+ *  - candle_return_pct          : 0~3%를 0~15점으로 선형 매핑
+ *  - high_breakout_20           : 돌파 시 10점
+ *  - close > ema20              : 10점
+ *  - ema9 > ema20               : 5점
+ *  - taker_buy_ratio            : 0.5~1.0을 0~10점으로 (매수 우위 강도)
+ *  - bollinger_width_pct 변화율 : 직전 봉 대비 확장률 0~50%를 0~10점으로
+ *  - atr14_pct                  : 0~2%를 0~15점으로 (변동성 점화)
+ */
+function surgeScore(candles, ind, i) {
+  const c = candles[i];
+  let score = 0;
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+
+  const vz = ind.volZ20[i];
+  if (vz !== null) score += clamp01(vz / 4) * 15;
+
+  const qz = ind.qvolZ20[i];
+  if (qz !== null) score += clamp01(qz / 4) * 10;
+
+  const ret = c.open > 0 ? (c.close / c.open - 1) * 100 : 0;
+  score += clamp01(ret / 3) * 15;
+
+  if (ind.rollHigh20[i] !== null && c.high > ind.rollHigh20[i]) score += 10;
+  if (ind.ema20[i] !== null && c.close > ind.ema20[i]) score += 10;
+  if (ind.ema9[i] !== null && ind.ema20[i] !== null && ind.ema9[i] > ind.ema20[i]) score += 5;
+
+  const tbr = c.volume > 0 ? c.takerBuyBase / c.volume : 0.5;
+  score += clamp01((tbr - 0.5) * 2) * 10;
+
+  const bwPrev = ind.bbWidthPct[i - 1], bw = ind.bbWidthPct[i];
+  if (bw !== null && bwPrev !== null && bwPrev > 0) {
+    score += clamp01((bw - bwPrev) / bwPrev / 0.5) * 10;
+  }
+
+  const ap = ind.atr14Pct[i];
+  if (ap !== null) score += clamp01(ap / 2) * 15;
+
+  return Math.round(Math.max(0, Math.min(100, score)) * 10) / 10;
+}
+
+/**
+ * 급등 시작 봉 탐지
+ * 1) strict 조건 → 2) relaxed 조건 → 3) score 최고 봉 (폴백)
+ * 반환: { idx, reason, candidateFlags, scores }
+ */
+function detectSurgeStart(candles, ind, dayHighIdx, range) {
+  const n = candles.length;
+  const scores = candles.map((_, i) => surgeScore(candles, ind, i));
+  const candidateFlags = new Array(n).fill(0); // 2=strict, 1=relaxed
+
+  // 이후 maxFwd개 봉 안의 최대 high가 close 대비 minGain% 이상 상승했는지
+  function futureGainOk(i, maxFwd, minGainPct) {
+    const c = candles[i].close;
+    if (c <= 0) return false;
+    let maxH = -Infinity;
+    for (let j = i + 1; j <= Math.min(i + maxFwd, n - 1); j++) {
+      maxH = Math.max(maxH, candles[j].high);
     }
+    return isFinite(maxH) && (maxH / c - 1) * 100 >= minGainPct;
+  }
 
-    function toWinnerCsvRow(c) {
-      return {
-        symbol: c.symbol,
-        selected_date_kst: c.selected_date_kst,
-        open_time_utc: formatUtc(c.openTime),
-        open_time_kst: formatKst(c.openTime),
-        relative_index_from_surge_start: c.relative_index_from_surge_start,
-        is_selected_date: c.is_selected_date,
-        is_winner: c.is_winner,
-        is_day_high_candle: c.is_day_high_candle,
-        is_surge_start: c.is_surge_start,
+  function inDay(i) {
+    return candles[i].openTime >= range.start && candles[i].openTime <= range.end;
+  }
 
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
-        quote_volume: c.quoteVolume,
-        number_of_trades: c.numberOfTrades,
-        taker_buy_base_volume: c.takerBuyBaseVolume,
-        taker_buy_quote_volume: c.takerBuyQuoteVolume,
+  // 공통 조건 체크 (volMult/retMin/futGain만 strict와 relaxed가 다름)
+  function check(i, volMult, retMin, futGain) {
+    const c = candles[i];
+    if (!inDay(i)) return false;
+    if (ind.ema20[i] === null || c.close <= ind.ema20[i]) return false;
+    if (ind.volMa20[i] === null || c.volume < ind.volMa20[i] * volMult) return false;
+    const ret = c.open > 0 ? (c.close / c.open - 1) * 100 : 0;
+    if (ret < retMin) return false;
+    if (ind.rollHigh20[i] === null || c.high <= ind.rollHigh20[i]) return false;
+    return futureGainOk(i, 8, futGain);
+  }
 
-        day_open: c.day_open,
-        day_high: c.day_high,
-        day_gain_pct: c.day_gain_pct,
-        pct_from_day_open: c.pct_from_day_open,
-        candle_return_pct: c.candle_return_pct,
-        high_from_open_pct: c.high_from_open_pct,
-        range_pct: c.range_pct,
-        body_pct: c.body_pct,
-        upper_wick_pct: c.upper_wick_pct,
-        lower_wick_pct: c.lower_wick_pct,
+  // 후보 플래그 채우기 (CSV의 surge_start_candidate 컬럼용 — 하루 전체 대상)
+  for (let i = 0; i < n; i++) {
+    if (check(i, 2, 1.5, 5)) candidateFlags[i] = 2;
+    else if (check(i, 1.5, 1.0, 3)) candidateFlags[i] = 1;
+  }
 
-        volume_ma20: c.volume_ma20,
-        volume_ratio20: c.volume_ratio20,
-        volume_zscore20: c.volume_zscore20,
-        quote_volume_ma20: c.quote_volume_ma20,
-        quote_volume_ratio20: c.quote_volume_ratio20,
-        quote_volume_zscore20: c.quote_volume_zscore20,
-        trades_ma20: c.trades_ma20,
-        trades_ratio20: c.trades_ratio20,
-        trades_zscore20: c.trades_zscore20,
-        taker_buy_ratio: c.taker_buy_ratio,
+  // 1) strict: day_high 봉 이전 후보 중 가장 이른 봉
+  for (let i = 0; i < dayHighIdx; i++) {
+    if (candidateFlags[i] === 2) return { idx: i, reason: 'strict', candidateFlags, scores };
+  }
+  // 2) relaxed
+  for (let i = 0; i < dayHighIdx; i++) {
+    if (candidateFlags[i] === 1) return { idx: i, reason: 'relaxed', candidateFlags, scores };
+  }
+  // 3) score 폴백: day_high 봉 이전 96개 봉 중 최고 점수
+  let best = -1, bestScore = -1;
+  for (let i = Math.max(0, dayHighIdx - 96); i < dayHighIdx; i++) {
+    if (scores[i] > bestScore) { bestScore = scores[i]; best = i; }
+  }
+  // day_high 봉이 배열 맨 앞이라 이전 봉이 없으면 day_high 봉 자체를 사용
+  if (best < 0) best = dayHighIdx;
+  return { idx: best, reason: 'score', candidateFlags, scores };
+}
 
-        ema9: c.ema9,
-        ema20: c.ema20,
-        ema50: c.ema50,
-        ema9_above_ema20: c.ema9_above_ema20,
-        ema20_above_ema50: c.ema20_above_ema50,
-        close_above_ema20: c.close_above_ema20,
+/* ---------------- CSV 생성 ---------------- */
 
-        rsi14: c.rsi14,
-        macd: c.macd,
-        macd_signal: c.macd_signal,
-        macd_hist: c.macd_hist,
+function buildScanCsv(rows, dateStr) {
+  const head = ['symbol', 'selected_date_kst', 'day_open', 'day_high', 'day_high_time_kst', 'day_gain_pct'];
+  const lines = [head.join(',')];
+  for (const r of rows) {
+    lines.push([
+      r.symbol, dateStr,
+      safeNum(r.dayOpen), safeNum(r.dayHigh),
+      fmtKST(r.dayHighTime), safeNum(r.gain, 4)
+    ].join(','));
+  }
+  return lines.join('\n');
+}
 
-        bollinger_mid20: c.bollinger_mid20,
-        bollinger_upper20: c.bollinger_upper20,
-        bollinger_lower20: c.bollinger_lower20,
-        bollinger_width_pct: c.bollinger_width_pct,
-        atr14: c.atr14,
-        atr14_pct: c.atr14_pct,
+function buildWinnerCsv(symbol, dateStr, candles, ind, surge, dayHighIdx, dayInfo, range) {
+  const cols = [
+    // 기본 정보
+    'symbol','selected_date_kst','open_time_utc','open_time_kst',
+    'relative_index_from_surge_start','is_selected_date','is_winner',
+    'is_day_high_candle','is_surge_start',
+    // OHLCV
+    'open','high','low','close','volume','quote_volume','number_of_trades',
+    'taker_buy_base_volume','taker_buy_quote_volume',
+    // 상승률/캔들 구조
+    'day_open','day_high','day_gain_pct','pct_from_day_open','candle_return_pct',
+    'high_from_open_pct','range_pct','body_pct','upper_wick_pct','lower_wick_pct',
+    // 거래량 지표
+    'volume_ma20','volume_ratio20','volume_zscore20',
+    'quote_volume_ma20','quote_volume_ratio20','quote_volume_zscore20',
+    'trades_ma20','trades_ratio20','trades_zscore20','taker_buy_ratio',
+    // 추세 지표
+    'ema9','ema20','ema50','ema9_above_ema20','ema20_above_ema50','close_above_ema20',
+    // 모멘텀 지표
+    'rsi14','macd','macd_signal','macd_hist',
+    // 변동성 지표
+    'bollinger_mid20','bollinger_upper20','bollinger_lower20','bollinger_width_pct',
+    'atr14','atr14_pct',
+    // 돌파 지표
+    'rolling_high_20_prev','high_breakout_20','close_breakout_20',
+    'rolling_low_20_prev','distance_from_rolling_low20_pct',
+    // 급등 시작 분석용
+    'future_max_high_4','future_max_high_8','future_max_high_16',
+    'future_return_max_4_pct','future_return_max_8_pct','future_return_max_16_pct',
+    'surge_start_candidate','surge_start_score','surge_detection_reason'
+  ];
+  const lines = [cols.join(',')];
 
-        rolling_high_20_prev: c.rolling_high_20_prev,
-        high_breakout_20: c.high_breakout_20,
-        close_breakout_20: c.close_breakout_20,
-        rolling_low_20_prev: c.rolling_low_20_prev,
-        distance_from_rolling_low20_pct: c.distance_from_rolling_low20_pct,
+  const n = candles.length;
+  const sIdx = surge.idx;
+  const from = Math.max(0, sIdx - PAST_N);
+  const to = Math.min(n - 1, sIdx + FUT_N);
 
-        future_max_high_4: c.future_max_high_4,
-        future_max_high_8: c.future_max_high_8,
-        future_max_high_16: c.future_max_high_16,
-        future_return_max_4_pct: c.future_return_max_4_pct,
-        future_return_max_8_pct: c.future_return_max_8_pct,
-        future_return_max_16_pct: c.future_return_max_16_pct,
-        surge_start_candidate: c.surge_start_candidate,
-        surge_start_score: c.surge_start_score,
-        surge_detection_reason: c.surge_detection_reason
-      };
+  // 이후 N개 봉의 최대 high (자기 자신 제외)
+  function futMaxHigh(i, fwd) {
+    let m = -Infinity;
+    for (let j = i + 1; j <= Math.min(i + fwd, n - 1); j++) m = Math.max(m, candles[j].high);
+    return isFinite(m) ? m : null;
+  }
+
+  for (let i = from; i <= to; i++) {
+    const c = candles[i];
+    const o = c.open, h = c.high, l = c.low, cl = c.close;
+    const inDay = (c.openTime >= range.start && c.openTime <= range.end) ? 1 : 0;
+
+    const ret = o > 0 ? (cl / o - 1) * 100 : null;
+    const hfo = o > 0 ? (h / o - 1) * 100 : null;
+    const rangePct = o > 0 ? (h - l) / o * 100 : null;
+    const bodyPct = o > 0 ? Math.abs(cl - o) / o * 100 : null;
+    const upWick = o > 0 ? (h - Math.max(o, cl)) / o * 100 : null;
+    const loWick = o > 0 ? (Math.min(o, cl) - l) / o * 100 : null;
+
+    const volRatio = (ind.volMa20[i] && ind.volMa20[i] > 0) ? c.volume / ind.volMa20[i] : null;
+    const qvolRatio = (ind.qvolMa20[i] && ind.qvolMa20[i] > 0) ? c.quoteVolume / ind.qvolMa20[i] : null;
+    const trRatio = (ind.trMa20[i] && ind.trMa20[i] > 0) ? c.trades / ind.trMa20[i] : null;
+    const tbr = c.volume > 0 ? c.takerBuyBase / c.volume : null;
+
+    const rh = ind.rollHigh20[i], rl = ind.rollLow20[i];
+    const fm4 = futMaxHigh(i, 4), fm8 = futMaxHigh(i, 8), fm16 = futMaxHigh(i, 16);
+
+    const row = [
+      symbol, dateStr, fmtUTC(c.openTime), fmtKST(c.openTime),
+      i - sIdx, inDay, 1,
+      i === dayHighIdx ? 1 : 0,
+      i === sIdx ? 1 : 0,
+
+      safeNum(o), safeNum(h), safeNum(l), safeNum(cl),
+      safeNum(c.volume), safeNum(c.quoteVolume, 2), safeNum(c.trades, 0),
+      safeNum(c.takerBuyBase), safeNum(c.takerBuyQuote, 2),
+
+      safeNum(dayInfo.dayOpen), safeNum(dayInfo.dayHigh), safeNum(dayInfo.gain, 4),
+      dayInfo.dayOpen > 0 ? safeNum((cl / dayInfo.dayOpen - 1) * 100, 4) : '',
+      safeNum(ret, 4), safeNum(hfo, 4), safeNum(rangePct, 4),
+      safeNum(bodyPct, 4), safeNum(upWick, 4), safeNum(loWick, 4),
+
+      safeNum(ind.volMa20[i]), safeNum(volRatio, 4), safeNum(ind.volZ20[i], 4),
+      safeNum(ind.qvolMa20[i], 2), safeNum(qvolRatio, 4), safeNum(ind.qvolZ20[i], 4),
+      safeNum(ind.trMa20[i], 2), safeNum(trRatio, 4), safeNum(ind.trZ20[i], 4),
+      safeNum(tbr, 4),
+
+      safeNum(ind.ema9[i]), safeNum(ind.ema20[i]), safeNum(ind.ema50[i]),
+      (ind.ema9[i] !== null && ind.ema20[i] !== null) ? (ind.ema9[i] > ind.ema20[i] ? 1 : 0) : '',
+      (ind.ema20[i] !== null && ind.ema50[i] !== null) ? (ind.ema20[i] > ind.ema50[i] ? 1 : 0) : '',
+      ind.ema20[i] !== null ? (cl > ind.ema20[i] ? 1 : 0) : '',
+
+      safeNum(ind.rsi14[i], 4), safeNum(ind.macd[i]), safeNum(ind.signal[i]), safeNum(ind.hist[i]),
+
+      safeNum(ind.bbMid[i]), safeNum(ind.bbUp[i]), safeNum(ind.bbLo[i]),
+      safeNum(ind.bbWidthPct[i], 4), safeNum(ind.atr14[i]), safeNum(ind.atr14Pct[i], 4),
+
+      safeNum(rh),
+      rh !== null ? (h > rh ? 1 : 0) : '',
+      rh !== null ? (cl > rh ? 1 : 0) : '',
+      safeNum(rl),
+      (rl !== null && rl > 0) ? safeNum((cl / rl - 1) * 100, 4) : '',
+
+      safeNum(fm4), safeNum(fm8), safeNum(fm16),
+      (fm4 !== null && cl > 0) ? safeNum((fm4 / cl - 1) * 100, 4) : '',
+      (fm8 !== null && cl > 0) ? safeNum((fm8 / cl - 1) * 100, 4) : '',
+      (fm16 !== null && cl > 0) ? safeNum((fm16 / cl - 1) * 100, 4) : '',
+
+      surge.candidateFlags[i],
+      safeNum(surge.scores[i], 1),
+      surge.reason
+    ];
+    lines.push(row.join(','));
+  }
+  return lines.join('\n');
+}
+
+// Blob → 즉시 다운로드
+function downloadCsv(text, filename) {
+  // UTF-8 BOM 추가: 엑셀에서 한글 깨짐 방지
+  const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+/* ---------------- 실행 흐름 ---------------- */
+
+async function runScan() {
+  const dateStr = $('datePick').value;
+  if (!dateStr) { showErr('날짜를 먼저 선택해주세요.'); return; }
+  $('errBox').style.display = 'none';
+
+  selectedDateStr = dateStr;
+  stopFlag = false;
+  scanCsvText = winnerCsvText = null;
+
+  $('btnScan').disabled = true;
+  $('btnStop').classList.remove('hidden');
+  $('progressPanel').style.display = 'block';
+  $('winnerPanel').style.display = 'none';
+  $('topPanel').style.display = 'none';
+  $('pbar').style.width = '0%';
+  $('pErr').textContent = '';
+  $('pSym').textContent = 'exchangeInfo...';
+
+  try {
+    const range = kstDayRange(dateStr);
+    if (range.start > Date.now()) throw new Error('미래 날짜는 스캔할 수 없습니다.');
+
+    // 1) 심볼 목록
+    const symbols = await fetchSymbols();
+    $('pCount').textContent = `0 / ${symbols.length}`;
+
+    // 2) 전 심볼 스캔
+    scanRows = await scanAllSymbols(symbols, range);
+    if (stopFlag) throw new Error('STOPPED');
+    if (scanRows.length === 0) throw new Error('해당 날짜에 유효한 캔들 데이터가 있는 심볼이 없습니다.');
+
+    scanRows.sort((a, b) => b.gain - a.gain);
+    const winner = scanRows[0];
+    winnerSymbol = winner.symbol;
+    scanCsvText = buildScanCsv(scanRows, dateStr);
+
+    // 3) winner 상세 분석
+    $('pSym').textContent = `${winner.symbol} (winner 상세 분석 중)`;
+    const candles = await analyzeWinner(winner.symbol, range);
+    if (candles.length < 25) throw new Error('winner 심볼의 캔들 데이터가 부족합니다.');
+
+    const ind = computeIndicators(candles);
+
+    // 전체 배열에서 day_high 봉의 글로벌 인덱스 찾기
+    let dayHighIdx = -1, maxH = -Infinity;
+    for (let i = 0; i < candles.length; i++) {
+      const c = candles[i];
+      if (c.openTime >= range.start && c.openTime <= range.end && c.high > maxH) {
+        maxH = c.high; dayHighIdx = i;
+      }
     }
+    if (dayHighIdx < 0) throw new Error('선택일 캔들을 찾을 수 없습니다.');
 
-    function buildCsv(rows, columns) {
-      const header = columns.join(',');
-      const body = rows.map(row => columns.map(col => csvEscape(normalizeCsvValue(row[col]))).join(',')).join('\n');
-      return '\ufeff' + header + (body ? '\n' + body : '');
-    }
+    const surge = detectSurgeStart(candles, ind, dayHighIdx, range);
+    winnerCsvText = buildWinnerCsv(
+      winner.symbol, dateStr, candles, ind, surge, dayHighIdx, winner, range);
 
-    function normalizeCsvValue(value) {
-      if (value === null || value === undefined || value === '') return '';
-      if (typeof value === 'number') return isFiniteNumber(value) ? formatNumber(value) : '';
-      if (typeof value === 'boolean') return value ? 'true' : 'false';
-      return String(value).replace(/NaN/g, '');
-    }
+    // 결과 표시
+    $('wSymbol').textContent = winner.symbol;
+    $('wGain').textContent = '+' + winner.gain.toFixed(2) + '%';
+    $('wOpen').textContent = safeNum(winner.dayOpen);
+    $('wHigh').textContent = safeNum(winner.dayHigh);
+    $('wHighTime').textContent = fmtKST(winner.dayHighTime);
+    $('wSurgeTime').textContent = fmtKST(candles[surge.idx].openTime);
+    $('wReason').textContent = 'detection: ' + surge.reason;
+    $('winnerPanel').style.display = 'block';
 
-    function csvEscape(value) {
-      const s = String(value ?? '');
-      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
+    // Top 10 테이블
+    const tb = $('topBody');
+    tb.innerHTML = '';
+    for (const r of scanRows.slice(0, 10)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="sym">${r.symbol}</td><td>${safeNum(r.dayOpen)}</td>` +
+        `<td>${safeNum(r.dayHigh)}</td><td class="gain">+${r.gain.toFixed(2)}%</td>`;
+      tb.appendChild(tr);
     }
+    $('topPanel').style.display = 'block';
+    $('pSym').textContent = '완료';
+  } catch (e) {
+    if (e.message !== 'STOPPED') showErr('오류: ' + e.message);
+    else $('pSym').textContent = '중지됨';
+  } finally {
+    $('btnScan').disabled = false;
+    $('btnStop').classList.add('hidden');
+  }
+}
 
-    function downloadCsv(filename, csvText) {
-      if (!csvText) return;
-      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
+$('btnScan').addEventListener('click', runScan);
+$('btnStop').addEventListener('click', () => { stopFlag = true; });
 
-    function kstDateRangeToUtcMs(yyyyMmDd) {
-      const [y, m, d] = yyyyMmDd.split('-').map(Number);
-      // KST 00:00은 UTC 기준 전날 15:00입니다. Date.UTC에서 9시간을 빼서 UTC ms로 변환합니다.
-      const startUtcMs = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 9 * 60 * 60 * 1000;
-      const endUtcMs = startUtcMs + 24 * 60 * 60 * 1000 - 1;
-      return { startUtcMs, endUtcMs };
-    }
+$('btnDlScan').addEventListener('click', () => {
+  if (!scanCsvText) return;
+  downloadCsv(scanCsvText, `scan_result_${selectedDateStr}.csv`);
+});
+$('btnDlWinner').addEventListener('click', () => {
+  if (!winnerCsvText) return;
+  downloadCsv(winnerCsvText, `winner_${selectedDateStr}_${winnerSymbol}_15m_surge_window.csv`);
+});
 
-    function formatUtc(ms) {
-      if (!isFiniteNumber(ms)) return '';
-      return new Date(ms).toISOString();
-    }
-
-    function formatKst(ms) {
-      if (!isFiniteNumber(ms)) return '';
-      return new Date(ms + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
-    }
-
-    function pct(value, base) {
-      if (!isFiniteNumber(value) || !isFiniteNumber(base) || base === 0) return '';
-      return (value / base - 1) * 100;
-    }
-
-    function safeDiv(a, b) {
-      if (!isFiniteNumber(a) || !isFiniteNumber(b) || b === 0) return '';
-      return a / b;
-    }
-
-    function ratioPct(a, b) {
-      const v = safeDiv(a, b);
-      return isFiniteNumber(v) ? v * 100 : '';
-    }
-
-    function zscore(value, avg, sd) {
-      if (!isFiniteNumber(value) || !isFiniteNumber(avg) || !isFiniteNumber(sd) || sd === 0) return '';
-      return (value - avg) / sd;
-    }
-
-    function mean(arr) {
-      const vals = arr.filter(isFiniteNumber);
-      if (!vals.length) return '';
-      return vals.reduce((sum, v) => sum + v, 0) / vals.length;
-    }
-
-    function stddev(arr, avg = mean(arr)) {
-      const vals = arr.filter(isFiniteNumber);
-      if (!vals.length || !isFiniteNumber(avg)) return '';
-      const variance = vals.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / vals.length;
-      return Math.sqrt(variance);
-    }
-
-    function isFiniteNumber(v) {
-      return typeof v === 'number' && Number.isFinite(v);
-    }
-
-    function toFiniteNumber(v, fallback = '') {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : fallback;
-    }
-
-    function bool(v) {
-      return v === true || v === 'true' || v === 1;
-    }
-
-    function clamp(v, min, max) {
-      if (!isFiniteNumber(v)) return min;
-      return Math.min(max, Math.max(min, v));
-    }
-
-    function isInside(ms, start, end) {
-      return isFiniteNumber(ms) && ms >= start && ms <= end;
-    }
-
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    function formatNumber(value) {
-      if (!isFiniteNumber(value)) return '';
-      if (value === 0) return '0';
-      const abs = Math.abs(value);
-      if (abs >= 1) return Number(value.toFixed(8)).toString();
-      return Number(value.toPrecision(12)).toString();
-    }
-
-    function updateProgress(done, total) {
-      const pctNum = total ? Math.round((done / total) * 100) : 0;
-      $('progressLabel').textContent = `${done} / ${total}`;
-      $('progressPct').textContent = `${pctNum}%`;
-      $('progressBar').style.width = `${pctNum}%`;
-    }
-
-    function updateWinnerSummary(winner) {
-      $('winnerSymbol').textContent = winner.symbol || '-';
-      $('winnerGain').textContent = isFiniteNumber(winner.day_gain_pct) ? `${formatNumber(winner.day_gain_pct)}%` : '-';
-      $('dayOpenHigh').textContent = `${formatNumber(winner.day_open)} / ${formatNumber(winner.day_high)}`;
-      $('dayHighTime').textContent = winner.day_high_time_kst || '-';
-    }
-
-    function setStatus(type, text) {
-      const dot = $('statusDot');
-      dot.className = 'dot';
-      if (type) dot.classList.add(type);
-      $('statusText').textContent = text;
-      $('scanBtn').disabled = type === 'running';
-    }
-
-    function showError(message) {
-      const el = $('errorNotice');
-      el.textContent = message;
-      el.classList.add('show');
-    }
-
-    function hideError() {
-      $('errorNotice').classList.remove('show');
-      $('errorNotice').textContent = '';
-    }
-
-    function makeFriendlyError(err) {
-      const msg = err && err.message ? err.message : String(err);
-      if (/CORS|Failed to fetch|Network|차단/i.test(msg)) return msg;
-      return `오류가 발생했습니다: ${msg}`;
-    }
-
-    function logLine(message) {
-      const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-      $('log').textContent += `[${time}] ${message}\n`;
-      $('log').scrollTop = $('log').scrollHeight;
-    }
-
-    function resetUi() {
-      hideError();
-      state.scanRows = [];
-      state.winnerRows = [];
-      state.scanCsv = '';
-      state.winnerCsv = '';
-      $('log').textContent = '';
-      $('downloadScanBtn').disabled = true;
-      $('downloadWinnerBtn').disabled = true;
-      $('winnerSymbol').textContent = '-';
-      $('winnerGain').textContent = '-';
-      $('dayOpenHigh').textContent = '-';
-      $('dayHighTime').textContent = '-';
-      $('surgeStartTime').textContent = '-';
-      $('surgeReason').textContent = '-';
-      $('csvWindow').textContent = '-';
-      updateProgress(0, 0);
-    }
-  </script>
+// 기본값: 어제 날짜 (KST)
+(function initDate() {
+  const now = new Date(Date.now() + KST_OFFSET_MS - 24 * 3600 * 1000);
+  const p = n => String(n).padStart(2, '0');
+  $('datePick').value = `${now.getUTCFullYear()}-${p(now.getUTCMonth()+1)}-${p(now.getUTCDate())}`;
+})();
+</script>
 </body>
 </html>
