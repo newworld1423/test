@@ -1,0 +1,1393 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Binance USDⓈ-M Futures 급등 분석 CSV 스캐너</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a30;
+      --panel-2: #18223c;
+      --line: rgba(255,255,255,.11);
+      --text: #eef3ff;
+      --muted: #9ca9c2;
+      --accent: #f0b90b;
+      --accent-2: #2bd4bd;
+      --danger: #ff5c7a;
+      --good: #4ade80;
+      --shadow: 0 18px 60px rgba(0,0,0,.32);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 0%, rgba(240,185,11,.18), transparent 32%),
+        radial-gradient(circle at 85% 10%, rgba(43,212,189,.13), transparent 35%),
+        linear-gradient(180deg, #08101f 0%, var(--bg) 100%);
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 34px 0 46px;
+    }
+
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: rgba(18,26,48,.84);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 7px 12px;
+      border: 1px solid rgba(240,185,11,.38);
+      border-radius: 999px;
+      color: #ffe6a3;
+      background: rgba(240,185,11,.1);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.12;
+      letter-spacing: -.04em;
+    }
+
+    .desc {
+      margin: 0;
+      max-width: 860px;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(18,26,48,.82);
+      box-shadow: 0 14px 48px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.025);
+    }
+
+    .card-head h2 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: -.02em;
+    }
+
+    .card-body { padding: 20px; }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      margin-bottom: 8px;
+      color: #d7def0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input, select {
+      width: 100%;
+      height: 46px;
+      padding: 0 13px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 13px;
+      color: var(--text);
+      background: rgba(5,10,22,.55);
+      outline: none;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(240,185,11,.65);
+      box-shadow: 0 0 0 4px rgba(240,185,11,.10);
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      height: 48px;
+      color: #171100;
+      background: linear-gradient(135deg, #f0b90b, #ffd875);
+      font-weight: 900;
+      letter-spacing: -.01em;
+      cursor: pointer;
+      transition: transform .15s ease, opacity .15s ease, filter .15s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+    button:disabled { cursor: not-allowed; opacity: .44; }
+
+    .btn-secondary {
+      color: #dce6ff;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.06);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.running { background: var(--accent); box-shadow: 0 0 0 5px rgba(240,185,11,.14); }
+    .dot.done { background: var(--good); }
+    .dot.error { background: var(--danger); }
+
+    .progress-wrap {
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar {
+      overflow: hidden;
+      width: 100%;
+      height: 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+    }
+
+    .bar > span {
+      display: block;
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width .18s ease;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      min-height: 86px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+    }
+
+    .metric .label {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric .value {
+      overflow-wrap: anywhere;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+    }
+
+    .metric .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .log {
+      height: 250px;
+      overflow: auto;
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      background: rgba(3,8,18,.72);
+      color: #b9c8e6;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .notice {
+      margin-top: 14px;
+      padding: 13px 14px;
+      border: 1px solid rgba(255,92,122,.32);
+      border-radius: 15px;
+      color: #ffd2dc;
+      background: rgba(255,92,122,.08);
+      font-size: 13px;
+      line-height: 1.6;
+      display: none;
+    }
+
+    .notice.show { display: block; }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: rgba(238,243,255,.55);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 560px) {
+      .app { width: min(100% - 24px, 1180px); padding-top: 20px; }
+      .hero { padding: 22px; border-radius: 22px; }
+      .row, .summary-grid, .download-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div class="eyebrow">Binance USDⓈ-M Futures · 15m Surge Dataset Builder</div>
+      <h1>급등 시작 전 지표 분석용 CSV 생성 스캐너</h1>
+      <p class="desc">
+        특정 KST 날짜를 선택하면 USDT 무기한 선물 페어 전체를 스캔하고, 일봉 시가 대비 고가 상승률이 가장 높았던 winner를 찾습니다.
+        이후 winner의 급등 시작 15분봉을 자동 탐지해 과거 96개 + 기준봉 + 이후 24개 봉의 지표 CSV를 생성합니다.
+      </p>
+    </section>
+
+    <section class="grid">
+      <aside class="card">
+        <div class="card-head">
+          <h2>스캔 설정</h2>
+          <span class="status-pill"><span id="statusDot" class="dot"></span><span id="statusText">대기 중</span></span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="scanDate">분석 날짜 · KST 기준</label>
+            <input id="scanDate" type="date" />
+            <div class="hint">선택일 00:00:00 KST ~ 23:59:59 KST가 UTC millisecond로 변환되어 요청됩니다.</div>
+          </div>
+
+          <div class="field">
+            <label for="apiBase">API Base URL</label>
+            <input id="apiBase" type="text" value="https://fapi.binance.com" />
+            <div class="hint">브라우저/CORS 차단이 발생하면 다른 네트워크 또는 프록시 환경에서 실행해야 할 수 있습니다.</div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="delayMs">심볼별 요청 딜레이(ms)</label>
+              <input id="delayMs" type="number" min="0" step="10" value="120" />
+            </div>
+            <div class="field">
+              <label for="retryCount">오류 재시도 횟수</label>
+              <input id="retryCount" type="number" min="0" max="10" step="1" value="4" />
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="scanBtn">스캔 시작</button>
+            <button id="downloadScanBtn" class="btn-secondary" disabled>scan_result CSV 다운로드</button>
+            <button id="downloadWinnerBtn" class="btn-secondary" disabled>winner 급등 분석 CSV 다운로드</button>
+          </div>
+
+          <div id="errorNotice" class="notice"></div>
+          <div class="footer-note">
+            이 도구는 매매 신호 생성이 아니라, 급등 전 공통 지표 상태를 분석하기 위한 데이터셋 생성용입니다.
+          </div>
+        </div>
+      </aside>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>진행률 및 결과</h2>
+          <span id="symbolNow" class="status-pill">현재 심볼: -</span>
+        </div>
+        <div class="card-body">
+          <div class="progress-wrap">
+            <div class="progress-meta">
+              <span id="progressLabel">0 / 0</span>
+              <span id="progressPct">0%</span>
+            </div>
+            <div class="bar"><span id="progressBar"></span></div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="metric">
+              <div class="label">Winner Symbol</div>
+              <div id="winnerSymbol" class="value">-</div>
+            </div>
+            <div class="metric">
+              <div class="label">day_gain_pct</div>
+              <div id="winnerGain" class="value">-</div>
+            </div>
+            <div class="metric">
+              <div class="label">day_open / day_high</div>
+              <div id="dayOpenHigh" class="value">-</div>
+            </div>
+            <div class="metric">
+              <div class="label">day_high_time</div>
+              <div id="dayHighTime" class="value">-</div>
+              <div class="sub">KST</div>
+            </div>
+            <div class="metric">
+              <div class="label">surge_start_time</div>
+              <div id="surgeStartTime" class="value">-</div>
+              <div id="surgeReason" class="sub">-</div>
+            </div>
+            <div class="metric">
+              <div class="label">CSV window</div>
+              <div id="csvWindow" class="value">-</div>
+              <div class="sub">과거 96 + 기준봉 + 이후 24</div>
+            </div>
+          </div>
+
+          <pre id="log" class="log"></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    /**********************************************************************
+     * Binance USDⓈ-M Futures 급등 분석 CSV 스캐너
+     * - 외부 라이브러리 없이 순수 JavaScript로 작성
+     * - API 키 없이 public REST API만 사용
+     * - 날짜는 KST 기준으로 입력받고 UTC millisecond로 변환해서 요청
+     **********************************************************************/
+
+    const $ = (id) => document.getElementById(id);
+
+    const state = {
+      scanRows: [],
+      winnerRows: [],
+      scanCsv: '',
+      winnerCsv: '',
+      selectedDate: '',
+      running: false
+    };
+
+    const SCAN_COLUMNS = [
+      'rank', 'symbol', 'selected_date_kst', 'day_open', 'day_high', 'day_gain_pct',
+      'day_high_time_utc', 'day_high_time_kst', 'candle_count', 'scan_status', 'error_message'
+    ];
+
+    const WINNER_COLUMNS = [
+      'symbol', 'selected_date_kst', 'open_time_utc', 'open_time_kst',
+      'relative_index_from_surge_start', 'is_selected_date', 'is_winner',
+      'is_day_high_candle', 'is_surge_start',
+
+      'open', 'high', 'low', 'close', 'volume', 'quote_volume',
+      'number_of_trades', 'taker_buy_base_volume', 'taker_buy_quote_volume',
+
+      'day_open', 'day_high', 'day_gain_pct', 'pct_from_day_open',
+      'candle_return_pct', 'high_from_open_pct', 'range_pct', 'body_pct',
+      'upper_wick_pct', 'lower_wick_pct',
+
+      'volume_ma20', 'volume_ratio20', 'volume_zscore20',
+      'quote_volume_ma20', 'quote_volume_ratio20', 'quote_volume_zscore20',
+      'trades_ma20', 'trades_ratio20', 'trades_zscore20', 'taker_buy_ratio',
+
+      'ema9', 'ema20', 'ema50', 'ema9_above_ema20', 'ema20_above_ema50', 'close_above_ema20',
+
+      'rsi14', 'macd', 'macd_signal', 'macd_hist',
+
+      'bollinger_mid20', 'bollinger_upper20', 'bollinger_lower20', 'bollinger_width_pct',
+      'atr14', 'atr14_pct',
+
+      'rolling_high_20_prev', 'high_breakout_20', 'close_breakout_20',
+      'rolling_low_20_prev', 'distance_from_rolling_low20_pct',
+
+      'future_max_high_4', 'future_max_high_8', 'future_max_high_16',
+      'future_return_max_4_pct', 'future_return_max_8_pct', 'future_return_max_16_pct',
+      'surge_start_candidate', 'surge_start_score', 'surge_detection_reason'
+    ];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // 기본 날짜는 KST 기준 어제로 설정합니다. 오늘은 아직 봉이 완성되지 않았을 수 있기 때문입니다.
+      const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      nowKst.setUTCDate(nowKst.getUTCDate() - 1);
+      $('scanDate').value = nowKst.toISOString().slice(0, 10);
+
+      $('scanBtn').addEventListener('click', startScan);
+      $('downloadScanBtn').addEventListener('click', () => downloadCsv(`scan_result_${state.selectedDate}.csv`, state.scanCsv));
+      $('downloadWinnerBtn').addEventListener('click', () => {
+        const symbol = $('winnerSymbol').textContent.trim() || 'UNKNOWN';
+        downloadCsv(`winner_${state.selectedDate}_${symbol}_15m_surge_window.csv`, state.winnerCsv);
+      });
+    });
+
+    async function startScan() {
+      if (state.running) return;
+
+      const selectedDate = $('scanDate').value;
+      const apiBase = $('apiBase').value.trim().replace(/\/$/, '');
+      const delayMs = Math.max(0, toFiniteNumber($('delayMs').value, 120));
+      const retryCount = Math.max(0, Math.min(10, toFiniteNumber($('retryCount').value, 4)));
+
+      if (!selectedDate) {
+        showError('분석할 날짜를 먼저 선택해주세요.');
+        return;
+      }
+      if (!apiBase) {
+        showError('API Base URL을 입력해주세요.');
+        return;
+      }
+
+      resetUi();
+      state.running = true;
+      state.selectedDate = selectedDate;
+      setStatus('running', '스캔 중');
+      logLine(`선택 날짜: ${selectedDate} KST`);
+
+      try {
+        const { startUtcMs, endUtcMs } = kstDateRangeToUtcMs(selectedDate);
+        logLine(`UTC 요청 범위: ${new Date(startUtcMs).toISOString()} ~ ${new Date(endUtcMs).toISOString()}`);
+
+        const symbols = await loadUsdtPerpetualSymbols(apiBase, retryCount);
+        logLine(`스캔 대상 USDT PERPETUAL TRADING 심볼 수: ${symbols.length}`);
+
+        const scanRows = await scanAllSymbols({ apiBase, symbols, selectedDate, startUtcMs, endUtcMs, delayMs, retryCount });
+        state.scanRows = rankScanRows(scanRows);
+        state.scanCsv = buildCsv(state.scanRows, SCAN_COLUMNS);
+        $('downloadScanBtn').disabled = false;
+
+        const winner = state.scanRows.find(row => row.scan_status === 'ok' && isFiniteNumber(row.day_gain_pct));
+        if (!winner) {
+          throw new Error('유효한 winner를 찾지 못했습니다. 선택 날짜에 캔들이 없는 심볼만 있거나 API 요청이 실패했습니다.');
+        }
+
+        updateWinnerSummary(winner);
+        logLine(`winner: ${winner.symbol} / day_gain_pct=${formatNumber(winner.day_gain_pct)}%`);
+
+        const analysis = await analyzeWinner({ apiBase, winner, selectedDate, startUtcMs, endUtcMs, retryCount });
+        state.winnerRows = analysis.csvRows;
+        state.winnerCsv = buildCsv(state.winnerRows, WINNER_COLUMNS);
+        $('downloadWinnerBtn').disabled = false;
+
+        $('surgeStartTime').textContent = analysis.surgeStart ? formatKst(analysis.surgeStart.openTime) : '-';
+        $('surgeReason').textContent = analysis.surgeStart ? analysis.surgeStart.surge_detection_reason : '-';
+        $('csvWindow').textContent = `${analysis.csvRows.length} candles`;
+
+        setStatus('done', '완료');
+        logLine(`surge_start: ${analysis.surgeStart ? formatKst(analysis.surgeStart.openTime) : '없음'}`);
+        logLine(`winner CSV row count: ${analysis.csvRows.length}`);
+      } catch (err) {
+        setStatus('error', '오류');
+        showError(makeFriendlyError(err));
+        logLine(`ERROR: ${err && err.message ? err.message : String(err)}`);
+      } finally {
+        state.running = false;
+        $('scanBtn').disabled = false;
+        $('symbolNow').textContent = '현재 심볼: -';
+      }
+    }
+
+    async function loadUsdtPerpetualSymbols(apiBase, retryCount) {
+      const data = await requestJson(apiBase, '/fapi/v1/exchangeInfo', {}, retryCount);
+      if (!data || !Array.isArray(data.symbols)) {
+        throw new Error('exchangeInfo 응답에서 symbols 배열을 찾지 못했습니다.');
+      }
+
+      return data.symbols
+        .filter(s => s && s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+        .map(s => s.symbol)
+        .sort();
+    }
+
+    async function scanAllSymbols({ apiBase, symbols, selectedDate, startUtcMs, endUtcMs, delayMs, retryCount }) {
+      const rows = [];
+      const total = symbols.length;
+
+      for (let i = 0; i < total; i++) {
+        const symbol = symbols[i];
+        $('symbolNow').textContent = `현재 심볼: ${symbol}`;
+        updateProgress(i, total);
+
+        try {
+          const klines = await fetchKlines(apiBase, symbol, '15m', startUtcMs, endUtcMs, 1500, retryCount);
+          const candles = klines.map(parseKline).filter(Boolean);
+
+          if (!candles.length) {
+            rows.push({
+              rank: '', symbol, selected_date_kst: selectedDate,
+              day_open: '', day_high: '', day_gain_pct: '',
+              day_high_time_utc: '', day_high_time_kst: '', candle_count: 0,
+              scan_status: 'no_data', error_message: ''
+            });
+          } else {
+            const dayOpen = candles[0].open;
+            const dayHighCandle = candles.reduce((best, c) => c.high > best.high ? c : best, candles[0]);
+            const dayHigh = dayHighCandle.high;
+            const dayGainPct = pct(dayHigh, dayOpen);
+
+            rows.push({
+              rank: '',
+              symbol,
+              selected_date_kst: selectedDate,
+              day_open: dayOpen,
+              day_high: dayHigh,
+              day_gain_pct: dayGainPct,
+              day_high_time_utc: formatUtc(dayHighCandle.openTime),
+              day_high_time_kst: formatKst(dayHighCandle.openTime),
+              candle_count: candles.length,
+              scan_status: 'ok',
+              error_message: ''
+            });
+          }
+        } catch (err) {
+          rows.push({
+            rank: '', symbol, selected_date_kst: selectedDate,
+            day_open: '', day_high: '', day_gain_pct: '',
+            day_high_time_utc: '', day_high_time_kst: '', candle_count: 0,
+            scan_status: 'error', error_message: err && err.message ? err.message : String(err)
+          });
+          logLine(`[${symbol}] 요청 실패: ${err && err.message ? err.message : String(err)}`);
+        }
+
+        updateProgress(i + 1, total);
+        if (delayMs > 0) await sleep(delayMs);
+      }
+
+      return rows;
+    }
+
+    function rankScanRows(rows) {
+      const sorted = [...rows].sort((a, b) => {
+        const av = isFiniteNumber(a.day_gain_pct) ? a.day_gain_pct : -Infinity;
+        const bv = isFiniteNumber(b.day_gain_pct) ? b.day_gain_pct : -Infinity;
+        return bv - av;
+      });
+
+      let rank = 1;
+      return sorted.map(row => {
+        const next = { ...row };
+        if (next.scan_status === 'ok' && isFiniteNumber(next.day_gain_pct)) next.rank = rank++;
+        return next;
+      });
+    }
+
+    async function analyzeWinner({ apiBase, winner, selectedDate, startUtcMs, endUtcMs, retryCount }) {
+      // winner 분석은 지표 warm-up을 위해 선택일 시작보다 넉넉히 이전 데이터부터 가져옵니다.
+      // 15분봉 400개는 약 4.16일입니다. EMA50, MACD, RSI, ATR 안정성을 위해 사용합니다.
+      const warmupCandles = 400;
+      const afterCandles = 48;
+      const fetchStart = startUtcMs - warmupCandles * 15 * 60 * 1000;
+      const fetchEnd = endUtcMs + afterCandles * 15 * 60 * 1000;
+
+      logLine(`${winner.symbol} 지표 계산용 15분봉 재수집 중...`);
+      const raw = await fetchKlines(apiBase, winner.symbol, '15m', fetchStart, fetchEnd, 1500, retryCount);
+      const candles = raw.map(parseKline).filter(Boolean).sort((a, b) => a.openTime - b.openTime);
+
+      if (!candles.length) throw new Error(`${winner.symbol} 분석용 캔들 데이터가 없습니다.`);
+
+      const enriched = enrichCandles(candles, {
+        symbol: winner.symbol,
+        selectedDate,
+        selectedStartUtcMs: startUtcMs,
+        selectedEndUtcMs: endUtcMs,
+        dayOpen: winner.day_open,
+        dayHigh: winner.day_high,
+        dayGainPct: winner.day_gain_pct
+      });
+
+      const selectedCandles = enriched.filter(c => c.is_selected_date);
+      if (!selectedCandles.length) throw new Error(`${winner.symbol} 선택일 캔들 데이터가 없습니다.`);
+
+      const dayHighCandle = selectedCandles.reduce((best, c) => c.high > best.high ? c : best, selectedCandles[0]);
+      const dayHighIndex = enriched.findIndex(c => c.openTime === dayHighCandle.openTime);
+      enriched[dayHighIndex].is_day_high_candle = true;
+
+      const detection = detectSurgeStart(enriched, dayHighIndex, startUtcMs, endUtcMs);
+      if (detection.index >= 0) {
+        enriched[detection.index].is_surge_start = true;
+        enriched[detection.index].surge_detection_reason = detection.reason;
+      }
+
+      const start = detection.index >= 0 ? Math.max(0, detection.index - 96) : 0;
+      const end = detection.index >= 0 ? Math.min(enriched.length - 1, detection.index + 24) : Math.min(enriched.length - 1, 120);
+      const window = enriched.slice(start, end + 1).map((c, idx) => ({
+        ...c,
+        relative_index_from_surge_start: detection.index >= 0 ? (start + idx) - detection.index : ''
+      }));
+
+      return {
+        surgeStart: detection.index >= 0 ? enriched[detection.index] : null,
+        csvRows: window.map(toWinnerCsvRow)
+      };
+    }
+
+    function detectSurgeStart(candles, dayHighIndex, selectedStartUtcMs, selectedEndUtcMs) {
+      // 1차 엄격 조건: 거래량 2배, 1.5% 캔들 상승, 20봉 고가 돌파, 8봉 내 +5% 확인
+      const strict = [];
+      for (let i = 0; i < dayHighIndex; i++) {
+        const c = candles[i];
+        if (!isInside(c.openTime, selectedStartUtcMs, selectedEndUtcMs)) continue;
+        const ok =
+          bool(c.close_above_ema20) &&
+          isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 2 &&
+          isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.5 &&
+          bool(c.high_breakout_20) &&
+          isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 5;
+        if (ok) strict.push(i);
+      }
+      if (strict.length) return { index: strict[0], reason: 'strict' };
+
+      // 2차 완화 조건: 거래량 1.5배, 1.0% 캔들 상승, 8봉 내 +3% 확인
+      const relaxed = [];
+      for (let i = 0; i < dayHighIndex; i++) {
+        const c = candles[i];
+        if (!isInside(c.openTime, selectedStartUtcMs, selectedEndUtcMs)) continue;
+        const ok =
+          bool(c.close_above_ema20) &&
+          isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 1.5 &&
+          isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.0 &&
+          isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 3;
+        if (ok) relaxed.push(i);
+      }
+      if (relaxed.length) return { index: relaxed[0], reason: 'relaxed' };
+
+      // 3차 fallback: day_high 이전 96개 봉 중 surge_start_score가 가장 높은 봉 선택
+      let bestIndex = -1;
+      let bestScore = -Infinity;
+      const from = Math.max(0, dayHighIndex - 96);
+      for (let i = from; i < dayHighIndex; i++) {
+        const score = isFiniteNumber(candles[i].surge_start_score) ? candles[i].surge_start_score : -Infinity;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex >= 0) return { index: bestIndex, reason: 'score_fallback' };
+      return { index: -1, reason: 'not_found' };
+    }
+
+    function enrichCandles(candles, meta) {
+      const close = candles.map(c => c.close);
+      const high = candles.map(c => c.high);
+      const low = candles.map(c => c.low);
+      const volume = candles.map(c => c.volume);
+      const quoteVolume = candles.map(c => c.quoteVolume);
+      const trades = candles.map(c => c.numberOfTrades);
+
+      // EMA: 최근 가격에 더 큰 가중치를 부여하는 지수이동평균입니다.
+      // 첫 EMA 값은 period개의 단순평균으로 시작하고 이후 alpha = 2/(period+1)로 누적 계산합니다.
+      const ema9 = calcEMA(close, 9);
+      const ema20 = calcEMA(close, 20);
+      const ema50 = calcEMA(close, 50);
+
+      // RSI14: Wilder 방식의 평균 상승폭/하락폭을 사용해 0~100 모멘텀을 계산합니다.
+      const rsi14 = calcRSI(close, 14);
+
+      // MACD: EMA12 - EMA26, Signal은 MACD의 EMA9, Histogram은 MACD - Signal입니다.
+      const macdPack = calcMACD(close, 12, 26, 9);
+
+      // Bollinger Band: 20봉 SMA ± 2표준편차입니다. width_pct는 밴드 폭이 가격 대비 얼마나 넓은지 나타냅니다.
+      const boll = calcBollinger(close, 20, 2);
+
+      // ATR14: True Range를 Wilder 방식으로 평균내 변동성을 측정합니다.
+      const atr14 = calcATR(high, low, close, 14);
+
+      const out = candles.map((c, i) => {
+        const volumeStats = prevWindowStats(volume, i, 20);
+        const quoteStats = prevWindowStats(quoteVolume, i, 20);
+        const tradeStats = prevWindowStats(trades, i, 20);
+        const rollingHigh20Prev = rollingMax(high, i, 20);
+        const rollingLow20Prev = rollingMin(low, i, 20);
+        const future4 = futureMax(high, i, 4);
+        const future8 = futureMax(high, i, 8);
+        const future16 = futureMax(high, i, 16);
+
+        const row = {
+          ...c,
+          symbol: meta.symbol,
+          selected_date_kst: meta.selectedDate,
+          is_selected_date: isInside(c.openTime, meta.selectedStartUtcMs, meta.selectedEndUtcMs),
+          is_winner: true,
+          is_day_high_candle: false,
+          is_surge_start: false,
+
+          day_open: meta.dayOpen,
+          day_high: meta.dayHigh,
+          day_gain_pct: meta.dayGainPct,
+          pct_from_day_open: pct(c.close, meta.dayOpen),
+          candle_return_pct: pct(c.close, c.open),
+          high_from_open_pct: pct(c.high, c.open),
+          range_pct: ratioPct(c.high - c.low, c.open),
+          body_pct: ratioPct(Math.abs(c.close - c.open), c.open),
+          upper_wick_pct: ratioPct(c.high - Math.max(c.open, c.close), c.open),
+          lower_wick_pct: ratioPct(Math.min(c.open, c.close) - c.low, c.open),
+
+          volume_ma20: volumeStats.mean,
+          volume_ratio20: safeDiv(c.volume, volumeStats.mean),
+          volume_zscore20: zscore(c.volume, volumeStats.mean, volumeStats.std),
+          quote_volume_ma20: quoteStats.mean,
+          quote_volume_ratio20: safeDiv(c.quoteVolume, quoteStats.mean),
+          quote_volume_zscore20: zscore(c.quoteVolume, quoteStats.mean, quoteStats.std),
+          trades_ma20: tradeStats.mean,
+          trades_ratio20: safeDiv(c.numberOfTrades, tradeStats.mean),
+          trades_zscore20: zscore(c.numberOfTrades, tradeStats.mean, tradeStats.std),
+          taker_buy_ratio: safeDiv(c.takerBuyBaseVolume, c.volume),
+
+          ema9: ema9[i],
+          ema20: ema20[i],
+          ema50: ema50[i],
+          ema9_above_ema20: isFiniteNumber(ema9[i]) && isFiniteNumber(ema20[i]) ? ema9[i] > ema20[i] : '',
+          ema20_above_ema50: isFiniteNumber(ema20[i]) && isFiniteNumber(ema50[i]) ? ema20[i] > ema50[i] : '',
+          close_above_ema20: isFiniteNumber(ema20[i]) ? c.close > ema20[i] : '',
+
+          rsi14: rsi14[i],
+          macd: macdPack.macd[i],
+          macd_signal: macdPack.signal[i],
+          macd_hist: macdPack.hist[i],
+
+          bollinger_mid20: boll.mid[i],
+          bollinger_upper20: boll.upper[i],
+          bollinger_lower20: boll.lower[i],
+          bollinger_width_pct: boll.widthPct[i],
+          bollinger_width_change_pct: boll.widthPct[i - 1] ? pct(boll.widthPct[i], boll.widthPct[i - 1]) : '',
+          atr14: atr14[i],
+          atr14_pct: ratioPct(atr14[i], c.close),
+
+          rolling_high_20_prev: rollingHigh20Prev,
+          high_breakout_20: isFiniteNumber(rollingHigh20Prev) ? c.high > rollingHigh20Prev : '',
+          close_breakout_20: isFiniteNumber(rollingHigh20Prev) ? c.close > rollingHigh20Prev : '',
+          rolling_low_20_prev: rollingLow20Prev,
+          distance_from_rolling_low20_pct: isFiniteNumber(rollingLow20Prev) ? pct(c.close, rollingLow20Prev) : '',
+
+          future_max_high_4: future4,
+          future_max_high_8: future8,
+          future_max_high_16: future16,
+          future_return_max_4_pct: pct(future4, c.close),
+          future_return_max_8_pct: pct(future8, c.close),
+          future_return_max_16_pct: pct(future16, c.close),
+
+          surge_start_candidate: false,
+          surge_start_score: '',
+          surge_detection_reason: ''
+        };
+
+        row.surge_start_score = calcSurgeStartScore(row);
+        row.surge_start_candidate = isSurgeCandidateForCsv(row);
+        return row;
+      });
+
+      return out;
+    }
+
+    function isSurgeCandidateForCsv(c) {
+      // CSV용 candidate 표시는 엄격 조건 또는 완화 조건 중 하나라도 충족하면 true로 둡니다.
+      const strict =
+        bool(c.close_above_ema20) &&
+        isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 2 &&
+        isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.5 &&
+        bool(c.high_breakout_20) &&
+        isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 5;
+
+      const relaxed =
+        bool(c.close_above_ema20) &&
+        isFiniteNumber(c.volume_ma20) && c.volume >= c.volume_ma20 * 1.5 &&
+        isFiniteNumber(c.candle_return_pct) && c.candle_return_pct >= 1.0 &&
+        isFiniteNumber(c.future_return_max_8_pct) && c.future_return_max_8_pct >= 3;
+
+      return strict || relaxed;
+    }
+
+    function calcSurgeStartScore(c) {
+      // 0~100점 스코어. 급등 전 특징 후보를 비교하기 위한 상대 점수입니다.
+      // - 거래량/거래대금 z-score는 과열 정도를 반영합니다.
+      // - candle_return_pct는 기준봉 자체의 추진력을 반영합니다.
+      // - 돌파/EMA 조건은 추세 전환 여부를 반영합니다.
+      // - taker_buy_ratio는 시장가 매수 우위 정도를 반영합니다.
+      // - Bollinger width 변화와 ATR은 변동성 확장 여부를 반영합니다.
+      let score = 0;
+
+      score += clamp(toFiniteNumber(c.volume_zscore20, 0), 0, 5) / 5 * 18;
+      score += clamp(toFiniteNumber(c.quote_volume_zscore20, 0), 0, 5) / 5 * 14;
+      score += clamp(toFiniteNumber(c.candle_return_pct, 0), 0, 8) / 8 * 16;
+      score += bool(c.high_breakout_20) ? 12 : 0;
+      score += bool(c.close_above_ema20) ? 10 : 0;
+      score += bool(c.ema9_above_ema20) ? 8 : 0;
+      score += clamp((toFiniteNumber(c.taker_buy_ratio, 0.5) - 0.5) / 0.35, 0, 1) * 8;
+      score += clamp(toFiniteNumber(c.bollinger_width_change_pct, 0), 0, 50) / 50 * 7;
+      score += clamp(toFiniteNumber(c.atr14_pct, 0), 0, 8) / 8 * 7;
+
+      return clamp(score, 0, 100);
+    }
+
+    /**********************************************************************
+     * 지표 계산 함수들
+     **********************************************************************/
+
+    function calcEMA(values, period) {
+      const result = Array(values.length).fill('');
+      if (!values.length || values.length < period) return result;
+
+      const alpha = 2 / (period + 1);
+      let sum = 0;
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (!isFiniteNumber(v)) continue;
+        if (i < period) sum += v;
+        if (i === period - 1) {
+          result[i] = sum / period;
+        } else if (i >= period) {
+          result[i] = v * alpha + result[i - 1] * (1 - alpha);
+        }
+      }
+      return result;
+    }
+
+    function calcRSI(values, period = 14) {
+      const result = Array(values.length).fill('');
+      if (values.length <= period) return result;
+
+      let gainSum = 0;
+      let lossSum = 0;
+
+      for (let i = 1; i <= period; i++) {
+        const change = values[i] - values[i - 1];
+        if (change >= 0) gainSum += change;
+        else lossSum += Math.abs(change);
+      }
+
+      let avgGain = gainSum / period;
+      let avgLoss = lossSum / period;
+      result[period] = rsiFromAvg(avgGain, avgLoss);
+
+      for (let i = period + 1; i < values.length; i++) {
+        const change = values[i] - values[i - 1];
+        const gain = Math.max(change, 0);
+        const loss = Math.max(-change, 0);
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        result[i] = rsiFromAvg(avgGain, avgLoss);
+      }
+
+      return result;
+    }
+
+    function rsiFromAvg(avgGain, avgLoss) {
+      if (!isFiniteNumber(avgLoss) || avgLoss === 0) return 100;
+      const rs = avgGain / avgLoss;
+      return 100 - (100 / (1 + rs));
+    }
+
+    function calcMACD(values, fast = 12, slow = 26, signalPeriod = 9) {
+      const emaFast = calcEMA(values, fast);
+      const emaSlow = calcEMA(values, slow);
+      const macd = values.map((_, i) => {
+        if (!isFiniteNumber(emaFast[i]) || !isFiniteNumber(emaSlow[i])) return '';
+        return emaFast[i] - emaSlow[i];
+      });
+      const signal = calcEMANullable(macd, signalPeriod);
+      const hist = macd.map((v, i) => isFiniteNumber(v) && isFiniteNumber(signal[i]) ? v - signal[i] : '');
+      return { macd, signal, hist };
+    }
+
+    function calcEMANullable(values, period) {
+      const result = Array(values.length).fill('');
+      const alpha = 2 / (period + 1);
+      let buffer = [];
+      let prev = '';
+
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (!isFiniteNumber(v)) continue;
+
+        if (buffer.length < period) {
+          buffer.push(v);
+          if (buffer.length === period) {
+            prev = mean(buffer);
+            result[i] = prev;
+          }
+        } else {
+          prev = v * alpha + prev * (1 - alpha);
+          result[i] = prev;
+        }
+      }
+      return result;
+    }
+
+    function calcBollinger(values, period = 20, mult = 2) {
+      const mid = Array(values.length).fill('');
+      const upper = Array(values.length).fill('');
+      const lower = Array(values.length).fill('');
+      const widthPct = Array(values.length).fill('');
+
+      for (let i = 0; i < values.length; i++) {
+        if (i < period - 1) continue;
+        const window = values.slice(i - period + 1, i + 1).filter(isFiniteNumber);
+        if (window.length !== period) continue;
+        const m = mean(window);
+        const sd = stddev(window, m);
+        mid[i] = m;
+        upper[i] = m + mult * sd;
+        lower[i] = m - mult * sd;
+        widthPct[i] = safeDiv(upper[i] - lower[i], m) * 100;
+      }
+      return { mid, upper, lower, widthPct };
+    }
+
+    function calcATR(high, low, close, period = 14) {
+      const tr = Array(close.length).fill('');
+      const atr = Array(close.length).fill('');
+
+      for (let i = 0; i < close.length; i++) {
+        if (i === 0) {
+          tr[i] = high[i] - low[i];
+        } else {
+          tr[i] = Math.max(
+            high[i] - low[i],
+            Math.abs(high[i] - close[i - 1]),
+            Math.abs(low[i] - close[i - 1])
+          );
+        }
+      }
+
+      if (tr.length < period) return atr;
+      let first = 0;
+      for (let i = 0; i < period; i++) first += tr[i];
+      atr[period - 1] = first / period;
+
+      for (let i = period; i < tr.length; i++) {
+        atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period;
+      }
+      return atr;
+    }
+
+    function prevWindowStats(values, index, period) {
+      const from = index - period;
+      if (from < 0) return { mean: '', std: '' };
+      const window = values.slice(from, index).filter(isFiniteNumber);
+      if (window.length !== period) return { mean: '', std: '' };
+      const m = mean(window);
+      return { mean: m, std: stddev(window, m) };
+    }
+
+    function rollingMax(values, index, period) {
+      const from = index - period;
+      if (from < 0) return '';
+      const window = values.slice(from, index).filter(isFiniteNumber);
+      return window.length === period ? Math.max(...window) : '';
+    }
+
+    function rollingMin(values, index, period) {
+      const from = index - period;
+      if (from < 0) return '';
+      const window = values.slice(from, index).filter(isFiniteNumber);
+      return window.length === period ? Math.min(...window) : '';
+    }
+
+    function futureMax(values, index, forward) {
+      const window = values.slice(index + 1, index + 1 + forward).filter(isFiniteNumber);
+      return window.length ? Math.max(...window) : '';
+    }
+
+    /**********************************************************************
+     * API / CSV / Utility
+     **********************************************************************/
+
+    async function fetchKlines(apiBase, symbol, interval, startTime, endTime, limit, retryCount) {
+      return requestJson(apiBase, '/fapi/v1/klines', { symbol, interval, startTime, endTime, limit }, retryCount);
+    }
+
+    async function requestJson(apiBase, path, params = {}, retryCount = 4) {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') query.set(key, value);
+      });
+      const url = `${apiBase}${path}${query.toString() ? '?' + query.toString() : ''}`;
+
+      let lastError = null;
+      for (let attempt = 0; attempt <= retryCount; attempt++) {
+        try {
+          const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+
+          if (res.status === 429 || res.status === 418) {
+            const retryAfter = Number(res.headers.get('Retry-After'));
+            const wait = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(30000, 1200 * Math.pow(2, attempt));
+            lastError = new Error(`HTTP ${res.status} rate limited. ${Math.round(wait / 1000)}초 후 재시도합니다.`);
+            logLine(lastError.message);
+            await sleep(wait);
+            continue;
+          }
+
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`HTTP ${res.status}: ${text.slice(0, 240)}`);
+          }
+
+          return await res.json();
+        } catch (err) {
+          lastError = err;
+          const isCorsLike = err instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(err && err.message));
+          if (isCorsLike && attempt === retryCount) {
+            throw new Error('브라우저에서 Binance API 요청이 차단되었거나 네트워크/CORS 문제가 발생했습니다. 로컬 파일이 아니라 간단한 로컬 서버에서 열거나, 네트워크/VPN/보안 프로그램 차단 여부를 확인해주세요.');
+          }
+          if (attempt < retryCount) {
+            const wait = Math.min(15000, 800 * Math.pow(2, attempt));
+            await sleep(wait);
+          }
+        }
+      }
+      throw lastError || new Error('API 요청 실패');
+    }
+
+    function parseKline(k) {
+      if (!Array.isArray(k) || k.length < 11) return null;
+      return {
+        openTime: Number(k[0]),
+        open: toFiniteNumber(k[1], 0),
+        high: toFiniteNumber(k[2], 0),
+        low: toFiniteNumber(k[3], 0),
+        close: toFiniteNumber(k[4], 0),
+        volume: toFiniteNumber(k[5], 0),
+        closeTime: Number(k[6]),
+        quoteVolume: toFiniteNumber(k[7], 0),
+        numberOfTrades: toFiniteNumber(k[8], 0),
+        takerBuyBaseVolume: toFiniteNumber(k[9], 0),
+        takerBuyQuoteVolume: toFiniteNumber(k[10], 0)
+      };
+    }
+
+    function toWinnerCsvRow(c) {
+      return {
+        symbol: c.symbol,
+        selected_date_kst: c.selected_date_kst,
+        open_time_utc: formatUtc(c.openTime),
+        open_time_kst: formatKst(c.openTime),
+        relative_index_from_surge_start: c.relative_index_from_surge_start,
+        is_selected_date: c.is_selected_date,
+        is_winner: c.is_winner,
+        is_day_high_candle: c.is_day_high_candle,
+        is_surge_start: c.is_surge_start,
+
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+        quote_volume: c.quoteVolume,
+        number_of_trades: c.numberOfTrades,
+        taker_buy_base_volume: c.takerBuyBaseVolume,
+        taker_buy_quote_volume: c.takerBuyQuoteVolume,
+
+        day_open: c.day_open,
+        day_high: c.day_high,
+        day_gain_pct: c.day_gain_pct,
+        pct_from_day_open: c.pct_from_day_open,
+        candle_return_pct: c.candle_return_pct,
+        high_from_open_pct: c.high_from_open_pct,
+        range_pct: c.range_pct,
+        body_pct: c.body_pct,
+        upper_wick_pct: c.upper_wick_pct,
+        lower_wick_pct: c.lower_wick_pct,
+
+        volume_ma20: c.volume_ma20,
+        volume_ratio20: c.volume_ratio20,
+        volume_zscore20: c.volume_zscore20,
+        quote_volume_ma20: c.quote_volume_ma20,
+        quote_volume_ratio20: c.quote_volume_ratio20,
+        quote_volume_zscore20: c.quote_volume_zscore20,
+        trades_ma20: c.trades_ma20,
+        trades_ratio20: c.trades_ratio20,
+        trades_zscore20: c.trades_zscore20,
+        taker_buy_ratio: c.taker_buy_ratio,
+
+        ema9: c.ema9,
+        ema20: c.ema20,
+        ema50: c.ema50,
+        ema9_above_ema20: c.ema9_above_ema20,
+        ema20_above_ema50: c.ema20_above_ema50,
+        close_above_ema20: c.close_above_ema20,
+
+        rsi14: c.rsi14,
+        macd: c.macd,
+        macd_signal: c.macd_signal,
+        macd_hist: c.macd_hist,
+
+        bollinger_mid20: c.bollinger_mid20,
+        bollinger_upper20: c.bollinger_upper20,
+        bollinger_lower20: c.bollinger_lower20,
+        bollinger_width_pct: c.bollinger_width_pct,
+        atr14: c.atr14,
+        atr14_pct: c.atr14_pct,
+
+        rolling_high_20_prev: c.rolling_high_20_prev,
+        high_breakout_20: c.high_breakout_20,
+        close_breakout_20: c.close_breakout_20,
+        rolling_low_20_prev: c.rolling_low_20_prev,
+        distance_from_rolling_low20_pct: c.distance_from_rolling_low20_pct,
+
+        future_max_high_4: c.future_max_high_4,
+        future_max_high_8: c.future_max_high_8,
+        future_max_high_16: c.future_max_high_16,
+        future_return_max_4_pct: c.future_return_max_4_pct,
+        future_return_max_8_pct: c.future_return_max_8_pct,
+        future_return_max_16_pct: c.future_return_max_16_pct,
+        surge_start_candidate: c.surge_start_candidate,
+        surge_start_score: c.surge_start_score,
+        surge_detection_reason: c.surge_detection_reason
+      };
+    }
+
+    function buildCsv(rows, columns) {
+      const header = columns.join(',');
+      const body = rows.map(row => columns.map(col => csvEscape(normalizeCsvValue(row[col]))).join(',')).join('\n');
+      return '\ufeff' + header + (body ? '\n' + body : '');
+    }
+
+    function normalizeCsvValue(value) {
+      if (value === null || value === undefined || value === '') return '';
+      if (typeof value === 'number') return isFiniteNumber(value) ? formatNumber(value) : '';
+      if (typeof value === 'boolean') return value ? 'true' : 'false';
+      return String(value).replace(/NaN/g, '');
+    }
+
+    function csvEscape(value) {
+      const s = String(value ?? '');
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+
+    function downloadCsv(filename, csvText) {
+      if (!csvText) return;
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function kstDateRangeToUtcMs(yyyyMmDd) {
+      const [y, m, d] = yyyyMmDd.split('-').map(Number);
+      // KST 00:00은 UTC 기준 전날 15:00입니다. Date.UTC에서 9시간을 빼서 UTC ms로 변환합니다.
+      const startUtcMs = Date.UTC(y, m - 1, d, 0, 0, 0, 0) - 9 * 60 * 60 * 1000;
+      const endUtcMs = startUtcMs + 24 * 60 * 60 * 1000 - 1;
+      return { startUtcMs, endUtcMs };
+    }
+
+    function formatUtc(ms) {
+      if (!isFiniteNumber(ms)) return '';
+      return new Date(ms).toISOString();
+    }
+
+    function formatKst(ms) {
+      if (!isFiniteNumber(ms)) return '';
+      return new Date(ms + 9 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+    }
+
+    function pct(value, base) {
+      if (!isFiniteNumber(value) || !isFiniteNumber(base) || base === 0) return '';
+      return (value / base - 1) * 100;
+    }
+
+    function safeDiv(a, b) {
+      if (!isFiniteNumber(a) || !isFiniteNumber(b) || b === 0) return '';
+      return a / b;
+    }
+
+    function ratioPct(a, b) {
+      const v = safeDiv(a, b);
+      return isFiniteNumber(v) ? v * 100 : '';
+    }
+
+    function zscore(value, avg, sd) {
+      if (!isFiniteNumber(value) || !isFiniteNumber(avg) || !isFiniteNumber(sd) || sd === 0) return '';
+      return (value - avg) / sd;
+    }
+
+    function mean(arr) {
+      const vals = arr.filter(isFiniteNumber);
+      if (!vals.length) return '';
+      return vals.reduce((sum, v) => sum + v, 0) / vals.length;
+    }
+
+    function stddev(arr, avg = mean(arr)) {
+      const vals = arr.filter(isFiniteNumber);
+      if (!vals.length || !isFiniteNumber(avg)) return '';
+      const variance = vals.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / vals.length;
+      return Math.sqrt(variance);
+    }
+
+    function isFiniteNumber(v) {
+      return typeof v === 'number' && Number.isFinite(v);
+    }
+
+    function toFiniteNumber(v, fallback = '') {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function bool(v) {
+      return v === true || v === 'true' || v === 1;
+    }
+
+    function clamp(v, min, max) {
+      if (!isFiniteNumber(v)) return min;
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function isInside(ms, start, end) {
+      return isFiniteNumber(ms) && ms >= start && ms <= end;
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function formatNumber(value) {
+      if (!isFiniteNumber(value)) return '';
+      if (value === 0) return '0';
+      const abs = Math.abs(value);
+      if (abs >= 1) return Number(value.toFixed(8)).toString();
+      return Number(value.toPrecision(12)).toString();
+    }
+
+    function updateProgress(done, total) {
+      const pctNum = total ? Math.round((done / total) * 100) : 0;
+      $('progressLabel').textContent = `${done} / ${total}`;
+      $('progressPct').textContent = `${pctNum}%`;
+      $('progressBar').style.width = `${pctNum}%`;
+    }
+
+    function updateWinnerSummary(winner) {
+      $('winnerSymbol').textContent = winner.symbol || '-';
+      $('winnerGain').textContent = isFiniteNumber(winner.day_gain_pct) ? `${formatNumber(winner.day_gain_pct)}%` : '-';
+      $('dayOpenHigh').textContent = `${formatNumber(winner.day_open)} / ${formatNumber(winner.day_high)}`;
+      $('dayHighTime').textContent = winner.day_high_time_kst || '-';
+    }
+
+    function setStatus(type, text) {
+      const dot = $('statusDot');
+      dot.className = 'dot';
+      if (type) dot.classList.add(type);
+      $('statusText').textContent = text;
+      $('scanBtn').disabled = type === 'running';
+    }
+
+    function showError(message) {
+      const el = $('errorNotice');
+      el.textContent = message;
+      el.classList.add('show');
+    }
+
+    function hideError() {
+      $('errorNotice').classList.remove('show');
+      $('errorNotice').textContent = '';
+    }
+
+    function makeFriendlyError(err) {
+      const msg = err && err.message ? err.message : String(err);
+      if (/CORS|Failed to fetch|Network|차단/i.test(msg)) return msg;
+      return `오류가 발생했습니다: ${msg}`;
+    }
+
+    function logLine(message) {
+      const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+      $('log').textContent += `[${time}] ${message}\n`;
+      $('log').scrollTop = $('log').scrollHeight;
+    }
+
+    function resetUi() {
+      hideError();
+      state.scanRows = [];
+      state.winnerRows = [];
+      state.scanCsv = '';
+      state.winnerCsv = '';
+      $('log').textContent = '';
+      $('downloadScanBtn').disabled = true;
+      $('downloadWinnerBtn').disabled = true;
+      $('winnerSymbol').textContent = '-';
+      $('winnerGain').textContent = '-';
+      $('dayOpenHigh').textContent = '-';
+      $('dayHighTime').textContent = '-';
+      $('surgeStartTime').textContent = '-';
+      $('surgeReason').textContent = '-';
+      $('csvWindow').textContent = '-';
+      updateProgress(0, 0);
+    }
+  </script>
+</body>
+</html>
