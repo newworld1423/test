@@ -265,7 +265,25 @@ async function apiGet(path, params = {}, maxRetry = 5) {
       const res = await fetch(url);
       if (res.ok) return await res.json();
 
-      if (res.status === 429 || res.status === 418 || res.status >= 500) {
+      // 418 = IP 자동 밴. 재시도하면 밴이 연장되므로 즉시 전체 중단.
+      // 응답 본문 msg에 밴 해제 시각(epoch ms)이 포함됨.
+      if (res.status === 418) {
+        let until = '';
+        try {
+          const body = await res.json();
+          const m = /banned until (\d+)/.exec(body.msg || '');
+          if (m) until = fmtKST(+m[1]) + ' KST';
+        } catch (_) {}
+        stopFlag = true;
+        showErr('418: 바이낸스가 이 IP를 일시 차단했습니다 (레이트리밋 반복 초과로 인한 자동 밴).\n' +
+          (until ? `밴 해제 시각: ${until}\n` : '') +
+          '- 해제 시각까지 모든 요청을 멈춰야 합니다. 요청을 계속 보내면 밴이 연장됩니다.\n' +
+          '- 자동 스캔 중인 다른 스캐너 탭을 모두 닫고, 해제 후 다시 시도하세요.\n' +
+          '- 밴이 반복되면 차단 시간이 2분 → 최대 3일까지 늘어납니다.');
+        throw new Error('IP_BANNED');
+      }
+
+      if (res.status === 429 || res.status >= 500) {
         // Retry-After 헤더가 있으면 존중, 없으면 지수 백오프
         const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
         const wait = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 15000);
@@ -275,7 +293,7 @@ async function apiGet(path, params = {}, maxRetry = 5) {
       }
       throw new Error(`HTTP ${res.status} (${path})`);
     } catch (e) {
-      if (e.message === 'STOPPED') throw e;
+      if (e.message === 'STOPPED' || e.message === 'IP_BANNED') throw e;
       lastErr = e;
       // TypeError = 네트워크 차단 또는 CORS 문제 가능성
       if (e instanceof TypeError && attempt >= 1) {
@@ -929,7 +947,8 @@ async function runScan() {
     $('topPanel').style.display = 'block';
     $('pSym').textContent = '완료';
   } catch (e) {
-    if (e.message !== 'STOPPED') showErr('오류: ' + e.message);
+    if (e.message === 'IP_BANNED') $('pSym').textContent = 'IP 밴 — 중단됨';
+    else if (e.message !== 'STOPPED') showErr('오류: ' + e.message);
     else $('pSym').textContent = '중지됨';
   } finally {
     $('btnScan').disabled = false;
