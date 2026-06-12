@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIVE SURGE SCANNER — Binance USDⓈ-M 급등 시작 실시간 감지</title>
+<style>
+/* ============================================================
+   다크 트레이딩 터미널 테마 (PC 기준)
+   - 텍스트 가독성 최우선: 밝은 텍스트, 높은 대비, 14px 이상
+   ============================================================ */
+:root{
+  --bg:#0a0d13;
+  --panel:#121723;
+  --panel2:#181f2e;
+  --border:#2a3447;
+  --text:#eef3fb;
+  --text-dim:#aab8cf;
+  --amber:#ffc857;
+  --green:#3ddc84;
+  --red:#ff6b6b;
+  --blue:#6ab7ff;
+  --purple:#c792ea;
+  --mono:'Consolas','SF Mono','Roboto Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Segoe UI','Pretendard','Apple SD Gothic Neo',sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  padding:24px 20px 80px;
+}
+.wrap{max-width:1280px;margin:0 auto;}
+
+header{display:flex;align-items:baseline;gap:14px;margin-bottom:20px;flex-wrap:wrap;}
+header h1{font-family:var(--mono);font-size:25px;letter-spacing:1px;color:var(--amber);}
+header p{color:var(--text-dim);font-size:14.5px;}
+
+.panel{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:18px 20px;margin-bottom:14px;
+}
+.panel h2{
+  font-size:14px;font-family:var(--mono);color:var(--amber);
+  letter-spacing:2px;margin-bottom:12px;
+}
+
+/* 상태 바 */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+.stat{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
+.stat .k{font-size:12.5px;color:var(--text-dim);letter-spacing:.5px;}
+.stat .v{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:2px;word-break:break-all;}
+.v.on{color:var(--green);}
+.v.off{color:var(--text-dim);}
+.v.hl{color:var(--amber);}
+.v.sym{color:var(--blue);}
+
+.progress-track{height:12px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:6px;overflow:hidden;margin-top:12px;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),#ff9d3d);transition:width .2s;}
+
+/* 설정 */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end;}
+.field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:5px;}
+.field input{
+  width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-size:15px;font-family:var(--mono);padding:9px 12px;
+}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+button{
+  border:none;border-radius:8px;font-size:14.5px;font-weight:700;
+  padding:10px 18px;cursor:pointer;transition:filter .15s;
+}
+button:hover{filter:brightness(1.12);}
+button:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--amber);color:#1a1405;}
+.btn-stop{background:var(--panel2);color:var(--red);border:1px solid var(--red);}
+.btn-line{background:var(--panel2);color:var(--blue);border:1px solid var(--blue);}
+.btn-dl{background:var(--panel2);color:var(--green);border:1px solid var(--green);}
+
+/* 1위 카드 */
+#topCard{
+  display:none;border:1px solid var(--amber);border-radius:10px;
+  background:linear-gradient(180deg,#1c1a10,#121723);
+  padding:18px 22px;margin-bottom:14px;
+}
+#topCard .head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;}
+#topCard .symbol{font-family:var(--mono);font-size:30px;font-weight:800;color:var(--amber);}
+#topCard .score{font-family:var(--mono);font-size:26px;font-weight:800;color:var(--green);}
+#topCard .time{font-family:var(--mono);font-size:15px;color:var(--text-dim);}
+#topCard .metrics{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:15px;}
+#topCard .metrics span b{color:var(--text-dim);font-weight:400;font-size:13px;display:block;}
+#topCard .reason{margin-top:10px;font-size:13.5px;color:var(--purple);font-family:var(--mono);word-break:break-all;}
+
+/* 테이블 */
+.tbl-scroll{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13.5px;white-space:nowrap;}
+th,td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;}
+th{color:var(--text-dim);font-weight:600;font-size:12.5px;position:sticky;top:0;background:var(--panel);}
+td:nth-child(1),td:nth-child(2),th:nth-child(1),th:nth-child(2){text-align:left;}
+td.sym{color:var(--blue);font-weight:700;}
+td.score{color:var(--green);font-weight:700;}
+td.pos{color:var(--green);}
+td.neg{color:var(--red);}
+tr.s80 td.score{color:var(--amber);}
+
+/* 알림 박스 / 로그 */
+#alertBox{display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
+.alert-item{
+  background:#1f1a0e;border:1px solid var(--amber);border-radius:7px;
+  padding:8px 12px;font-family:var(--mono);font-size:14px;color:var(--amber);
+}
+#logBox{
+  font-family:var(--mono);font-size:13px;color:var(--text-dim);
+  max-height:220px;overflow-y:auto;background:var(--panel2);
+  border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+  white-space:pre-wrap;word-break:break-all;
+}
+#errBox{
+  display:none;background:#2a1518;border:1px solid var(--red);border-radius:8px;
+  padding:13px 16px;color:#ffb3b3;font-size:14.5px;margin-bottom:14px;white-space:pre-wrap;
+}
+.note{font-size:13px;color:var(--text-dim);margin-top:8px;}
+.empty-msg{color:var(--text-dim);font-size:14.5px;padding:10px 4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>LIVE SURGE SCANNER</h1>
+  <p>매시 00 / 15 / 30 / 45분, 직전 마감 15분봉에서 급등 시작 후보를 감지합니다 · API 키 불필요</p>
+</header>
+
+<div id="errBox"></div>
+
+<!-- 상태 -->
+<div class="panel">
+  <h2>STATUS</h2>
+  <div class="status-grid">
+    <div class="stat"><div class="k">자동 스캔</div><div class="v off" id="stAuto">중지됨</div></div>
+    <div class="stat"><div class="k">다음 스캔 예정 (KST)</div><div class="v hl" id="stNext">—</div></div>
+    <div class="stat"><div class="k">마지막 스캔 (KST)</div><div class="v" id="stLast">—</div></div>
+    <div class="stat"><div class="k">target candle (KST)</div><div class="v" id="stTarget">—</div></div>
+    <div class="stat"><div class="k">스캔 중인 심볼</div><div class="v sym" id="stSym">—</div></div>
+    <div class="stat"><div class="k">진행률</div><div class="v" id="stProg">0 / 0</div></div>
+  </div>
+  <div class="progress-track"><div class="progress-bar" id="pbar"></div></div>
+</div>
+
+<!-- 설정 -->
+<div class="panel">
+  <h2>SETTINGS</h2>
+  <div class="settings-grid">
+    <div class="field"><label>API Base URL</label><input id="setApiBase" value="https://fapi.binance.com"></div>
+    <div class="field"><label>심볼별 요청 딜레이 (ms)</label><input id="setDelay" type="number" value="60" min="0"></div>
+    <div class="field"><label>재시도 횟수</label><input id="setRetry" type="number" value="4" min="0" max="10"></div>
+    <div class="field"><label>알림 기준 점수</label><input id="setThreshold" type="number" value="70" min="0" max="100"></div>
+    <div class="field"><label>결과 표시 개수</label><input id="setTopN" type="number" value="20" min="1" max="100"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" id="btnAutoStart">자동 스캔 시작</button>
+    <button class="btn-stop" id="btnAutoStop" disabled>자동 스캔 중지</button>
+    <button class="btn-line" id="btnManual">수동 1회 스캔</button>
+    <button class="btn-line" id="btnNotify">브라우저 알림 권한 요청</button>
+  </div>
+  <p class="note">점수 기준 — 80↑ 매우 강한 후보 · 65↑ 관심 후보 · 50↑ 약한 후보 · 50 미만 제외. 점수 계산에는 target 봉 마감 시점까지 확정된 값만 사용하며 미래 데이터는 일절 쓰지 않습니다.</p>
+</div>
+
+<!-- 1위 카드 -->
+<div id="topCard">
+  <div class="head">
+    <span class="symbol" id="tcSymbol">—</span>
+    <span class="score" id="tcScore">—</span>
+    <span class="time" id="tcTime">—</span>
+  </div>
+  <div class="metrics">
+    <span><b>close</b><span id="tcClose">—</span></span>
+    <span><b>return %</b><span id="tcRet">—</span></span>
+    <span><b>high from open %</b><span id="tcHfo">—</span></span>
+    <span><b>vol ratio20</b><span id="tcVr">—</span></span>
+    <span><b>vol zscore20</b><span id="tcVz">—</span></span>
+    <span><b>taker buy</b><span id="tcTbr">—</span></span>
+    <span><b>RSI14</b><span id="tcRsi">—</span></span>
+  </div>
+  <div class="reason" id="tcReason">—</div>
+</div>
+
+<!-- 결과 테이블 -->
+<div class="panel">
+  <h2>RESULTS</h2>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr>
+        <th>#</th><th>SYMBOL</th><th>TIME(KST)</th><th>CLOSE</th>
+        <th>RET%</th><th>HFO%</th>
+        <th>V.R20</th><th>V.Z20</th><th>QV.R20</th><th>QV.Z20</th><th>TR.Z20</th>
+        <th>TBR</th><th>RSI</th><th>MACD.H</th><th>H.BRK</th><th>C.BRK</th>
+        <th>SCORE</th><th>REASON</th>
+      </tr></thead>
+      <tbody id="resBody"></tbody>
+    </table>
+  </div>
+  <div class="empty-msg" id="resEmpty">아직 스캔 결과가 없습니다.</div>
+  <div class="btn-row">
+    <button class="btn-dl" id="btnDlScan" disabled>이번 스캔 CSV 다운로드</button>
+    <button class="btn-dl" id="btnDlAlerts">alert_history.csv 다운로드</button>
+  </div>
+</div>
+
+<!-- 알림 / 로그 -->
+<div class="panel">
+  <h2>ALERTS</h2>
+  <div id="alertBox"><div class="empty-msg">알림 없음</div></div>
+</div>
+
+<div class="panel">
+  <h2>LOG</h2>
+  <div id="logBox"></div>
+</div>
+
+</div>
+
+<script>
+'use strict';
+/* ================================================================
+   LIVE SURGE SCANNER
+   - Binance USDⓈ-M Futures public API (API 키 불필요)
+   - 매시 :00/:15/:30/:45 + 7초에 직전 마감 15분봉(target candle) 분석
+   - 미래 데이터(future_* 계열)는 절대 사용하지 않음 — 실시간 감지 전용
+   ================================================================ */
+
+const KST_OFFSET_MS = 9 * 3600 * 1000;  // Asia/Seoul = UTC+9 (DST 없음)
+const M15 = 15 * 60 * 1000;
+const SCAN_DELAY_AFTER_CLOSE = 7000;    // 봉 마감 후 7초 뒤 실행 (마감 데이터 확정 대기)
+const KLINE_LIMIT = 168;                // 심볼당 가져올 15분봉 수 (warm-up 100+ 충족)
+const MIN_CANDLES = 100;                // 지표 계산 최소 봉 수
+const EXINFO_TTL = 3600 * 1000;        // exchangeInfo 캐시 1시간
+
+const LS_KEY_EXINFO = 'lss_exchange_info_v1';
+const LS_KEY_ALERTS = 'lss_alert_history_v1';
+const LS_KEY_SETTINGS = 'lss_settings_v1';
+
+// 전역 상태
+let autoMode = false;          // 자동 스캔 on/off
+let scanning = false;          // 현재 스캔 진행 중 여부 (주기 겹침 방지)
+let scanTimer = null;          // 다음 스캔 setTimeout 핸들
+let banUntil = 0;              // 418 IP 밴 해제 시각 (epoch ms)
+let lastScanRows = [];         // 직전 스캔 전체 결과 (CSV용)
+let lastScanTimeStr = '';      // 직전 스캔 파일명용 시각
+const notifiedKeys = new Set(); // 중복 알림 방지: "SYMBOL|openTime"
+
+/* ---------------- 유틸 ---------------- */
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// NaN/Infinity/null 방어 — 화면/CSV 공용
+function safeNum(v, digits = 6) {
+  if (v === null || v === undefined) return '';
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number(n.toFixed(digits)).toString();
+}
+function fmtKST(ms, withSec = false) {
+  const d = new Date(ms + KST_OFFSET_MS);
+  const p = n => String(n).padStart(2, '0');
+  let s = `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  if (withSec) s += ':' + p(d.getUTCSeconds());
+  return s;
+}
+function log(msg) {
+  const box = $('logBox');
+  const line = `[${fmtKST(Date.now(), true)}] ${msg}`;
+  box.textContent = (line + '\n' + box.textContent).slice(0, 20000);
+}
+function showErr(msg) {
+  const box = $('errBox');
+  box.style.display = 'block';
+  box.textContent = msg;
+}
+function clearErr() { $('errBox').style.display = 'none'; }
+
+/* ---------------- 설정 (localStorage 저장/복원) ---------------- */
+
+const SETTING_IDS = ['setApiBase','setDelay','setRetry','setThreshold','setTopN'];
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY_SETTINGS) || '{}');
+    for (const id of SETTING_IDS) if (s[id] !== undefined) $(id).value = s[id];
+  } catch (_) {}
+}
+function saveSettings() {
+  const s = {};
+  for (const id of SETTING_IDS) s[id] = $(id).value;
+  localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(s));
+}
+function getSettings() {
+  return {
+    apiBase: ($('setApiBase').value || 'https://fapi.binance.com').replace(/\/+$/, ''),
+    delay: Math.max(0, parseInt($('setDelay').value, 10) || 60),
+    retry: Math.max(0, Math.min(10, parseInt($('setRetry').value, 10) || 4)),
+    threshold: Math.max(0, Math.min(100, parseFloat($('setThreshold').value) || 70)),
+    topN: Math.max(1, Math.min(100, parseInt($('setTopN').value, 10) || 20))
+  };
+}
+
+/* ---------------- API (재시도 + 백오프 + 418 밴 처리) ---------------- */
+
+/**
+ * fetch 래퍼
+ * - 429/5xx : exponential backoff 재시도 (Retry-After 존중)
+ * - 418     : IP 자동 밴 → 즉시 전체 중단. 재시도하면 밴이 연장되므로 절대 재시도 금지.
+ *             응답 msg의 "banned until {ms}"를 파싱해 banUntil에 저장.
+ */
+async function apiGet(path, params = {}) {
+  const cfg = getSettings();
+  const qs = new URLSearchParams(params).toString();
+  const url = `${cfg.apiBase}${path}${qs ? '?' + qs : ''}`;
+  let lastErr = null;
+
+  for (let attempt = 0; attempt <= cfg.retry; attempt++) {
+    if (!scanning && path !== '/fapi/v1/exchangeInfo') throw new Error('STOPPED');
+    try {
+      const res = await fetch(url);
+      if (res.ok) return await res.json();
+
+      if (res.status === 418) {
+        let untilStr = '';
+        try {
+          const body = await res.json();
+          const m = /banned until (\d+)/.exec(body.msg || '');
+          if (m) { banUntil = +m[1]; untilStr = fmtKST(banUntil, true) + ' KST'; }
+        } catch (_) {}
+        if (!banUntil) banUntil = Date.now() + 5 * 60 * 1000; // 파싱 실패 시 5분 가정
+        showErr('418: IP 자동 밴 (레이트리밋 반복 초과).\n' +
+          (untilStr ? `밴 해제 시각: ${untilStr}\n` : '') +
+          '밴 해제 전까지 모든 요청을 중단합니다. 자동 스캔은 해제 이후로 자동 연기됩니다.\n' +
+          '다른 자동 스캐너 탭이 켜져 있다면 모두 닫으세요 (요청을 계속 보내면 밴이 연장됩니다).');
+        throw new Error('IP_BANNED');
+      }
+      if (res.status === 429 || res.status >= 500) {
+        const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+        const wait = ra > 0 ? ra * 1000 : Math.min(1000 * Math.pow(2, attempt), 15000);
+        log(`HTTP ${res.status} → ${Math.round(wait/1000)}s 대기 후 재시도 (${path})`);
+        await sleep(wait);
+        lastErr = new Error(`HTTP ${res.status}`);
+        continue;
+      }
+      throw new Error(`HTTP ${res.status} (${path})`);
+    } catch (e) {
+      if (e.message === 'STOPPED' || e.message === 'IP_BANNED') throw e;
+      lastErr = e;
+      if (e instanceof TypeError && attempt >= 1) {
+        showErr('네트워크/CORS 오류: Binance API에 접근할 수 없습니다.\n' +
+          '- 네트워크에서 Binance가 차단되어 있을 수 있습니다 (VPN 필요 가능).\n' +
+          '- 광고 차단 확장 프로그램이 요청을 막는지 확인하세요.');
+      }
+      await sleep(Math.min(800 * Math.pow(2, attempt), 8000));
+    }
+  }
+  throw lastErr || new Error('API 요청 실패');
+}
+
+/* ---------------- 심볼 목록 (1시간 localStorage 캐시) ---------------- */
+
+async function fetchSymbols(force = false) {
+  // 캐시 확인
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(LS_KEY_EXINFO) || 'null');
+      if (cached && Date.now() - cached.ts < EXINFO_TTL && Array.isArray(cached.symbols) && cached.symbols.length > 0) {
+        return cached.symbols;
+      }
+    } catch (_) {}
+  }
+  const info = await apiGet('/fapi/v1/exchangeInfo');
+  const symbols = info.symbols
+    .filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+    .map(s => s.symbol).sort();
+  localStorage.setItem(LS_KEY_EXINFO, JSON.stringify({ ts: Date.now(), symbols }));
+  log(`exchangeInfo 갱신: USDT 무기한 ${symbols.length}개 심볼`);
+  return symbols;
+}
+
+/* ---------------- 지표 계산 함수 (재사용 가능, 시계열 반환) ----------------
+   초기 구간(데이터 부족)은 null. 미래 데이터는 어떤 함수에서도 참조하지 않음.
+--------------------------------------------------------------------------- */
+
+/** EMA: 첫 period개 SMA를 시드로 사용, alpha = 2/(period+1) */
+function emaSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  if (values.length < period) return out;
+  const k = 2 / (period + 1);
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += values[i];
+  let prev = sum / period;
+  out[period - 1] = prev;
+  for (let i = period; i < values.length; i++) {
+    prev = values[i] * k + prev * (1 - k);
+    out[i] = prev;
+  }
+  return out;
+}
+
+/** SMA (누적합 방식, O(n)) */
+function smaSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i];
+    if (i >= period) sum -= values[i - period];
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
+/** 모집단 표준편차 시계열 (Bollinger / z-score 용) */
+function stdSeries(values, period) {
+  const out = new Array(values.length).fill(null);
+  for (let i = period - 1; i < values.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    const mean = sum / period;
+    let sq = 0;
+    for (let j = i - period + 1; j <= i; j++) sq += (values[j] - mean) ** 2;
+    out[i] = Math.sqrt(sq / period);
+  }
+  return out;
+}
+
+/** z-score: (현재값-기간평균)/기간표준편차, 표준편차 0이면 null */
+function zscoreSeries(values, period) {
+  const ma = smaSeries(values, period);
+  const sd = stdSeries(values, period);
+  return values.map((v, i) =>
+    (ma[i] === null || sd[i] === null || sd[i] === 0) ? null : (v - ma[i]) / sd[i]);
+}
+
+/** RSI(14) Wilder 방식 */
+function rsiSeries(closes, period = 14) {
+  const out = new Array(closes.length).fill(null);
+  if (closes.length <= period) return out;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) gain += d; else loss -= d;
+  }
+  let avgG = gain / period, avgL = loss / period;
+  out[period] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgG = (avgG * (period - 1) + Math.max(d, 0)) / period;
+    avgL = (avgL * (period - 1) + Math.max(-d, 0)) / period;
+    out[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+  }
+  return out;
+}
+
+/** MACD(12,26,9): macd=EMA12-EMA26, signal=macd의 EMA9 */
+function macdSeries(closes) {
+  const e12 = emaSeries(closes, 12);
+  const e26 = emaSeries(closes, 26);
+  const macd = closes.map((_, i) =>
+    (e12[i] === null || e26[i] === null) ? null : e12[i] - e26[i]);
+  const signal = new Array(closes.length).fill(null);
+  const start = macd.findIndex(v => v !== null);
+  if (start >= 0 && macd.length - start >= 9) {
+    const k = 2 / 10;
+    let sum = 0;
+    for (let i = start; i < start + 9; i++) sum += macd[i];
+    let prev = sum / 9;
+    signal[start + 8] = prev;
+    for (let i = start + 9; i < macd.length; i++) {
+      prev = macd[i] * k + prev * (1 - k);
+      signal[i] = prev;
+    }
+  }
+  const hist = macd.map((m, i) =>
+    (m === null || signal[i] === null) ? null : m - signal[i]);
+  return { macd, signal, hist };
+}
+
+/** ATR(14) Wilder: TR = max(h-l, |h-pc|, |l-pc|) */
+function atrSeries(candles, period = 14) {
+  const out = new Array(candles.length).fill(null);
+  if (candles.length <= period) return out;
+  const tr = [candles[0].high - candles[0].low];
+  for (let i = 1; i < candles.length; i++) {
+    const pc = candles[i - 1].close;
+    tr.push(Math.max(candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - pc), Math.abs(candles[i].low - pc)));
+  }
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += tr[i];
+  let prev = sum / period;
+  out[period - 1] = prev;
+  for (let i = period; i < candles.length; i++) {
+    prev = (prev * (period - 1) + tr[i]) / period;
+    out[i] = prev;
+  }
+  return out;
+}
+
+/** 직전 N개 봉(자기 자신 제외) 고가 최댓값 / 저가 최솟값 — 돌파 판정용 */
+function rollingPrevExtreme(candles, period, kind) {
+  const out = new Array(candles.length).fill(null);
+  for (let i = period; i < candles.length; i++) {
+    let ext = kind === 'high' ? -Infinity : Infinity;
+    for (let j = i - period; j < i; j++) {
+      const v = kind === 'high' ? candles[j].high : candles[j].low;
+      ext = kind === 'high' ? Math.max(ext, v) : Math.min(ext, v);
+    }
+    out[i] = ext;
+  }
+  return out;
+}
+
+/* ---------------- target candle 분석 ---------------- */
+
+function parseKlines(raw) {
+  return raw.map(k => ({
+    openTime: k[0],
+    open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+    volume: +k[5],
+    quoteVolume: +k[7],
+    trades: +k[8],
+    takerBuyBase: +k[9],
+    takerBuyQuote: +k[10]
+  }));
+}
+
+/**
+ * 한 심볼의 target candle 지표 + 점수 계산.
+ * candles 배열의 "마지막 원소"가 target candle이어야 하며,
+ * 모든 지표는 target candle 시점까지 확정된 데이터만 사용한다.
+ * (klines 요청을 endTime=target close로 잘랐기 때문에 미래 봉 자체가 없음)
+ */
+function analyzeTarget(symbol, candles) {
+  const i = candles.length - 1; // target candle 인덱스
+  const c = candles[i];
+
+  const closes = candles.map(x => x.close);
+  const vols = candles.map(x => x.volume);
+  const qvols = candles.map(x => x.quoteVolume);
+  const trades = candles.map(x => x.trades);
+
+  const ema9 = emaSeries(closes, 9);
+  const ema20 = emaSeries(closes, 20);
+  const ema50 = emaSeries(closes, 50);
+  const rsi = rsiSeries(closes, 14);
+  const { macd, signal, hist } = macdSeries(closes);
+
+  const bbMid = smaSeries(closes, 20);
+  const bbStd = stdSeries(closes, 20);
+  const bbUp = bbMid.map((m, j) => m === null ? null : m + 2 * bbStd[j]);
+  const bbLo = bbMid.map((m, j) => m === null ? null : m - 2 * bbStd[j]);
+  const bbW = bbMid.map((m, j) =>
+    (m === null || m === 0) ? null : (bbUp[j] - bbLo[j]) / m * 100);
+  // 밴드폭 변화율(%): 직전 봉 대비
+  const bbWChg = (bbW[i] !== null && bbW[i-1] !== null && bbW[i-1] > 0)
+    ? (bbW[i] - bbW[i-1]) / bbW[i-1] * 100 : null;
+
+  const atr = atrSeries(candles, 14);
+  const atrPct = (atr[i] !== null && c.close > 0) ? atr[i] / c.close * 100 : null;
+  const atrPctPrev = (atr[i-1] !== null && candles[i-1].close > 0)
+    ? atr[i-1] / candles[i-1].close * 100 : null;
+
+  const volMa = smaSeries(vols, 20), volZ = zscoreSeries(vols, 20);
+  const qvolMa = smaSeries(qvols, 20), qvolZ = zscoreSeries(qvols, 20);
+  const trMa = smaSeries(trades, 20), trZ = zscoreSeries(trades, 20);
+
+  const rollH = rollingPrevExtreme(candles, 20, 'high');
+  const rollL = rollingPrevExtreme(candles, 20, 'low');
+
+  // ---- target candle 단일 값 ----
+  const o = c.open, h = c.high, l = c.low, cl = c.close;
+  const ret = o > 0 ? (cl / o - 1) * 100 : null;
+  const hfo = o > 0 ? (h / o - 1) * 100 : null;
+  const rangePct = o > 0 ? (h - l) / o * 100 : null;
+  const bodyPct = o > 0 ? Math.abs(cl - o) / o * 100 : null;
+  const upWick = o > 0 ? (h - Math.max(o, cl)) / o * 100 : null;
+  const loWick = o > 0 ? (Math.min(o, cl) - l) / o * 100 : null;
+
+  const volRatio = (volMa[i] && volMa[i] > 0) ? c.volume / volMa[i] : null;
+  const qvolRatio = (qvolMa[i] && qvolMa[i] > 0) ? c.quoteVolume / qvolMa[i] : null;
+  const trRatio = (trMa[i] && trMa[i] > 0) ? c.trades / trMa[i] : null;
+  const tbr = c.volume > 0 ? c.takerBuyBase / c.volume : null;
+
+  const closeAboveEma20 = ema20[i] !== null ? cl > ema20[i] : false;
+  const ema9Above20 = (ema9[i] !== null && ema20[i] !== null) ? ema9[i] > ema20[i] : false;
+  const ema20Above50 = (ema20[i] !== null && ema50[i] !== null) ? ema20[i] > ema50[i] : false;
+  const hBrk = rollH[i] !== null ? h > rollH[i] : false;
+  const cBrk = rollH[i] !== null ? cl > rollH[i] : false;
+  const distLow = (rollL[i] !== null && rollL[i] > 0) ? (cl / rollL[i] - 1) * 100 : null;
+
+  /* ---- surge_start_score (0~100) — 확정 데이터만 사용 ----
+     배점 (합계 100):
+       volume_zscore20            z/4 클램프      → 8
+       quote_volume_zscore20      z/4 클램프      → 7
+       trades_zscore20            z/4 클램프      → 4
+       volume_ratio20             (r-1)/3 클램프  → 7
+       quote_volume_ratio20       (r-1)/3 클램프  → 5
+       candle_return_pct          /2.5 클램프     → 10
+       high_from_open_pct         /3 클램프       → 6
+       high_breakout_20                            → 7
+       close_breakout_20                           → 8
+       close_above_ema20                           → 5
+       ema9_above_ema20                            → 4
+       ema20_above_ema50                           → 3
+       taker_buy_ratio            (t-0.5)/0.2     → 8
+       rsi14                      (rsi-50)/30     → 6
+       macd_hist                  종가 대비 정규화 → 5
+       bollinger_width_change_pct /30 클램프      → 4
+       atr14_pct                  /2 클램프       → 3
+  */
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  let score = 0;
+  if (volZ[i] !== null) score += clamp01(volZ[i] / 4) * 8;
+  if (qvolZ[i] !== null) score += clamp01(qvolZ[i] / 4) * 7;
+  if (trZ[i] !== null) score += clamp01(trZ[i] / 4) * 4;
+  if (volRatio !== null) score += clamp01((volRatio - 1) / 3) * 7;
+  if (qvolRatio !== null) score += clamp01((qvolRatio - 1) / 3) * 5;
+  if (ret !== null) score += clamp01(ret / 2.5) * 10;
+  if (hfo !== null) score += clamp01(hfo / 3) * 6;
+  if (hBrk) score += 7;
+  if (cBrk) score += 8;
+  if (closeAboveEma20) score += 5;
+  if (ema9Above20) score += 4;
+  if (ema20Above50) score += 3;
+  if (tbr !== null) score += clamp01((tbr - 0.5) / 0.2) * 8;
+  if (rsi[i] !== null) score += clamp01((rsi[i] - 50) / 30) * 6;
+  if (hist[i] !== null && cl > 0 && hist[i] > 0) score += clamp01((hist[i] / cl * 100) / 0.3) * 5;
+  if (bbWChg !== null) score += clamp01(bbWChg / 30) * 4;
+  if (atrPct !== null) score += clamp01(atrPct / 2) * 3;
+  score = Math.round(Math.max(0, Math.min(100, score)) * 10) / 10;
+
+  /* ---- detection_reason: 충족한 강한 후보 조건 태그 나열 ---- */
+  const reasons = [];
+  if (closeAboveEma20) reasons.push('C>EMA20');
+  if (ema9Above20) reasons.push('EMA9>20');
+  if (volRatio !== null && volRatio >= 2) reasons.push(`VOLx${volRatio.toFixed(1)}`);
+  if (qvolRatio !== null && qvolRatio >= 2) reasons.push('QVOLx2+');
+  if (volZ[i] !== null && volZ[i] >= 2) reasons.push(`VZ${volZ[i].toFixed(1)}`);
+  if (qvolZ[i] !== null && qvolZ[i] >= 2) reasons.push('QVZ2+');
+  if (ret !== null && ret >= 1.0) reasons.push(`RET${ret.toFixed(1)}`);
+  if (hfo !== null && hfo >= 1.5) reasons.push(`HFO${hfo.toFixed(1)}`);
+  if (hBrk) reasons.push('H.BRK20');
+  if (cBrk) reasons.push('C.BRK20');
+  if (tbr !== null && tbr >= 0.55) reasons.push(`TBR${tbr.toFixed(2)}`);
+  if (rsi[i] !== null && rsi[i] >= 55) reasons.push(`RSI${Math.round(rsi[i])}`);
+  if (hist[i] !== null && hist[i] > 0) reasons.push('MACD+');
+  if (bbWChg !== null && bbWChg > 0) reasons.push('BBW+');
+  if ((atrPctPrev !== null && atrPct !== null && atrPct > atrPctPrev) ||
+      (atrPct !== null && atrPct >= 1)) reasons.push('ATR+');
+
+  return {
+    symbol,
+    openTime: c.openTime,
+    closeTime: c.openTime + M15 - 1,
+    open: o, high: h, low: l, close: cl,
+    volume: c.volume, quoteVolume: c.quoteVolume, trades: c.trades,
+    takerBuyBase: c.takerBuyBase, takerBuyQuote: c.takerBuyQuote,
+    candleReturnPct: ret, highFromOpenPct: hfo, rangePct, bodyPct, upWick, loWick,
+    volumeMa20: volMa[i], volumeRatio20: volRatio, volumeZ20: volZ[i],
+    qvolMa20: qvolMa[i], qvolRatio20: qvolRatio, qvolZ20: qvolZ[i],
+    tradesMa20: trMa[i], tradesRatio20: trRatio, tradesZ20: trZ[i],
+    takerBuyRatio: tbr,
+    ema9: ema9[i], ema20: ema20[i], ema50: ema50[i],
+    ema9Above20: ema9Above20 ? 1 : 0,
+    ema20Above50: ema20Above50 ? 1 : 0,
+    closeAboveEma20: closeAboveEma20 ? 1 : 0,
+    rsi14: rsi[i], macd: macd[i], macdSignal: signal[i], macdHist: hist[i],
+    bbMid: bbMid[i], bbUp: bbUp[i], bbLo: bbLo[i],
+    bbWidthPct: bbW[i], bbWidthChgPct: bbWChg,
+    atr14: atr[i], atr14Pct: atrPct,
+    rollingHigh20Prev: rollH[i], highBreakout20: hBrk ? 1 : 0, closeBreakout20: cBrk ? 1 : 0,
+    rollingLow20Prev: rollL[i], distFromRollingLow20Pct: distLow,
+    score, reason: reasons.join(' ')
+  };
+}
+
+/* ---------------- 스캔 실행 ---------------- */
+
+// 가장 최근 "완전히 마감된" 15분봉의 open time
+function lastClosedCandleOpenTime(now = Date.now()) {
+  const currentOpen = Math.floor(now / M15) * M15; // 진행 중인 봉의 open
+  return currentOpen - M15;                         // 직전 마감 봉
+}
+
+async function runScan(trigger) {
+  if (scanning) { log('이전 스캔이 아직 진행 중 — 이번 요청 무시'); return; }
+  if (Date.now() < banUntil) {
+    log(`IP 밴 중 (해제: ${fmtKST(banUntil, true)} KST) — 스캔 건너뜀`);
+    return;
+  }
+  scanning = true;
+  clearErr();
+  $('btnManual').disabled = true;
+  $('btnDlScan').disabled = true;
+
+  const cfg = getSettings();
+  const targetOpen = lastClosedCandleOpenTime();
+  const targetClose = targetOpen + M15 - 1;
+  $('stTarget').textContent = `${fmtKST(targetOpen)} ~ ${fmtKST(targetClose, true).slice(11)}`;
+  log(`스캔 시작 (${trigger}) · target candle: ${fmtKST(targetOpen)} KST`);
+
+  try {
+    const symbols = await fetchSymbols();
+    let done = 0, errors = 0, cursor = 0;
+    const rows = [];
+    $('stProg').textContent = `0 / ${symbols.length}`;
+    $('pbar').style.width = '0%';
+
+    // 동시 4워커 + 심볼별 딜레이. klines limit=168 → weight 2,
+    // 450심볼 × 2 = 900 weight/스캔으로 분당 한도(2400) 대비 안전.
+    const CONCURRENCY = 4;
+    async function worker() {
+      while (scanning) {
+        const idx = cursor++;
+        if (idx >= symbols.length) return;
+        const sym = symbols[idx];
+        $('stSym').textContent = sym;
+        try {
+          const raw = await apiGet('/fapi/v1/klines', {
+            symbol: sym, interval: '15m',
+            endTime: targetClose,        // 진행 중인 봉이 응답에 포함되지 않도록 자름
+            limit: KLINE_LIMIT
+          });
+          const ks = parseKlines(raw);
+          // 마지막 봉이 정확히 target candle인지 검증 (신규상장/거래정지 방어)
+          if (ks.length >= MIN_CANDLES && ks[ks.length - 1].openTime === targetOpen) {
+            rows.push(analyzeTarget(sym, ks));
+          }
+        } catch (e) {
+          if (e.message === 'IP_BANNED') { scanning = false; return; }
+          if (e.message === 'STOPPED') return;
+          errors++;
+          log(`오류 (${sym}): ${e.message}`);
+        }
+        done++;
+        $('stProg').textContent = `${done} / ${symbols.length}` + (errors ? ` · err ${errors}` : '');
+        $('pbar').style.width = (done / symbols.length * 100).toFixed(1) + '%';
+        await sleep(cfg.delay);
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+    if (Date.now() < banUntil) {
+      log('IP 밴으로 스캔 중단됨');
+      return;
+    }
+
+    rows.sort((a, b) => b.score - a.score);
+    lastScanRows = rows;
+    lastScanTimeStr = fmtKST(Date.now()).replace(' ', '_').replace(':', '-');
+    $('stLast').textContent = fmtKST(Date.now(), true);
+    $('btnDlScan').disabled = rows.length === 0;
+
+    renderResults(rows, cfg);
+    handleAlerts(rows, cfg);
+    log(`스캔 완료: 분석 ${rows.length}개 / 오류 ${errors}개 · 1위 ${rows[0] ? rows[0].symbol + ' ' + rows[0].score : '없음'}`);
+  } catch (e) {
+    if (e.message !== 'IP_BANNED' && e.message !== 'STOPPED') showErr('스캔 오류: ' + e.message);
+    log('스캔 중단: ' + e.message);
+  } finally {
+    scanning = false;
+    $('btnManual').disabled = false;
+    $('stSym').textContent = '—';
+    if (autoMode) scheduleNext(); // 스캔이 길어져 주기를 넘겼더라도, 끝난 뒤 다음 주기를 잡음
+  }
+}
+
+/* ---------------- 결과 렌더링 ---------------- */
+
+function renderResults(rows, cfg) {
+  // 50점 미만 제외 (스펙)
+  const passed = rows.filter(r => r.score >= 50);
+  const top = passed.slice(0, cfg.topN);
+
+  // 1위 카드
+  if (top.length > 0) {
+    const t = top[0];
+    $('topCard').style.display = 'block';
+    $('tcSymbol').textContent = t.symbol;
+    $('tcScore').textContent = t.score.toFixed(1) + ' pt';
+    $('tcTime').textContent = fmtKST(t.openTime) + ' ~ ' + fmtKST(t.closeTime, true).slice(11) + ' KST';
+    $('tcClose').textContent = safeNum(t.close);
+    $('tcRet').textContent = (t.candleReturnPct >= 0 ? '+' : '') + safeNum(t.candleReturnPct, 2) + '%';
+    $('tcHfo').textContent = '+' + safeNum(t.highFromOpenPct, 2) + '%';
+    $('tcVr').textContent = 'x' + safeNum(t.volumeRatio20, 2);
+    $('tcVz').textContent = safeNum(t.volumeZ20, 2);
+    $('tcTbr').textContent = safeNum(t.takerBuyRatio, 3);
+    $('tcRsi').textContent = safeNum(t.rsi14, 1);
+    $('tcReason').textContent = t.reason || '—';
+  } else {
+    $('topCard').style.display = 'none';
+  }
+
+  // 테이블
+  const tb = $('resBody');
+  tb.innerHTML = '';
+  $('resEmpty').style.display = top.length ? 'none' : 'block';
+  $('resEmpty').textContent = top.length ? '' : '50점 이상 후보가 없습니다.';
+  const flag = v => v ? 'O' : '';
+  top.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    if (r.score >= 80) tr.className = 's80';
+    tr.innerHTML =
+      `<td>${idx + 1}</td>` +
+      `<td class="sym">${r.symbol}</td>` +
+      `<td>${fmtKST(r.openTime).slice(5)}</td>` +
+      `<td>${safeNum(r.close)}</td>` +
+      `<td class="${r.candleReturnPct >= 0 ? 'pos' : 'neg'}">${safeNum(r.candleReturnPct, 2)}</td>` +
+      `<td class="pos">${safeNum(r.highFromOpenPct, 2)}</td>` +
+      `<td>${safeNum(r.volumeRatio20, 2)}</td>` +
+      `<td>${safeNum(r.volumeZ20, 2)}</td>` +
+      `<td>${safeNum(r.qvolRatio20, 2)}</td>` +
+      `<td>${safeNum(r.qvolZ20, 2)}</td>` +
+      `<td>${safeNum(r.tradesZ20, 2)}</td>` +
+      `<td>${safeNum(r.takerBuyRatio, 3)}</td>` +
+      `<td>${safeNum(r.rsi14, 1)}</td>` +
+      `<td>${safeNum(r.macdHist, 6)}</td>` +
+      `<td>${flag(r.highBreakout20)}</td>` +
+      `<td>${flag(r.closeBreakout20)}</td>` +
+      `<td class="score">${r.score.toFixed(1)}</td>` +
+      `<td style="text-align:left;color:var(--purple);">${r.reason}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------------- 알림 ---------------- */
+
+function notifyKey(r) { return `${r.symbol}|${r.openTime}`; }
+
+function handleAlerts(rows, cfg) {
+  const hits = rows.filter(r => r.score >= cfg.threshold);
+  if (hits.length === 0) return;
+
+  // alert history 누적 저장 (threshold 이상 전부, 중복 제외)
+  const history = loadAlertHistory();
+  const known = new Set(history.map(a => `${a.symbol}|${a.open_time_utc_ms}`));
+  let added = 0;
+  for (const r of hits) {
+    const key = notifyKey(r);
+    if (known.has(key)) continue;
+    history.push({
+      detected_at_kst: fmtKST(Date.now(), true),
+      symbol: r.symbol,
+      open_time_utc_ms: r.openTime,
+      target_candle_time_kst: fmtKST(r.openTime),
+      close: r.close,
+      candle_return_pct: r.candleReturnPct,
+      high_from_open_pct: r.highFromOpenPct,
+      volume_ratio20: r.volumeRatio20,
+      volume_zscore20: r.volumeZ20,
+      taker_buy_ratio: r.takerBuyRatio,
+      rsi14: r.rsi14,
+      surge_start_score: r.score,
+      detection_reason: r.reason
+    });
+    added++;
+  }
+  if (added > 0) saveAlertHistory(history);
+
+  // 브라우저 알림: 1위가 threshold 이상이면 (중복 키 제외)
+  const top = rows[0];
+  if (top.score >= cfg.threshold && !notifiedKeys.has(notifyKey(top))) {
+    notifiedKeys.add(notifyKey(top));
+    const title = `급등 시작 후보 감지: ${top.symbol}`;
+    const body = `Score ${top.score.toFixed(1)} / ${fmtKST(top.openTime).slice(11)} KST / ` +
+      `${top.candleReturnPct >= 0 ? '+' : ''}${safeNum(top.candleReturnPct, 1)}% / Vol x${safeNum(top.volumeRatio20, 1)}`;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(title, { body }); } catch (_) { inPageAlert(title + ' — ' + body); }
+    } else {
+      inPageAlert(title + ' — ' + body);
+    }
+    inPageAlert(`${top.symbol} · Score ${top.score.toFixed(1)} · ${fmtKST(top.openTime)} KST · ${top.reason}`);
+  }
+}
+
+function inPageAlert(text) {
+  const box = $('alertBox');
+  const empty = box.querySelector('.empty-msg');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'alert-item';
+  div.textContent = `[${fmtKST(Date.now(), true).slice(11)}] ${text}`;
+  box.prepend(div);
+  while (box.children.length > 30) box.lastChild.remove();
+}
+
+function loadAlertHistory() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY_ALERTS) || '[]'); }
+  catch (_) { return []; }
+}
+function saveAlertHistory(arr) {
+  // localStorage 용량 보호: 최근 2000건만 유지
+  localStorage.setItem(LS_KEY_ALERTS, JSON.stringify(arr.slice(-2000)));
+}
+
+/* ---------------- 자동 스캔 스케줄링 ----------------
+   setInterval 대신 매번 setTimeout으로 다음 경계를 재계산:
+   - 백그라운드 탭 타이머 지연에 강함
+   - IP 밴 시 banUntil 이후 첫 경계로 자동 연기
+----------------------------------------------------- */
+
+function nextScanAt(now = Date.now()) {
+  let t = (Math.floor(now / M15) + 1) * M15 + SCAN_DELAY_AFTER_CLOSE;
+  // 밴 중이면 밴 해제 이후 첫 15분 경계로 연기
+  if (t < banUntil) {
+    t = (Math.floor(banUntil / M15) + 1) * M15 + SCAN_DELAY_AFTER_CLOSE;
+  }
+  return t;
+}
+
+function scheduleNext() {
+  if (!autoMode) return;
+  if (scanTimer) clearTimeout(scanTimer);
+  const at = nextScanAt();
+  $('stNext').textContent = fmtKST(at, true);
+  scanTimer = setTimeout(async () => {
+    if (!autoMode) return;
+    if (scanning) {
+      // 이전 스캔이 주기를 넘김 → 새 스캔을 시작하지 않고, runScan finally에서 재스케줄됨
+      log('주기 도달했지만 이전 스캔 진행 중 — 이번 주기 건너뜀');
+      return;
+    }
+    await runScan('자동');
+    // runScan finally에서 scheduleNext() 호출됨
+  }, Math.max(0, at - Date.now()));
+}
+
+/* ---------------- CSV ---------------- */
+
+function downloadCsv(text, filename) {
+  const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+function buildScanCsv(rows) {
+  const cols = [
+    'rank','symbol','target_candle_open_utc_ms','target_candle_time_kst',
+    'open','high','low','close','volume','quote_volume','number_of_trades',
+    'taker_buy_base_volume','taker_buy_quote_volume',
+    'candle_return_pct','high_from_open_pct','range_pct','body_pct','upper_wick_pct','lower_wick_pct',
+    'volume_ma20','volume_ratio20','volume_zscore20',
+    'quote_volume_ma20','quote_volume_ratio20','quote_volume_zscore20',
+    'trades_ma20','trades_ratio20','trades_zscore20','taker_buy_ratio',
+    'ema9','ema20','ema50','ema9_above_ema20','ema20_above_ema50','close_above_ema20',
+    'rsi14','macd','macd_signal','macd_hist',
+    'bollinger_mid20','bollinger_upper20','bollinger_lower20',
+    'bollinger_width_pct','bollinger_width_change_pct','atr14','atr14_pct',
+    'rolling_high_20_prev','high_breakout_20','close_breakout_20',
+    'rolling_low_20_prev','distance_from_rolling_low20_pct',
+    'surge_start_score','detection_reason'
+  ];
+  const lines = [cols.join(',')];
+  rows.forEach((r, idx) => {
+    lines.push([
+      idx + 1, r.symbol, r.openTime, fmtKST(r.openTime),
+      safeNum(r.open), safeNum(r.high), safeNum(r.low), safeNum(r.close),
+      safeNum(r.volume), safeNum(r.quoteVolume, 2), safeNum(r.trades, 0),
+      safeNum(r.takerBuyBase), safeNum(r.takerBuyQuote, 2),
+      safeNum(r.candleReturnPct, 4), safeNum(r.highFromOpenPct, 4),
+      safeNum(r.rangePct, 4), safeNum(r.bodyPct, 4), safeNum(r.upWick, 4), safeNum(r.loWick, 4),
+      safeNum(r.volumeMa20), safeNum(r.volumeRatio20, 4), safeNum(r.volumeZ20, 4),
+      safeNum(r.qvolMa20, 2), safeNum(r.qvolRatio20, 4), safeNum(r.qvolZ20, 4),
+      safeNum(r.tradesMa20, 2), safeNum(r.tradesRatio20, 4), safeNum(r.tradesZ20, 4),
+      safeNum(r.takerBuyRatio, 4),
+      safeNum(r.ema9), safeNum(r.ema20), safeNum(r.ema50),
+      r.ema9Above20, r.ema20Above50, r.closeAboveEma20,
+      safeNum(r.rsi14, 4), safeNum(r.macd), safeNum(r.macdSignal), safeNum(r.macdHist),
+      safeNum(r.bbMid), safeNum(r.bbUp), safeNum(r.bbLo),
+      safeNum(r.bbWidthPct, 4), safeNum(r.bbWidthChgPct, 4),
+      safeNum(r.atr14), safeNum(r.atr14Pct, 4),
+      safeNum(r.rollingHigh20Prev), r.highBreakout20, r.closeBreakout20,
+      safeNum(r.rollingLow20Prev), safeNum(r.distFromRollingLow20Pct, 4),
+      safeNum(r.score, 1), `"${r.reason}"`
+    ].join(','));
+  });
+  return lines.join('\n');
+}
+
+function buildAlertCsv(history) {
+  const cols = ['detected_at_kst','symbol','target_candle_time_kst','close',
+    'candle_return_pct','high_from_open_pct','volume_ratio20','volume_zscore20',
+    'taker_buy_ratio','rsi14','surge_start_score','detection_reason'];
+  const lines = [cols.join(',')];
+  for (const a of history) {
+    lines.push([
+      a.detected_at_kst, a.symbol, a.target_candle_time_kst, safeNum(a.close),
+      safeNum(a.candle_return_pct, 4), safeNum(a.high_from_open_pct, 4),
+      safeNum(a.volume_ratio20, 4), safeNum(a.volume_zscore20, 4),
+      safeNum(a.taker_buy_ratio, 4), safeNum(a.rsi14, 4),
+      safeNum(a.surge_start_score, 1), `"${a.detection_reason || ''}"`
+    ].join(','));
+  }
+  return lines.join('\n');
+}
+
+/* ---------------- 이벤트 바인딩 ---------------- */
+
+$('btnAutoStart').addEventListener('click', () => {
+  autoMode = true;
+  $('stAuto').textContent = '작동 중';
+  $('stAuto').className = 'v on';
+  $('btnAutoStart').disabled = true;
+  $('btnAutoStop').disabled = false;
+  log('자동 스캔 시작');
+  scheduleNext();
+});
+
+$('btnAutoStop').addEventListener('click', () => {
+  autoMode = false;
+  if (scanTimer) clearTimeout(scanTimer);
+  $('stAuto').textContent = '중지됨';
+  $('stAuto').className = 'v off';
+  $('stNext').textContent = '—';
+  $('btnAutoStart').disabled = false;
+  $('btnAutoStop').disabled = true;
+  log('자동 스캔 중지');
+});
+
+$('btnManual').addEventListener('click', () => runScan('수동'));
+
+$('btnNotify').addEventListener('click', async () => {
+  if (!('Notification' in window)) {
+    inPageAlert('이 브라우저는 Notification API를 지원하지 않습니다 — 화면 내 알림으로 대체합니다.');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  log('알림 권한: ' + perm);
+  if (perm === 'granted') new Notification('알림 활성화됨', { body: 'LIVE SURGE SCANNER 알림이 켜졌습니다.' });
+  else inPageAlert('알림 권한이 거부되어 화면 내 알림으로 대체합니다.');
+});
+
+$('btnDlScan').addEventListener('click', () => {
+  if (lastScanRows.length === 0) return;
+  downloadCsv(buildScanCsv(lastScanRows), `live_scan_${lastScanTimeStr}.csv`);
+});
+
+$('btnDlAlerts').addEventListener('click', () => {
+  const h = loadAlertHistory();
+  if (h.length === 0) { inPageAlert('누적된 알림 기록이 없습니다.'); return; }
+  downloadCsv(buildAlertCsv(h), 'alert_history.csv');
+});
+
+for (const id of SETTING_IDS) $(id).addEventListener('change', saveSettings);
+
+/* ---------------- 초기화 ---------------- */
+loadSettings();
+log('준비 완료. "자동 스캔 시작" 또는 "수동 1회 스캔"을 눌러주세요.');
+const savedAlerts = loadAlertHistory();
+if (savedAlerts.length > 0) log(`저장된 alert history ${savedAlerts.length}건 복원됨 (localStorage)`);
+</script>
+</body>
+</html>
