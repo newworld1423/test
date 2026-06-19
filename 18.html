@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCORE WINRATE STUDY — 점수대별 익절 성공률 통계</title>
+<style>
+:root{
+  --bg:#0a0d13;--panel:#121723;--panel2:#181f2e;--border:#2a3447;
+  --text:#eef3fb;--text-dim:#aab8cf;--amber:#ffc857;--green:#3ddc84;
+  --red:#ff6b6b;--blue:#6ab7ff;--purple:#c792ea;
+  --mono:'Consolas','SF Mono','Roboto Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);
+  font-family:'Segoe UI','Pretendard','Apple SD Gothic Neo',sans-serif;
+  font-size:15px;line-height:1.55;padding:24px 20px 80px;}
+.wrap{max-width:1320px;margin:0 auto;}
+header{display:flex;align-items:baseline;gap:14px;margin-bottom:20px;flex-wrap:wrap;}
+header h1{font-family:var(--mono);font-size:25px;letter-spacing:1px;color:var(--amber);}
+header p{color:var(--text-dim);font-size:14.5px;}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:18px 20px;margin-bottom:14px;}
+.panel h2{font-size:14px;font-family:var(--mono);color:var(--amber);letter-spacing:2px;margin-bottom:12px;}
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;}
+.field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:5px;}
+.field input,.field select{width:100%;background:var(--panel2);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:15px;font-family:var(--mono);padding:9px 12px;color-scheme:dark;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+button{border:none;border-radius:8px;font-size:14.5px;font-weight:700;padding:10px 18px;cursor:pointer;transition:filter .15s;}
+button:hover{filter:brightness(1.12);}
+button:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--amber);color:#1a1405;}
+.btn-stop{background:var(--panel2);color:var(--red);border:1px solid var(--red);}
+.btn-dl{background:var(--panel2);color:var(--green);border:1px solid var(--green);}
+.progress-track{height:12px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:12px;}
+.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),#ff9d3d);transition:width .2s;}
+.status-line{font-family:var(--mono);font-size:14px;color:var(--text-dim);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:8px;}
+.status-line .sym{color:var(--blue);}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+.stat{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;}
+.stat .k{font-size:12.5px;color:var(--text-dim);letter-spacing:.5px;}
+.stat .v{font-family:var(--mono);font-size:20px;font-weight:700;margin-top:2px;word-break:break-all;}
+.v.up{color:var(--green);}.v.down{color:var(--red);}.v.hl{color:var(--amber);}
+#chartSvg{width:100%;height:280px;display:block;}
+.tbl-scroll{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13.5px;white-space:nowrap;}
+th,td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;}
+th{color:var(--text-dim);font-weight:600;font-size:12.5px;position:sticky;top:0;background:var(--panel);}
+td:first-child,th:first-child{text-align:left;}
+td.sym{color:var(--blue);font-weight:700;}
+td.tp{color:var(--green);font-weight:700;}td.sl{color:var(--red);font-weight:700;}td.undet{color:var(--text-dim);}
+tr.good td.cum{color:var(--green);font-weight:700;}
+.wr-cell{font-weight:700;}
+#logBox{font-family:var(--mono);font-size:13px;color:var(--text-dim);max-height:200px;overflow-y:auto;
+  background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-all;}
+#errBox{display:none;background:#2a1518;border:1px solid var(--red);border-radius:8px;padding:13px 16px;color:#ffb3b3;font-size:14.5px;margin-bottom:14px;white-space:pre-wrap;}
+.note{font-size:13px;color:var(--text-dim);margin-top:8px;}
+.empty-msg{color:var(--text-dim);font-size:14.5px;padding:10px 4px;}
+.legend{font-size:12.5px;color:var(--text-dim);font-family:var(--mono);margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>SCORE WINRATE STUDY</h1>
+  <p>매 15분봉마다 1위 심볼을 표본으로 · 3% 익절 / 직전봉 저가 손절 · 점수대별 익절 성공률 통계</p>
+</header>
+
+<div id="errBox"></div>
+
+<div class="panel">
+  <h2>SETTINGS</h2>
+  <div class="settings-grid">
+    <div class="field"><label>시작 날짜 (KST 09:00 시작)</label><input type="date" id="setDate"></div>
+    <div class="field"><label>분석 일수 (1~7)</label><input type="number" id="setDays" value="1" min="1" max="7"></div>
+    <div class="field"><label>익절 TP (%)</label><input type="number" id="setTp" value="3" min="0.1" step="0.1"></div>
+    <div class="field"><label>최소 점수 (이상만 표본)</label><input type="number" id="setMinScore" value="0" min="0" max="100"></div>
+    <div class="field"><label>최대 보유 봉수 (미결정 컷)</label><input type="number" id="setMaxHold" value="48" min="1" max="192"></div>
+    <div class="field"><label>동시 충족 시</label>
+      <select id="setResolve"><option value="sl">SL 우선 (보수적)</option><option value="tp">TP 우선</option></select>
+    </div>
+    <div class="field"><label>심볼별 딜레이 (ms)</label><input type="number" id="setDelay" value="70" min="0"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" id="btnRun">통계 분석 실행</button>
+    <button class="btn-stop" id="btnStop" disabled>중지</button>
+  </div>
+  <p class="note">각 15분봉(09:00, 09:15, …)마다 전 USDT 무기한 중 최고 점수 1개만 표본으로 기록합니다. 각 표본은 독립 트레이드로, 진입가×(1+TP%) 도달 시 성공(TP), 직전봉 저가 도달 시 실패(SL), 최대 보유 봉수 내 둘 다 미도달 시 미결정(UNDET)으로 분류합니다.</p>
+</div>
+
+<div class="panel" id="progPanel" style="display:none;">
+  <h2>PROGRESS</h2>
+  <div class="progress-track"><div class="progress-bar" id="pbar"></div></div>
+  <div class="status-line"><span id="pPhase">대기</span><span>심볼: <span class="sym" id="pSym">—</span></span><span id="pCount">0 / 0</span></div>
+</div>
+
+<div class="panel" id="summaryPanel" style="display:none;">
+  <h2>SUMMARY</h2>
+  <div class="summary-grid">
+    <div class="stat"><div class="k">총 표본 (봉 수)</div><div class="v hl" id="sTotal">—</div></div>
+    <div class="stat"><div class="k">익절 성공 (TP)</div><div class="v up" id="sTp">—</div></div>
+    <div class="stat"><div class="k">손절 (SL)</div><div class="v down" id="sSl">—</div></div>
+    <div class="stat"><div class="k">미결정 (UNDET)</div><div class="v" id="sUndet">—</div></div>
+    <div class="stat"><div class="k">전체 익절 성공률</div><div class="v hl" id="sWr">—</div></div>
+  </div>
+</div>
+
+<div class="panel" id="chartPanel" style="display:none;">
+  <h2>익절 성공률 by 점수대</h2>
+  <svg id="chartSvg" viewBox="0 0 1000 280" preserveAspectRatio="none"></svg>
+  <div class="legend">막대 = 점수대별 익절 성공률(TP/(TP+SL)) · 막대 위 숫자 = 표본 수(n) · 점선 = 50% 기준</div>
+</div>
+
+<div class="panel" id="cumPanel" style="display:none;">
+  <h2>★ N점 이상 누적 익절 성공률 (핵심)</h2>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>점수 ≥</th><th>표본 n</th><th>TP</th><th>SL</th><th>UNDET</th><th>익절 성공률</th></tr></thead>
+      <tbody id="cumBody"></tbody>
+    </table>
+  </div>
+  <div class="legend">성공률 = TP / (TP + SL), 미결정은 분모에서 제외. 초록색 = 성공률 50% 이상.</div>
+</div>
+
+<div class="panel" id="bandPanel" style="display:none;">
+  <h2>점수 구간별 상세</h2>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>구간</th><th>표본 n</th><th>TP</th><th>SL</th><th>UNDET</th><th>구간 성공률</th></tr></thead>
+      <tbody id="bandBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel" id="samplePanel" style="display:none;">
+  <h2>표본 내역</h2>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>#</th><th>봉 시각(KST)</th><th>SYMBOL</th><th>SCORE</th><th>진입가</th><th>SL</th><th>TP가</th><th>결과</th><th>보유봉</th><th>사유태그</th></tr></thead>
+      <tbody id="sampleBody"></tbody>
+    </table>
+  </div>
+  <div class="empty-msg" id="sampleEmpty"></div>
+  <div class="btn-row"><button class="btn-dl" id="btnDl" disabled>표본 CSV 다운로드</button></div>
+</div>
+
+<div class="panel"><h2>LOG</h2><div id="logBox"></div></div>
+
+</div>
+
+<script>
+'use strict';
+/* ================================================================
+   SCORE WINRATE STUDY
+   - 매 15분봉마다 전 USDT 무기한 중 최고 점수 1개를 독립 표본으로 기록
+   - 3% TP / 직전봉 저가 SL 결과를 점수대별로 집계
+   - 점수 로직은 LIVE SURGE SCANNER / BACKTESTER와 동일
+   ================================================================ */
+const API_BASE = 'https://fapi.binance.com';
+const KST_OFFSET_MS = 9 * 3600 * 1000;
+const M15 = 15 * 60 * 1000;
+const WARMUP = 168;
+const DAY_CANDLES = 96;
+const MIN_CANDLES = 80;
+
+let stopFlag = false;
+let lastSamples = [];
+let lastLabel = '';
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function safeNum(v, d = 6) { if (v == null) return ''; const n = Number(v); return isFinite(n) ? Number(n.toFixed(d)).toString() : ''; }
+function fmtKST(ms) { const dt = new Date(ms + KST_OFFSET_MS); const p = n => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth()+1)}-${p(dt.getUTCDate())} ${p(dt.getUTCHours())}:${p(dt.getUTCMinutes())}`; }
+function nowKST() { const p = n => String(n).padStart(2, '0'); const dt = new Date(Date.now() + KST_OFFSET_MS);
+  return `${p(dt.getUTCHours())}:${p(dt.getUTCMinutes())}:${p(dt.getUTCSeconds())}`; }
+function log(m) { const b = $('logBox'); b.textContent = (`[${nowKST()}] ${m}\n` + b.textContent).slice(0, 20000); }
+function showErr(m) { const b = $('errBox'); b.style.display = 'block'; b.textContent = m; }
+function clearErr() { $('errBox').style.display = 'none'; }
+
+/* ---------------- API (재시도 + 418 즉시 중단) ---------------- */
+async function apiGet(path, params = {}, maxRetry = 4) {
+  const qs = new URLSearchParams(params).toString();
+  const url = `${API_BASE}${path}${qs ? '?' + qs : ''}`;
+  let lastErr = null;
+  for (let attempt = 0; attempt <= maxRetry; attempt++) {
+    if (stopFlag) throw new Error('STOPPED');
+    try {
+      const res = await fetch(url);
+      if (res.ok) return await res.json();
+      if (res.status === 418) {
+        let until = '';
+        try { const b = await res.json(); const m = /banned until (\d+)/.exec(b.msg || ''); if (m) until = fmtKST(+m[1]) + ' KST'; } catch (_) {}
+        stopFlag = true;
+        showErr('418: 바이낸스 IP 자동 밴 (레이트리밋 반복 초과).\n' + (until ? `밴 해제 시각: ${until}\n` : '') +
+          '요청을 계속 보내면 밴이 연장됩니다. 다른 자동 스캐너 탭을 닫고 해제 후 재시도하세요.');
+        throw new Error('IP_BANNED');
+      }
+      if (res.status === 429 || res.status >= 500) {
+        const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+        await sleep(ra > 0 ? ra * 1000 : Math.min(1000 * 2 ** attempt, 15000));
+        lastErr = new Error(`HTTP ${res.status}`); continue;
+      }
+      throw new Error(`HTTP ${res.status} (${path})`);
+    } catch (e) {
+      if (e.message === 'STOPPED' || e.message === 'IP_BANNED') throw e;
+      lastErr = e;
+      if (e instanceof TypeError && attempt >= 1) showErr('네트워크/CORS 오류: Binance API 접근 불가 (차단/VPN/확장프로그램 확인).');
+      await sleep(Math.min(800 * 2 ** attempt, 8000));
+    }
+  }
+  throw lastErr || new Error('API 요청 실패');
+}
+async function fetchSymbols() {
+  const info = await apiGet('/fapi/v1/exchangeInfo');
+  return info.symbols.filter(s => s.quoteAsset === 'USDT' && s.contractType === 'PERPETUAL' && s.status === 'TRADING')
+    .map(s => s.symbol).sort();
+}
+function parseKlines(raw) {
+  return raw.map(k => ({ openTime: k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4],
+    volume: +k[5], quoteVolume: +k[7], trades: +k[8], takerBuyBase: +k[9], takerBuyQuote: +k[10] }));
+}
+/** limit 500(weight 2) 페이지네이션으로 [startTime, endTime] 전 구간 수집 */
+async function fetchKlinesRange(symbol, startTime, endTime, delay) {
+  const all = [];
+  let cursor = startTime;
+  for (let guard = 0; guard < 20; guard++) {
+    if (stopFlag) throw new Error('STOPPED');
+    const raw = await apiGet('/fapi/v1/klines', { symbol, interval: '15m', startTime: cursor, endTime, limit: 500 });
+    if (!raw.length) break;
+    const ks = parseKlines(raw);
+    for (const k of ks) if (all.length === 0 || k.openTime > all[all.length - 1].openTime) all.push(k);
+    const lastOpen = ks[ks.length - 1].openTime;
+    if (ks.length < 500 || lastOpen >= endTime) break;
+    cursor = lastOpen + M15;
+    await sleep(delay);
+  }
+  return all;
+}
+
+/* ---------------- 지표 (BACKTESTER와 동일) ---------------- */
+function emaSeries(v,p){const o=new Array(v.length).fill(null);if(v.length<p)return o;const k=2/(p+1);let s=0;for(let i=0;i<p;i++)s+=v[i];let pr=s/p;o[p-1]=pr;for(let i=p;i<v.length;i++){pr=v[i]*k+pr*(1-k);o[i]=pr;}return o;}
+function smaSeries(v,p){const o=new Array(v.length).fill(null);let s=0;for(let i=0;i<v.length;i++){s+=v[i];if(i>=p)s-=v[i-p];if(i>=p-1)o[i]=s/p;}return o;}
+function stdSeries(v,p){const o=new Array(v.length).fill(null);for(let i=p-1;i<v.length;i++){let s=0;for(let j=i-p+1;j<=i;j++)s+=v[j];const m=s/p;let q=0;for(let j=i-p+1;j<=i;j++)q+=(v[j]-m)**2;o[i]=Math.sqrt(q/p);}return o;}
+function zscoreSeries(v,p){const ma=smaSeries(v,p),sd=stdSeries(v,p);return v.map((x,i)=>(ma[i]===null||sd[i]===null||sd[i]===0)?null:(x-ma[i])/sd[i]);}
+function rsiSeries(c,p=14){const o=new Array(c.length).fill(null);if(c.length<=p)return o;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d;}let aG=g/p,aL=l/p;o[p]=aL===0?100:100-100/(1+aG/aL);for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];aG=(aG*(p-1)+Math.max(d,0))/p;aL=(aL*(p-1)+Math.max(-d,0))/p;o[i]=aL===0?100:100-100/(1+aG/aL);}return o;}
+function macdHistSeries(c){const e12=emaSeries(c,12),e26=emaSeries(c,26);const macd=c.map((_,i)=>(e12[i]===null||e26[i]===null)?null:e12[i]-e26[i]);const sig=new Array(c.length).fill(null);const st=macd.findIndex(v=>v!==null);if(st>=0&&macd.length-st>=9){const k=2/10;let s=0;for(let i=st;i<st+9;i++)s+=macd[i];let pr=s/9;sig[st+8]=pr;for(let i=st+9;i<macd.length;i++){pr=macd[i]*k+pr*(1-k);sig[i]=pr;}}return macd.map((m,i)=>(m===null||sig[i]===null)?null:m-sig[i]);}
+function atrPctSeries(c,p=14){const out=new Array(c.length).fill(null);if(c.length<=p)return out;const tr=[c[0].high-c[0].low];for(let i=1;i<c.length;i++){const pc=c[i-1].close;tr.push(Math.max(c[i].high-c[i].low,Math.abs(c[i].high-pc),Math.abs(c[i].low-pc)));}let s=0;for(let i=0;i<p;i++)s+=tr[i];let pr=s/p;out[p-1]=c[p-1].close>0?pr/c[p-1].close*100:null;for(let i=p;i<c.length;i++){pr=(pr*(p-1)+tr[i])/p;out[i]=c[i].close>0?pr/c[i].close*100:null;}return out;}
+function rollPrevExtreme(c,p,kind){const o=new Array(c.length).fill(null);for(let i=p;i<c.length;i++){let e=kind==='high'?-Infinity:Infinity;for(let j=i-p;j<i;j++){const v=kind==='high'?c[j].high:c[j].low;e=kind==='high'?Math.max(e,v):Math.min(e,v);}o[i]=e;}return o;}
+
+function computeSeries(candles) {
+  const closes = candles.map(c => c.close), vols = candles.map(c => c.volume),
+    qvols = candles.map(c => c.quoteVolume), trades = candles.map(c => c.trades);
+  const bbMid = smaSeries(closes, 20), bbStd = stdSeries(closes, 20);
+  const bbW = bbMid.map((m, i) => (m === null || m === 0) ? null : (4 * bbStd[i]) / m * 100);
+  return { ema9: emaSeries(closes, 9), ema20: emaSeries(closes, 20), ema50: emaSeries(closes, 50),
+    rsi: rsiSeries(closes, 14), hist: macdHistSeries(closes), bbW, atrPct: atrPctSeries(candles, 14),
+    volMa: smaSeries(vols, 20), volZ: zscoreSeries(vols, 20), qvolMa: smaSeries(qvols, 20), qvolZ: zscoreSeries(qvols, 20),
+    trZ: zscoreSeries(trades, 20), rollH: rollPrevExtreme(candles, 20, 'high'), rollL: rollPrevExtreme(candles, 20, 'low') };
+}
+function scoreAt(candles, S, i) {
+  if (i < 1) return { score: 0, reason: '' };
+  const c = candles[i], o = c.open, h = c.high, cl = c.close;
+  const ret = o > 0 ? (cl / o - 1) * 100 : null;
+  const hfo = o > 0 ? (h / o - 1) * 100 : null;
+  const volRatio = (S.volMa[i] && S.volMa[i] > 0) ? c.volume / S.volMa[i] : null;
+  const qvolRatio = (S.qvolMa[i] && S.qvolMa[i] > 0) ? c.quoteVolume / S.qvolMa[i] : null;
+  const tbr = c.volume > 0 ? c.takerBuyBase / c.volume : null;
+  const closeAbove20 = S.ema20[i] !== null ? cl > S.ema20[i] : false;
+  const ema9Above20 = (S.ema9[i] !== null && S.ema20[i] !== null) ? S.ema9[i] > S.ema20[i] : false;
+  const ema20Above50 = (S.ema20[i] !== null && S.ema50[i] !== null) ? S.ema20[i] > S.ema50[i] : false;
+  const hBrk = S.rollH[i] !== null ? h > S.rollH[i] : false;
+  const cBrk = S.rollH[i] !== null ? cl > S.rollH[i] : false;
+  const bbWChg = (S.bbW[i] !== null && S.bbW[i - 1] !== null && S.bbW[i - 1] > 0) ? (S.bbW[i] - S.bbW[i - 1]) / S.bbW[i - 1] * 100 : null;
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  let s = 0;
+  if (S.volZ[i] !== null) s += clamp01(S.volZ[i] / 4) * 8;
+  if (S.qvolZ[i] !== null) s += clamp01(S.qvolZ[i] / 4) * 7;
+  if (S.trZ[i] !== null) s += clamp01(S.trZ[i] / 4) * 4;
+  if (volRatio !== null) s += clamp01((volRatio - 1) / 3) * 7;
+  if (qvolRatio !== null) s += clamp01((qvolRatio - 1) / 3) * 5;
+  if (ret !== null) s += clamp01(ret / 2.5) * 10;
+  if (hfo !== null) s += clamp01(hfo / 3) * 6;
+  if (hBrk) s += 7; if (cBrk) s += 8;
+  if (closeAbove20) s += 5; if (ema9Above20) s += 4; if (ema20Above50) s += 3;
+  if (tbr !== null) s += clamp01((tbr - 0.5) / 0.2) * 8;
+  if (S.rsi[i] !== null) s += clamp01((S.rsi[i] - 50) / 30) * 6;
+  if (S.hist[i] !== null && cl > 0 && S.hist[i] > 0) s += clamp01((S.hist[i] / cl * 100) / 0.3) * 5;
+  if (bbWChg !== null) s += clamp01(bbWChg / 30) * 4;
+  if (S.atrPct[i] !== null) s += clamp01(S.atrPct[i] / 2) * 3;
+  s = Math.round(Math.max(0, Math.min(100, s)) * 10) / 10;
+  const r = [];
+  if (volRatio !== null && volRatio >= 2) r.push(`VOLx${volRatio.toFixed(1)}`);
+  if (ret !== null && ret >= 1) r.push(`RET${ret.toFixed(1)}`);
+  if (hfo !== null && hfo >= 1.5) r.push(`HFO${hfo.toFixed(1)}`);
+  if (cBrk) r.push('C.BRK'); if (closeAbove20) r.push('C>E20');
+  if (tbr !== null && tbr >= 0.55) r.push(`TBR${tbr.toFixed(2)}`);
+  return { score: s, reason: r.join(' ') };
+}
+
+/* ---------------- 데이터 수집 ---------------- */
+function kstDayStartUtc(dateStr) { const [y, m, d] = dateStr.split('-').map(Number); return Date.UTC(y, m - 1, d); }
+
+async function fetchAllData(symbols, fetchStart, fetchEnd, delay) {
+  const data = {}; let done = 0, errors = 0, cursor = 0;
+  $('pCount').textContent = `0 / ${symbols.length}`;
+  async function worker() {
+    while (!stopFlag) {
+      const idx = cursor++; if (idx >= symbols.length) return;
+      const sym = symbols[idx]; $('pSym').textContent = sym;
+      try {
+        const candles = await fetchKlinesRange(sym, fetchStart, fetchEnd, delay);
+        if (candles.length >= MIN_CANDLES) {
+          const series = computeSeries(candles);
+          const map = new Map(); candles.forEach((c, i) => map.set(c.openTime, i));
+          data[sym] = { candles, series, idx: map };
+        }
+      } catch (e) { if (e.message === 'IP_BANNED' || e.message === 'STOPPED') return; errors++; }
+      done++;
+      $('pCount').textContent = `${done} / ${symbols.length}` + (errors ? ` · err ${errors}` : '');
+      $('pbar').style.width = (done / symbols.length * 100).toFixed(1) + '%';
+      await sleep(delay);
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker));
+  return data;
+}
+
+/* ---------------- 표본 수집 ----------------
+   각 15분봉 t(진입 봉 open)마다:
+   - signal = t-15분 봉 기준 전 심볼 점수 → 최고 1개 표본화
+   - 진입가 = 진입 봉 시가, SL = signal 봉 저가, TP = 진입가*(1+TP%)
+   - 진입 봉부터 maxHold 봉까지 전진하며 TP/SL 판정 (독립 트레이드)
+------------------------------------------------ */
+function collectSamples(data, rangeStart, rangeEnd, cfg) {
+  const symbols = Object.keys(data);
+  const samples = [];
+  for (let t = rangeStart; t < rangeEnd && !stopFlag; t += M15) {
+    const signalOpen = t - M15;
+    let best = null;
+    for (const sym of symbols) {
+      const d = data[sym];
+      const si = d.idx.get(signalOpen), ei = d.idx.get(t);
+      if (si === undefined || ei === undefined || si < 1) continue;
+      const { score, reason } = scoreAt(d.candles, d.series, si);
+      if (score >= cfg.minScore && (!best || score > best.score)) best = { sym, score, reason, si, ei };
+    }
+    if (!best) continue;
+
+    const d = data[best.sym];
+    const entry = d.candles[best.ei].open;
+    const sl = d.candles[best.si].low;
+    const tp = entry * (1 + cfg.tpPct / 100);
+
+    let result = 'UNDET', exitPrice = null, held = 0;
+    const limit = Math.min(d.candles.length - 1, best.ei + cfg.maxHold);
+    for (let i = best.ei; i <= limit; i++) {
+      const c = d.candles[i]; held = i - best.ei;
+      const hitSL = c.low <= sl, hitTP = c.high >= tp;
+      if (hitSL && hitTP) { result = cfg.resolve === 'sl' ? 'SL' : 'TP'; exitPrice = cfg.resolve === 'sl' ? sl : tp; break; }
+      else if (hitSL) { result = 'SL'; exitPrice = sl; break; }
+      else if (hitTP) { result = 'TP'; exitPrice = tp; break; }
+    }
+    samples.push({ time: t, symbol: best.sym, score: best.score, reason: best.reason,
+      entry, sl, tp, result, held, exitPrice });
+  }
+  return samples;
+}
+
+/* ---------------- 통계 집계 ---------------- */
+function buildStats(samples, minScore) {
+  const floor = Math.floor(Math.max(0, minScore) / 5) * 5;
+  // 5점 구간 (마지막 95~100 포함)
+  const bands = [];
+  for (let lo = floor; lo < 100; lo += 5) {
+    const hi = lo + 5;
+    const inBand = samples.filter(s => s.score >= lo && (hi >= 100 ? s.score <= 100 : s.score < hi));
+    const tp = inBand.filter(s => s.result === 'TP').length;
+    const sl = inBand.filter(s => s.result === 'SL').length;
+    const und = inBand.filter(s => s.result === 'UNDET').length;
+    bands.push({ lo, hi: Math.min(hi, 100), n: inBand.length, tp, sl, und,
+      wr: (tp + sl) > 0 ? tp / (tp + sl) * 100 : null });
+  }
+  // 누적 (score >= lo)
+  const cum = [];
+  for (let lo = floor; lo < 100; lo += 5) {
+    const ge = samples.filter(s => s.score >= lo);
+    const tp = ge.filter(s => s.result === 'TP').length;
+    const sl = ge.filter(s => s.result === 'SL').length;
+    const und = ge.filter(s => s.result === 'UNDET').length;
+    cum.push({ lo, n: ge.length, tp, sl, und, wr: (tp + sl) > 0 ? tp / (tp + sl) * 100 : null });
+  }
+  return { bands, cum };
+}
+
+/* ---------------- 렌더링 ---------------- */
+function renderAll(samples, cfg) {
+  const total = samples.length;
+  const tp = samples.filter(s => s.result === 'TP').length;
+  const sl = samples.filter(s => s.result === 'SL').length;
+  const und = samples.filter(s => s.result === 'UNDET').length;
+  const wr = (tp + sl) > 0 ? tp / (tp + sl) * 100 : 0;
+
+  $('summaryPanel').style.display = 'block';
+  $('sTotal').textContent = total;
+  $('sTp').textContent = tp;
+  $('sSl').textContent = sl;
+  $('sUndet').textContent = und;
+  $('sWr').textContent = (tp + sl) > 0 ? wr.toFixed(1) + '%' : '—';
+
+  const { bands, cum } = buildStats(samples, cfg.minScore);
+  drawChart(bands);
+
+  // 누적 표
+  $('cumPanel').style.display = 'block';
+  const cb = $('cumBody'); cb.innerHTML = '';
+  for (const r of cum) {
+    const tr = document.createElement('tr');
+    if (r.wr !== null && r.wr >= 50) tr.className = 'good';
+    tr.innerHTML = `<td>${r.lo}점 ≥</td><td>${r.n}</td><td>${r.tp}</td><td>${r.sl}</td><td>${r.und}</td>` +
+      `<td class="cum wr-cell">${r.wr === null ? '—' : r.wr.toFixed(1) + '%'}</td>`;
+    cb.appendChild(tr);
+  }
+
+  // 구간 표
+  $('bandPanel').style.display = 'block';
+  const bb = $('bandBody'); bb.innerHTML = '';
+  for (const r of bands) {
+    const tr = document.createElement('tr');
+    const color = r.wr === null ? 'var(--text-dim)' : (r.wr >= 60 ? 'var(--green)' : (r.wr >= 45 ? 'var(--amber)' : 'var(--red)'));
+    tr.innerHTML = `<td>${r.lo}~${r.hi}</td><td>${r.n}</td><td>${r.tp}</td><td>${r.sl}</td><td>${r.und}</td>` +
+      `<td class="wr-cell" style="color:${color}">${r.wr === null ? '—' : r.wr.toFixed(1) + '%'}</td>`;
+    bb.appendChild(tr);
+  }
+
+  // 표본 내역
+  $('samplePanel').style.display = 'block';
+  const sb = $('sampleBody'); sb.innerHTML = '';
+  $('sampleEmpty').textContent = total ? '' : '표본이 없습니다 (최소 점수를 낮추거나 기간을 늘려보세요).';
+  samples.forEach((s, i) => {
+    const cls = s.result === 'TP' ? 'tp' : (s.result === 'SL' ? 'sl' : 'undet');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i + 1}</td><td>${fmtKST(s.time).slice(5)}</td><td class="sym">${s.symbol}</td>` +
+      `<td>${s.score.toFixed(1)}</td><td>${safeNum(s.entry)}</td><td>${safeNum(s.sl)}</td><td>${safeNum(s.tp)}</td>` +
+      `<td class="${cls}">${s.result}</td><td>${s.held}</td><td style="text-align:left;color:var(--purple)">${s.reason}</td>`;
+    sb.appendChild(tr);
+  });
+  $('btnDl').disabled = total === 0;
+  lastSamples = samples;
+}
+
+/** 점수대별 승률 막대 차트 (외부 라이브러리 없이 SVG) */
+function drawChart(bands) {
+  $('chartPanel').style.display = 'block';
+  const svg = $('chartSvg');
+  const W = 1000, H = 280, padL = 40, padR = 12, padT = 20, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = bands.length;
+  const bw = plotW / n * 0.7, gap = plotW / n;
+  const y = v => padT + plotH * (1 - v / 100);
+  let g = '';
+  // y축 격자 (0/25/50/75/100%)
+  [0, 25, 50, 75, 100].forEach(v => {
+    const yy = y(v).toFixed(1);
+    g += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="var(--border)" stroke-dasharray="${v === 50 ? '5 4' : '2 5'}"/>`;
+    g += `<text x="${padL - 6}" y="${(+yy + 4)}" fill="var(--text-dim)" font-size="11" font-family="monospace" text-anchor="end">${v}%</text>`;
+  });
+  bands.forEach((b, i) => {
+    const x = padL + gap * i + (gap - bw) / 2;
+    const cx = x + bw / 2;
+    if (b.wr !== null) {
+      const h = plotH * (b.wr / 100);
+      const yy = padT + plotH - h;
+      const col = b.wr >= 60 ? 'var(--green)' : (b.wr >= 45 ? 'var(--amber)' : 'var(--red)');
+      g += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" opacity="0.85" rx="2"/>`;
+      g += `<text x="${cx.toFixed(1)}" y="${(yy - 4).toFixed(1)}" fill="var(--text)" font-size="11" font-family="monospace" text-anchor="middle">${b.wr.toFixed(0)}%</text>`;
+      g += `<text x="${cx.toFixed(1)}" y="${(yy - 16).toFixed(1)}" fill="var(--text-dim)" font-size="10" font-family="monospace" text-anchor="middle">n=${b.n}</text>`;
+    } else {
+      g += `<text x="${cx.toFixed(1)}" y="${(padT + plotH - 4).toFixed(1)}" fill="var(--text-dim)" font-size="10" font-family="monospace" text-anchor="middle">n=${b.n}</text>`;
+    }
+    g += `<text x="${cx.toFixed(1)}" y="${H - padB + 16}" fill="var(--text-dim)" font-size="10.5" font-family="monospace" text-anchor="middle">${b.lo}</text>`;
+  });
+  svg.innerHTML = g;
+}
+
+/* ---------------- CSV ---------------- */
+function downloadCsv(text, fn) {
+  const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = fn;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+function buildCsv(samples) {
+  const cols = ['no','candle_time_kst','symbol','surge_start_score','entry_price','stop_loss','take_profit','result','bars_held','detection_reason'];
+  const lines = [cols.join(',')];
+  samples.forEach((s, i) => lines.push([i + 1, fmtKST(s.time), s.symbol, safeNum(s.score, 1),
+    safeNum(s.entry), safeNum(s.sl), safeNum(s.tp), s.result, s.held, `"${s.reason}"`].join(',')));
+  return lines.join('\n');
+}
+
+/* ---------------- 실행 ---------------- */
+function getCfg() {
+  return {
+    tpPct: Math.max(0.1, parseFloat($('setTp').value) || 3),
+    minScore: Math.max(0, Math.min(100, parseFloat($('setMinScore').value) || 0)),
+    maxHold: Math.max(1, Math.min(192, parseInt($('setMaxHold').value, 10) || 48)),
+    days: Math.max(1, Math.min(7, parseInt($('setDays').value, 10) || 1)),
+    resolve: $('setResolve').value,
+    delay: Math.max(0, parseInt($('setDelay').value, 10) || 70)
+  };
+}
+async function run() {
+  const dateStr = $('setDate').value;
+  if (!dateStr) { showErr('날짜를 선택해주세요.'); return; }
+  clearErr(); stopFlag = false;
+  const cfg = getCfg();
+  const rangeStart = kstDayStartUtc(dateStr);                 // 첫날 09:00 KST
+  const rangeEnd = rangeStart + cfg.days * DAY_CANDLES * M15; // 마지막 진입 봉 경계
+  lastLabel = `${dateStr}_${cfg.days}d`;
+
+  if (rangeStart >= Date.now()) { showErr('미래 날짜는 분석할 수 없습니다.'); return; }
+  const fetchStart = rangeStart - (WARMUP + 1) * M15;
+  let fetchEnd = rangeEnd + cfg.maxHold * M15;                // 마지막 봉들의 전진 판정용
+  const now = Date.now();
+  if (fetchEnd > now) { fetchEnd = now; log('주의: 최근 구간은 전진 데이터가 부족해 일부 표본이 UNDET일 수 있습니다.'); }
+
+  $('btnRun').disabled = true; $('btnStop').disabled = false;
+  $('progPanel').style.display = 'block';
+  ['summaryPanel','chartPanel','cumPanel','bandPanel','samplePanel'].forEach(id => $(id).style.display = 'none');
+  $('pbar').style.width = '0%';
+
+  try {
+    $('pPhase').textContent = '심볼 목록 로딩';
+    const symbols = await fetchSymbols();
+    log(`USDT 무기한 ${symbols.length}개 · ${dateStr} 09:00부터 ${cfg.days}일(${cfg.days * DAY_CANDLES}봉) 분석`);
+
+    $('pPhase').textContent = '캔들 수집 중';
+    const data = await fetchAllData(symbols, fetchStart, fetchEnd, cfg.delay);
+    if (stopFlag) throw new Error('STOPPED');
+    const cnt = Object.keys(data).length;
+    if (cnt === 0) throw new Error('수집된 데이터가 없습니다.');
+    log(`수집 완료: ${cnt}개 심볼`);
+
+    $('pPhase').textContent = '표본 집계 중';
+    const samples = collectSamples(data, rangeStart, rangeEnd, cfg);
+    log(`표본 ${samples.length}건 집계 완료`);
+
+    renderAll(samples, cfg);
+    $('pPhase').textContent = '완료';
+  } catch (e) {
+    if (e.message !== 'IP_BANNED' && e.message !== 'STOPPED') showErr('오류: ' + e.message);
+    log('중단: ' + e.message); $('pPhase').textContent = '중단됨';
+  } finally {
+    $('btnRun').disabled = false; $('btnStop').disabled = true; $('pSym').textContent = '—';
+  }
+}
+
+$('btnRun').addEventListener('click', run);
+$('btnStop').addEventListener('click', () => { stopFlag = true; });
+$('btnDl').addEventListener('click', () => { if (lastSamples.length) downloadCsv(buildCsv(lastSamples), `score_winrate_${lastLabel}.csv`); });
+
+(function initDate() {
+  const d = new Date(Date.now() + KST_OFFSET_MS - 2 * 24 * 3600 * 1000);
+  const p = n => String(n).padStart(2, '0');
+  $('setDate').value = `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
+})();
+log('준비 완료. 날짜·일수를 설정하고 "통계 분석 실행"을 누르세요.');
+</script>
+</body>
+</html>
